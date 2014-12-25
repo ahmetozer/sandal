@@ -112,7 +112,7 @@ func childSysMounts(c *config.Config) error {
 		return err
 	}
 
-	if c.NS.GetNamespaceValue("cgroup") != "host" {
+	if !c.NS.Get("cgroup").IsHost {
 		err = mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
 		if err != nil {
 			return err

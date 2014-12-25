@@ -76,6 +76,5 @@ func printDry(c *config.Config, t *tabwriter.Writer) {
 }
 
 func printNamespaces(c *config.Config, t *tabwriter.Writer) {
-	
-	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.ContPid, c.NS.GetNamespaceValue("cgroup"), c.NS.GetNamespaceValue( "ipc"), c.NS.GetNamespaceValue( "mnt"), c.NS.GetNamespaceValue( "net"), c.NS.GetNamespaceValue( "pid"), c.NS.GetNamespaceValue( "user"), c.NS.GetNamespaceValue( "uts"))
+	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.ContPid, c.NS.Get("cgroup"), c.NS.Get("ipc"), c.NS.Get("mnt"), c.NS.Get("net"), c.NS.Get("pid"), c.NS.Get("user"), c.NS.Get("uts"))
 }

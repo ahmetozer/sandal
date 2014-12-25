@@ -9,13 +9,23 @@ func ParseFlagSet(f *flag.FlagSet) (NS Namespaces) {
 	NS = make(Namespaces, len(namespaceList))
 
 	for namespace := range namespaceList {
-		defaultValue := ""
-		if namespace == "user" {
-			defaultValue = "host"
+		var (
+			defaultNamespace string
+			userValue        string
+		)
+
+		switch namespace {
+		case "user":
+			defaultNamespace = "host"
+		default:
+			defaultNamespace = ""
 		}
-		userValue := ""
+
 		NS[namespace] = NamespaceConf{UserValue: &userValue}
-		f.StringVar(&userValue, "ns-"+namespace, defaultValue, fmt.Sprintf("%s namespace or host", namespace))
+
+		f.StringVar(&userValue, fmt.Sprintf("ns-%s", namespace), defaultNamespace, fmt.Sprintf("%s namespace or host", namespace))
+
 	}
+
 	return
 }

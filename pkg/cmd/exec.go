@@ -3,7 +3,6 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 
@@ -15,7 +14,6 @@ import (
 )
 
 func ExecOnContainer(args []string) error {
-
 	thisFlags, childArgs, splitFlagErr := SplitFlagsArgs(args)
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
@@ -33,9 +31,14 @@ func ExecOnContainer(args []string) error {
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
 
+	// Allocate variable locations
+	NS := namespace.ParseFlagSet(f)
+
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
+	// Execute after parsing flag to prevent nil pointer issues or empty variable
+	NS.Defaults()
 
 	if help {
 		f.Usage()
@@ -61,20 +64,13 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("failed to get container %s: %v", contName, err)
 	}
 
-	var Ns namespace.Namespaces
+	merge := c.NS.SetEmptyToPid(c.ContPid).Merge(NS)
 
-	err = Ns.AllocateNS()
-	if err != nil {
+	if err := merge.Unshare(); err != nil {
 		return err
 	}
 
-	slog.Debug("current namespaces", slog.Any("Ns", Ns))
-	// Unshare the namespaces to be ready to switch new namespace
-	if err := unix.Unshare(int(Ns.Cloneflags())); err != nil {
-		return fmt.Errorf("unshare namespaces: %v", err)
-	}
-
-	err = Ns.SetNS()
+	err = merge.SetNS()
 	if err != nil {
 		return err
 	}

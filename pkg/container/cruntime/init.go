@@ -48,7 +48,7 @@ func ContainerInitProc() {
 			return fmt.Errorf("unable to set hostname %s", err)
 		}
 
-		if c.NS.GetNamespaceValue("net") != "host" {
+		if !c.NS.Get("net").IsHost {
 
 			k, err := netlink.LinkByName("lo")
 			if err == nil {

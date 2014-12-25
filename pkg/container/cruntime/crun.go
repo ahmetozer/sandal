@@ -58,7 +58,7 @@ func crun(c *config.Config) (int, error) {
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.RootfsDir
 
-	err = c.NS.AllocateNS()
+	err = c.NS.Defaults()
 	if err != nil {
 		return 1, err
 	}
@@ -67,7 +67,7 @@ func crun(c *config.Config) (int, error) {
 		Cloneflags: c.NS.Cloneflags(),
 	}
 
-	if c.NS.GetNamespaceValue("user") != "host" && c.NS.GetNamespaceValue("user") != "" && c.NS.GetNamespaceValue("pid") != "host" {
+	if c.NS.Get("user").IsUserDefined && !c.NS.Get("pid").IsHost {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: c.NS.Cloneflags(),
 			UidMappings: []syscall.SysProcIDMap{
@@ -81,10 +81,13 @@ func crun(c *config.Config) (int, error) {
 		}
 	}
 
-	err = c.NS.SetNS()
-	if err != nil {
-		return 1, err
-	}
+	// !Switching custom namespace while container create not supported.
+	// ?The reason is it will impacted daemon due to proccess based impact
+	// // Switch custom namespaces before starting new command
+	// err = c.NS.SetNS()
+	// if err != nil {
+	// 	return 1, err
+	// }
 
 	go cmd.Run()
 
@@ -99,11 +102,11 @@ func crun(c *config.Config) (int, error) {
 
 	c.ContPid = cmd.Process.Pid
 
-	c.NS.LoadNamespaceIDs(c.ContPid)
+	// c.NS.LoadNamespaceIDs(c.ContPid)
 
 	c.Status = ContainerStatusRunning
 
-	if c.NS.GetNamespaceValue("net") != "host" {
+	if !c.NS.Get("net").IsHost {
 		links, err := net.ToLinks(&c.Net)
 		if err != nil {
 			return 1, err
