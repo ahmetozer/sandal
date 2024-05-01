@@ -1,10 +1,9 @@
 package net
 
 import (
-	"syscall"
-
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type InerfaceType uint8
@@ -24,7 +23,7 @@ type NetInterface struct {
 func DeleteInterface(name string) error {
 	link, err := netlink.LinkByName(name)
 	if err != nil {
-		if syscall.Errno(err.(syscall.Errno)) != syscall.ENODEV {
+		if unix.Errno(err.(unix.Errno)) != unix.ENODEV {
 			return err
 		}
 	}

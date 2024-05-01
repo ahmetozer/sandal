@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
+	"golang.org/x/sys/unix"
 )
 
 type changesDir struct {
@@ -33,7 +33,7 @@ func createChangeDir(c *config.Config) (changesDir, error) {
 			return dir, fmt.Errorf("creating %s directory: %s", defaultChangeRoot(c), err)
 		}
 		// Mount the tmpfs
-		err := syscall.Mount("tmpfs", defaultChangeRoot(c), "tmpfs", uintptr(0), fmt.Sprintf("size=%d", sizeBytes))
+		err := unix.Mount("tmpfs", defaultChangeRoot(c), "tmpfs", uintptr(0), fmt.Sprintf("size=%d", sizeBytes))
 		if err != nil {
 			return dir, fmt.Errorf("tmpfs: %s", err)
 		}

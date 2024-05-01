@@ -3,9 +3,9 @@ package container
 import (
 	"fmt"
 	"os"
-	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
+	"golang.org/x/sys/unix"
 )
 
 func MountRootfs(c *config.Config) error {
@@ -25,7 +25,7 @@ func MountRootfs(c *config.Config) error {
 	}
 
 	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", squasfsMount, changeDir.uppper, changeDir.work)
-	err = syscall.Mount("overlay", c.RootfsDir, "overlay", 0, options)
+	err = unix.Mount("overlay", c.RootfsDir, "overlay", 0, options)
 	if err != nil {
 		return fmt.Errorf("overlay: %s", err)
 	}
@@ -39,7 +39,7 @@ func UmountRootfs(c *config.Config) error {
 		return err
 	}
 
-	err = syscall.Unmount(c.RootfsDir, 0)
+	err = unix.Unmount(c.RootfsDir, 0)
 	if err != nil {
 		return fmt.Errorf("umount: %s", err)
 	}
@@ -49,7 +49,7 @@ func UmountRootfs(c *config.Config) error {
 	}
 
 	if c.ChangeDir == "" && c.TmpSize != 0 {
-		syscall.Unmount(defaultChangeRoot(c), 0)
+		unix.Unmount(defaultChangeRoot(c), 0)
 	}
 
 	err = os.Remove(LOOP_DEVICE_PREFIX + fmt.Sprint(c.LoopDevNo))

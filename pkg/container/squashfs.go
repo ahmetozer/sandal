@@ -5,9 +5,9 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
+	"golang.org/x/sys/unix"
 )
 
 func mountSquashfsFile(c *config.Config) (string, error) {
@@ -33,7 +33,7 @@ func mountSquashfsFile(c *config.Config) (string, error) {
 		return "", fmt.Errorf("cannot attach loop: %s", err)
 	}
 
-	err = syscall.Mount(LOOP_DEVICE_PREFIX+strconv.Itoa(c.LoopDevNo), squashfsMountDir(c), "squashfs", syscall.MS_RDONLY, "")
+	err = unix.Mount(LOOP_DEVICE_PREFIX+strconv.Itoa(c.LoopDevNo), squashfsMountDir(c), "squashfs", unix.MS_RDONLY, "")
 	if err != nil {
 		return "", fmt.Errorf("mount: %s", err)
 	}
@@ -43,7 +43,7 @@ func mountSquashfsFile(c *config.Config) (string, error) {
 
 func umountSquashfsFile(c *config.Config) error {
 	file := squashfsMountDir(c)
-	err := syscall.Unmount(file, 0)
+	err := unix.Unmount(file, 0)
 	if err != nil {
 		return fmt.Errorf("umount: %s", err)
 	}

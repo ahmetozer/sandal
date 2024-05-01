@@ -3,9 +3,9 @@ package net
 import (
 	"net"
 	"strings"
-	"syscall"
 
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func AddAddress(name string, addrs string) error {
@@ -17,6 +17,10 @@ func AddAddress(name string, addrs string) error {
 }
 
 func addAddress(link netlink.Link, addrs string) error {
+
+	if addrs == "" {
+		return nil
+	}
 
 	for _, ip := range strings.Split(addrs, ";") {
 
@@ -32,7 +36,7 @@ func addAddress(link netlink.Link, addrs string) error {
 		}
 		if err := netlink.AddrAdd(link, addrNet); err != nil {
 			// if its not file exists error, return error
-			if syscall.Errno(err.(syscall.Errno)) != syscall.EEXIST {
+			if unix.Errno(err.(unix.Errno)) != unix.EEXIST {
 				return err
 			}
 		}
