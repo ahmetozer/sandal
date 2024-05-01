@@ -37,7 +37,7 @@ func run(args []string) error {
 	f.StringVar(&HostIface.Name, "host-net", "sandal0", "host interface for bridge or macvlan")
 	f.StringVar(&HostIface.IP, "host-ips", "172.16.0.1/24;fd34:0135:0123::1/64", "host interface ips")
 
-	PodIface := config.NetIface{Type: "veth", Main: []config.NetIface{HostIface}}
+	PodIface := config.NetIface{Type: "veth"}
 	// f.StringVar(&PodIface.Name, "pod-net", "eth0", "container interface name")
 	f.StringVar(&PodIface.IP, "pod-ips", "172.16.0.2/24;fd34:0135:0123::2/64", "container interface ips")
 
@@ -51,6 +51,8 @@ func run(args []string) error {
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
+
+	PodIface.Main = append(PodIface.Main, HostIface)
 
 	if help {
 		f.Usage()
