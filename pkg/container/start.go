@@ -46,12 +46,18 @@ func Start(c config.Config, args []string) error {
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: cmdFlags,
-		UidMappings: []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: 0, Size: 65535},
-		},
-		GidMappings: []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: 0, Size: 65535},
-		},
+	}
+
+	if c.NS.User != "host" && c.NS.Pid != "host" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags: cmdFlags,
+			UidMappings: []syscall.SysProcIDMap{
+				{ContainerID: 0, HostID: 0, Size: 4294967295},
+			},
+			GidMappings: []syscall.SysProcIDMap{
+				{ContainerID: 0, HostID: 0, Size: 4294967295},
+			},
+		}
 	}
 
 	c.SaveConftoDisk()
