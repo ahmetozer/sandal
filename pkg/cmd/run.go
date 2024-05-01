@@ -44,7 +44,9 @@ func run(args []string) error {
 	f.StringVar(&c.NS.Net, "net", "", "net namespace or host")
 	f.StringVar(&c.NS.Pid, "pid", "", "pid namespace or host")
 	f.StringVar(&c.NS.Uts, "uts", "", "uts namespace or host")
-	f.StringVar(&c.NS.User, "user", "", "user namespace or host")
+	f.StringVar(&c.NS.User, "user", "host", "user namespace or host")
+
+	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)

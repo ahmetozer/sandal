@@ -43,6 +43,7 @@ type Config struct {
 	NS           NS
 	ChangeDir    string
 	Exec         string
+	Devtmpfs     string
 
 	Ifaces []NetIface
 }

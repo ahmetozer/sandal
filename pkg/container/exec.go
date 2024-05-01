@@ -22,36 +22,11 @@ func Exec() {
 		log.Fatalf("unable to set hostname %s", err)
 	}
 
-	configureIfaces(c)
-	childMounts()
+	configureIfaces(&c)
+	childMounts(&c)
 
 	if err := net.SetInterfaceUp("lo"); err != nil {
 		log.Fatalf("unable to set lo up %s", err)
-	}
-
-	ethNo := 0
-	for i := range c.Ifaces {
-		if c.Ifaces[i].ALocFor == config.ALocForPod {
-			err = net.SetName(&c, c.Ifaces[i].Name, fmt.Sprintf("eth%d", ethNo))
-			if err != nil {
-				log.Fatalf("unable to set name %s", err)
-			}
-
-			err = net.AddAddress(c.Ifaces[i].Name, c.Ifaces[i].IP)
-			if err != nil {
-				log.Fatalf("unable to add address %s", err)
-			}
-
-			err = net.SetInterfaceUp(fmt.Sprintf("eth%d", ethNo))
-			if err != nil {
-				log.Fatalf("unable to set eth%d up %s", ethNo, err)
-			}
-			if ethNo == 0 {
-				net.AddDefaultRoutes(c.Ifaces[i])
-			}
-
-			ethNo++
-		}
 	}
 
 	_, args := childArgs(os.Args)
@@ -79,11 +54,35 @@ func loadConfig() (config.Config, error) {
 
 }
 
-func configureIfaces(config.Config) {
+func configureIfaces(c *config.Config) {
+	var err error
+	ethNo := 0
+	for i := range c.Ifaces {
+		if c.Ifaces[i].ALocFor == config.ALocForPod {
+			err = net.SetName(c, c.Ifaces[i].Name, fmt.Sprintf("eth%d", ethNo))
+			if err != nil {
+				log.Fatalf("unable to set name %s", err)
+			}
 
+			err = net.AddAddress(c.Ifaces[i].Name, c.Ifaces[i].IP)
+			if err != nil {
+				log.Fatalf("unable to add address %s", err)
+			}
+
+			err = net.SetInterfaceUp(fmt.Sprintf("eth%d", ethNo))
+			if err != nil {
+				log.Fatalf("unable to set eth%d up %s", ethNo, err)
+			}
+			if ethNo == 0 {
+				net.AddDefaultRoutes(c.Ifaces[i])
+			}
+
+			ethNo++
+		}
+	}
 }
 
-func childMounts() {
+func childMounts(c *config.Config) {
 	var err error
 	mf := uintptr(syscall.MS_PRIVATE | syscall.MS_REC)
 	if err := syscall.Mount("", "/", "", mf, ""); err != nil {
@@ -109,23 +108,28 @@ func childMounts() {
 	// }
 
 	if err := syscall.Mount("proc", "/proc", "proc", uintptr(syscall.MS_NOSUID|syscall.MS_NODEV|syscall.MS_NOEXEC|syscall.MS_RELATIME), ""); err != nil {
-		log.Fatalf("unable to mount /proc %s", err)
+		log.Fatalf("unable to mount proc /proc %s", err)
 	}
 
-	if err := syscall.Mount("tmpfs", "/dev", "tmpfs", uintptr(syscall.MS_NOSUID), "size=65536k,mode=755"); err != nil {
-		log.Fatalf("unable to mount /proc %s", err)
+	if c.Devtmpfs != "/dev" {
+		if err := syscall.Mount("tmpfs", "/dev", "tmpfs", uintptr(syscall.MS_NOSUID), "size=65536k,mode=755"); err != nil {
+			log.Fatalf("unable to mount tmpfs /dev %s", err)
+		}
+	}
+	if c.Devtmpfs != "" {
+		os.MkdirAll(c.Devtmpfs, 0755)
+		if err := syscall.Mount("tmpfs", c.Devtmpfs, "devtmpfs", uintptr(syscall.MS_NOSUID), "size=65536k,mode=755"); err != nil {
+			log.Fatalf("unable to mount devtmpfs %s %s", c.Devtmpfs, err)
+		}
 	}
 
 	if err := syscall.Mount("sysfs", "/sys", "sysfs", uintptr(syscall.MS_NODEV|syscall.MS_NOEXEC|syscall.MS_NOSUID|syscall.MS_RELATIME), "ro"); err != nil {
-		log.Fatalf("unable to mount /proc %s", err)
+		log.Fatalf("unable to mount sysfs /sys %s", err)
 	}
 
-	if err := os.Mkdir("/dev/pts", 0755); err != nil {
-		log.Fatalf("unable to create dir /dev/pts %s", err)
-	}
-
+	os.Mkdir("/dev/pts", 0755)
 	if err = syscall.Mount("devpts", "/dev/pts", "devpts", uintptr(syscall.MS_NOSUID|syscall.MS_NOEXEC|syscall.MS_RELATIME), "gid=5,mode=620,ptmxmode=666"); err != nil {
-		log.Fatalf("unable to mount /dev/pts %s", err)
+		log.Fatalf("unable to mount devpts /dev/pts %s", err)
 	}
 
 	// if err := os.Mkdir("/dev/mqueue", 0755); err != nil {
@@ -134,6 +138,14 @@ func childMounts() {
 	// if err = syscall.Mount("mqueue", "/dev/mqueue", "mqueue", uintptr(syscall.MS_NODEV|syscall.MS_NOEXEC|syscall.MS_RELATIME), ""); err != nil {
 	// 	log.Fatalf("unable to mount /dev/mqueue %s", err)
 	// }
+
+	if err := os.Mkdir("/dev/shm", 0755); err != nil {
+		log.Fatalf("unable to create dir /dev/shm %s", err)
+	}
+
+	if err = syscall.Mount("shm", "/dev/shm", "tmpfs", uintptr(syscall.MS_NOSUID|syscall.MS_NODEV|syscall.MS_NOEXEC|syscall.MS_RELATIME), "size=64000k"); err != nil {
+		log.Fatalf("unable to mount tmpfs /dev/shm %s", err)
+	}
 
 	// mount as private then unmount to remove access to old root
 	if err := syscall.Mount("", "/.old_root", "", uintptr(syscall.MS_PRIVATE|syscall.MS_REC), ""); err != nil {
