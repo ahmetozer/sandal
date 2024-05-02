@@ -40,10 +40,14 @@ type Config struct {
 
 	SquashfsFile string
 	RootfsDir    string
+	ReadOnly     bool
+	EnvAll       bool
 	NS           NS
 	ChangeDir    string
 	Exec         string
 	Devtmpfs     string
+	Resolv       string
+	Hosts        string
 
 	Ifaces []NetIface
 }

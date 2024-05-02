@@ -87,7 +87,10 @@ func IsChild() bool {
 }
 
 func childEnv(c *config.Config) []string {
-	return append(os.Environ(), CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
+	if c.EnvAll {
+		return append(os.Environ(), CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
+	}
+	return []string{CHILD_CONFIG_ENV_NAME + "=" + c.ConfigFileLoc()}
 }
 
 func childArgs(args []string) (string, []string) {

@@ -18,6 +18,8 @@ func childSysMounts(c *config.Config) {
 	mount("rootfs/", "rootfs/", "", unix.MS_BIND|unix.MS_REC, "")
 
 	resolvFile := read("/etc/resolv.conf")
+	hostsFile := read("/etc/hosts")
+
 	os.Mkdir("rootfs/.old_root", 0700)
 	if err := unix.PivotRoot("rootfs/", "rootfs/.old_root"); err != nil {
 		log.Fatalf("unable to pivot root %s", err)
@@ -27,7 +29,7 @@ func childSysMounts(c *config.Config) {
 	mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
 
 	createResolv(c, resolvFile)
-	// createHosts(c)
+	createHosts(c, hostsFile)
 
 	if err := os.Chdir("/"); err != nil {
 		log.Fatalf("unable to chdir to / %s", err)
