@@ -12,6 +12,8 @@ import (
 	"github.com/ahmetozer/sandal/pkg/net"
 )
 
+var exitCode = 0
+
 func run(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("no command option provided")
@@ -47,10 +49,10 @@ func run(args []string) error {
 	f.StringVar(&c.Resolv, "resolv", "cp-n", "cp (copy), cp-n (copy if not exist) , image(use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist) , image(use image)")
 
-	f.StringVar(&c.NS.Net, "net", "", "net namespace or host")
-	f.StringVar(&c.NS.Pid, "pid", "", "pid namespace or host")
-	f.StringVar(&c.NS.Uts, "uts", "", "uts namespace or host")
-	f.StringVar(&c.NS.User, "user", "host", "user namespace or host")
+	f.StringVar(&c.NS.Net, "ns-net", "", "net namespace or host")
+	f.StringVar(&c.NS.Pid, "ns-pid", "", "pid namespace or host")
+	f.StringVar(&c.NS.Uts, "ns-uts", "", "uts namespace or host")
+	f.StringVar(&c.NS.User, "ns-user", "host", "user namespace or host")
 
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
@@ -103,7 +105,8 @@ func run(args []string) error {
 	}
 
 	// Starting proccess
-	return container.Start(&c, args)
+	exitCode, err = container.Start(&c, args)
+	return err
 }
 
 func defaultRootfs(c *config.Config) string {

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
@@ -14,15 +13,11 @@ import (
 
 const CHILD_CONFIG_ENV_NAME = "SANDAL_CHILD"
 
-func Start(c *config.Config, args []string) error {
+func Start(c *config.Config, args []string) (int, error) {
 
 	c.Exec, args = childArgs(args)
 
-	self, err := filepath.Abs(os.Args[0])
-	if err != nil {
-		return fmt.Errorf("unable to get absolute path of self: %v", err)
-	}
-	cmd := exec.Command(self, args...)
+	cmd := exec.Command("/proc/self/exe", args...)
 
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -62,9 +57,9 @@ func Start(c *config.Config, args []string) error {
 	}
 
 	c.SaveConftoDisk()
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
-		return fmt.Errorf("starting container: %v", err)
+		return 0, fmt.Errorf("starting container: %v", err)
 	}
 	c.PodPid = cmd.Process.Pid
 
@@ -73,7 +68,7 @@ func Start(c *config.Config, args []string) error {
 		if iface.ALocFor == config.ALocForPod {
 			err = net.SetNs(iface, c.PodPid)
 			if err != nil {
-				return fmt.Errorf("setting network namespace: %v", err)
+				return 0, fmt.Errorf("setting network namespace: %v", err)
 			}
 		}
 	}
@@ -87,7 +82,9 @@ func Start(c *config.Config, args []string) error {
 	}()
 
 	cmd.Wait()
-	return nil
+	sig, _ := cmd.Process.Wait()
+
+	return sig.ExitCode(), nil
 }
 
 func IsChild() bool {
