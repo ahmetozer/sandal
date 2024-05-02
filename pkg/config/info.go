@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,20 @@ type NetIface struct {
 	Main    []NetIface
 }
 
+type Volumes []string
+
+func (f *Volumes) String() string {
+	b, _ := json.Marshal(*f)
+	return string(b)
+}
+
+func (f *Volumes) Set(value string) error {
+	for _, str := range strings.Split(value, ",") {
+		*f = append(*f, str)
+	}
+	return nil
+}
+
 type Config struct {
 	Name string
 
@@ -48,6 +63,7 @@ type Config struct {
 	Devtmpfs     string
 	Resolv       string
 	Hosts        string
+	Volumes      Volumes
 
 	Ifaces []NetIface
 }

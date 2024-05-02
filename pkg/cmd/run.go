@@ -25,10 +25,11 @@ func run(args []string) error {
 		help bool
 		err  error
 	)
+
 	f.BoolVar(&help, "help", false, "show help")
 	f.StringVar(&c.Name, "name", config.GenerateContainerId(), "name of the container")
 	f.StringVar(&c.SquashfsFile, "sq", "./rootfs.squasfs", "squashfs image location")
-	f.StringVar(&c.RootfsDir, "rootfs", defaultRootfs(&c), "rootfs directory")
+	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
 	f.BoolVar(&c.EnvAll, "env-all", false, "send all enviroment variables to container")
 
@@ -53,10 +54,15 @@ func run(args []string) error {
 
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
+	f.Var(&c.Volumes, "v", "volume mount point")
+
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
 
+	if c.RootfsDir == "" {
+		c.RootfsDir = defaultRootfs(&c)
+	}
 	PodIface.Main = append(PodIface.Main, HostIface)
 
 	if help {

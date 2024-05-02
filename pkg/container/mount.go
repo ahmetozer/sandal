@@ -3,6 +3,8 @@ package container
 import (
 	"log"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"golang.org/x/sys/unix"
@@ -16,6 +18,8 @@ func childSysMounts(c *config.Config) {
 
 	mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
 	mount("rootfs/", "rootfs/", "", unix.MS_BIND|unix.MS_REC, "")
+
+	mountVolumes(c)
 
 	resolvFile := read("/etc/resolv.conf")
 	hostsFile := read("/etc/hosts")
@@ -75,5 +79,20 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 	os.MkdirAll(target, 0600)
 	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
 		log.Fatalf("unable to mount %s %s %s %s", source, target, fstype, err)
+	}
+}
+
+func mountVolumes(c *config.Config) {
+	for _, v := range c.Volumes {
+
+		m := strings.Split(v, ":")
+		switch len(m) {
+		case 1:
+			m = append(m, m[0], "")
+		case 2:
+			m = append(m, "")
+		}
+
+		mount(m[0], path.Join("rootfs", m[1]), "", unix.MS_BIND|unix.MS_REC, m[2])
 	}
 }
