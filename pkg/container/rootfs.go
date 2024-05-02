@@ -52,9 +52,7 @@ func UmountRootfs(c *config.Config) error {
 		unix.Unmount(defaultChangeRoot(c), 0)
 	}
 
-	err = os.Remove(LOOP_DEVICE_PREFIX + fmt.Sprint(c.LoopDevNo))
-	if err != nil {
-		return fmt.Errorf("cannot remove loop%d device: %s", c.LoopDevNo, err)
-	}
+	DetachLoopDevice(c.LoopDevNo)
+
 	return nil
 }

@@ -8,11 +8,14 @@ import (
 )
 
 const (
-	LOOP_SET_FD        = 0x4C00
-	LOOP_CTL_ADD       = 0x4C80
-	LOOP_CTL_GET_FREE  = 0x4C82
-	LOOP_CTL_REMOVE    = 0x4C01
-	LOOP_AUTO_CLEAR    = 0x4C0F
+	// https://github.com/util-linux/util-linux/blob/master/include/loopdev.h#L46
+	LOOP_SET_FD       = 0x4C00
+	LOOP_CLR_FD       = 0x4C01
+	LOOP_SET_STATUS64 = 0x4C04
+	LOOP_CTL_ADD      = 0x4C80
+	LOOP_CTL_REMOVE   = 0x4C81
+	LOOP_CTL_GET_FREE = 0x4C82
+
 	LOOP_DEVICE_PREFIX = "/dev/loop"
 )
 
@@ -31,8 +34,8 @@ func FindFreeLoopDevice() (int, error) {
 }
 
 func AttachLoopDevice(loopDev int, file *os.File) error {
-	loopDevice, err := os.OpenFile(LOOP_DEVICE_PREFIX+fmt.Sprint(loopDev), os.O_RDWR, 0660)
 
+	loopDevice, err := os.OpenFile(LOOP_DEVICE_PREFIX+fmt.Sprint(loopDev), os.O_RDWR, 0660)
 	if err != nil {
 		return fmt.Errorf("could not open loop device: %v", err)
 	}
@@ -42,6 +45,19 @@ func AttachLoopDevice(loopDev int, file *os.File) error {
 		return fmt.Errorf("could not associate loop device with file: %v", os.NewSyscallError("ioctl", errno))
 	}
 
+	_, _, errno = unix.Syscall(unix.SYS_IOCTL, loopDevice.Fd(), 0x4C00+7, 0)
+	if errno != 0 {
+		return fmt.Errorf("could not set autoclear on loop device: %v", os.NewSyscallError("ioctl", errno))
+	}
 	return nil
 
+}
+
+func DetachLoopDevice(loopDev int) error {
+	loopDevice, _ := os.OpenFile(LOOP_DEVICE_PREFIX+fmt.Sprint(loopDev), os.O_RDWR, 0660)
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, loopDevice.Fd(), LOOP_CLR_FD, 0)
+	if errno != 0 {
+		return fmt.Errorf("could not detach loop device: %v", os.NewSyscallError("ioctl", errno))
+	}
+	return nil
 }
