@@ -38,7 +38,7 @@ func run(args []string) error {
 	f.UintVar(&c.TmpSize, "tmp-size", 0, "allocate changes at memory instead of disk. 0 means disk is used and other values unit is in MB")
 
 	HostIface := config.NetIface{ALocFor: config.ALocForHost}
-	f.StringVar(&HostIface.Type, "net-type", "bridge", "bridge or macvlan")
+	f.StringVar(&HostIface.Type, "net-type", "bridge", "bridge, macvlan, ipvlan")
 	f.StringVar(&HostIface.Name, "host-net", "sandal0", "host interface for bridge or macvlan")
 	f.StringVar(&HostIface.IP, "host-ips", "172.16.0.1/24;fd34:0135:0123::1/64", "host interface ips")
 
@@ -65,6 +65,7 @@ func run(args []string) error {
 	if c.RootfsDir == "" {
 		c.RootfsDir = defaultRootfs(&c)
 	}
+	c.Ifaces = []config.NetIface{HostIface}
 	PodIface.Main = append(PodIface.Main, HostIface)
 
 	if help {
@@ -74,9 +75,11 @@ func run(args []string) error {
 
 	if c.NS.Net != "host" {
 		defer net.Clear(&c)
-		err = net.CreateIface(&c, &HostIface)
-		if err != nil {
-			return fmt.Errorf("error creating host interface: %v", err)
+		if HostIface.Type == "bridge" {
+			err = net.CreateIface(&c, &HostIface)
+			if err != nil {
+				return fmt.Errorf("error creating host interface: %v", err)
+			}
 		}
 		err = net.CreateIface(&c, &PodIface)
 		if err != nil {

@@ -43,7 +43,7 @@ func CreateIface(c *config.Config, iface *config.NetIface) error {
 		return fmt.Errorf("multiple main interface not supported")
 	}
 
-	if iface.Type == "macvlan" {
+	if iface.Main[0].Type == "macvlan" {
 		parentLink, err := netlink.LinkByName(iface.Main[0].Name)
 		if err != nil {
 			return fmt.Errorf("error getting parent interface: %v", err)
@@ -54,14 +54,37 @@ func CreateIface(c *config.Config, iface *config.NetIface) error {
 			Mode:      netlink.MACVLAN_MODE_BRIDGE,
 		}
 
-		if _, err := netlink.LinkByName(iface.Name); err == nil {
-			return fmt.Errorf("interface \"%s\" already exists", iface.Name)
+		if _, err := netlink.LinkByName(ifaceLink.Attrs().Name); err == nil {
+			return fmt.Errorf("interface \"%s\" already exists", ifaceLink.Attrs().Name)
 		}
 
 		if err = netlink.LinkAdd(ifaceLink); err != nil {
 			return fmt.Errorf("error creating macvlan interface: %v", err)
 		}
-		c.Ifaces = append(c.Ifaces, config.NetIface{Name: iface.Name, Type: "macvlan", ALocFor: config.ALocForPod, IP: iface.IP})
+		c.Ifaces = append(c.Ifaces, config.NetIface{Name: ifaceLink.Attrs().Name, Type: "macvlan", ALocFor: config.ALocForPod, IP: iface.IP})
+
+		return nil
+	}
+
+	if iface.Main[0].Type == "ipvlan" {
+		parentLink, err := netlink.LinkByName(iface.Main[0].Name)
+		if err != nil {
+			return fmt.Errorf("error getting parent interface: %v", err)
+		}
+
+		ifaceLink = &netlink.IPVlan{
+			LinkAttrs: netlink.LinkAttrs{Name: NewIfName(c).Cont, ParentIndex: parentLink.Attrs().Index},
+			Mode:      netlink.IPVLAN_MODE_L3S,
+		}
+
+		if _, err := netlink.LinkByName(ifaceLink.Attrs().Name); err == nil {
+			return fmt.Errorf("interface \"%s\" already exists", ifaceLink.Attrs().Name)
+		}
+
+		if err = netlink.LinkAdd(ifaceLink); err != nil {
+			return fmt.Errorf("error creating ipvlan interface: %v", err)
+		}
+		c.Ifaces = append(c.Ifaces, config.NetIface{Name: ifaceLink.Attrs().Name, Type: "ipvlan", ALocFor: config.ALocForPod, IP: iface.IP})
 
 		return nil
 	}
