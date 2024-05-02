@@ -13,7 +13,7 @@ import (
 
 const CHILD_CONFIG_ENV_NAME = "SANDAL_CHILD"
 
-func Start(c config.Config, args []string) error {
+func Start(c *config.Config, args []string) error {
 
 	c.Exec, args = childArgs(args)
 
@@ -26,7 +26,7 @@ func Start(c config.Config, args []string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = childEnv(&c)
+	cmd.Env = childEnv(c)
 	cmd.Dir = c.ContDir()
 
 	var cmdFlags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP

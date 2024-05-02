@@ -103,7 +103,7 @@ func run(args []string) error {
 	}
 
 	// Starting proccess
-	return container.Start(c, args)
+	return container.Start(&c, args)
 }
 
 func defaultRootfs(c *config.Config) string {
