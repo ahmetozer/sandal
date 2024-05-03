@@ -34,6 +34,8 @@ func run(args []string) error {
 	f.StringVar(&c.SquashfsFile, "sq", "./rootfs.squasfs", "squashfs image location")
 	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
+	f.BoolVar(&c.RemoveOnExit, "rm", false, "remove container files on exit")
+
 	f.BoolVar(&c.EnvAll, "env-all", false, "send all enviroment variables to container")
 
 	f.UintVar(&c.TmpSize, "tmp-size", 0, "allocate changes at memory instead of disk. 0 means disk is used and other values unit is in MB")
@@ -74,6 +76,10 @@ func run(args []string) error {
 		return nil
 	}
 
+	if !hasItExecutable(args) {
+		return fmt.Errorf("no executable provided")
+	}
+
 	if err := checkExistence(&c); err != nil {
 		return err
 	}
@@ -92,11 +98,14 @@ func run(args []string) error {
 		}
 	}
 
-	defer func() {
-		if err := os.RemoveAll(c.ContDir()); err != nil {
-			slog.Info("removeall: %v", err)
-		}
-	}()
+	// Clear everthing on exit
+	if c.RemoveOnExit {
+		defer func() {
+			if err := os.RemoveAll(c.ContDir()); err != nil {
+				slog.Info("removeall: %v", err)
+			}
+		}()
+	}
 
 	// mount squasfs
 	err = container.MountRootfs(&c)
@@ -107,9 +116,6 @@ func run(args []string) error {
 	}()
 	if err != nil {
 		return fmt.Errorf("error mount: %v", err)
-	}
-	if !hasItExecutable(args) {
-		return fmt.Errorf("no executable provided")
 	}
 
 	// Starting proccess

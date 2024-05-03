@@ -56,6 +56,7 @@ type Config struct {
 	SquashfsFile string
 	RootfsDir    string
 	ReadOnly     bool
+	RemoveOnExit bool
 	EnvAll       bool
 	NS           NS
 	ChangeDir    string
