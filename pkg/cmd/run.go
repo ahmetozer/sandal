@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -73,6 +74,10 @@ func run(args []string) error {
 		return nil
 	}
 
+	if err := checkExistence(&c); err != nil {
+		return err
+	}
+
 	if c.NS.Net != "host" {
 		defer net.Clear(&c)
 		if HostIface.Type == "bridge" {
@@ -114,4 +119,21 @@ func run(args []string) error {
 
 func defaultRootfs(c *config.Config) string {
 	return path.Join(config.Workdir, "container", c.Name, "rootfs")
+}
+
+func checkExistence(c *config.Config) error {
+	configLocation := c.ConfigFileLoc()
+	if _, err := os.Stat(configLocation); err == nil {
+		file, err := os.ReadFile(configLocation)
+		if err != nil {
+			return fmt.Errorf("container config %s is exist but unable to read: %v", configLocation, err)
+		}
+		oldConfig := config.NewContainer()
+		json.Unmarshal(file, &oldConfig)
+		_, err = os.FindProcess(oldConfig.HostPid)
+		if err == nil {
+			return fmt.Errorf("container %s is already running on %d", oldConfig.Name, oldConfig.HostPid)
+		}
+	}
+	return nil
 }
