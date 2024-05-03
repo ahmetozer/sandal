@@ -27,6 +27,8 @@ func defaultChangeRoot(c *config.Config) string {
 }
 func createChangeDir(c *config.Config) (changesDir, error) {
 	dir := ChangeDir(c)
+
+	// if temp size is set, create a tmpfs and allocate changes under tmpfs
 	if c.ChangeDir == "" && c.TmpSize != 0 {
 		sizeBytes := uint64(c.TmpSize * 1024 * 1024) // 100MB
 		if err := os.MkdirAll(defaultChangeRoot(c), 0755); err != nil {
@@ -38,6 +40,7 @@ func createChangeDir(c *config.Config) (changesDir, error) {
 			return dir, fmt.Errorf("tmpfs: %s", err)
 		}
 	}
+
 	if err := os.MkdirAll(dir.work, 0755); err != nil {
 		return dir, fmt.Errorf("creating %s directory: %s", dir.work, err)
 	}
