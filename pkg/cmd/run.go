@@ -29,7 +29,7 @@ func run(args []string) error {
 		err  error
 	)
 
-	f.BoolVar(&help, "help", false, "show help")
+	f.BoolVar(&help, "help", false, "show this help message")
 	f.StringVar(&c.Name, "name", config.GenerateContainerId(), "name of the container")
 	f.StringVar(&c.SquashfsFile, "sq", "./rootfs.squasfs", "squashfs image location")
 	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
