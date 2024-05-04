@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -16,6 +15,7 @@ import (
 var exitCode = 0
 
 func run(args []string) error {
+
 	if len(args) < 1 {
 		return fmt.Errorf("no command option provided")
 	}
@@ -80,7 +80,7 @@ func run(args []string) error {
 		return fmt.Errorf("no executable provided")
 	}
 
-	if err := checkExistence(&c); err != nil {
+	if err := container.CheckExistence(&c); err != nil {
 		return err
 	}
 
@@ -125,21 +125,4 @@ func run(args []string) error {
 
 func defaultRootfs(c *config.Config) string {
 	return path.Join(config.Workdir, "container", c.Name, "rootfs")
-}
-
-func checkExistence(c *config.Config) error {
-	configLocation := c.ConfigFileLoc()
-	if _, err := os.Stat(configLocation); err == nil {
-		file, err := os.ReadFile(configLocation)
-		if err != nil {
-			return fmt.Errorf("container config %s is exist but unable to read: %v", configLocation, err)
-		}
-		oldConfig := config.NewContainer()
-		json.Unmarshal(file, &oldConfig)
-		_, err = os.FindProcess(oldConfig.HostPid)
-		if err == nil {
-			return fmt.Errorf("container %s is already running on %d", oldConfig.Name, oldConfig.HostPid)
-		}
-	}
-	return nil
 }
