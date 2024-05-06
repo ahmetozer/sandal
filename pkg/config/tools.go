@@ -11,7 +11,7 @@ import (
 
 // ContDir returns the work directory for curret container
 func (c *Config) ContDir() string {
-	return path.Join(Workdir, "container", c.Name)
+	return path.Join(Containers, c.Name)
 }
 
 func (c *Config) ConfigFileLoc() string {

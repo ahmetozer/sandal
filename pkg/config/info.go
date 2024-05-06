@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"path"
 	"strings"
 	"time"
 )
@@ -93,5 +94,10 @@ func (c Config) Json() []byte {
 
 var (
 	// Main folder for all container related files
-	Workdir string = "/run/sandal"
+	Workdir    string = "/run/sandal"
+	Containers string = ""
 )
+
+func init() {
+	Containers = path.Join(Workdir, "containers")
+}

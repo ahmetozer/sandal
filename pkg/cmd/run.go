@@ -47,7 +47,7 @@ func run(args []string) error {
 
 	PodIface := config.NetIface{Type: "veth"}
 	// f.StringVar(&PodIface.Name, "pod-net", "eth0", "container interface name")
-	f.StringVar(&PodIface.IP, "pod-ips", "172.16.0.2/24;fd34:0135:0123::2/64", "container interface ips")
+	f.StringVar(&PodIface.IP, "pod-ips", "", "container interface ips")
 
 	f.StringVar(&c.Resolv, "resolv", "cp-n", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist), image(use image)")
@@ -70,6 +70,9 @@ func run(args []string) error {
 	}
 	c.Ifaces = []config.NetIface{HostIface}
 	PodIface.Main = append(PodIface.Main, HostIface)
+	if PodIface.IP == "" {
+		PodIface.IP = net.FindFreePodIPs(HostIface.IP)
+	}
 
 	if help {
 		f.Usage()
@@ -124,5 +127,5 @@ func run(args []string) error {
 }
 
 func defaultRootfs(c *config.Config) string {
-	return path.Join(config.Workdir, "container", c.Name, "rootfs")
+	return path.Join(config.Containers, c.Name, "rootfs")
 }
