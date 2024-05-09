@@ -94,7 +94,7 @@ func (c Config) Json() []byte {
 
 var (
 	// Main folder for all container related files
-	Workdir    string = "/run/sandal"
+	Workdir    string = "/var/lib/sandal"
 	Containers string = ""
 )
 
