@@ -70,6 +70,7 @@ type Config struct {
 	Devtmpfs     string
 	Resolv       string
 	Hosts        string
+	Status       string
 	Volumes      Volumes
 
 	Ifaces []NetIface

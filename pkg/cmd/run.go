@@ -12,8 +12,6 @@ import (
 	"github.com/ahmetozer/sandal/pkg/net"
 )
 
-var exitCode = 0
-
 func run(args []string) error {
 
 	if len(args) < 1 {
@@ -123,6 +121,13 @@ func run(args []string) error {
 
 	// Starting proccess
 	exitCode, err = container.Start(&c, args)
+	if !c.RemoveOnExit {
+		c.Status = fmt.Sprintf("exit %d", exitCode)
+		if err != nil {
+			c.Status = fmt.Sprintf("err %v", err)
+		}
+		c.SaveConftoDisk()
+	}
 	return err
 }
 

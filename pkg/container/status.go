@@ -9,6 +9,13 @@ import (
 	"github.com/ahmetozer/sandal/pkg/config"
 )
 
+const (
+	ContainerStatusCreating = "creating"
+	ContainerStatusRunning  = "running"
+	ContainerStatusStopped  = "stopped"
+	ContainerStatusHang     = "hang"
+)
+
 func CheckExistence(c *config.Config) error {
 	configLocation := c.ConfigFileLoc()
 	if _, err := os.Stat(configLocation); err == nil {
@@ -24,4 +31,8 @@ func CheckExistence(c *config.Config) error {
 		}
 	}
 	return nil
+}
+
+func IsRunning(c *config.Config) bool {
+	return syscall.Kill(c.PodPid, syscall.Signal(0)) == nil
 }

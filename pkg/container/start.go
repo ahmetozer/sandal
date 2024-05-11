@@ -15,7 +15,7 @@ import (
 const CHILD_CONFIG_ENV_NAME = "SANDAL_CHILD"
 
 func Start(c *config.Config, args []string) (int, error) {
-
+	c.Status = ContainerStatusCreating
 	c.Exec, args = childArgs(args)
 
 	cmd := exec.Command("/proc/self/exe", args...)
@@ -66,6 +66,7 @@ func Start(c *config.Config, args []string) (int, error) {
 
 	loadNamespaceIDs(c)
 
+	c.Status = ContainerStatusRunning
 	c.SaveConftoDisk()
 	for _, iface := range c.Ifaces {
 		if iface.ALocFor == config.ALocForPod {
