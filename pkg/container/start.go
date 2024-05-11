@@ -81,10 +81,8 @@ func Start(c *config.Config, args []string) (int, error) {
 		}
 	}()
 
-	cmd.Wait()
-	sig, _ := cmd.Process.Wait()
-
-	return sig.ExitCode(), nil
+	sig, err := cmd.Process.Wait()
+	return sig.ExitCode(), err
 }
 
 func IsChild() bool {
