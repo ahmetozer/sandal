@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
@@ -63,6 +64,8 @@ func Start(c *config.Config, args []string) (int, error) {
 	}
 	c.PodPid = cmd.Process.Pid
 
+	loadNamespaceIDs(c)
+
 	c.SaveConftoDisk()
 	for _, iface := range c.Ifaces {
 		if iface.ALocFor == config.ALocForPod {
@@ -104,4 +107,37 @@ func childArgs(args []string) (string, []string) {
 		return args[0], nil
 	}
 	return args[0], args[1:]
+}
+
+func loadNamespaceIDs(c *config.Config) {
+
+	c.NS.Pid = readNamespace(fmt.Sprintf("/proc/%d/ns/pid", c.PodPid))
+	c.NS.Net = readNamespace(fmt.Sprintf("/proc/%d/ns/net", c.PodPid))
+	c.NS.User = readNamespace(fmt.Sprintf("/proc/%d/ns/user", c.PodPid))
+	c.NS.Uts = readNamespace(fmt.Sprintf("/proc/%d/ns/uts", c.PodPid))
+	c.NS.Ipc = readNamespace(fmt.Sprintf("/proc/%d/ns/ipc", c.PodPid))
+	c.NS.Cgroup = readNamespace(fmt.Sprintf("/proc/%d/ns/cgroup", c.PodPid))
+	c.NS.Mnt = readNamespace(fmt.Sprintf("/proc/%d/ns/mnt", c.PodPid))
+	c.NS.Time = readNamespace(fmt.Sprintf("/proc/%d/ns/time", c.PodPid))
+	c.NS.NS = readNamespace(fmt.Sprintf("/proc/%d/ns/ns", c.PodPid))
+}
+
+func readNamespace(f string) string {
+	s, err := os.Readlink(f)
+	if err != nil {
+		return ""
+	}
+	return parseNamspaceInfo(s)
+}
+
+func parseNamspaceInfo(s string) string {
+
+	ns := strings.Split(s, "[")
+	if ns == nil {
+		return s
+	}
+	if len(ns) == 2 {
+		return strings.Trim(ns[1], "]")
+	}
+	return s
 }

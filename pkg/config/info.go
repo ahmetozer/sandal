@@ -9,10 +9,15 @@ import (
 )
 
 type NS struct {
-	Net  string
-	Pid  string
-	Uts  string
-	User string
+	Net    string
+	Pid    string
+	Uts    string
+	User   string
+	Ipc    string
+	Cgroup string
+	NS     string
+	Mnt    string
+	Time   string
 }
 
 type ALocFor uint8
@@ -99,5 +104,9 @@ var (
 )
 
 func init() {
+
+	if os.Getenv("SANDAL_WORKDIR") != "" {
+		Workdir = os.Getenv("SANDAL_WORKDIR")
+	}
 	Containers = path.Join(Workdir, "containers")
 }
