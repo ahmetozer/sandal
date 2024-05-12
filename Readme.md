@@ -22,7 +22,7 @@ Options
 - -help  
     show this help message
 - -host-ips string  
-host interface IP’s (default "172.16.0.1/24;fd34:0135:0123::1/64")
+    host interface IP’s (default "172.16.0.1/24;fd34:0135:0123::1/64")
 - -host-net string  
     host root interface for bridge or MACVLAN (default "sandal0")  
     If it’s a bridge, sub-veth interfaces are attached, for MACVLAN, sub-interfaces forked from the main.
@@ -75,3 +75,16 @@ sandal run -sq=/mnt/sandal/images/homeas.sq  -pod-ips="172.16.0.3/24;fd34:0135:0
 sandal run -sq=/mnt/sandal/images/octo.sq  -env-all --ns-net=host --name=octo \
 -pod-ips="172.16.0.4/24;172.16.0.5/24;fd34:0135:0123::4/64"  -v=/mnt/octo:/octoprint/octoprint  -devtmpfs=/mnt/external/ /init
 ```
+
+### Ps
+
+Listing existing containers
+
+Options
+
+- -help  
+    Show help message.
+- -ns  
+    List with namespaces.
+- -verify
+    Verify the container process is running with sending signal 0.
