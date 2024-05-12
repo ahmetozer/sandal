@@ -55,14 +55,14 @@ type Config struct {
 
 	Created   int64
 	HostPid   int
-	PodPid    int
+	ContPid   int
 	LoopDevNo int
 	TmpSize   uint
 
 	SquashfsFile string
 	RootfsDir    string
 	ReadOnly     bool
-	RemoveOnExit bool
+	Keep         bool
 	EnvAll       bool
 	Background   bool
 	NS           NS

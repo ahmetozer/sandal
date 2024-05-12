@@ -20,6 +20,8 @@ func Main() {
 		executeSubCommand(ps)
 	case "convert":
 		executeSubCommand(convert)
+	case "kill":
+		executeSubCommand(kill)
 	case "help":
 		subCommandsHelp()
 	default:

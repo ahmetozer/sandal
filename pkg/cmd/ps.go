@@ -62,9 +62,9 @@ func printVerified(c *config.Config, t *tabwriter.Writer) {
 
 func printDefault(c *config.Config, t *tabwriter.Writer) {
 	created := time.Unix(c.Created, 0).Format(time.RFC3339)
-	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.SquashfsFile, c.Exec, created, c.Status, c.PodPid)
+	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.SquashfsFile, c.Exec, created, c.Status, c.ContPid)
 }
 
 func printNamespaces(c *config.Config, t *tabwriter.Writer) {
-	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.PodPid, c.NS.Cgroup, c.NS.Ipc, c.NS.Mnt, c.NS.Net, c.NS.Pid, c.NS.User, c.NS.Uts)
+	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.ContPid, c.NS.Cgroup, c.NS.Ipc, c.NS.Mnt, c.NS.Net, c.NS.Pid, c.NS.User, c.NS.Uts)
 }

@@ -52,8 +52,9 @@ Options
     cp-n: Copy host’s resolv.conf file if the container image does not exist or is the empty  
     image: Do nothing, use the image’s resolv.conf if it exists.  
     ipaddress: you can provide multiple nameservers (IPv4 and IPv6) by argument, it is overwrites to container’s resov.conf.  
-- -rm  
-    remove container files on the exit
+- -keep  
+    do not remove container files on exit
+    (for background proccesses, system it will always keep)
 - -ro  
     read-only rootfs
 - -sq string  
@@ -63,7 +64,7 @@ Options
 - -v value  
     volume mount point
 
-Example executions
+Examples:
 
 ```sh
 sandal run -sq=homeas.sq  -v=/run/dbus:/run/dbus -name=homeas -env-all \
@@ -80,11 +81,62 @@ sandal run -sq=/mnt/sandal/images/octo.sq  -env-all --ns-net=host --name=octo \
 
 Listing existing containers
 
-Options
+Default ps command is assumes state file but if its deamon or form some reason host proccess killed, it is not updated so `-verify` checks proccess.
 
-- -help  
-    Show help message.
-- -ns  
-    List with namespaces.
-- -verify
-    Verify the container process is running with sending signal 0.
+Example:
+
+```bash
+sandal ps
+NAME                   SQUASHFS                       COMMAND   CREATED                   STATUS                                       PID
+22IQkaDNhRp9okqsewZL19 /mnt/sandal/images/homeas.sqfs /bin/bash 2024-05-11T22:48:59+01:00 exit 0                                       815519
+22J7btLUSru7kuDRbkxLpi alpine.sqfs                    /bin/ash  2024-05-12T15:18:32+01:00 exit 0                                       927465
+22J7dGBOWOz5sgrXiwVpRx alpine.sqfs                    /bin/ash  2024-05-12T15:20:38+01:00 exit 0                                       928541
+22JbC5X2ks59IViFLkuVfG alpine.sqfs                    /bin/ping 2024-05-12T19:38:31+01:00 running                                      957321 <- Note here
+22JbvIh9nbT1CpkNgrB8K1 alpine.sqfs                    /bin/ash  2024-05-12T19:32:28+01:00 exit 130                                     953991
+sandal ps -verify
+NAME                   SQUASHFS                       COMMAND   CREATED                   STATUS                                       PID
+22IQkaDNhRp9okqsewZL19 /mnt/sandal/images/homeas.sqfs /bin/bash 2024-05-11T22:48:59+01:00 exit 0                                       815519
+22J7btLUSru7kuDRbkxLpi alpine.sqfs                    /bin/ash  2024-05-12T15:18:32+01:00 exit 0                                       927465
+22J7dGBOWOz5sgrXiwVpRx alpine.sqfs                    /bin/ash  2024-05-12T15:20:38+01:00 exit 0                                       928541
+22JbC5X2ks59IViFLkuVfG alpine.sqfs                    /bin/ping 2024-05-12T19:38:31+01:00 hang                                         957321 <-
+22JbvIh9nbT1CpkNgrB8K1 alpine.sqfs                    /bin/ash  2024-05-12T19:32:28+01:00 exit 130                                     953991
+```
+
+Listing namespace id's
+
+```bash
+sandal ps -ns
+NAME                   PID    CGROUPNS   IPC        MNT        NET        PIDNS      USERNS     UTS
+22IQkaDNhRp9okqsewZL19 815519 4026532509 4026532507 4026532505 4026532510 4026532508 4026531837 4026532506
+22J7btLUSru7kuDRbkxLpi 927465 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
+22J7dGBOWOz5sgrXiwVpRx 928541 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
+22JbC5X2ks59IViFLkuVfG 957321 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
+22JbvIh9nbT1CpkNgrB8K1 953991 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
+```
+
+### Convert
+
+Creating squashfs from existing containers.  
+Note: this process requires podman or docker to get details for your container, and `squashfs-tools` to create a squashfs archive image.
+
+Example
+
+```bash
+podman run -it --rm --name cont1 alpine
+sandal convert cont1
+#[==================================================|] 92/92 100%
+sandal run  -sq=cont1.sqfs /bin/ping 1.0.0.1
+```
+
+### Kill
+
+Kill container process
+
+Example
+
+```bash
+sandal run -d -sq=cont1.sqfs --name cont1 /bin/ping 1.0.0.1
+sandal kill cont1
+
+sandal kill 22JbC5X2ks59IViFLkuVfG
+```

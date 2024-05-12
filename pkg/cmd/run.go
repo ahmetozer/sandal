@@ -33,7 +33,8 @@ func run(args []string) error {
 	f.StringVar(&c.SquashfsFile, "sq", "./rootfs.sqfs", "squashfs image location")
 	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
-	f.BoolVar(&c.RemoveOnExit, "rm", false, "remove container files on exit")
+
+	f.BoolVar(&c.Keep, "keep", false, "do not remove container files on exit")
 
 	f.BoolVar(&c.EnvAll, "env-all", false, "send all enviroment variables to container")
 
@@ -113,7 +114,8 @@ func run(args []string) error {
 
 	// Starting proccess
 	exitCode, err = container.Start(&c, args)
-	if !c.RemoveOnExit {
+
+	if c.Keep {
 		c.Status = fmt.Sprintf("exit %d", exitCode)
 		if err != nil {
 			c.Status = fmt.Sprintf("err %v", err)
@@ -135,7 +137,7 @@ func deRunContainer(c *config.Config) {
 		net.Clear(c)
 	}
 
-	if c.RemoveOnExit {
+	if !c.Keep {
 		if err := os.RemoveAll(c.ContDir()); err != nil {
 			slog.Info("removeall: %v", err)
 		}

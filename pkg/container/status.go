@@ -25,7 +25,7 @@ func CheckExistence(c *config.Config) error {
 		}
 		oldConfig := config.NewContainer()
 		json.Unmarshal(file, &oldConfig)
-		killErr := syscall.Kill(oldConfig.HostPid, syscall.Signal(0))
+		killErr := syscall.Kill(oldConfig.ContPid, syscall.Signal(0))
 		if killErr == nil {
 			return fmt.Errorf("container %s is already running on %d", oldConfig.Name, oldConfig.HostPid)
 		}
@@ -34,5 +34,5 @@ func CheckExistence(c *config.Config) error {
 }
 
 func IsRunning(c *config.Config) bool {
-	return syscall.Kill(c.PodPid, syscall.Signal(0)) == nil
+	return syscall.Kill(c.ContPid, syscall.Signal(0)) == nil
 }

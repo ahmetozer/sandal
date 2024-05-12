@@ -65,7 +65,7 @@ func Start(c *config.Config, args []string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("starting container: %v", err)
 	}
-	c.PodPid = cmd.Process.Pid
+	c.ContPid = cmd.Process.Pid
 
 	loadNamespaceIDs(c)
 
@@ -73,7 +73,7 @@ func Start(c *config.Config, args []string) (int, error) {
 	c.SaveConftoDisk()
 	for _, iface := range c.Ifaces {
 		if iface.ALocFor == config.ALocForPod {
-			err = net.SetNs(iface, c.PodPid)
+			err = net.SetNs(iface, c.ContPid)
 			if err != nil {
 				return 0, fmt.Errorf("setting network namespace: %v", err)
 			}
@@ -127,15 +127,15 @@ func childArgs(args []string) (string, []string) {
 
 func loadNamespaceIDs(c *config.Config) {
 
-	c.NS.Pid = readNamespace(fmt.Sprintf("/proc/%d/ns/pid", c.PodPid))
-	c.NS.Net = readNamespace(fmt.Sprintf("/proc/%d/ns/net", c.PodPid))
-	c.NS.User = readNamespace(fmt.Sprintf("/proc/%d/ns/user", c.PodPid))
-	c.NS.Uts = readNamespace(fmt.Sprintf("/proc/%d/ns/uts", c.PodPid))
-	c.NS.Ipc = readNamespace(fmt.Sprintf("/proc/%d/ns/ipc", c.PodPid))
-	c.NS.Cgroup = readNamespace(fmt.Sprintf("/proc/%d/ns/cgroup", c.PodPid))
-	c.NS.Mnt = readNamespace(fmt.Sprintf("/proc/%d/ns/mnt", c.PodPid))
-	c.NS.Time = readNamespace(fmt.Sprintf("/proc/%d/ns/time", c.PodPid))
-	c.NS.NS = readNamespace(fmt.Sprintf("/proc/%d/ns/ns", c.PodPid))
+	c.NS.Pid = readNamespace(fmt.Sprintf("/proc/%d/ns/pid", c.ContPid))
+	c.NS.Net = readNamespace(fmt.Sprintf("/proc/%d/ns/net", c.ContPid))
+	c.NS.User = readNamespace(fmt.Sprintf("/proc/%d/ns/user", c.ContPid))
+	c.NS.Uts = readNamespace(fmt.Sprintf("/proc/%d/ns/uts", c.ContPid))
+	c.NS.Ipc = readNamespace(fmt.Sprintf("/proc/%d/ns/ipc", c.ContPid))
+	c.NS.Cgroup = readNamespace(fmt.Sprintf("/proc/%d/ns/cgroup", c.ContPid))
+	c.NS.Mnt = readNamespace(fmt.Sprintf("/proc/%d/ns/mnt", c.ContPid))
+	c.NS.Time = readNamespace(fmt.Sprintf("/proc/%d/ns/time", c.ContPid))
+	c.NS.NS = readNamespace(fmt.Sprintf("/proc/%d/ns/ns", c.ContPid))
 }
 
 func readNamespace(f string) string {
@@ -159,12 +159,12 @@ func parseNamspaceInfo(s string) string {
 }
 
 func AttachContainerToPID(c *config.Config, masterPid int) error {
-	if err := syscall.Setpgid(c.PodPid, masterPid); err != nil {
+	if err := syscall.Setpgid(c.ContPid, masterPid); err != nil {
 		return fmt.Errorf("error setting process group id: %s", err)
 
 	}
 
-	if pgid, err := syscall.Getpgid(c.PodPid); err != nil || pgid != masterPid {
+	if pgid, err := syscall.Getpgid(c.ContPid); err != nil || pgid != masterPid {
 		return fmt.Errorf("container group pid is not verified: %s", err)
 	}
 
