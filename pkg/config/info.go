@@ -64,6 +64,7 @@ type Config struct {
 	ReadOnly     bool
 	RemoveOnExit bool
 	EnvAll       bool
+	Background   bool
 	NS           NS
 	ChangeDir    string
 	Exec         string

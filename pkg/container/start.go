@@ -20,9 +20,12 @@ func Start(c *config.Config, args []string) (int, error) {
 
 	cmd := exec.Command("/proc/self/exe", args...)
 
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if !c.Background {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.ContDir()
 
@@ -85,6 +88,18 @@ func Start(c *config.Config, args []string) (int, error) {
 		}
 	}()
 
+	if c.Background {
+		go func() {
+			_, err := cmd.Process.Wait()
+			if err != nil {
+				fmt.Printf("running container: %v", err)
+				os.Exit(1)
+			}
+		}()
+		AttachContainerToPID(c, 1)
+		os.Exit(0)
+	}
+
 	sig, err := cmd.Process.Wait()
 	return sig.ExitCode(), err
 }
@@ -141,4 +156,17 @@ func parseNamspaceInfo(s string) string {
 		return strings.Trim(ns[1], "]")
 	}
 	return s
+}
+
+func AttachContainerToPID(c *config.Config, masterPid int) error {
+	if err := syscall.Setpgid(c.PodPid, masterPid); err != nil {
+		return fmt.Errorf("error setting process group id: %s", err)
+
+	}
+
+	if pgid, err := syscall.Getpgid(c.PodPid); err != nil || pgid != masterPid {
+		return fmt.Errorf("container group pid is not verified: %s", err)
+	}
+
+	return nil
 }

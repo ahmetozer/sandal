@@ -31,7 +31,7 @@ func ps(args []string) error {
 		return nil
 	}
 
-	header := "NAME\tSQUASHFS\tCOMMAND\tCREATED\tSTATUS"
+	header := "NAME\tSQUASHFS\tCOMMAND\tCREATED\tSTATUS\tPID"
 	printFunc := printDefault
 	if verify {
 		printFunc = printVerified
@@ -59,10 +59,12 @@ func printVerified(c *config.Config, t *tabwriter.Writer) {
 	}
 	printDefault(c, t)
 }
+
 func printDefault(c *config.Config, t *tabwriter.Writer) {
 	created := time.Unix(c.Created, 0).Format(time.RFC3339)
-	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n", c.Name, c.SquashfsFile, c.Exec, created, c.Status)
+	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.SquashfsFile, c.Exec, created, c.Status, c.PodPid)
 }
+
 func printNamespaces(c *config.Config, t *tabwriter.Writer) {
 	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.PodPid, c.NS.Cgroup, c.NS.Ipc, c.NS.Mnt, c.NS.Net, c.NS.Pid, c.NS.User, c.NS.Uts)
 }

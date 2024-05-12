@@ -28,6 +28,7 @@ func run(args []string) error {
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
+	f.BoolVar(&c.Background, "d", false, "run container in background")
 	f.StringVar(&c.Name, "name", config.GenerateContainerId(), "name of the container")
 	f.StringVar(&c.SquashfsFile, "sq", "./rootfs.sqfs", "squashfs image location")
 	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
@@ -86,7 +87,7 @@ func run(args []string) error {
 	}
 
 	if c.NS.Net != "host" {
-		defer net.Clear(&c)
+
 		if HostIface.Type == "bridge" {
 			err = net.CreateIface(&c, &HostIface)
 			if err != nil {
@@ -99,24 +100,15 @@ func run(args []string) error {
 		}
 	}
 
-	// Clear everthing on exit
-	if c.RemoveOnExit {
-		defer func() {
-			if err := os.RemoveAll(c.ContDir()); err != nil {
-				slog.Info("removeall: %v", err)
-			}
-		}()
-	}
-
 	// mount squasfs
 	err = container.MountRootfs(&c)
-	defer func() {
-		if err := container.UmountRootfs(&c); err != nil {
-			slog.Info("umount: %v", err)
-		}
-	}()
+
 	if err != nil {
 		return fmt.Errorf("error mount: %v", err)
+	}
+
+	if !c.Background {
+		defer deRunContainer(&c)
 	}
 
 	// Starting proccess
@@ -133,4 +125,19 @@ func run(args []string) error {
 
 func defaultRootfs(c *config.Config) string {
 	return path.Join(config.Containers, c.Name, "rootfs")
+}
+
+func deRunContainer(c *config.Config) {
+	if err := container.UmountRootfs(c); err != nil {
+		slog.Info("umount: %v", err)
+	}
+	if c.NS.Net != "host" {
+		net.Clear(c)
+	}
+
+	if c.RemoveOnExit {
+		if err := os.RemoveAll(c.ContDir()); err != nil {
+			slog.Info("removeall: %v", err)
+		}
+	}
 }
