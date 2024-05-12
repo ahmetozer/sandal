@@ -57,7 +57,7 @@ Options
 - -ro  
     read-only rootfs
 - -sq string  
-    squashfs image location (default "./rootfs.squasfs")
+    squashfs image location (default "./rootfs.sqfs")
 - -tmp uint  
     allocate changes at memory instead of disk. unit is in MB, disk is used by default
 - -v value  

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 )
@@ -8,7 +9,8 @@ import (
 func Main() {
 
 	if len(os.Args) < 2 {
-		slog.Error("No argument provided")
+		slog.Error("No argument provided\n\n")
+		subCommandsHelp()
 		os.Exit(0)
 	}
 	switch os.Args[1] {
@@ -16,6 +18,10 @@ func Main() {
 		executeSubCommand(run)
 	case "ps":
 		executeSubCommand(ps)
+	case "convert":
+		executeSubCommand(convert)
+	case "help":
+		subCommandsHelp()
 	default:
 		slog.Error("Unknown sub command", slog.String("arg", os.Args[1]))
 		os.Exit(1)
@@ -34,4 +40,12 @@ func executeSubCommand(f func([]string) error) {
 		slog.Error(os.Args[1], slog.String("err", err.Error()))
 		os.Exit(exitCode)
 	}
+}
+
+func subCommandsHelp() {
+	fmt.Printf(`Avaible sub commands:
+	run - Run a container
+	ps - List containers
+	convert - Convert a container image to squashfs
+	help - Show this help`)
 }
