@@ -6,6 +6,12 @@ import (
 	"os"
 )
 
+var (
+	BuildVersion = "0.0.0-source"
+	BuildTime    = "not presented"
+	GitCommit    = "not presented"
+)
+
 func Main() {
 
 	if len(os.Args) < 2 {
@@ -49,5 +55,8 @@ func subCommandsHelp() {
 	run - Run a container
 	ps - List containers
 	convert - Convert a container image to squashfs
+	kill - Kill a container
 	help - Show this help`)
+
+	fmt.Printf("\n\nVersion: %s\nBuild Time: %s\nGit Commit: %s\n", BuildVersion, BuildTime, GitCommit)
 }
