@@ -130,3 +130,12 @@ sandal kill cont1
 
 sandal kill 22JbC5X2ks59IViFLkuVfG
 ```
+
+### Restart
+
+Kill and restart container proccess with same args and current enviroment variable.
+
+```bash
+sandal run -d -sq=cont1.sqfs --name cont1 /bin/ping 1.0.0.1
+sandal restart cont1
+```

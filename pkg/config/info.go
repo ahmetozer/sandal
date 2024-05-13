@@ -73,6 +73,7 @@ type Config struct {
 	Hosts        string
 	Status       string
 	Volumes      Volumes
+	HostArgs     []string
 
 	Ifaces []NetIface
 }

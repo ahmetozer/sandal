@@ -34,5 +34,13 @@ func CheckExistence(c *config.Config) error {
 }
 
 func IsRunning(c *config.Config) bool {
-	return syscall.Kill(c.ContPid, syscall.Signal(0)) == nil
+	return IsPidRunning(c.ContPid)
+}
+
+func IsPidRunning(pid int) bool {
+	return SendSig(pid, 0) == nil
+}
+
+func SendSig(pid, sig int) error {
+	return syscall.Kill(pid, syscall.Signal(sig))
 }

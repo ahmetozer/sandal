@@ -28,6 +28,8 @@ func Main() {
 		executeSubCommand(convert)
 	case "kill":
 		executeSubCommand(kill)
+	case "restart":
+		executeSubCommand(restart)
 	case "help":
 		subCommandsHelp()
 	default:
@@ -56,7 +58,8 @@ func subCommandsHelp() {
 	ps - List containers
 	convert - Convert a container image to squashfs
 	kill - Kill a container
+	restart - Restart a container
 	help - Show this help`)
 
-	fmt.Printf("\n\nVersion: %s\nBuild Time: %s\nGit Commit: %s\n", BuildVersion, BuildTime, GitCommit)
+	fmt.Printf("\n\nVersion: %s\n", BuildVersion)
 }

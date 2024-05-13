@@ -20,6 +20,7 @@ func run(args []string) error {
 
 	thisFlags, args := SplitArgs(args)
 	c := config.NewContainer()
+	c.HostArgs = os.Args
 	f := flag.NewFlagSet("run", flag.ExitOnError)
 
 	var (
