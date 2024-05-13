@@ -20,7 +20,7 @@ builds:
       - softfloat
 archives:
   - format: binary
-    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    name_template: '{{ .Binary }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
     files:
       - none*
 release:
@@ -33,3 +33,4 @@ changelog:
       - "^docs:"
       - "^test:"
       - "^chore:"
+      - "^ci:"
