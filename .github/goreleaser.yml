@@ -20,7 +20,7 @@ builds:
       - softfloat
 archives:
   - format: binary
-    name_template: "{{ .ProjectName }}-{{ .Os }}-{ .Arch }}"
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
     files:
       - none*
 release:

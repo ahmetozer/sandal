@@ -47,7 +47,6 @@ func run(args []string) error {
 	f.StringVar(&HostIface.IP, "host-ips", "172.16.0.1/24;fd34:0135:0123::1/64", "host interface ips")
 
 	PodIface := config.NetIface{Type: "veth"}
-	// f.StringVar(&PodIface.Name, "pod-net", "eth0", "container interface name")
 	f.StringVar(&PodIface.IP, "pod-ips", "", "container interface ips")
 
 	f.StringVar(&c.Resolv, "resolv", "cp-n", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
