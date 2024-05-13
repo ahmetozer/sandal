@@ -3,15 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/ahmetozer/sandal/pkg/container"
 	"golang.org/x/sys/unix"
 )
 
-func restart(args []string) error {
-
+func rerun(args []string) error {
 	if len(args) == 0 || args[0] == "" {
 		return fmt.Errorf("no container name provided")
 	} else if args[0] == "help" {
@@ -25,21 +23,15 @@ func restart(args []string) error {
 
 			if container.IsRunning(&c) {
 				if container.IsPidRunning(c.HostPid) {
-				HostStatus:
-					for i := 0; i < 5; i++ {
-						container.SendSig(c.HostPid, 15)
-						if container.IsPidRunning(c.HostPid) {
-							time.Sleep(1 * time.Second)
-						} else {
-							break HostStatus
-						}
-					}
+
+					container.SendSig(c.HostPid, 15)
 					if container.IsPidRunning(c.HostPid) {
 						container.SendSig(c.HostPid, 9)
 					}
 					if container.IsRunning(&c) {
 						container.SendSig(c.ContPid, 9)
 					}
+
 					deRunContainer(&c)
 					if err := unix.Exec("/proc/self/exe", c.HostArgs, os.Environ()); err != nil {
 						return fmt.Errorf("unable to restart %s", err)

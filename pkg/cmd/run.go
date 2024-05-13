@@ -132,7 +132,8 @@ func defaultRootfs(c *config.Config) string {
 
 func deRunContainer(c *config.Config) {
 	if err := container.UmountRootfs(c); err != nil {
-		slog.Info("umount: %v", err)
+		slog.Info("umount", slog.String("err", err.Error()))
+
 	}
 	if c.NS.Net != "host" {
 		net.Clear(c)
@@ -140,7 +141,7 @@ func deRunContainer(c *config.Config) {
 
 	if !c.Keep {
 		if err := os.RemoveAll(c.ContDir()); err != nil {
-			slog.Info("removeall: %v", err)
+			slog.Info("removeall", slog.String("err", err.Error()))
 		}
 	}
 }

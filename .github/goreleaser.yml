@@ -2,7 +2,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion={{.Version}} -X github.com/ahmetozer/sandal/pkg/cmd.BuildCommit={{.Commit}} -X github.com/ahmetozer/sandal/pkg/cmd.BuildDate={{.Date}}
+      - -s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion={{.Version}}
     flags:
       - -trimpath
     goos:
@@ -20,6 +20,7 @@ builds:
       - softfloat
 archives:
   - format: binary
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{ .Arch }}"
     files:
       - none*
 release:
