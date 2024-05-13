@@ -1,6 +1,7 @@
 package container
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,7 +13,23 @@ import (
 	"github.com/ahmetozer/sandal/pkg/net"
 )
 
-const CHILD_CONFIG_ENV_NAME = "SANDAL_CHILD"
+const (
+	bits                  = 32 << (^uint(0) >> 63)
+	CHILD_CONFIG_ENV_NAME = "SANDAL_CHILD"
+)
+
+var (
+	procSize = 65535
+)
+
+func init() {
+	// fix for cpu architecture
+	if bits == 64 {
+		bin := binary.BigEndian.AppendUint64([]byte{255, 255, 255, 255}, 0)
+		procSize = int(binary.BigEndian.Uint32(bin))
+	}
+
+}
 
 func Start(c *config.Config, args []string) (int, error) {
 	c.Status = ContainerStatusCreating
@@ -52,10 +69,10 @@ func Start(c *config.Config, args []string) (int, error) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: cmdFlags,
 			UidMappings: []syscall.SysProcIDMap{
-				{ContainerID: 0, HostID: 0, Size: 4294967295},
+				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
 			GidMappings: []syscall.SysProcIDMap{
-				{ContainerID: 0, HostID: 0, Size: 4294967295},
+				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
 		}
 	}
