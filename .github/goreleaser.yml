@@ -19,7 +19,7 @@ builds:
       - hardfloat
       - softfloat
 archives:
-  - format: gz
+  - format: binary
     files:
       - none*
 release:

@@ -5,6 +5,13 @@ Sandal is a basic, deamonless container system for Linux-embedded systems.
 This project aims to have a container system which light weight and respects systems disk usage.  
 It utilizes the squashfs filesystem as a container image, so you can execute the container directly from the file, and easy to distribute it with portable media.
 
+## Installation
+
+```bash
+wget https://github.com/ahmetozer/sandal/releases/download/v1.0.0/sandal_1.0.0_linux_armv7 -O /usr/bin/sandal
+chmod +x /usr/bin/sandal
+```
+
 ## Commands
 
 Multiple subcommands are available on the system for different usage purposes.
@@ -13,56 +20,28 @@ Multiple subcommands are available on the system for different usage purposes.
 
 Executing a new container image with given options.
 
-Options
-
-- -devtmpfs string  
-    Mount devtmpfs inside the container in the given location  
-- -env-all  
-    send all current existing environment variables to the container
-- -help  
-    show this help message
-- -host-ips string  
-    host interface IP’s (default "172.16.0.1/24;fd34:0135:0123::1/64")
-- -host-net string  
-    host root interface for bridge or MACVLAN (default "sandal0")  
-    If it’s a bridge, sub-veth interfaces are attached, for MACVLAN, sub-interfaces forked from the main.
-- -hosts string  
-    cp, cp-n, image (default "cp")  
-    cp: copy from root  
-    cp-n: copy if it does not exist or is empty at the container image  
-    image: do nothing, use if it exists on the container image  
-- -name string  
-    name of the container (default "Random")  
-- -net-type string  
-    bridge, macvlan, ipvlan (default "bridge")  
-    Type of network the interfaces which is used while container hosts network
-- -ns-net string  
-    Use container net namespace or host  
-- -ns-pid string  
-    Use container pid namespace or host
-- -ns-user string  
-    Use container user namespace or host (default "host")
-- -ns-uts string  
-    Use container uts namespace or host
-- -pod-ips string  
-    Container network interface IP’s (default "172.16.0.2/24;fd34:0135:0123::2/64")
-- -resolv string  
-    cp, cp-n, image, {IP1};{IP2} (default "cp-n")  
-    cp: Copy host’s resolv.conf file to container.  
-    cp-n: Copy host’s resolv.conf file if the container image does not exist or is the empty  
-    image: Do nothing, use the image’s resolv.conf if it exists.  
-    ipaddress: you can provide multiple nameservers (IPv4 and IPv6) by argument, it is overwrites to container’s resov.conf.  
-- -keep  
-    do not remove container files on exit
-    (for background proccesses, system it will always keep)
-- -ro  
-    read-only rootfs
-- -sq string  
-    squashfs image location (default "./rootfs.sqfs")
-- -tmp uint  
-    allocate changes at memory instead of disk. unit is in MB, disk is used by default
-- -v value  
-    volume mount point
+| flag  | default  | description  |
+|---|---|---|
+| `-d` | false | Run your container at background  |
+| `devtmpfs` |   | Mount devtmpfs inside the container in the given location <br/> `-devtmpfs=/mnt/host/dev` |
+| `-env-all` | false | Pass hosts enviroment variable to container |
+| `-help` | false | print argument helps |
+| `-host-ips` | 172.16.0.1/24;fd34:0135:0123::1/64 | host interface ip addresses |
+| `-host-net` |  sandal0 |  host interface for bridge or macvlan |
+| `-hosts` | cp | Behavior of `/etc/hosts` file. <br/>cp (copy), cp-n (copy if not exist), image(use image) |
+| `-keep` | false | Do not remove container files on exit |
+| `-name` |   | name of the container |
+| `-net-type` | bridge | Type of host net type. bridge, macvlan, ipvlan  |
+| `-ns-net` |   | net namespace or host |
+| `-ns-pid` |   | pid namespace or host |
+| `-ns-user` | host | user namespace or host |
+| `-ns-uts` |   | uts namespace or host |
+| `-pod-ips` |   | container interface ips |
+| `-resolv` | cp-n | Behavior of `/etc/resolv` file. <br/>cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 |
+| `-ro` | false | read only rootfs |
+| `-sq` | ./rootfs.sqfs | squashfs image location  |
+| `-tmp` | 0 | allocate changes at memory instead of disk. unit is in MB, disk is used used by default |
+| `-v` |   | attach system directory paths to container <br/> `-v=/mnt/homeasistant:/config` |
 
 Examples:
 
@@ -126,6 +105,17 @@ podman run -it --rm --name cont1 alpine
 sandal convert cont1
 #[==================================================|] 92/92 100%
 sandal run  -sq=cont1.sqfs /bin/ping 1.0.0.1
+```
+
+To install `squashfs-tools`
+
+```bash
+#Debian, Ubuntu
+sudo apt install squashfs-tools
+#Fedora
+sudo yum install squashfs-tools
+#Alpine
+apk add squashfs-tools
 ```
 
 ### Kill
