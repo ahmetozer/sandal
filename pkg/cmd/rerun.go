@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/ahmetozer/sandal/pkg/container"
@@ -21,24 +22,26 @@ func rerun(args []string) error {
 	for _, c := range config.AllContainers() {
 		if c.Name == args[0] {
 
-			if container.IsRunning(&c) {
-				if container.IsPidRunning(c.HostPid) {
+			err := fmt.Errorf("unable to stop container %s", c.Name)
 
-					container.SendSig(c.HostPid, 15)
-					if container.IsPidRunning(c.HostPid) {
-						container.SendSig(c.HostPid, 9)
+			go func() {
+				for {
+					container.SendSig(c.ContPid, 9)
+					container.SendSig(c.HostPid, 9)
+					b, _ := container.IsPidRunning(c.ContPid)
+					if !b {
+						break
 					}
-					if container.IsRunning(&c) {
-						container.SendSig(c.ContPid, 9)
-					}
-
-					deRunContainer(&c)
-					if err := unix.Exec("/proc/self/exe", c.HostArgs, os.Environ()); err != nil {
-						return fmt.Errorf("unable to restart %s", err)
-					}
+					time.Sleep(100 * time.Millisecond)
 				}
-			}
+				deRunContainer(&c)
+				if err2 := unix.Exec("/proc/self/exe", c.HostArgs, os.Environ()); err2 != nil {
+					err = fmt.Errorf("unable to restart %s", err)
+				}
+			}()
 
+			time.Sleep(5 * time.Second)
+			return err
 		}
 	}
 

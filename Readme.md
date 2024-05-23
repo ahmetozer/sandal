@@ -61,8 +61,6 @@ sandal run -sq=/mnt/sandal/images/octo.sq  -env-all --ns-net=host --name=octo \
 
 Listing existing containers
 
-Default ps command is assumes state file but if its deamon or form some reason host proccess killed, it is not updated so `-verify` checks proccess.
-
 Example:
 
 ```bash
@@ -71,14 +69,14 @@ NAME                   SQUASHFS                       COMMAND   CREATED         
 22IQkaDNhRp9okqsewZL19 /mnt/sandal/images/homeas.sqfs /bin/bash 2024-05-11T22:48:59+01:00 exit 0     815519
 22J7btLUSru7kuDRbkxLpi alpine.sqfs                    /bin/ash  2024-05-12T15:18:32+01:00 exit 0     927465
 22J7dGBOWOz5sgrXiwVpRx alpine.sqfs                    /bin/ash  2024-05-12T15:20:38+01:00 exit 0     928541
-22JbC5X2ks59IViFLkuVfG alpine.sqfs                    /bin/ping 2024-05-12T19:38:31+01:00 running    957321 <- Note here
+22JbC5X2ks59IViFLkuVfG alpine.sqfs                    /bin/ping 2024-05-12T19:38:31+01:00 hang       957321 <-
 22JbvIh9nbT1CpkNgrB8K1 alpine.sqfs                    /bin/ash  2024-05-12T19:32:28+01:00 exit 130   953991
-sandal ps -verify
+sandal ps -dry
 NAME                   SQUASHFS                       COMMAND   CREATED                   STATUS     PID
 22IQkaDNhRp9okqsewZL19 /mnt/sandal/images/homeas.sqfs /bin/bash 2024-05-11T22:48:59+01:00 exit 0     815519
 22J7btLUSru7kuDRbkxLpi alpine.sqfs                    /bin/ash  2024-05-12T15:18:32+01:00 exit 0     927465
 22J7dGBOWOz5sgrXiwVpRx alpine.sqfs                    /bin/ash  2024-05-12T15:20:38+01:00 exit 0     928541
-22JbC5X2ks59IViFLkuVfG alpine.sqfs                    /bin/ping 2024-05-12T19:38:31+01:00 hang       957321 <-
+22JbC5X2ks59IViFLkuVfG alpine.sqfs                    /bin/ping 2024-05-12T19:38:31+01:00 running    957321 <- Note here
 22JbvIh9nbT1CpkNgrB8K1 alpine.sqfs                    /bin/ash  2024-05-12T19:32:28+01:00 exit 130   953991
 ```
 
@@ -92,6 +90,14 @@ NAME                   PID    CGROUPNS   IPC        MNT        NET        PIDNS 
 22J7dGBOWOz5sgrXiwVpRx 928541 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
 22JbC5X2ks59IViFLkuVfG 957321 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
 22JbvIh9nbT1CpkNgrB8K1 953991 4026532603 4026532601 4026532599 4026532604 4026532602 4026531837 4026532600
+```
+
+### Rm
+
+Delete container run files.
+
+```bash
+sandal rm alpine-1
 ```
 
 ### Convert

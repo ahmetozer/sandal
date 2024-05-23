@@ -15,13 +15,13 @@ func ps(args []string) error {
 	conts := config.AllContainers()
 	flags := flag.NewFlagSet("ps", flag.ExitOnError)
 	var (
-		help   bool
-		ns     bool
-		verify bool
+		help bool
+		ns   bool
+		dry  bool
 	)
 
 	flags.BoolVar(&help, "help", false, "show this help message")
-	flags.BoolVar(&verify, "verify", false, "verify running state containers (sig 0)")
+	flags.BoolVar(&dry, "dry", false, "do not verify running state containers")
 	flags.BoolVar(&ns, "ns", false, "show namespaces")
 
 	flags.Parse(args)
@@ -32,9 +32,9 @@ func ps(args []string) error {
 	}
 
 	header := "NAME\tSQUASHFS\tCOMMAND\tCREATED\tSTATUS\tPID"
-	printFunc := printDefault
-	if verify {
-		printFunc = printVerified
+	printFunc := printVerified
+	if dry {
+		printFunc = printDry
 	}
 
 	if ns {
@@ -57,10 +57,10 @@ func printVerified(c *config.Config, t *tabwriter.Writer) {
 			c.Status = container.ContainerStatusHang
 		}
 	}
-	printDefault(c, t)
+	printDry(c, t)
 }
 
-func printDefault(c *config.Config, t *tabwriter.Writer) {
+func printDry(c *config.Config, t *tabwriter.Writer) {
 	created := time.Unix(c.Created, 0).Format(time.RFC3339)
 	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.SquashfsFile, c.Exec, created, c.Status, c.ContPid)
 }
