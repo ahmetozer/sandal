@@ -25,22 +25,47 @@ func CheckExistence(c *config.Config) error {
 		}
 		oldConfig := config.NewContainer()
 		json.Unmarshal(file, &oldConfig)
-		killErr := syscall.Kill(oldConfig.ContPid, syscall.Signal(0))
-		if killErr == nil {
-			return fmt.Errorf("container %s is already running on %d", oldConfig.Name, oldConfig.HostPid)
+		b, err := IsPidRunning(oldConfig.ContPid)
+		if err != nil {
+			return fmt.Errorf("unable to check pid %d: %v", oldConfig.ContPid, err)
+		}
+		if b {
+			c.Status = ContainerStatusRunning
+		} else {
+			c.Status = ContainerStatusHang
 		}
 	}
 	return nil
 }
 
 func IsRunning(c *config.Config) bool {
-	return IsPidRunning(c.ContPid)
-}
-
-func IsPidRunning(pid int) bool {
-	return SendSig(pid, 0) == nil
+	b, _ := IsPidRunning(c.ContPid)
+	return b
 }
 
 func SendSig(pid, sig int) error {
 	return syscall.Kill(pid, syscall.Signal(sig))
+}
+
+var ErrPidExistenceControl = fmt.Errorf("unable to find proccess")
+
+func IsPidRunning(pid int) (bool, error) {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return false, ErrPidExistenceControl
+		}
+		if err == os.ErrProcessDone {
+			return false, nil
+		}
+		return false, err
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		return true, nil
+	}
+	if err == os.ErrProcessDone {
+		return false, nil
+	}
+	return false, err
 }
