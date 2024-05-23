@@ -33,26 +33,41 @@ func MountRootfs(c *config.Config) error {
 
 }
 
-func UmountRootfs(c *config.Config) error {
+func UmountRootfs(c *config.Config) []error {
+	errors := []error{}
 	err := umountSquashfsFile(c)
 	if err != nil {
-		return err
+		errors = append(errors, err)
 	}
 
 	err = unix.Unmount(c.RootfsDir, 0)
 	if err != nil {
-		return fmt.Errorf("umount: %s", err)
+		if !os.IsNotExist(err) {
+			errors = append(errors, err)
+		}
 	}
 	err = os.Remove(c.RootfsDir)
 	if err != nil {
-		return fmt.Errorf("remove: %s", err)
+		if !os.IsNotExist(err) {
+			errors = append(errors, err)
+		}
 	}
 
 	if c.ChangeDir == "" && c.TmpSize != 0 {
-		unix.Unmount(defaultChangeRoot(c), 0)
+		err = unix.Unmount(defaultChangeRoot(c), 0)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				errors = append(errors, err)
+			}
+		}
 	}
 
-	DetachLoopDevice(c.LoopDevNo)
-
-	return nil
+	err = DetachLoopDevice(c.LoopDevNo)
+	if err != nil {
+		errors = append(errors, err)
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
 }

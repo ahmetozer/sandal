@@ -45,11 +45,15 @@ func umountSquashfsFile(c *config.Config) error {
 	file := squashfsMountDir(c)
 	err := unix.Unmount(file, 0)
 	if err != nil {
-		return fmt.Errorf("umount: %s", err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("umount: %s", err)
+		}
 	}
 	err = os.Remove(file)
 	if err != nil {
-		return fmt.Errorf("remove: %s", err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("remove: %s", err)
+		}
 	}
 	return nil
 }

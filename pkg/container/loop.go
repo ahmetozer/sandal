@@ -56,8 +56,10 @@ func AttachLoopDevice(loopDev int, file *os.File) error {
 func DetachLoopDevice(loopDev int) error {
 	loopDevice, _ := os.OpenFile(LOOP_DEVICE_PREFIX+fmt.Sprint(loopDev), os.O_RDWR, 0660)
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, loopDevice.Fd(), LOOP_CLR_FD, 0)
-	if errno != 0 {
-		return fmt.Errorf("could not detach loop device: %v", os.NewSyscallError("ioctl", errno))
+
+	//0 no error, 6 no device
+	if errno != 0 && errno != 6 {
+		return fmt.Errorf("could not detach loop device: %d", errno)
 	}
 	return nil
 }
