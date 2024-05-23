@@ -87,6 +87,10 @@ func run(args []string) error {
 		return err
 	}
 
+	if c.Status == container.ContainerStatusRunning {
+		return fmt.Errorf("container %s is already running", c.Name)
+	}
+
 	if c.NS.Net != "host" {
 
 		if HostIface.Type == "bridge" {
@@ -131,8 +135,9 @@ func defaultRootfs(c *config.Config) string {
 
 func deRunContainer(c *config.Config) {
 	if err := container.UmountRootfs(c); err != nil {
-		slog.Info("umount", slog.String("err", err.Error()))
-
+		for _, e := range err {
+			slog.Info("umount", slog.String("err", e.Error()))
+		}
 	}
 	if c.NS.Net != "host" {
 		net.Clear(c)

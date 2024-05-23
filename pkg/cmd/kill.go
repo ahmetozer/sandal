@@ -28,10 +28,23 @@ func kill(args []string) error {
 	for _, c := range config.AllContainers() {
 		if c.Name == args[0] {
 			err := syscall.Kill(c.ContPid, syscall.Signal(signal))
-			ownerStatus := syscall.Kill(c.HostPid, syscall.Signal(0))
-			if ownerStatus != nil || c.Background {
-				deRunContainer(&c)
+			err2 := syscall.Kill(c.HostPid, syscall.Signal(signal))
+			deRunContainer(&c)
+
+			if err == err2 && err2 == nil {
+				return nil
 			}
+			if err2 != nil && err != nil {
+				return fmt.Errorf("unable to kill '%s' container and container host: cont: %v, host: %v", c.Name, err, err2)
+			}
+
+			if err != nil {
+				return fmt.Errorf("unable to kill '%s' container: %v", c.Name, err)
+			}
+			if err2 != nil {
+				return fmt.Errorf("unable to kill '%s' container host: %v", c.Name, err2)
+			}
+
 			return err
 		}
 	}
