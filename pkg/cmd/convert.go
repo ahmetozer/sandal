@@ -80,8 +80,8 @@ func convert(args []string) error {
 
 // type ps {}
 
-func inspectContainer(contianerPlatform, containerId string) (inspect, error) {
-	i := inspect{}
+func inspectContainer(contianerPlatform, containerId string) (containerInspect, error) {
+	i := containerInspect{}
 	if contianerPlatform == "" {
 		return i, fmt.Errorf("container platform not found")
 	}
@@ -126,7 +126,7 @@ func defaultContainerPlatform() string {
 	return ""
 }
 
-type inspect []struct {
+type containerInspect []struct {
 	ID      string    `json:"Id"`
 	Created time.Time `json:"Created"`
 	Path    string    `json:"Path"`
