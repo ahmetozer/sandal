@@ -32,6 +32,8 @@ func Main() {
 		executeSubCommand(rerun)
 	case "rm":
 		executeSubCommand(rm)
+	case "inspect":
+		executeSubCommand(inspect)
 	case "help":
 		subCommandsHelp()
 	default:
