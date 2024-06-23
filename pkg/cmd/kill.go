@@ -3,9 +3,10 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"syscall"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container"
 )
 
 func kill(args []string) error {
@@ -27,25 +28,41 @@ func kill(args []string) error {
 	config.AllContainers()
 	for _, c := range config.AllContainers() {
 		if c.Name == args[0] {
-			err := syscall.Kill(c.ContPid, syscall.Signal(signal))
-			err2 := syscall.Kill(c.HostPid, syscall.Signal(signal))
-			deRunContainer(&c)
 
-			if err == err2 && err2 == nil {
-				return nil
-			}
-			if err2 != nil && err != nil {
-				return fmt.Errorf("unable to kill '%s' container and container host: cont: %v, host: %v", c.Name, err, err2)
+			ch := make(chan bool, 1)
+			kill := make(chan bool)
+
+			go func(killed chan<- bool) {
+				container.SendSig(c.HostPid, 9)
+				for {
+					container.SendSig(c.ContPid, 9)
+					b, _ := container.IsPidRunning(c.ContPid)
+					if !b {
+						killed <- true
+						break
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+			}(kill)
+
+			select {
+			case ret := <-kill:
+				ch <- ret
+			case <-time.After(5 * time.Second):
+				ch <- false
 			}
 
-			if err != nil {
-				return fmt.Errorf("unable to kill '%s' container: %v", c.Name, err)
-			}
-			if err2 != nil {
-				return fmt.Errorf("unable to kill '%s' container host: %v", c.Name, err2)
+			stat := <-ch
+
+			if !stat {
+				return fmt.Errorf("unable to kill container pid: %d", c.ContPid)
 			}
 
-			return err
+			c.Status = "killed"
+
+			c.SaveConftoDisk()
+
+			return nil
 		}
 	}
 	return fmt.Errorf("container %s is not found", args[0])
