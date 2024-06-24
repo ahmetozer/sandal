@@ -78,6 +78,7 @@ func Start(c *config.Config, args []string) (int, error) {
 	}
 
 	c.SaveConftoDisk()
+
 	err := cmd.Start()
 	if err != nil {
 		return 0, fmt.Errorf("starting container: %v", err)
@@ -87,7 +88,9 @@ func Start(c *config.Config, args []string) (int, error) {
 	loadNamespaceIDs(c)
 
 	c.Status = ContainerStatusRunning
+
 	c.SaveConftoDisk()
+
 	for _, iface := range c.Ifaces {
 		if iface.ALocFor == config.ALocForPod {
 			err = net.SetNs(iface, c.ContPid)

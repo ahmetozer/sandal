@@ -14,7 +14,7 @@ func Clear(c *config.Config) {
 			link, err := netlink.LinkByName(iface.Name)
 			if err == nil && link != nil {
 				if err := netlink.LinkDel(link); err != nil {
-					slog.Info("linkdel: %v", err)
+					slog.Info("linkdel:", slog.String("err", err.Error()))
 				}
 			}
 		}
