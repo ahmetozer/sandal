@@ -1,6 +1,9 @@
 package net
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -53,4 +56,34 @@ func SetInterfaceUp(name string) error {
 	}
 	err = netlink.LinkSetUp(link)
 	return err
+}
+
+func WaitInterface(name string) error {
+
+	interfaceReady := make(chan bool)
+
+	go func(killed chan<- bool) {
+		for {
+			link, err := netlink.LinkByName(name)
+			if err != nil {
+				fmt.Printf("%s", err)
+			}
+			if err == nil && link != nil {
+				interfaceReady <- true
+				break
+			}
+			time.Sleep(time.Second)
+		}
+	}(interfaceReady)
+
+	select {
+	case ret := <-interfaceReady:
+		if !ret {
+			return fmt.Errorf("unable to get interface")
+		}
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("unable to get interface %s in 5 second", name)
+	}
+
 }

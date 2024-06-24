@@ -49,7 +49,7 @@ func run(args []string) error {
 	PodIface := config.NetIface{Type: "veth"}
 	f.StringVar(&PodIface.IP, "pod-ips", "", "container interface ips")
 
-	f.StringVar(&c.Resolv, "resolv", "cp-n", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
+	f.StringVar(&c.Resolv, "resolv", "cp", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist), image(use image)")
 
 	f.StringVar(&c.NS.Net, "ns-net", "", "net namespace or host")
@@ -68,11 +68,6 @@ func run(args []string) error {
 	if c.RootfsDir == "" {
 		c.RootfsDir = defaultRootfs(&c)
 	}
-	c.Ifaces = []config.NetIface{HostIface}
-	PodIface.Main = append(PodIface.Main, HostIface)
-	if PodIface.IP == "" {
-		PodIface.IP = net.FindFreePodIPs(HostIface.IP)
-	}
 
 	if help {
 		f.Usage()
@@ -89,6 +84,12 @@ func run(args []string) error {
 
 	if c.Status == container.ContainerStatusRunning {
 		return fmt.Errorf("container %s is already running", c.Name)
+	}
+
+	c.Ifaces = []config.NetIface{HostIface}
+	PodIface.Main = append(PodIface.Main, HostIface)
+	if PodIface.IP == "" {
+		PodIface.IP = net.FindFreePodIPs(HostIface.IP)
 	}
 
 	if c.NS.Net != "host" {

@@ -98,6 +98,7 @@ func CreateIface(c *config.Config, iface *config.NetIface) error {
 		ifname := NewIfName(c)
 
 		ifaceLink = &netlink.Veth{LinkAttrs: netlink.LinkAttrs{Name: ifname.Host, MasterIndex: masterlink.Attrs().Index}, PeerName: ifname.Cont}
+		netlink.LinkDel(ifaceLink)
 		if err = netlink.LinkAdd(ifaceLink); err != nil {
 			return fmt.Errorf("error creating container host interface: %v", err)
 		}
