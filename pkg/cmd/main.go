@@ -34,6 +34,10 @@ func Main() {
 		executeSubCommand(rm)
 	case "inspect":
 		executeSubCommand(inspect)
+	case "daemon":
+		executeSubCommand(deamon)
+	case "cmd":
+		executeSubCommand(cmd)
 	case "help":
 		subCommandsHelp()
 	default:
@@ -64,6 +68,9 @@ func subCommandsHelp() {
 	kill - Kill a container
 	rerun - Restart a container
 	rm - Remove a container
+	inspect - Get configuration file
+	cmd - Get execution command
+	daemon - Start sandal daemon
 	help - Show this help`)
 
 	fmt.Printf("\n\nVersion: %s\n", BuildVersion)

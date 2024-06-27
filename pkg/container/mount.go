@@ -68,6 +68,7 @@ func childSysMounts(c *config.Config) {
 	if err := unix.Unmount("/.old_root", unix.MNT_DETACH); err != nil {
 		log.Fatalf("unable to unmount /.old_root %s", err)
 	}
+	os.Remove("/.old_root")
 
 	if c.ReadOnly {
 		mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")

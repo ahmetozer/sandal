@@ -24,6 +24,7 @@ Executing a new container image with given options.
 | flag  | default  | description  |
 |---|---|---|
 | `-d` | false | Run your container at background  |
+| `-startup` | false | Run your container at startup with sandal daemon |
 | `devtmpfs` |   | Mount devtmpfs inside the container in the given location <br/> `-devtmpfs=/mnt/host/dev` |
 | `-env-all` | false | Pass hosts enviroment variable to container |
 | `-help` | false | print argument helps |
@@ -145,4 +146,43 @@ Kill and restart container proccess with same args and current enviroment variab
 ```bash
 sandal run -d -sq=cont1.sqfs --name cont1 /bin/ping 1.0.0.1
 sandal rerun cont1
+```
+
+### Cmd
+
+Get last execution command.
+
+```bash
+sandal cmd minecraft
+# Output
+"sandal run -name=minecraft -keep -sq=/mnt/sandal/images/ubuntu.sq -pod-ips=172.16.0.4/24 -startup -d /sbin/runit"
+```
+
+### Daemon
+
+Run all startup containers and watch in case of hang errors.
+
+```bash
+sandal daemon
+2024/06/27 03:09:37 INFO daemon started
+2024/06/27 03:10:01 INFO starting container=minecraft oldpid=102679
+2024/06/27 03:10:03 INFO new container started container=minecraft pid=102759
+2024/06/27 03:16:01 INFO starting container=homeas-2 oldpid=91491
+2024/06/27 03:16:03 INFO new container started container=homeas-2 pid=103751
+```
+
+### Inspect
+
+Get configuration file
+
+```bash
+sandal inspect minecraft
+{
+ "Name": "minecraft",
+ "Created": 1719447001,
+ "HostPid": 102751,
+ "ContPid": 102759,
+ "LoopDevNo": 128,
+ "TmpSize": 0,
+    ...}
 ```

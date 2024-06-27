@@ -71,8 +71,11 @@ func getGw(addrs string, t IP_TYPE) string {
 	return ""
 }
 
-func FindFreePodIPs(hostIpsText string) string {
-	configs := config.AllContainers()
+func FindFreePodIPs(hostIpsText string) (string, error) {
+	configs, err := config.AllContainers()
+	if err != nil {
+		return "", err
+	}
 	hostIPs := strings.Split(hostIpsText, ";")
 	Ips := make([]net.IP, len(hostIPs))
 	podIps := make([]string, len(Ips))
@@ -118,7 +121,7 @@ MasterLoop:
 		continue MasterLoop
 	}
 
-	return strings.Join(podIps, ";")
+	return strings.Join(podIps, ";"), nil
 }
 
 func ipIncrement(i net.IP, n net.IPNet) (net.IP, error) {

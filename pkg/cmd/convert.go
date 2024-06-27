@@ -11,7 +11,7 @@ import (
 
 func convert(args []string) error {
 
-	thisFlags, args := SplitArgs(args)
+	thisFlags, args := SplitFlagsArgs(args)
 
 	mksquashfsPath, _ := exec.LookPath("mksquashfs")
 

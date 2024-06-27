@@ -2,19 +2,20 @@ package config
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"os"
 )
 
-func AllContainers() []Config {
+func AllContainers() ([]Config, error) {
+	var confs []Config
+
 	entries, err := os.ReadDir(Containers)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return nil, fmt.Errorf("there is no config exist")
 		}
-		log.Fatal(err)
+		return nil, err
 	}
-	var confs []Config
 	for _, e := range entries {
 		if e.IsDir() {
 			c, err := LoadConfig(e.Name())
@@ -23,7 +24,7 @@ func AllContainers() []Config {
 			}
 		}
 	}
-	return confs
+	return confs, nil
 }
 
 func LoadConfig(name string) (Config, error) {

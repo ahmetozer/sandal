@@ -14,7 +14,7 @@ func kill(args []string) error {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	thisFlags, args := SplitArgs(args)
+	thisFlags, args := SplitFlagsArgs(args)
 	flags := flag.NewFlagSet("kill", flag.ExitOnError)
 	var (
 		help   bool
@@ -25,8 +25,8 @@ func kill(args []string) error {
 
 	flags.Parse(thisFlags)
 
-	config.AllContainers()
-	for _, c := range config.AllContainers() {
+	conts, _ := config.AllContainers()
+	for _, c := range conts {
 		if c.Name == args[0] {
 
 			ch := make(chan bool, 1)

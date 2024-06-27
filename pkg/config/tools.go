@@ -25,6 +25,15 @@ func (c *Config) SaveConftoDisk() error {
 	return nil
 }
 
+func GetByName(conts *[]Config, name string) (Config, error) {
+	for _, c := range *conts {
+		if c.Name == name {
+			return c, nil
+		}
+	}
+	return Config{}, fmt.Errorf("container not found")
+}
+
 func GenerateContainerId() string {
 	time := big.NewInt(time.Now().UnixNano()).Text(62)
 	r := big.NewInt(rand.Int63()).Text(62)

@@ -13,7 +13,7 @@ func rm(args []string) error {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	thisFlags, args := SplitArgs(args)
+	thisFlags, args := SplitFlagsArgs(args)
 	flags := flag.NewFlagSet("clear", flag.ExitOnError)
 	var (
 		help bool
@@ -21,8 +21,8 @@ func rm(args []string) error {
 	flags.BoolVar(&help, "help", false, "show this help message")
 	flags.Parse(thisFlags)
 
-	config.AllContainers()
-	for _, c := range config.AllContainers() {
+	conts, _ := config.AllContainers()
+	for _, c := range conts {
 		if c.Name == args[0] {
 			err := container.CheckExistence(&c)
 			if err != nil {

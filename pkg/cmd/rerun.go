@@ -18,8 +18,9 @@ func rerun(args []string) error {
 		exitCode = 0
 		return nil
 	}
+	conts, _ := config.AllContainers()
 
-	for _, c := range config.AllContainers() {
+	for _, c := range conts {
 		if c.Name == args[0] {
 
 			err := fmt.Errorf("unable to stop container %s", c.Name)
@@ -35,7 +36,7 @@ func rerun(args []string) error {
 					time.Sleep(100 * time.Millisecond)
 				}
 				deRunContainer(&c)
-				if err2 := unix.Exec("/proc/self/exe", c.HostArgs, os.Environ()); err2 != nil {
+				if err2 := unix.Exec(os.Args[0], c.HostArgs, os.Environ()); err2 != nil {
 					err = fmt.Errorf("unable to restart %s", err)
 				}
 			}()

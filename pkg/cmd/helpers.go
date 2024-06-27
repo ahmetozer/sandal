@@ -1,7 +1,7 @@
 package cmd
 
 // returns flags and child proccess args
-func SplitArgs(args []string) ([]string, []string) {
+func SplitFlagsArgs(args []string) ([]string, []string) {
 
 	if !hasItExecutable(args) {
 		return args, []string{}

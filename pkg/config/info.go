@@ -65,6 +65,7 @@ type Config struct {
 	Keep         bool
 	EnvAll       bool
 	Background   bool
+	Startup      bool
 	NS           NS
 	ChangeDir    string
 	Exec         string
@@ -74,6 +75,7 @@ type Config struct {
 	Status       string
 	Volumes      Volumes
 	HostArgs     []string
+	PodArgs      []string
 
 	Ifaces []NetIface
 }
