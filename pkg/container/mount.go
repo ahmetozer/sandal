@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/config"
@@ -77,7 +78,30 @@ func childSysMounts(c *config.Config) {
 }
 
 func mount(source, target, fstype string, flags uintptr, data string) {
-	os.MkdirAll(target, 0600)
+
+	// empty mount used for removing old root access from container
+	if source != "" && source[0:1] == "/" {
+		fileInfo, err := os.Stat(source)
+		if os.IsNotExist(err) {
+			log.Fatalf("The path %s does not exist.\n", source)
+		}
+		if err != nil {
+			log.Fatalf("Error checking the path %s: %v\n", source, err)
+		}
+
+		if !fileInfo.IsDir() {
+			os.MkdirAll(filepath.Dir(target), 0600)
+			err = Touch(target)
+			if err != nil {
+				log.Fatalf("target %s touch error: %s", target, err.Error())
+			}
+		} else {
+			os.MkdirAll(target, 0600)
+		}
+	} else {
+		os.MkdirAll(target, 0600)
+	}
+
 	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
 		log.Fatalf("unable to mount %s %s %s %s", source, target, fstype, err)
 	}
@@ -87,6 +111,7 @@ func mountVolumes(c *config.Config) {
 	for _, v := range c.Volumes {
 
 		m := strings.Split(v, ":")
+		// if single path provided or desitionation is set different
 		switch len(m) {
 		case 1:
 			m = append(m, m[0], "")
@@ -96,4 +121,13 @@ func mountVolumes(c *config.Config) {
 
 		mount(m[0], path.Join("rootfs", m[1]), "", unix.MS_BIND|unix.MS_REC, m[2])
 	}
+}
+
+func Touch(path string) error {
+	file, err := os.Create(path)
+	if os.ErrExist != err {
+		return err
+	}
+	file.Close()
+	return nil
 }

@@ -45,7 +45,10 @@ func createResolv(c *config.Config, d *[]byte) {
 		}
 	}
 
-	os.MkdirAll(path.Join(sandalChildWorkdir, "/etc"), 0755)
+	err := os.MkdirAll(path.Join(sandalChildWorkdir, "/etc"), 0755)
+	if err != nil {
+		log.Fatalf("unable to create /etc : %s", err)
+	}
 	if err := os.WriteFile(path.Join(sandalChildWorkdir, "/etc/resolv.conf"), *d, 0644); err != nil {
 		log.Fatalf("unable to write /etc/resolv.conf: %s", err)
 	}
@@ -69,7 +72,10 @@ func createHosts(c *config.Config, d *[]byte) {
 		}
 	}
 
-	os.MkdirAll(path.Join(sandalChildWorkdir, "/etc"), 0755)
+	err := os.MkdirAll(path.Join(sandalChildWorkdir, "/etc"), 0755)
+	if err != nil {
+		log.Fatalf("unable to create /etc : %s", err)
+	}
 	if err := os.WriteFile(path.Join(sandalChildWorkdir, "/etc/hosts"), *d, 0644); err != nil {
 		log.Fatalf("unable to write /etc/hosts: %s", err)
 	}

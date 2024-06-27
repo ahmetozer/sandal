@@ -50,6 +50,20 @@ func (f *Volumes) Set(value string) error {
 	return nil
 }
 
+type LowerDirs []string
+
+func (f *LowerDirs) String() string {
+	b, _ := json.Marshal(*f)
+	return string(b)
+}
+
+func (f *LowerDirs) Set(value string) error {
+	for _, str := range strings.Split(value, ",") {
+		*f = append(*f, str)
+	}
+	return nil
+}
+
 type Config struct {
 	Name string
 
@@ -76,6 +90,7 @@ type Config struct {
 	Volumes      Volumes
 	HostArgs     []string
 	PodArgs      []string
+	LowerDirs    LowerDirs
 
 	Ifaces []NetIface
 }
