@@ -11,7 +11,8 @@ func inspect(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("no container name is provided")
 	}
-	for _, c := range config.AllContainers() {
+	conts, _ := config.AllContainers()
+	for _, c := range conts {
 		if c.Name == args[0] {
 			b, err := json.MarshalIndent(c, "", "\t")
 			fmt.Printf("%s", b)
