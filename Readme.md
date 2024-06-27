@@ -1,6 +1,6 @@
 # Sandal
 
-Sandal is a basic, deamonless container system for Linux-embedded systems.
+Sandal is a basic, lightweight container system for Linux-embedded systems.
 
 This project aims to have a container system which light weight and respects systems disk usage.  
 It utilizes the squashfs filesystem as a container image, so you can execute the container directly from the file, and easy to distribute it with portable media.
@@ -161,6 +161,8 @@ sandal cmd minecraft
 ### Daemon
 
 Run all startup containers and watch in case of hang errors.
+
+To enable systemd or runit, you can use `sandal daemon -install`.
 
 ```bash
 sandal daemon
