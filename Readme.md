@@ -41,7 +41,8 @@ Executing a new container image with given options.
 | `-pod-ips` |   | container interface ips |
 | `-resolv` | cp-n | Behavior of `/etc/resolv` file. <br/>cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 |
 | `-ro` | false | read only rootfs |
-| `-sq` | ./rootfs.sqfs | squashfs image location  |
+| `-sq` |  | squashfs image location  |
+| `-lw` |  | mount custom paths for lowerdirs (mutliple lower dir supported) |
 | `-tmp` | 0 | allocate changes at memory instead of disk. unit is in MB, disk is used used by default |
 | `-v` |   | attach system directory paths to container <br/> `-v=/mnt/homeasistant:/config` |
 
@@ -187,4 +188,68 @@ sandal inspect minecraft
  "LoopDevNo": 128,
  "TmpSize": 0,
     ...}
+```
+
+## Scenarios
+
+At below, you can see some examples of different scenarios and combinations
+
+If your compiled application require system lib files, you can use distro squasfile and your second layer to start container.
+
+```bash
+mkdir -p myroot/bin/
+cp myBinnary myroot/bin/
+sandal run -name=mybinnary -keep -sq=/mnt/sandal/images/ubuntu.sq -lw="$HOME/myroot/" /bin/myBinnary
+```
+
+In this example, alpine is used and you can get alpine with below command
+
+```bash
+wget https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/alpine-minirootfs-3.20.1-aarch64.tar.gz
+mkdir alpine
+tar -xvzf alpine-minirootfs-3.20.1-aarch64.tar.gz -C alpine
+rm alpine-minirootfs-3.20.1-aarch64.tar.gz
+```
+
+If you want to isolat your changes, you can start your system with lowerdir only.
+
+```bash
+sandal run -name=mybinnary -keep -lw="$HOME/alpine/" /bin/ash
+```
+
+With ramdisk
+
+```bash
+sandal run -name=alpine -keep -lw="$HOME/alpine/" -tmp=100 /bin/ash
+```
+
+With your binnary as layer
+
+```bash
+ls /myApp/bin/myapp
+sandal run -name=mybinnarywithdistro -keep -lw="$HOME/alpine/" -lw="/myApp/" /bin/myapp
+# or locate your configs
+ls /myconfigs/
+    /etc/
+        dnsmasq.conf
+        hostpad.conf
+sandal run -name=mybinnarywithdistro -keep -lw="$HOME/alpine/" -lw="/myApp/" -lw="/myconfig/ /bin/myapp
+```
+
+If you don't want to isolate your continer file system with overlay, you can use -v to mount your system
+
+```bash
+sandal run -name=alpine -v=/root/alpine:/  /bin/ash
+```
+
+You can directly use pysical disc with high performance with this approach as well
+
+```bash
+sandal run -name=mySsd -v=/mnt/myssd:/  /bin/bash
+```
+
+You can directly attach single binnary to container enviroment as well
+
+```bash
+sandal run -name=tunnel -v=/root/testlw/bosphorus:/bosphorus  /bosphorus server
 ```

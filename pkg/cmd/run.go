@@ -31,7 +31,7 @@ func run(args []string) error {
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
 	f.StringVar(&c.Name, "name", config.GenerateContainerId(), "name of the container")
-	f.StringVar(&c.SquashfsFile, "sq", "./rootfs.sqfs", "squashfs image location")
+	f.StringVar(&c.SquashfsFile, "sq", "", "squashfs image location")
 	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
 
@@ -62,6 +62,8 @@ func run(args []string) error {
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
 	f.Var(&c.Volumes, "v", "volume mount point")
+
+	f.Var(&c.LowerDirs, "lw", "you can merge multiple lowerdirs")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
