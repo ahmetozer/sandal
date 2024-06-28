@@ -94,7 +94,7 @@ func deamon(args []string) error {
 					slog.Error("unkown arg size", slog.String("name", cont.Name), slog.String("args", fmt.Sprintf("%v", cont.HostArgs)))
 					continue
 				}
-				cmd := exec.Command(os.Args[0], cont.HostArgs[1:]...)
+				cmd := exec.Command("/usr/bin/sandal", cont.HostArgs[1:]...)
 				cmd.Stderr = os.Stderr
 				cmd.Stdout = os.Stdout
 				cmd.Start()

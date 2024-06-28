@@ -65,6 +65,9 @@ func run(args []string) error {
 
 	f.Var(&c.LowerDirs, "lw", "you can merge multiple lowerdirs")
 
+	f.Var(&c.RunPrePivot, "rpp", "run command before pivoting to container rootfs")
+	f.Var(&c.RunPreExec, "rpe", "run command before executing init")
+
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
@@ -89,6 +92,8 @@ func run(args []string) error {
 	if c.Status == container.ContainerStatusRunning {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
+
+	deRunContainer(&c)
 
 	if c.Startup && !c.Background {
 		return fmt.Errorf("startup only works with background mode, please enable with '-d' arg")
@@ -129,10 +134,6 @@ func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
 		return fmt.Errorf("error mount: %v", err)
 	}
 
-	if !c.Background {
-		defer deRunContainer(c)
-	}
-
 	// Starting proccess
 	exitCode, err = container.Start(c, c.PodArgs)
 
@@ -153,7 +154,7 @@ func defaultRootfs(c *config.Config) string {
 func deRunContainer(c *config.Config) {
 	if err := container.UmountRootfs(c); err != nil {
 		for _, e := range err {
-			slog.Info("umount", slog.String("err", e.Error()))
+			slog.Debug("umount", slog.String("err", e.Error()))
 		}
 	}
 	if c.NS.Net != "host" {
@@ -162,7 +163,7 @@ func deRunContainer(c *config.Config) {
 
 	if !c.Keep {
 		if err := os.RemoveAll(c.ContDir()); err != nil {
-			slog.Info("removeall", slog.String("err", err.Error()))
+			slog.Debug("removeall", slog.String("err", err.Error()))
 		}
 	}
 }

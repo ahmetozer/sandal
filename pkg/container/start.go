@@ -180,7 +180,7 @@ func parseNamspaceInfo(s string) string {
 
 func AttachContainerToPID(c *config.Config, masterPid int) error {
 	if err := syscall.Setpgid(c.ContPid, masterPid); err != nil {
-		return fmt.Errorf("error setting process group id: %s", err)
+		return fmt.Errorf("error setting %d process group id: %s", c.ContPid, err)
 
 	}
 

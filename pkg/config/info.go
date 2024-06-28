@@ -36,28 +36,14 @@ type NetIface struct {
 	Main    []NetIface
 }
 
-type Volumes []string
+type StringFlags []string
 
-func (f *Volumes) String() string {
+func (f *StringFlags) String() string {
 	b, _ := json.Marshal(*f)
 	return string(b)
 }
 
-func (f *Volumes) Set(value string) error {
-	for _, str := range strings.Split(value, ",") {
-		*f = append(*f, str)
-	}
-	return nil
-}
-
-type LowerDirs []string
-
-func (f *LowerDirs) String() string {
-	b, _ := json.Marshal(*f)
-	return string(b)
-}
-
-func (f *LowerDirs) Set(value string) error {
+func (f *StringFlags) Set(value string) error {
 	for _, str := range strings.Split(value, ",") {
 		*f = append(*f, str)
 	}
@@ -87,10 +73,12 @@ type Config struct {
 	Resolv       string
 	Hosts        string
 	Status       string
-	Volumes      Volumes
+	Volumes      StringFlags
 	HostArgs     []string
 	PodArgs      []string
-	LowerDirs    LowerDirs
+	LowerDirs    StringFlags
+	RunPreExec   StringFlags
+	RunPrePivot  StringFlags
 
 	Ifaces []NetIface
 }

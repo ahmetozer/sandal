@@ -14,7 +14,7 @@ func rerun(args []string) error {
 	if len(args) == 0 || args[0] == "" {
 		return fmt.Errorf("no container name provided")
 	} else if args[0] == "help" {
-		fmt.Printf("%s restart ${container id}\n", os.Args[0])
+		fmt.Printf("%s rerun ${container id}\n", os.Args[0])
 		exitCode = 0
 		return nil
 	}
@@ -33,11 +33,12 @@ func rerun(args []string) error {
 					if !b {
 						break
 					}
+
 					time.Sleep(100 * time.Millisecond)
 				}
-				deRunContainer(&c)
-				if err2 := unix.Exec(os.Args[0], c.HostArgs, os.Environ()); err2 != nil {
-					err = fmt.Errorf("unable to restart %s", err)
+
+				if err2 := unix.Exec("/usr/bin/sandal", c.HostArgs, os.Environ()); err2 != nil {
+					err = fmt.Errorf("unable to rerun %s", err2)
 				}
 			}()
 

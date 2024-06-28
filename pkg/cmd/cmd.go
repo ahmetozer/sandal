@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/config"
@@ -17,6 +18,7 @@ func cmd(args []string) error {
 	}
 	for _, c := range conts {
 		if c.Name == args[0] {
+			c.HostArgs[0] = os.Args[0] // sync with current command
 			fmt.Println(strings.Join(c.HostArgs, " "))
 			return nil
 		}

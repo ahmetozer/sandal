@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
+	"os/exec"
+	"strings"
+	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/ahmetozer/sandal/pkg/net"
@@ -23,8 +27,12 @@ func Exec() {
 	}
 
 	configureIfaces(&c)
+
 	childSysMounts(&c)
 	childSysNodes(&c)
+	execCommands(c.RunPrePivot, "/.old_root/")
+	purgeOldRoot(&c)
+	execCommands(c.RunPreExec, "")
 
 	_, args := childArgs(os.Args)
 	if err := unix.Exec(c.Exec, append([]string{c.Exec}, args...), os.Environ()); err != nil {
@@ -88,4 +96,41 @@ func configureIfaces(c *config.Config) {
 	if err := net.SetInterfaceUp("lo"); err != nil {
 		log.Fatalf("unable to set lo up %s", err)
 	}
+}
+
+func execCommands(c []string, chroot string) {
+	for _, command := range c {
+
+		var cmd *exec.Cmd
+		args := strings.Split(command, " ")
+		switch len(args) {
+		case 1:
+			cmd = exec.Command(args[0])
+		case 0:
+			return
+		default:
+			cmd = exec.Command(args[0], args[1:]...)
+		}
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags: syscall.CLONE_NEWUTS,
+		}
+		if chroot != "" {
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Cloneflags: syscall.CLONE_NEWUTS,
+				Chroot:     chroot,
+			}
+		}
+
+		err := cmd.Run()
+		if err != nil {
+			rootfs := "container rootfs"
+			if chroot != "" {
+				rootfs = "main rootfs"
+			}
+			slog.Info("unable to execute", "command", command, "rootfs", rootfs, "err", err.Error())
+		}
+	}
+
 }

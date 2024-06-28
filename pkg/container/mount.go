@@ -65,6 +65,9 @@ func childSysMounts(c *config.Config) {
 	}
 	os.Remove(sandalChildWorkdir)
 
+}
+
+func purgeOldRoot(c *config.Config) {
 	mount("", "/.old_root", "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err := unix.Unmount("/.old_root", unix.MNT_DETACH); err != nil {
 		log.Fatalf("unable to unmount /.old_root %s", err)
@@ -74,7 +77,6 @@ func childSysMounts(c *config.Config) {
 	if c.ReadOnly {
 		mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
 	}
-
 }
 
 func mount(source, target, fstype string, flags uintptr, data string) {
@@ -111,15 +113,19 @@ func mountVolumes(c *config.Config) {
 	for _, v := range c.Volumes {
 
 		m := strings.Split(v, ":")
-		// if single path provided or desitionation is set different
 		switch len(m) {
+		//only path forwarded, destionation and mount iptions will generated
 		case 1:
 			m = append(m, m[0], "")
+		// destionation path is provided but options are not provided
 		case 2:
 			m = append(m, "")
+		case 3:
+		default:
+			log.Fatalf("unexpected mount configuration '%s'", v)
 		}
 
-		mount(m[0], path.Join("rootfs", m[1]), "", unix.MS_BIND|unix.MS_REC, m[2])
+		mount(m[0], path.Join("rootfs", m[1]), "", unix.MS_BIND, m[2])
 	}
 }
 
