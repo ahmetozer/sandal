@@ -59,6 +59,8 @@ func run(args []string) error {
 	f.StringVar(&c.NS.Uts, "ns-uts", "", "uts namespace or host")
 	f.StringVar(&c.NS.User, "ns-user", "host", "user namespace or host")
 
+	f.StringVar(&c.ChangeDir, "chd", "", "changes save location default /var/lib/sandal/containers/<name>/changes")
+
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
 	f.Var(&c.Volumes, "v", "volume mount point")

@@ -43,6 +43,9 @@ Executing a new container image with given options.
 | `-ro` | false | read only rootfs |
 | `-sq` |  | squashfs image location  |
 | `-lw` |  | mount custom paths for lowerdirs (mutliple lower dir supported) |
+| `-chd` |  | save change on different path or disk |
+| `-rpp` |  | run command on main filesystem before pivoting to containers rootfs  |
+| `-rpe` |  | run command after pivoting container's rootfs but before starting init |
 | `-tmp` | 0 | allocate changes at memory instead of disk. unit is in MB, disk is used used by default |
 | `-v` |   | attach system directory paths to container <br/> `-v=/mnt/homeasistant:/config` |
 
@@ -190,9 +193,9 @@ sandal inspect minecraft
     ...}
 ```
 
-## Scenarios
+## Use cases
 
-At below, you can see some examples of different scenarios and combinations
+At below, you can see some examples of different scenarios and combinations.
 
 If your compiled application require system lib files, you can use distro squasfile and your second layer to start container.
 
@@ -211,7 +214,7 @@ tar -xvzf alpine-minirootfs-3.20.1-aarch64.tar.gz -C alpine
 rm alpine-minirootfs-3.20.1-aarch64.tar.gz
 ```
 
-If you want to isolat your changes, you can start your system with lowerdir only.
+If you want to isolate your changes, you can start your system with lowerdir only.
 
 ```bash
 sandal run -name=mybinnary -keep -lw="$HOME/alpine/" /bin/ash
@@ -252,4 +255,24 @@ You can directly attach single binnary to container enviroment as well
 
 ```bash
 sandal run -name=tunnel -v=/root/testlw/bosphorus:/bosphorus  /bosphorus server
+```
+
+Altering routing table to only allow local access.
+
+```bash
+sandal run -v="/usr/bin/bosphorus" -rpp="/usr/bin/ip ro re unreachable default" -rpp="/usr/bin/ip ro add 10.0.0.0/8 via 172.16.0.1" --rpp="/usr/bin/ip ro show"  /usr/bin/bosphorus
+```
+
+Installing curl before executing as init.
+
+```bash
+sandal run -v="/usr/bin/bosphorus" -rpe="/sbin/apk add curl" -lw="/root/alpine"  /usr/bin/curl https://ahmet.network -lI
+```
+
+Save changes in different disk
+
+```bash
+sandal run  -sq="/mnt/sandal/images/ubuntu.sq" -chd="/mnt/nvme1/develop/" /usr/bin/df -h
+Filesystem      Size  Used Avail Use% Mounted on
+overlay         916G  3.2G  867G   1% /
 ```
