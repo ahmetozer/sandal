@@ -32,7 +32,7 @@ func rm(args []string) error {
 				return fmt.Errorf("container %s is running, please stop it first", c.Name)
 			}
 
-			c.Keep = false
+			c.Remove = true
 			deRunContainer(&c)
 
 		}

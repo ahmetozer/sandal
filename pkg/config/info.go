@@ -62,7 +62,7 @@ type Config struct {
 	SquashfsFile string
 	RootfsDir    string
 	ReadOnly     bool
-	Keep         bool
+	Remove       bool
 	EnvAll       bool
 	Background   bool
 	Startup      bool

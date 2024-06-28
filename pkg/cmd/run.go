@@ -35,7 +35,7 @@ func run(args []string) error {
 	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
 
-	f.BoolVar(&c.Keep, "keep", false, "do not remove container files on exit")
+	f.BoolVar(&c.Remove, "rm", false, "remove container files on exit")
 
 	f.BoolVar(&c.Startup, "startup", false, "run container at startup by sandal daemon")
 
@@ -139,7 +139,7 @@ func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
 	// Starting proccess
 	exitCode, err = container.Start(c, c.PodArgs)
 
-	if c.Keep {
+	if !c.Remove {
 		c.Status = fmt.Sprintf("exit %d", exitCode)
 		if err != nil {
 			c.Status = fmt.Sprintf("err %v", err)
@@ -163,7 +163,7 @@ func deRunContainer(c *config.Config) {
 		net.Clear(c)
 	}
 
-	if !c.Keep {
+	if c.Remove {
 		if err := os.RemoveAll(c.ContDir()); err != nil {
 			slog.Debug("removeall", slog.String("err", err.Error()))
 		}

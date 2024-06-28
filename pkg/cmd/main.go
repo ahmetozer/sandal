@@ -38,6 +38,8 @@ func Main() {
 		executeSubCommand(deamon)
 	case "cmd":
 		executeSubCommand(cmd)
+	case "clear":
+		executeSubCommand(clear)
 	case "help":
 		subCommandsHelp()
 	default:
@@ -71,6 +73,7 @@ func subCommandsHelp() {
 	inspect - Get configuration file
 	cmd - Get execution command
 	daemon - Start sandal daemon
+	clear - Clear unused containers
 	help - Show this help`)
 
 	fmt.Printf("\n\nVersion: %s\n", BuildVersion)
