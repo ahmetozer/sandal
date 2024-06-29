@@ -168,9 +168,9 @@ case "$1" in
 
   restart)
 	log_daemon_msg "Restarting Sandal" "sandal" || true
-	start-stop-daemon --stop --background -m --quiet --oknodo --retry 30 --pidfile /run/sandal.pid --exec /bin/sandal
+	start-stop-daemon --stop --quiet --oknodo --retry 30 --pidfile /run/sandal.pid --exec /bin/sandal
 	# shellcheck disable=SC2086
-	if start-stop-daemon --start --quiet --oknodo --chuid 0:0 --pidfile /run/sandal.pid --exec /bin/sandal -- $SANDAL_OPTS; then
+	if start-stop-daemon --start --background -m --quiet --oknodo --chuid 0:0 --pidfile /run/sandal.pid --exec /bin/sandal -- $SANDAL_OPTS; then
 	    log_end_msg 0 || true
 	else
 	    log_end_msg 1 || true

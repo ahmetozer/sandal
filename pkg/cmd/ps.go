@@ -66,5 +66,6 @@ func printDry(c *config.Config, t *tabwriter.Writer) {
 }
 
 func printNamespaces(c *config.Config, t *tabwriter.Writer) {
-	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.ContPid, c.NS.Cgroup, c.NS.Ipc, c.NS.Mnt, c.NS.Net, c.NS.Pid, c.NS.User, c.NS.Uts)
+
+	fmt.Fprintf(t, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Name, c.ContPid, c.NS["cgroup"].Value, c.NS["ipc"].Value, c.NS["mnt"].Value, c.NS["net"].Value, c.NS["pid"].Value, c.NS["user"].Value, c.NS["uts"].Value)
 }

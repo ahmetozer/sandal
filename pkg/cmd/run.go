@@ -54,10 +54,13 @@ func run(args []string) error {
 	f.StringVar(&c.Resolv, "resolv", "cp", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist), image(use image)")
 
-	f.StringVar(&c.NS.Net, "ns-net", "", "net namespace or host")
-	f.StringVar(&c.NS.Pid, "ns-pid", "", "pid namespace or host")
-	f.StringVar(&c.NS.Uts, "ns-uts", "", "uts namespace or host")
-	f.StringVar(&c.NS.User, "ns-user", "host", "user namespace or host")
+	for _, k := range config.Namespaces {
+		defaultValue := ""
+		if k == "user" {
+			defaultValue = "host"
+		}
+		f.StringVar(&c.NS[k].Value, "ns-"+k, defaultValue, fmt.Sprintf("%s namespace or host", k))
+	}
 
 	f.StringVar(&c.ChangeDir, "chd", "", "changes save location default /var/lib/sandal/containers/<name>/changes")
 
@@ -115,7 +118,7 @@ func run(args []string) error {
 func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
 	// Starting container
 	var err error
-	if c.NS.Net != "host" {
+	if c.NS["net"].Value != "host" {
 
 		if HostIface.Type == "bridge" {
 			err = net.CreateIface(c, &HostIface)
@@ -159,7 +162,7 @@ func deRunContainer(c *config.Config) {
 			slog.Debug("umount", slog.String("err", e.Error()))
 		}
 	}
-	if c.NS.Net != "host" {
+	if c.NS["net"].Value != "host" {
 		net.Clear(c)
 	}
 

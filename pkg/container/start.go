@@ -48,16 +48,16 @@ func Start(c *config.Config, args []string) (int, error) {
 
 	var cmdFlags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP
 
-	if c.NS.Pid != "host" {
+	if c.NS["pid"].Value != "host" {
 		cmdFlags |= syscall.CLONE_NEWPID
 	}
-	if c.NS.Net != "host" {
+	if c.NS["net"].Value != "host" {
 		cmdFlags |= syscall.CLONE_NEWNET
 	}
-	if c.NS.User != "host" {
+	if c.NS["user"].Value != "host" {
 		cmdFlags |= syscall.CLONE_NEWUSER
 	}
-	if c.NS.Uts != "host" {
+	if c.NS["uts"].Value != "host" {
 		cmdFlags |= syscall.CLONE_NEWUTS
 	}
 
@@ -65,7 +65,7 @@ func Start(c *config.Config, args []string) (int, error) {
 		Cloneflags: cmdFlags,
 	}
 
-	if c.NS.User != "host" && c.NS.Pid != "host" {
+	if c.NS["user"].Value != "host" && c.NS["pid"].Value != "host" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: cmdFlags,
 			UidMappings: []syscall.SysProcIDMap{
@@ -80,6 +80,7 @@ func Start(c *config.Config, args []string) (int, error) {
 	c.SaveConftoDisk()
 
 	err := cmd.Start()
+
 	if err != nil {
 		return 0, fmt.Errorf("starting container: %v", err)
 	}
@@ -146,16 +147,12 @@ func childArgs(args []string) (string, []string) {
 }
 
 func loadNamespaceIDs(c *config.Config) {
-
-	c.NS.Pid = readNamespace(fmt.Sprintf("/proc/%d/ns/pid", c.ContPid))
-	c.NS.Net = readNamespace(fmt.Sprintf("/proc/%d/ns/net", c.ContPid))
-	c.NS.User = readNamespace(fmt.Sprintf("/proc/%d/ns/user", c.ContPid))
-	c.NS.Uts = readNamespace(fmt.Sprintf("/proc/%d/ns/uts", c.ContPid))
-	c.NS.Ipc = readNamespace(fmt.Sprintf("/proc/%d/ns/ipc", c.ContPid))
-	c.NS.Cgroup = readNamespace(fmt.Sprintf("/proc/%d/ns/cgroup", c.ContPid))
-	c.NS.Mnt = readNamespace(fmt.Sprintf("/proc/%d/ns/mnt", c.ContPid))
-	c.NS.Time = readNamespace(fmt.Sprintf("/proc/%d/ns/time", c.ContPid))
-	c.NS.NS = readNamespace(fmt.Sprintf("/proc/%d/ns/ns", c.ContPid))
+	for _, ns := range config.Namespaces {
+		if c.NS[ns].Value == "host" {
+			continue
+		}
+		c.NS[ns].Value = readNamespace(fmt.Sprintf("/proc/%d/ns/%s", c.ContPid, ns))
+	}
 }
 
 func readNamespace(f string) string {
@@ -181,7 +178,6 @@ func parseNamspaceInfo(s string) string {
 func AttachContainerToPID(c *config.Config, masterPid int) error {
 	if err := syscall.Setpgid(c.ContPid, masterPid); err != nil {
 		return fmt.Errorf("error setting %d process group id: %s", c.ContPid, err)
-
 	}
 
 	if pgid, err := syscall.Getpgid(c.ContPid); err != nil || pgid != masterPid {

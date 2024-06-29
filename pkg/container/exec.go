@@ -26,7 +26,9 @@ func Exec() {
 		log.Fatalf("unable to set hostname %s", err)
 	}
 
-	configureIfaces(&c)
+	if c.NS["net"].Value != "host" {
+		configureIfaces(&c)
+	}
 
 	childSysMounts(&c)
 	childSysNodes(&c)
@@ -43,7 +45,7 @@ func Exec() {
 
 func loadConfig() (config.Config, error) {
 
-	config := config.Config{}
+	config := config.NewContainer()
 	confFileLoc := os.Getenv(CHILD_CONFIG_ENV_NAME)
 	if confFileLoc == "" {
 		return config, fmt.Errorf("config file location not present in env")

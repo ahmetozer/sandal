@@ -8,18 +8,6 @@ import (
 	"time"
 )
 
-type NS struct {
-	Net    string
-	Pid    string
-	Uts    string
-	User   string
-	Ipc    string
-	Cgroup string
-	NS     string
-	Mnt    string
-	Time   string
-}
-
 type ALocFor uint8
 
 const (
@@ -50,6 +38,10 @@ func (f *StringFlags) Set(value string) error {
 	return nil
 }
 
+type StringWrapper struct {
+	Value string
+}
+
 type Config struct {
 	Name string
 
@@ -66,7 +58,7 @@ type Config struct {
 	EnvAll       bool
 	Background   bool
 	Startup      bool
-	NS           NS
+	NS           map[string]*StringWrapper
 	ChangeDir    string
 	Exec         string
 	Devtmpfs     string
@@ -89,11 +81,17 @@ var (
 	TypeUint   uint
 )
 
+var Namespaces []string = []string{"pid", "net", "user", "uts", "ipc", "cgroup", "mnt", "time", "ns"}
+
 func NewContainer() Config {
 	Config := Config{}
 	Config.HostPid = os.Getpid()
 	Config.Created = time.Now().UTC().Unix()
 	Config.Ifaces = []NetIface{{ALocFor: ALocForHost}}
+	Config.NS = make(map[string]*StringWrapper, len(Namespaces))
+	for _, ns := range Namespaces {
+		Config.NS[ns] = &StringWrapper{Value: ""}
+	}
 	return Config
 }
 

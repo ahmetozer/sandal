@@ -10,7 +10,7 @@ import (
 func CreateIface(c *config.Config, iface *config.NetIface) error {
 	ifaceLink := netlink.Link(nil)
 	err := error(nil)
-	if c.NS.Net == "host" {
+	if c.NS["net"].Value == "host" {
 		return nil
 	}
 
