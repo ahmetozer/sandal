@@ -65,12 +65,14 @@ type Config struct {
 	Resolv       string
 	Hosts        string
 	Status       string
+	Dir          string
 	Volumes      StringFlags
 	HostArgs     []string
 	PodArgs      []string
 	LowerDirs    StringFlags
 	RunPreExec   StringFlags
 	RunPrePivot  StringFlags
+	PassEnv      StringFlags
 
 	Ifaces []NetIface
 }

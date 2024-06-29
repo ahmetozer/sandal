@@ -3,6 +3,7 @@ package container
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -133,7 +134,24 @@ func childEnv(c *config.Config) []string {
 	if c.EnvAll {
 		return append(os.Environ(), CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
 	}
-	return []string{CHILD_CONFIG_ENV_NAME + "=" + c.ConfigFileLoc()}
+	envVars := []string{}
+	pathIsSet := false
+	for _, env := range c.PassEnv {
+		if env == "PATH" {
+			pathIsSet = true
+		}
+		variable := os.Getenv(env)
+		if variable == "" {
+			slog.Info("enviroment variable not found", "variable", env)
+		} else {
+			envVars = append(envVars, fmt.Sprintf("%s=%s", env, variable))
+		}
+	}
+	if !pathIsSet {
+		envVars = append(envVars, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
+	}
+
+	return append(envVars, CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
 }
 
 func childArgs(args []string) (string, []string) {

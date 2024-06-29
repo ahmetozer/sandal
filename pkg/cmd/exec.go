@@ -3,7 +3,7 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 
@@ -22,10 +22,16 @@ func execOnContainer(args []string) error {
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
 	var (
-		help bool
+		help    bool
+		EnvAll  bool
+		PassEnv config.StringFlags
+		Dir     string
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
+	f.BoolVar(&EnvAll, "env-all", false, "send all enviroment variables to container")
+	f.StringVar(&Dir, "dir", "", "working directory")
+	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -37,49 +43,58 @@ func execOnContainer(args []string) error {
 
 	conts, err := config.AllContainers()
 	if err != nil {
-		log.Fatalf("Failed to get containers: %v", err)
+		return fmt.Errorf("failed to get containers: %v", err)
 	}
 	c, err := config.GetByName(&conts, args[0])
 	if err != nil {
-		log.Fatalf("Failed to get container %s: %v", args[0], err)
+		return fmt.Errorf("failed to get container %s: %v", args[0], err)
 	}
 
-	var nsFuncs []func()
+	type nsConf struct {
+		nsname    string
+		CloneFlag int
+	}
+
+	var nsFuncs []nsConf
+
 	Cloneflags := unix.CLONE_NEWIPC | unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP
 
 	if c.NS["pid"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWPID
-		nsFuncs = append(nsFuncs, func() { setNs("pid", c.ContPid, unix.CLONE_NEWPID) })
+		nsFuncs = append(nsFuncs, nsConf{"pid", unix.CLONE_NEWPID})
 	}
 	if c.NS["net"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWNET
-		nsFuncs = append(nsFuncs, func() { setNs("net", c.ContPid, unix.CLONE_NEWNET) })
+		nsFuncs = append(nsFuncs, nsConf{"net", unix.CLONE_NEWNET})
 	}
 	if c.NS["user"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWUSER
-		nsFuncs = append(nsFuncs, func() { setNs("user", c.ContPid, unix.CLONE_NEWUSER) })
+		nsFuncs = append(nsFuncs, nsConf{"user", unix.CLONE_NEWUSER})
 	}
 	if c.NS["uts"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWUTS
-		nsFuncs = append(nsFuncs, func() { setNs("uts", c.ContPid, unix.CLONE_NEWUTS) })
+		nsFuncs = append(nsFuncs, nsConf{"uts", unix.CLONE_NEWUTS})
 	}
 
+	nsFuncs = append(nsFuncs, nsConf{"pid", unix.CLONE_NEWPID})
+	nsFuncs = append(nsFuncs, nsConf{"cgroup", unix.CLONE_NEWCGROUP})
+	nsFuncs = append(nsFuncs, nsConf{"mnt", unix.CLONE_NEWNS})
+
+	// Unshare the namespaces
 	if err := unix.Unshare(Cloneflags); err != nil {
-		log.Fatalf("Failed to unshare namespaces: %v", err)
+		return fmt.Errorf("unshare namespaces: %v", err)
 	}
-	for _, f := range nsFuncs {
-		f()
+	// Set the namespaces
+	for _, nsConf := range nsFuncs {
+		if err := setNs(nsConf.nsname, c.ContPid, nsConf.CloneFlag); err != nil {
+			return err
+		}
 	}
-
-	setNs("pid", c.ContPid, unix.CLONE_NEWPID)
-	setNs("cgroup", c.ContPid, unix.CLONE_NEWCGROUP)
-	setNs("mnt", c.ContPid, unix.CLONE_NEWNS)
 
 	// Set the hostname
 	if err := unix.Sethostname([]byte(c.Name)); err != nil {
-		log.Fatalf("Failed to set hostname %s: %v", c.Name, err)
+		return fmt.Errorf("set hostname %s: %v", c.Name, err)
 	}
-
 	var cmd *exec.Cmd
 	switch len(childArgs) {
 	case 0:
@@ -93,7 +108,31 @@ func execOnContainer(args []string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
+	cmd.Dir = c.Dir
+	if Dir != "" {
+		cmd.Dir = Dir
+	}
+
+	cmd.Env = []string{}
+	if EnvAll {
+		cmd.Env = os.Environ()
+	} else {
+		pathIsSet := false
+		for _, env := range PassEnv {
+			if env == "PATH" {
+				pathIsSet = true
+			}
+			variable := os.Getenv(env)
+			if variable == "" {
+				slog.Info("enviroment variable not found", "variable", env)
+			} else {
+				cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env, variable))
+			}
+		}
+		if !pathIsSet {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
+		}
+	}
 
 	err = cmd.Run()
 	if err != nil {
@@ -103,16 +142,16 @@ func execOnContainer(args []string) error {
 	return nil
 }
 
-func setNs(nsname string, pid, nstype int) {
+func setNs(nsname string, pid, nstype int) error {
 	path := fmt.Sprintf("/proc/%d/ns/%s", pid, nsname)
 	file, err := os.Open(path)
 	if err != nil {
-		log.Fatalf("Failed to open namespace file %s: %v", path, err)
+		return fmt.Errorf("failed to open namespace file %s: %v", path, err)
 	}
-	// defer file.Close()
 
 	// Set the namespace
 	if err := unix.Setns(int(file.Fd()), nstype); err != nil {
-		log.Fatalf("Failed to set namespace %s: %v", nsname, err)
+		return fmt.Errorf("failed to set namespace %s: %v", nsname, err)
 	}
+	return nil
 }
