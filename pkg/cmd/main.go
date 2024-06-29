@@ -40,6 +40,8 @@ func Main() {
 		executeSubCommand(cmd)
 	case "clear":
 		executeSubCommand(clear)
+	case "exec":
+		executeSubCommand(execOnContainer)
 	case "help":
 		subCommandsHelp()
 	default:
@@ -74,6 +76,7 @@ func subCommandsHelp() {
 	cmd - Get execution command
 	daemon - Start sandal daemon
 	clear - Clear unused containers
+	exec - Execute a command in a container
 	help - Show this help`)
 
 	fmt.Printf("\n\nVersion: %s\n", BuildVersion)

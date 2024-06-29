@@ -152,6 +152,14 @@ sandal run -d -sq=cont1.sqfs --name cont1 /bin/ping 1.0.0.1
 sandal rerun cont1
 ```
 
+### Exec
+
+Execute command under your container
+
+```bash
+sandal exec minecraft /bin/bash
+```
+
 ### Cmd
 
 Get last execution command.

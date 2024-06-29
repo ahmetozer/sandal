@@ -46,28 +46,28 @@ func Start(c *config.Config, args []string) (int, error) {
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.ContDir()
 
-	var cmdFlags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP
+	var Cloneflags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP | syscall.CLONE_NEWTIME
 
 	if c.NS["pid"].Value != "host" {
-		cmdFlags |= syscall.CLONE_NEWPID
+		Cloneflags |= syscall.CLONE_NEWPID
 	}
 	if c.NS["net"].Value != "host" {
-		cmdFlags |= syscall.CLONE_NEWNET
+		Cloneflags |= syscall.CLONE_NEWNET
 	}
 	if c.NS["user"].Value != "host" {
-		cmdFlags |= syscall.CLONE_NEWUSER
+		Cloneflags |= syscall.CLONE_NEWUSER
 	}
 	if c.NS["uts"].Value != "host" {
-		cmdFlags |= syscall.CLONE_NEWUTS
+		Cloneflags |= syscall.CLONE_NEWUTS
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: cmdFlags,
+		Cloneflags: Cloneflags,
 	}
 
 	if c.NS["user"].Value != "host" && c.NS["pid"].Value != "host" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: cmdFlags,
+			Cloneflags: Cloneflags,
 			UidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
