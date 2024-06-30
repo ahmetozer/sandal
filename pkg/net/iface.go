@@ -2,6 +2,7 @@ package net
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/config"
@@ -66,7 +67,9 @@ func WaitInterface(name string) error {
 		for {
 			link, err := netlink.LinkByName(name)
 			if err != nil {
-				fmt.Printf("%s", err)
+				if _, ok := err.(netlink.LinkNotFoundError); !ok {
+					slog.Info("interface not found", slog.String("name", name))
+				}
 			}
 			if err == nil && link != nil {
 				interfaceReady <- true
