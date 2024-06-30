@@ -21,34 +21,6 @@ Multiple subcommands are available on the system for different usage purposes.
 
 Executing a new container image with given options.
 
-| flag  | default  | description  |
-|---|---|---|
-| `-d` | false | Run your container at background  |
-| `-startup` | false | Run your container at startup with sandal daemon |
-| `devtmpfs` |   | Mount devtmpfs inside the container in the given location <br/> `-devtmpfs=/mnt/host/dev` |
-| `-env-all` | false | Pass hosts enviroment variable to container |
-| `-help` | false | print argument helps |
-| `-host-ips` | 172.16.0.1/24;fd34:0135:0123::1/64 | host interface ip addresses |
-| `-host-net` |  sandal0 |  host interface for bridge or macvlan |
-| `-hosts` | cp | Behavior of `/etc/hosts` file. <br/>cp (copy), cp-n (copy if not exist), image(use image) |
-| `-keep` | false | Do not remove container files on exit |
-| `-name` |   | name of the container |
-| `-net-type` | bridge | Type of host net type. bridge, macvlan, ipvlan  |
-| `-ns-net` |   | net namespace or host |
-| `-ns-pid` |   | pid namespace or host |
-| `-ns-user` | host | user namespace or host |
-| `-ns-uts` |   | uts namespace or host |
-| `-pod-ips` |   | container interface ips |
-| `-resolv` | cp-n | Behavior of `/etc/resolv` file. <br/>cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 |
-| `-ro` | false | read only rootfs |
-| `-sq` |  | squashfs image location  |
-| `-lw` |  | mount custom paths for lowerdirs (mutliple lower dir supported) |
-| `-chd` |  | save change on different path or disk |
-| `-rpp` |  | run command on main filesystem before pivoting to containers rootfs  |
-| `-rpe` |  | run command after pivoting container's rootfs but before starting init |
-| `-tmp` | 0 | allocate changes at memory instead of disk. unit is in MB, disk is used used by default |
-| `-v` |   | attach system directory paths to container <br/> `-v=/mnt/homeasistant:/config` |
-
 Examples:
 
 ```sh
@@ -60,6 +32,15 @@ sandal run -sq=/mnt/sandal/images/homeas.sq  -pod-ips="172.16.0.3/24;fd34:0135:0
 
 sandal run -sq=/mnt/sandal/images/octo.sq  -env-all --ns-net=host --name=octo \
 -pod-ips="172.16.0.4/24;172.16.0.5/24;fd34:0135:0123::4/64"  -v=/mnt/octo:/octoprint/octoprint  -devtmpfs=/mnt/external/ /init
+
+export MY_SECRET_1=1234
+export MY_SECRET_2=asdf
+export MY_SECRET_3=aaaaa
+sandal run -lw=/root/alpine -rm -env-pass=MY_SECRET_1 -env-pass=MY_SECRET_3 env
+MY_SECRET_1=1234
+MY_SECRET_3=aaaaa
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+SANDAL_CHILD=/var/lib/sandal/containers/232gG0pVhDa9u8U3v5e75O/config.json
 ```
 
 ### Ps
@@ -103,6 +84,14 @@ Delete container run files.
 
 ```bash
 sandal rm alpine-1
+```
+
+### Clear
+
+Delete container files which they are started with `-rm` flag and not running state
+
+```bash
+sandal clear
 ```
 
 ### Convert

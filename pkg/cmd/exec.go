@@ -12,13 +12,9 @@ import (
 )
 
 func execOnContainer(args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("no container name provided")
-	}
-	if len(args) < 2 {
-		return fmt.Errorf("no command provided")
-	}
-	thisFlags, childArgs := SplitFlagsArgs(args[1:])
+
+	thisFlags, childArgs := SplitFlagsArgs(args)
+
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
 	var (
@@ -39,15 +35,28 @@ func execOnContainer(args []string) error {
 
 	if help {
 		f.Usage()
+		return nil
+	}
+
+	var cmd *exec.Cmd
+	switch len(childArgs) {
+	case 0:
+		return fmt.Errorf("no container name provided")
+	case 1:
+		return fmt.Errorf("no command provided")
+	case 2:
+		cmd = exec.Command(childArgs[1])
+	default:
+		cmd = exec.Command(childArgs[1], childArgs[2:]...)
 	}
 
 	conts, err := config.AllContainers()
 	if err != nil {
 		return fmt.Errorf("failed to get containers: %v", err)
 	}
-	c, err := config.GetByName(&conts, args[0])
+	c, err := config.GetByName(&conts, childArgs[0])
 	if err != nil {
-		return fmt.Errorf("failed to get container %s: %v", args[0], err)
+		return fmt.Errorf("failed to get container %s: %v", childArgs[0], err)
 	}
 
 	type nsConf struct {
@@ -94,15 +103,6 @@ func execOnContainer(args []string) error {
 	// Set the hostname
 	if err := unix.Sethostname([]byte(c.Name)); err != nil {
 		return fmt.Errorf("set hostname %s: %v", c.Name, err)
-	}
-	var cmd *exec.Cmd
-	switch len(childArgs) {
-	case 0:
-		return fmt.Errorf("no command provided")
-	case 1:
-		cmd = exec.Command(childArgs[0])
-	default:
-		cmd = exec.Command(childArgs[0], childArgs[1:]...)
 	}
 
 	cmd.Stdin = os.Stdin
