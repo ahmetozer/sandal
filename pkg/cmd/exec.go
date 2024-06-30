@@ -44,10 +44,6 @@ func execOnContainer(args []string) error {
 		return fmt.Errorf("no container name provided")
 	case 1:
 		return fmt.Errorf("no command provided")
-	case 2:
-		cmd = exec.Command(childArgs[1])
-	default:
-		cmd = exec.Command(childArgs[1], childArgs[2:]...)
 	}
 
 	conts, err := config.AllContainers()
@@ -103,6 +99,18 @@ func execOnContainer(args []string) error {
 	// Set the hostname
 	if err := unix.Sethostname([]byte(c.Name)); err != nil {
 		return fmt.Errorf("set hostname %s: %v", c.Name, err)
+	}
+
+	executable, err := exec.LookPath(childArgs[1])
+	if err != nil {
+		return fmt.Errorf("unable to find %s: %s", childArgs[1], err)
+	}
+	switch len(childArgs) {
+	case 2:
+		cmd = exec.Command(executable)
+	default:
+		cmd = exec.Command(executable, childArgs[2:]...)
+
 	}
 
 	cmd.Stdin = os.Stdin
