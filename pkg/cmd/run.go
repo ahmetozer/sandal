@@ -114,7 +114,9 @@ func run(args []string) error {
 			return err
 		}
 	}
-	return Start(&c, HostIface, PodIface)
+	err = Start(&c, HostIface, PodIface)
+	deRunContainer(&c)
+	return err
 }
 
 func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
