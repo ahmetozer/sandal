@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/ahmetozer/sandal/pkg/net"
@@ -107,29 +106,64 @@ func configureIfaces(c *config.Config) {
 func execCommands(c []string, chroot string) {
 	for _, command := range c {
 
-		var cmd *exec.Cmd
+		var (
+			cmd      *exec.Cmd
+			mainRoot *os.File
+			err      error
+		)
 		args := strings.Split(command, " ")
+
 		switch len(args) {
-		case 1:
-			cmd = exec.Command(args[0])
 		case 0:
 			return
 		default:
-			cmd = exec.Command(args[0], args[1:]...)
+
+			// enter chroot
+			if chroot != "" {
+				mainRoot, err = os.Open("/")
+				if err != nil {
+					log.Fatalf("unable to open /: %s", err)
+				}
+				err = unix.Chroot(chroot)
+				if err != nil {
+					mainRoot.Close()
+					log.Fatalf("unable to chroot %s: %s", chroot, err)
+				}
+			}
+
+			execPath, err := exec.LookPath(args[0])
+			if err != nil {
+				log.Fatalf("unable to find %s: %s path=\"%s\"", args[0], err, os.Getenv("PATH"))
+			}
+
+			// exit chroot
+			if chroot != "" {
+				err = mainRoot.Chdir()
+				if err != nil {
+					log.Fatalf("unable return main root /: %s", err)
+				}
+				err = unix.Chroot(".")
+				if err != nil {
+					log.Fatalf("unable to exit chroot: %s", err)
+				}
+			}
+			cmd = exec.Command(execPath, args[1:]...)
 		}
+
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: syscall.CLONE_NEWUTS,
+		cmd.Env = os.Environ()
+		cmd.SysProcAttr = &unix.SysProcAttr{
+			Cloneflags: unix.CLONE_NEWUTS,
 		}
 		if chroot != "" {
-			cmd.SysProcAttr = &syscall.SysProcAttr{
-				Cloneflags: syscall.CLONE_NEWUTS,
+			cmd.SysProcAttr = &unix.SysProcAttr{
+				Cloneflags: unix.CLONE_NEWUTS,
 				Chroot:     chroot,
 			}
 		}
 
-		err := cmd.Run()
+		err = cmd.Run()
 		if err != nil {
 			rootfs := "container rootfs"
 			if chroot != "" {
