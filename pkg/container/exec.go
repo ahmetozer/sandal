@@ -37,7 +37,11 @@ func Exec() {
 	execCommands(c.RunPreExec, "")
 
 	_, args := childArgs(os.Args)
-	if err := unix.Exec(c.Exec, append([]string{c.Exec}, args...), os.Environ()); err != nil {
+	execPath, err := exec.LookPath(c.Exec)
+	if err != nil {
+		log.Fatalf("unable to find %s: %s", c.Exec, err)
+	}
+	if err := unix.Exec(execPath, append([]string{c.Exec}, args...), os.Environ()); err != nil {
 		log.Fatalf("unable to exec %s: %s", c.Exec, err)
 	}
 
