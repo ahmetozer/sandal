@@ -47,7 +47,11 @@ func Start(c *config.Config, args []string) (int, error) {
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.ContDir()
 
-	var Cloneflags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWCGROUP | syscall.CLONE_NEWTIME
+	var Cloneflags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWTIME
+
+	if c.NS["cgroup"].Value != "host" {
+		Cloneflags |= syscall.CLONE_NEWCGROUP
+	}
 
 	if c.NS["pid"].Value != "host" {
 		Cloneflags |= syscall.CLONE_NEWPID
