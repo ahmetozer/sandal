@@ -143,10 +143,23 @@ func mountVolumes(c *config.Config) {
 }
 
 func Touch(path string) error {
-	file, err := os.Create(path)
-	if os.ErrExist != err {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		createTry := false
+
+	CREATE_FILE:
+		file, err := os.Create(path)
+		if os.IsNotExist(err) {
+			os.MkdirAll(filepath.Dir(path), 0600)
+			if !createTry {
+				goto CREATE_FILE
+			}
+		} else if err != nil {
+			return err
+		}
+		file.Close()
+		return nil
+	} else if err != nil {
 		return err
 	}
-	file.Close()
 	return nil
 }
