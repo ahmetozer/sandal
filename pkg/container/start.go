@@ -47,19 +47,27 @@ func Start(c *config.Config, args []string) (int, error) {
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.ContDir()
 
-	var Cloneflags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC | syscall.CLONE_NEWTIME
+	var Cloneflags uintptr
 
+	if c.NS["mnt"].Value != "host" {
+		Cloneflags |= syscall.CLONE_NEWNS
+	}
+	if c.NS["ipc"].Value != "host" {
+		Cloneflags |= syscall.CLONE_NEWIPC
+	}
+	if c.NS["time"].Value != "host" {
+		Cloneflags |= syscall.CLONE_NEWTIME
+	}
 	if c.NS["cgroup"].Value != "host" {
 		Cloneflags |= syscall.CLONE_NEWCGROUP
 	}
-
 	if c.NS["pid"].Value != "host" {
 		Cloneflags |= syscall.CLONE_NEWPID
 	}
 	if c.NS["net"].Value != "host" {
 		Cloneflags |= syscall.CLONE_NEWNET
 	}
-	if c.NS["user"].Value != "host" {
+	if c.NS["user"].Value != "host" && c.NS["user"].Value != "" {
 		Cloneflags |= syscall.CLONE_NEWUSER
 	}
 	if c.NS["uts"].Value != "host" {
@@ -70,7 +78,7 @@ func Start(c *config.Config, args []string) (int, error) {
 		Cloneflags: Cloneflags,
 	}
 
-	if c.NS["user"].Value != "host" && c.NS["pid"].Value != "host" {
+	if c.NS["user"].Value != "host" && c.NS["user"].Value != "" && c.NS["pid"].Value != "host" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: Cloneflags,
 			UidMappings: []syscall.SysProcIDMap{

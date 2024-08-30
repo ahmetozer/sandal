@@ -23,6 +23,7 @@ func childSysNodes(c *config.Config) {
 	newOsNode("/dev/urandom", 0666, 1, 9)
 	newOsNode("/dev/tty", 0666, 5, 0)
 	newOsNode("/dev/console", 0620, 5, 1)
+	newOsNode("/dev/kmsg", 0620, 1, 11)
 	newOsNode("/dev/tty0", 0620, 4, 0)
 	newOsNode("/dev/ptmx", 0666, 5, 2)
 

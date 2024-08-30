@@ -49,6 +49,10 @@ func childSysMounts(c *config.Config) {
 		mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
 	}
 
+	if _, err := os.Stat("/tmp"); os.IsNotExist(err) {
+		mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=777")
+	}
+
 	mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
 
 	if c.NS["cgroup"].Value != "host" {
@@ -85,8 +89,15 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
+		try := true
+	CHECK:
 		fileInfo, err := os.Stat(source)
 		if os.IsNotExist(err) {
+			if try {
+				os.MkdirAll(filepath.Dir(source), 0600)
+				try = false
+				goto CHECK
+			}
 			log.Fatalf("The path %s does not exist.\n", source)
 		}
 		if err != nil {
