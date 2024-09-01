@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/config"
@@ -56,6 +58,22 @@ func deamon(args []string) error {
 		slog.Info(`You can enable sandal deamon at startup with "sandal daemon -install" command.` +
 			`It will install service files for systemd and runit`)
 	}
+
+	go func() {
+		done := make(chan os.Signal, 1)
+		for {
+			signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGCHLD, syscall.SIGABRT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGIO, syscall.SIGURG, syscall.SIGPIPE, syscall.SIGALRM, syscall.SIGVTALRM, syscall.SIGPROF, syscall.SIGSYS, syscall.SIGTRAP, syscall.SIGBUS, syscall.SIGSEGV, syscall.SIGILL, syscall.SIGFPE, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
+			sig := <-done
+			for _, cont := range conts {
+				// oldContPid := cont.ContPid
+				if cont.Startup && container.IsRunning(&cont) {
+					syscall.Kill(cont.ContPid, sig.(syscall.Signal))
+				}
+			}
+
+		}
+	}()
+
 	for {
 		for _, cont := range conts {
 			// oldContPid := cont.ContPid

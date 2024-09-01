@@ -16,9 +16,19 @@ import (
 
 func Exec() {
 
-	c, err := loadConfig()
-	if err != nil {
-		log.Fatalf("unable to load config: %s", err)
+	var (
+		err error
+		c   config.Config
+	)
+	retry := 0
+	for {
+		c, err = loadConfig()
+		if err == nil {
+			break
+		}
+		if retry > 5 {
+			log.Fatalf("unable to load config: %s", err)
+		}
 	}
 
 	if err := unix.Sethostname([]byte(c.Name)); err != nil {
