@@ -49,9 +49,15 @@ func childSysMounts(c *config.Config) {
 		mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
 	}
 
+	if _, err := os.Stat("/tmp"); os.IsNotExist(err) {
+		mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=777")
+	}
+
 	mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
 
-	mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
+	if c.NS["cgroup"].Value != "host" {
+		mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
+	}
 
 	mount("devpts", "/dev/pts", "devpts", unix.MS_NOSUID|unix.MS_NOEXEC|unix.MS_RELATIME, "gid=5,mode=620,ptmxmode=666")
 
@@ -83,8 +89,15 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
+		try := true
+	CHECK:
 		fileInfo, err := os.Stat(source)
 		if os.IsNotExist(err) {
+			if try {
+				os.MkdirAll(filepath.Dir(source), 0600)
+				try = false
+				goto CHECK
+			}
 			log.Fatalf("The path %s does not exist.\n", source)
 		}
 		if err != nil {
@@ -130,10 +143,23 @@ func mountVolumes(c *config.Config) {
 }
 
 func Touch(path string) error {
-	file, err := os.Create(path)
-	if os.ErrExist != err {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		createTry := false
+
+	CREATE_FILE:
+		file, err := os.Create(path)
+		if os.IsNotExist(err) {
+			os.MkdirAll(filepath.Dir(path), 0600)
+			if !createTry {
+				goto CREATE_FILE
+			}
+		} else if err != nil {
+			return err
+		}
+		file.Close()
+		return nil
+	} else if err != nil {
 		return err
 	}
-	file.Close()
 	return nil
 }
