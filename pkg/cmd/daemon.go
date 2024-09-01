@@ -59,10 +59,11 @@ func deamon(args []string) error {
 			`It will install service files for systemd and runit`)
 	}
 
+	killRequested := false
 	go func() {
 		done := make(chan os.Signal, 1)
 		for {
-			signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGCHLD, syscall.SIGABRT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGIO, syscall.SIGURG, syscall.SIGPIPE, syscall.SIGALRM, syscall.SIGVTALRM, syscall.SIGPROF, syscall.SIGSYS, syscall.SIGTRAP, syscall.SIGBUS, syscall.SIGSEGV, syscall.SIGILL, syscall.SIGFPE, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
+			signal.Notify(done)
 			sig := <-done
 			for _, cont := range conts {
 				// oldContPid := cont.ContPid
@@ -70,14 +71,23 @@ func deamon(args []string) error {
 					syscall.Kill(cont.ContPid, sig.(syscall.Signal))
 				}
 			}
-
+			syscall.Kill(os.Getpid(), sig.(syscall.Signal))
+			if sig == syscall.SIGTERM || sig == syscall.SIGINT || sig == syscall.SIGKILL || sig == syscall.SIGQUIT {
+				killRequested = true
+				break
+			}
 		}
 	}()
 
+ContHealthCheck:
 	for {
 		for _, cont := range conts {
+
 			// oldContPid := cont.ContPid
 			if cont.Startup && !container.IsRunning(&cont) {
+				if killRequested {
+					break ContHealthCheck
+				}
 				container.SendSig(cont.ContPid, 9)
 				container.SendSig(cont.HostPid, 9)
 				for i := 1; i < 5; i++ {
@@ -137,7 +147,7 @@ func deamon(args []string) error {
 		time.Sleep(3 * time.Second)
 	}
 
-	// return nil
+	return nil
 }
 
 const initdSandal = `#!/bin/sh
