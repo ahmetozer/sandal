@@ -63,7 +63,7 @@ func deamon(args []string) error {
 	go func() {
 		done := make(chan os.Signal, 1)
 		for {
-			signal.Notify(done)
+			signal.Notify(done, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 			sig := <-done
 			for _, cont := range conts {
 				// oldContPid := cont.ContPid
