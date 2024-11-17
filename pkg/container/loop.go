@@ -17,11 +17,12 @@ const (
 	LOOP_CTL_GET_FREE = 0x4C82
 
 	LOOP_DEVICE_PREFIX = "/dev/loop"
+	LOOP_CONROL_PREFIX = LOOP_DEVICE_PREFIX + "-control"
 )
 
 // find free loop device
 func FindFreeLoopDevice() (int, error) {
-	loopControl, err := os.OpenFile(LOOP_DEVICE_PREFIX+"-control", os.O_RDWR, 0660)
+	loopControl, err := os.OpenFile(LOOP_CONROL_PREFIX, os.O_RDWR, 0660)
 	if err != nil {
 		return 0, fmt.Errorf("could not open loop control device: %v", err)
 	}

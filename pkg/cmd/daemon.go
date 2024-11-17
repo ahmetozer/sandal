@@ -3,11 +3,11 @@ package cmd
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,7 +37,7 @@ func deamon(args []string) error {
 	conts, _ := config.AllContainers()
 	go func() {
 		loadConf := func() {
-			slog.Debug("reloading configurations")
+			slog.Debug("deamon", slog.String("aciton", "reloading configurations"))
 			newConts, err := config.AllContainers()
 			if err == nil {
 				conts = newConts
@@ -53,10 +53,10 @@ func deamon(args []string) error {
 		}
 	}()
 
-	slog.Info("daemon started")
+	slog.Info("daemon", slog.String("message", "sandal daemon service started"))
 	if _, err := os.Stat("/etc/init.d/sandal"); err != nil {
-		slog.Info(`You can enable sandal deamon at startup with "sandal daemon -install" command.` +
-			`It will install service files for systemd and runit`)
+		slog.Info("deamon", slog.String("message", `You can enable sandal deamon at startup with "sandal daemon -install" command.`+
+			`It will install service files for systemd and runit`))
 	}
 
 	killRequested := false
@@ -93,7 +93,7 @@ ContHealthCheck:
 				for i := 1; i < 5; i++ {
 					newCont, err := config.GetByName(&conts, cont.Name) // in case of new items
 					if err != nil {
-						slog.Error("cannot get container", slog.String("err", err.Error()))
+						slog.Error("deamon", slog.String("GetByName", "cannot get container"), slog.Any("err", err))
 						break
 					}
 					// To capture sandal kill event
@@ -116,10 +116,10 @@ ContHealthCheck:
 				}
 				kill([]string{cont.Name})
 				cont.Background = true
-				slog.Info("starting", slog.String("container", cont.Name), slog.Int("oldpid", cont.ContPid))
+				slog.Info("deamon", slog.String("action", "starting"), slog.String("container", cont.Name), slog.Int("oldpid", cont.ContPid))
 
 				if len(cont.HostArgs) < 2 {
-					slog.Error("unkown arg size", slog.String("name", cont.Name), slog.String("args", fmt.Sprintf("%v", cont.HostArgs)))
+					slog.Error("deamon", slog.String("err", "unkown arg size"), slog.String("name", cont.Name), slog.String("args", strings.Join(cont.HostArgs, " ")))
 					continue
 				}
 				cmd := exec.Command("/usr/bin/sandal", cont.HostArgs[1:]...)
@@ -130,15 +130,15 @@ ContHealthCheck:
 				for i := 1; i < 5; i++ {
 					newCont, err := config.GetByName(&conts, cont.Name) // in case of new items
 					if err != nil {
-						slog.Error("cannot get container", slog.String("err", err.Error()))
+						slog.Warn("deamon", slog.String("GetByName", "cannot get container"), slog.String("name", cont.Name), slog.Any("err", err))
 						break
 					}
 					if cont.ContPid != newCont.ContPid {
-						slog.Info("new container started", slog.String("container", cont.Name), slog.Int("pid", newCont.ContPid))
+						slog.Info("deamon", slog.String("message", "new container started"), slog.String("name", cont.Name), slog.Int("pid", newCont.ContPid))
 						break
 					}
 					updateContainers <- true
-					slog.Debug("db not updated yet", slog.String("container", cont.Name))
+					slog.Debug("deamon", slog.String("message", "db not updated yet"), slog.String("name", cont.Name))
 					time.Sleep(time.Second)
 				}
 				break
@@ -239,7 +239,7 @@ func installServices() error {
 	err := os.WriteFile("/etc/init.d/sandal", []byte(initdSandal), 0755)
 	if err == nil {
 		os.Chmod("/etc/init.d/sandal", 0755) // os.write does not set permission for existing file
-		slog.Info("enabling service /etc/init.d/sandal -> /etc/rc2.d/S01sandal")
+		slog.Info("installServices", slog.String("enabling service", "/etc/init.d/sandal -> /etc/rc2.d/S01sandal"))
 		err = os.Symlink("/etc/init.d/sandal", "/etc/rc2.d/S01sandal")
 		if err != nil {
 			errs = append(errs, err)
@@ -248,11 +248,11 @@ func installServices() error {
 		errs = append(errs, err)
 	}
 
-	slog.Info("creating /etc/systemd/system/sandal.service")
+	slog.Info("installServices", slog.String("enabling service", "creating /etc/systemd/system/sandal.service"))
 	err = os.WriteFile("/etc/systemd/system/sandal.service", []byte(systemdSandalService), 0755)
 	if err == nil {
 		os.Chmod("/etc/systemd/system/sandal.service", 0755) // os.write does not set permission for existing file
-		slog.Info("enabling /etc/systemd/system/sandal.service")
+		slog.Info("installServices", slog.String("enabling service", "/etc/systemd/system/sandal.service -> /etc/rc2.d/S01sandal"))
 		cmd := exec.Command("systemctl", "enable", "sandal.service")
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout

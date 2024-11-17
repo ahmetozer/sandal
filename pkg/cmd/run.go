@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/ahmetozer/sandal/pkg/container"
@@ -28,11 +28,11 @@ func run(args []string) error {
 	c.HostArgs = os.Args
 	f := flag.NewFlagSet("run", flag.ExitOnError)
 
+	containerId := config.GenerateContainerId()
+
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
-	f.StringVar(&c.Name, "name", config.GenerateContainerId(), "name of the container")
-	f.StringVar(&c.SquashfsFile, "sq", "", "squashfs image location")
-	// f.StringVar(&c.RootfsDir, "rootfs", "", "rootfs directory")
+	f.StringVar(&c.Name, "name", containerId, "name of the container")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
 
 	f.BoolVar(&c.Remove, "rm", false, "remove container files on exit")
@@ -48,7 +48,7 @@ func run(args []string) error {
 	var HostIface = config.NetIface{ALocFor: config.ALocForHost}
 	f.StringVar(&HostIface.Type, "net-type", "bridge", "bridge, macvlan, ipvlan")
 	f.StringVar(&HostIface.Name, "host-net", "sandal0", "host interface for bridge or macvlan")
-	f.StringVar(&HostIface.IP, "host-ips", "172.16.0.1/24;fd34:0135:0123::1/64", "host interface ips")
+	f.StringVar(&HostIface.IP, "host-ips", config.DefaultHostNet, "host interface ips")
 
 	var PodIface = config.NetIface{Type: "veth"}
 	f.StringVar(&PodIface.IP, "pod-ips", "", "container interface ips")
@@ -64,13 +64,14 @@ func run(args []string) error {
 		f.StringVar(&c.NS[k].Value, "ns-"+k, defaultValue, fmt.Sprintf("%s namespace or host", k))
 	}
 
-	f.StringVar(&c.ChangeDir, "chd", "", "changes save location default /var/lib/sandal/containers/<name>/changes")
-
-	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
+	f.StringVar(&c.Workdir, "wdir", config.Defs(containerId).Workdir, "overlay fs workdir")
+	f.StringVar(&c.Upperdir, "udir", config.Defs(containerId).UpperDir, "container changes will saved this directory")
+	f.StringVar(&c.RootfsDir, "rdir", config.Defs(containerId).RootFsDir, "root directory of operating system")
 
 	f.Var(&c.Volumes, "v", "volume mount point")
+	f.Var(&c.Lower, "lw", "you can merge multiple lowerdirs")
 
-	f.Var(&c.LowerDirs, "lw", "you can merge multiple lowerdirs")
+	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
 	f.Var(&c.RunPrePivot, "rpp", "run command before pivoting to container rootfs")
 	f.Var(&c.RunPreExec, "rpe", "run command before executing init")
@@ -79,8 +80,19 @@ func run(args []string) error {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
 
-	if c.RootfsDir == "" {
-		c.RootfsDir = defaultRootfs(&c)
+	// Flag does not have order while parsing
+	// If the name is presented and values are not filled by arguments
+	// re-fill values with new defaults.
+	if containerId != c.Name {
+		if c.Workdir == config.Defs(containerId).Workdir {
+			c.Workdir = config.Defs(c.Name).Workdir
+		}
+		if c.Upperdir == config.Defs(containerId).UpperDir {
+			c.Upperdir = config.Defs(c.Name).UpperDir
+		}
+		if c.RootfsDir == config.Defs(containerId).RootFsDir {
+			c.RootfsDir = config.Defs(c.Name).RootFsDir
+		}
 	}
 
 	if help {
@@ -89,6 +101,7 @@ func run(args []string) error {
 	}
 
 	if !hasItExecutable(args) {
+		slog.Debug("no executable provided", slog.String("args", strings.Join(args, " ")))
 		return fmt.Errorf("no executable provided")
 	}
 
@@ -110,6 +123,8 @@ func run(args []string) error {
 	PodIface.Main = append(PodIface.Main, HostIface)
 	if PodIface.IP == "" {
 		PodIface.IP, err = net.FindFreePodIPs(HostIface.IP)
+		// slog.Debug("no executable provided", slog.String("args", strings.Join(args, " ")))
+		slog.Debug("network interfaces", slog.String("podIface", fmt.Sprintf("%+v", PodIface)), slog.String("hostIface", fmt.Sprintf("%+v", HostIface)))
 		if err != nil {
 			return err
 		}
@@ -138,7 +153,6 @@ func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
 
 	// mount squasfs
 	err = container.MountRootfs(c)
-
 	if err != nil {
 		return fmt.Errorf("error mount: %v", err)
 	}
@@ -156,14 +170,10 @@ func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
 	return err
 }
 
-func defaultRootfs(c *config.Config) string {
-	return path.Join(config.Containers, c.Name, "rootfs")
-}
-
 func deRunContainer(c *config.Config) {
 	if err := container.UmountRootfs(c); err != nil {
 		for _, e := range err {
-			slog.Debug("umount", slog.String("err", e.Error()))
+			slog.Debug("deRunContainer", "umount", slog.Any("err", e))
 		}
 	}
 	if c.NS["net"].Value != "host" {
@@ -171,8 +181,17 @@ func deRunContainer(c *config.Config) {
 	}
 
 	if c.Remove {
-		if err := os.RemoveAll(c.ContDir()); err != nil {
-			slog.Debug("removeall", slog.String("err", err.Error()))
+
+		removeAll := func(name string) {
+			if err := os.RemoveAll(name); err != nil {
+				slog.Debug("deRunContainer", "removeall", slog.String("file", name), slog.Any("err", err))
+			}
 		}
+
+		removeAll(c.RootfsDir)
+		removeAll(c.Workdir)
+		removeAll(c.Upperdir)
+		removeAll(c.ConfigFileLoc())
 	}
+
 }

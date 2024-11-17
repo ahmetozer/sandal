@@ -15,7 +15,7 @@ var (
 func Main() {
 
 	if len(os.Args) < 2 {
-		slog.Error("No argument provided\n\n")
+		slog.Error("Main", slog.String("err", "No argument provided\n\n"))
 		subCommandsHelp()
 		os.Exit(0)
 	}
@@ -45,7 +45,7 @@ func Main() {
 	case "help":
 		subCommandsHelp()
 	default:
-		slog.Error("Unknown sub command", slog.String("arg", os.Args[1]))
+		slog.Error("Main", slog.String("err", "Unknown sub command"), slog.String("arg", os.Args[1]))
 		os.Exit(1)
 	}
 	os.Exit(exitCode)
@@ -59,7 +59,7 @@ func executeSubCommand(f func([]string) error) {
 		if exitCode == 0 {
 			exitCode = 1
 		}
-		slog.Error(os.Args[1], slog.String("err", err.Error()))
+		slog.Error("executeSubCommand", slog.String("command", os.Args[1]), slog.Any("err", err))
 		os.Exit(exitCode)
 	}
 }

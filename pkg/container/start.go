@@ -45,7 +45,7 @@ func Start(c *config.Config, args []string) (int, error) {
 	}
 
 	cmd.Env = childEnv(c)
-	cmd.Dir = c.ContDir()
+	cmd.Dir = c.RootfsDir
 
 	var Cloneflags uintptr
 
@@ -90,9 +90,12 @@ func Start(c *config.Config, args []string) (int, error) {
 		}
 	}
 
-	c.SaveConftoDisk()
+	err := c.SaveConftoDisk()
+	if err != nil {
+		return 0, err
+	}
 
-	err := cmd.Start()
+	err = cmd.Start()
 
 	if err != nil {
 		return 0, fmt.Errorf("starting container: %v", err)
@@ -103,7 +106,10 @@ func Start(c *config.Config, args []string) (int, error) {
 
 	c.Status = ContainerStatusRunning
 
-	c.SaveConftoDisk()
+	err = c.SaveConftoDisk()
+	if err != nil {
+		return 0, err
+	}
 
 	for _, iface := range c.Ifaces {
 		if iface.ALocFor == config.ALocForPod {
@@ -163,7 +169,10 @@ func childEnv(c *config.Config) []string {
 		envVars = append(envVars, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
 	}
 
-	return append(envVars, CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
+	envVars = append(envVars, CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
+	envVars = append(envVars, "SANDAL_LOG_LEVEL="+os.Getenv("SANDAL_LOG_LEVEL"))
+
+	return envVars
 }
 
 func childArgs(args []string) (string, []string) {

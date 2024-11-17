@@ -4,21 +4,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 )
 
 func AllContainers() ([]Config, error) {
 	var confs []Config
-
-	entries, err := os.ReadDir(Containers)
+	StateDirCreate := false
+CreateStateDir:
+	entries, err := os.ReadDir(BaseStateDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("there is no config exist")
+			if StateDirCreate {
+				return nil, fmt.Errorf("there is no config exist")
+			} else {
+				os.MkdirAll(BaseStateDir, 0755)
+				StateDirCreate = true
+				goto CreateStateDir
+			}
+
 		}
 		return nil, err
 	}
 	for _, e := range entries {
 		if e.IsDir() {
-			c, err := LoadConfig(e.Name())
+			c, err := LoadConfig(path.Join(BaseStateDir, e.Name()))
 			if err == nil {
 				confs = append(confs, c)
 			}
@@ -27,10 +36,10 @@ func AllContainers() ([]Config, error) {
 	return confs, nil
 }
 
-func LoadConfig(name string) (Config, error) {
+func LoadConfig(filepath string) (Config, error) {
 	var c Config
 
-	data, err := os.ReadFile(Containers + "/" + name + "/config.json")
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return c, err
 	}
