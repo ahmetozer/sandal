@@ -25,6 +25,7 @@ func run(args []string) error {
 		err       error
 	)
 	thisFlags, c.PodArgs = SplitFlagsArgs(args)
+	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.PodArgs), slog.Any("args", os.Args))
 	c.HostArgs = os.Args
 	f := flag.NewFlagSet("run", flag.ExitOnError)
 
