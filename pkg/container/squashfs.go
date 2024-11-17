@@ -14,7 +14,7 @@ import (
 
 func mountSquashfsFile(c *config.SquashFile) (SquashFSMountDir string, err error) {
 
-	err = os.MkdirAll(getSquashfsMountDirName(c), 0755)
+	err = os.MkdirAll(getSquashfsMountDirName(c), 0o0755)
 	if err != nil {
 		return "", fmt.Errorf("creating rootfs directory: %s", err)
 	}
@@ -35,7 +35,7 @@ func mountSquashfsFile(c *config.SquashFile) (SquashFSMountDir string, err error
 		return "", fmt.Errorf("cannot attach loop: %s", err)
 	}
 
-	os.MkdirAll(getSquashfsMountDirName(c), 0755)
+	os.MkdirAll(getSquashfsMountDirName(c), 0o0755)
 	err = unix.Mount(LOOP_DEVICE_PREFIX+strconv.Itoa(c.LoopNo), getSquashfsMountDirName(c), "squashfs", unix.MS_RDONLY, "")
 	slog.Debug("mountSquashfsFile", slog.String("getSquashfsMountDirName", getSquashfsMountDirName(c)), slog.String("LOOP_DEVICE_PREFIX", LOOP_DEVICE_PREFIX), slog.Int("c.LoopNo", c.LoopNo))
 	if err != nil {

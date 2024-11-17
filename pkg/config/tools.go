@@ -20,10 +20,10 @@ func (c *Config) SaveConftoDisk() error {
 	slog.Debug("ConfigFileLoc", slog.String("action", "saving config file"), slog.String("file", c.ConfigFileLoc()))
 	retry := false
 WriteFile:
-	err := os.WriteFile(c.ConfigFileLoc(), c.Json(), 0644)
+	err := os.WriteFile(c.ConfigFileLoc(), c.Json(), 0o0644)
 	if err != nil {
 		if os.IsNotExist(err) && !retry {
-			err := os.MkdirAll(savePath, 0755)
+			err := os.MkdirAll(savePath, 0o0755)
 			slog.Debug("ConfigFileLoc", slog.String("action", "mkdir conf path"), slog.String("path", savePath), slog.Any("err", err))
 			retry = true
 			goto WriteFile

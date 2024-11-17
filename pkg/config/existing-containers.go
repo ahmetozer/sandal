@@ -17,7 +17,7 @@ CreateStateDir:
 			if StateDirCreate {
 				return nil, fmt.Errorf("there is no config exist")
 			} else {
-				os.MkdirAll(BaseStateDir, 0755)
+				os.MkdirAll(BaseStateDir, 0o0755)
 				StateDirCreate = true
 				goto CreateStateDir
 			}

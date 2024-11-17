@@ -44,7 +44,7 @@ func prepareChangeDir(c *config.Config) (changesDir, error) {
 		}
 
 		sizeBytes := uint64(c.TmpSize * 1024 * 1024) // 100MB
-		if err := os.MkdirAll(tmpdir, 0755); err != nil {
+		if err := os.MkdirAll(tmpdir, 0o0755); err != nil {
 			return dir, fmt.Errorf("creating %s directory: %s", tmpdir, err)
 		}
 		// Mount the tmpfs
@@ -54,11 +54,11 @@ func prepareChangeDir(c *config.Config) (changesDir, error) {
 		}
 	}
 
-	if err := os.MkdirAll(dir.work, 0755); err != nil {
+	if err := os.MkdirAll(dir.work, 0o0755); err != nil {
 		errs = errors.Join(err, fmt.Errorf("creating %s directory: %s", dir.work, err))
 	}
 
-	if err := os.MkdirAll(dir.upper, 0755); err != nil {
+	if err := os.MkdirAll(dir.upper, 0o0755); err != nil {
 		errs = errors.Join(err, fmt.Errorf("creating %s directory: %s", dir.upper, err))
 	}
 

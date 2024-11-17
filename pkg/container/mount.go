@@ -108,7 +108,7 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 		fileInfo, err := os.Stat(source)
 		if os.IsNotExist(err) {
 			if try {
-				os.MkdirAll(filepath.Dir(source), 0600)
+				os.MkdirAll(filepath.Dir(source), 0o0600)
 				slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", source))
 				try = false
 				goto CHECK
@@ -121,7 +121,7 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 		}
 
 		if !fileInfo.IsDir() {
-			os.MkdirAll(filepath.Dir(target), 0600)
+			os.MkdirAll(filepath.Dir(target), 0o0600)
 			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 			err = Touch(target)
 			if err != nil {
@@ -130,11 +130,11 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 			}
 			slog.Debug("mount", slog.String("action", "touch"), slog.String("source", target))
 		} else {
-			err = os.MkdirAll(target, 0600)
+			err = os.MkdirAll(target, 0o0600)
 			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target), slog.Any("error", err))
 		}
 	} else {
-		os.MkdirAll(target, 0600)
+		os.MkdirAll(target, 0o0600)
 		slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 	}
 
@@ -171,7 +171,7 @@ func Touch(path string) error {
 	CREATE_FILE:
 		file, err := os.Create(path)
 		if os.IsNotExist(err) {
-			os.MkdirAll(filepath.Dir(path), 0600)
+			os.MkdirAll(filepath.Dir(path), 0o0600)
 			if !createTry {
 				goto CREATE_FILE
 			}

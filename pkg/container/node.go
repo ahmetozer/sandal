@@ -30,7 +30,7 @@ func childSysNodes(c *config.Config) {
 }
 
 func newOsNode(destination string, mode uint32, major, minor uint32) {
-	os.MkdirAll(filepath.Dir(destination), 0755) // no require to check error, it's ok if it exists
+	os.MkdirAll(filepath.Dir(destination), 0o0755) // no require to check error, it's ok if it exists
 	if err := unix.Mknod(destination, unix.S_IFCHR|mode, int(unix.Mkdev(major, minor))); err != nil {
 		log.Fatalf("unable to create node %s: %s", destination, err)
 	}
