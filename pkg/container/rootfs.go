@@ -56,6 +56,14 @@ func MountRootfs(c *config.Config) error {
 	}
 
 	if len(LowerDirs) != 0 {
+		if s, err := isOverlayFS(changeDir.upper); err == nil {
+			if s {
+				return fmt.Errorf("upper (%s) is pointed to overlayfs. Kernel does not supports creating overlayfs under overlayfs. To overcome this, you can execute your container with temporary environment '-tmp', or you can point upper directory to real disk with '-udir' flag", changeDir.upper)
+			}
+		} else {
+			return fmt.Errorf("unable to check overlayfs %s", err)
+		}
+
 		options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(LowerDirs, ":"), changeDir.upper, changeDir.work)
 		err = unix.Mount("overlay", c.RootfsDir, "overlay", 0, options)
 		if err != nil {
@@ -104,4 +112,17 @@ func UmountRootfs(c *config.Config) []error {
 		return nil
 	}
 	return errs
+}
+
+func isOverlayFS(path string) (bool, error) {
+	// Use unix.Statfs to get filesystem information about the path
+	var stat unix.Statfs_t
+	err := unix.Statfs(path, &stat)
+	if err != nil {
+		return false, fmt.Errorf("error getting statfs info for path %s: %w", path, err)
+	}
+
+	// Filesystem type is stored in stat.Type, check if it equals the value for overlayfs
+	const overlayfs = 0x794c7630 // This is the magic number for overlayfs
+	return stat.Type == overlayfs, nil
 }
