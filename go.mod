@@ -1,10 +1,10 @@
 module github.com/ahmetozer/sandal
 
-go 1.21.5
+go 1.22.4
 
-require github.com/vishvananda/netlink v1.1.0
+require github.com/vishvananda/netlink v1.3.0
 
 require (
-	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df // indirect
-	golang.org/x/sys v0.1.0
+	github.com/vishvananda/netns v0.0.5 // indirect
+	golang.org/x/sys v0.27.0
 )

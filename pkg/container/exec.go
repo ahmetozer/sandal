@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/config"
 	"github.com/ahmetozer/sandal/pkg/net"
@@ -20,8 +21,7 @@ func Exec() {
 		err error
 		c   config.Config
 	)
-	retry := 0
-	for {
+	for retry := 1; retry < 10; retry++ {
 		c, err = loadConfig()
 		if err == nil {
 			break
@@ -29,6 +29,8 @@ func Exec() {
 		if retry > 5 {
 			log.Fatalf("unable to load config: %s", err)
 		}
+		retry++
+		time.Sleep(8 * time.Second)
 	}
 
 	if err := unix.Sethostname([]byte(c.Name)); err != nil {
@@ -47,6 +49,7 @@ func Exec() {
 
 	_, args := childArgs(os.Args)
 	execPath, err := exec.LookPath(c.Exec)
+	slog.Debug("Exec", slog.String("c.Exec", c.Exec), slog.String("execPath", execPath), slog.String("args", strings.Join(args, " ")))
 	if err != nil {
 		log.Fatalf("unable to find %s: %s", c.Exec, err)
 	}
@@ -179,7 +182,7 @@ func execCommands(c []string, chroot string) {
 			if chroot != "" {
 				rootfs = "main rootfs"
 			}
-			slog.Info("unable to execute", "command", command, "rootfs", rootfs, "err", err.Error())
+			slog.Info("execCommands", "unable to execute", "command", command, "rootfs", rootfs, slog.Any("err", err))
 		}
 	}
 

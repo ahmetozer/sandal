@@ -2,6 +2,7 @@ package container
 
 import (
 	"log"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,16 +19,17 @@ const (
 func childSysMounts(c *config.Config) {
 
 	mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
-	mount("rootfs/", "rootfs/", "", unix.MS_BIND|unix.MS_REC, "")
+	mount(path.Join(c.RootfsDir), path.Join(c.RootfsDir), "", unix.MS_BIND|unix.MS_REC, "")
 
 	mountVolumes(c)
 
 	resolvFile := read("/etc/resolv.conf")
 	hostsFile := read("/etc/hosts")
 
-	os.Mkdir("rootfs/.old_root", 0700)
-	if err := unix.PivotRoot("rootfs/", "rootfs/.old_root"); err != nil {
-		log.Fatalf("unable to pivot root %s", err)
+	os.Mkdir(path.Join(c.RootfsDir, ".old_root"), 0700)
+	if err := unix.PivotRoot(path.Join(c.RootfsDir), path.Join(c.RootfsDir, ".old_root")); err != nil {
+		slog.Error("childSysMounts", slog.String("action", "PivotRoot"), slog.Any("err", err))
+		os.Exit(1)
 	}
 
 	mount("tmpfs", sandalChildWorkdir, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "size=65536k,mode=755")
@@ -37,7 +39,8 @@ func childSysMounts(c *config.Config) {
 	createHosts(c, hostsFile)
 
 	if err := os.Chdir("/"); err != nil {
-		log.Fatalf("unable to chdir to / %s", err)
+		slog.Error("childSysMounts", slog.String("action", "chdir"), slog.String("path", "/"), slog.Any("err", err))
+		os.Exit(1)
 	}
 
 	mount("proc", "/proc", "proc", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "")
@@ -49,9 +52,19 @@ func childSysMounts(c *config.Config) {
 		mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
 	}
 
-	if _, err := os.Stat("/tmp"); os.IsNotExist(err) {
-		mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=777")
+	_, err := os.Stat("/tmp")
+	if err == nil {
+		slog.Debug("childSysMounts", slog.String("message", "/tmp exist"))
+	} else {
+		if os.IsNotExist(err) {
+			mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
+			slog.Debug("childSysMounts", slog.String("mount", "tmp"))
+		} else {
+			slog.Info("childSysMounts", slog.String("action", "check"), slog.Any("err", err))
+		}
 	}
+	err = os.Chmod("/tmp", 0o1777)
+	slog.Debug("childSysMounts", slog.String("chmod", "1777"), slog.String("path", "/tmp"), slog.Any("err", err))
 
 	mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
 
@@ -67,7 +80,8 @@ func childSysMounts(c *config.Config) {
 
 	mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err := unix.Unmount(sandalChildWorkdir, unix.MNT_DETACH); err != nil {
-		log.Fatalf("unable to unmount %s %s", sandalChildWorkdir, err)
+		slog.Error("childSysMounts", slog.String("action", "unmount"), slog.String("path", sandalChildWorkdir), slog.Any("err", err))
+		os.Exit(1)
 	}
 	os.Remove(sandalChildWorkdir)
 
@@ -94,31 +108,39 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 		fileInfo, err := os.Stat(source)
 		if os.IsNotExist(err) {
 			if try {
-				os.MkdirAll(filepath.Dir(source), 0600)
+				os.MkdirAll(filepath.Dir(source), 0o0600)
+				slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", source))
 				try = false
 				goto CHECK
 			}
-			log.Fatalf("The path %s does not exist.\n", source)
+			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.String("err", "path does not exist"))
 		}
 		if err != nil {
-			log.Fatalf("Error checking the path %s: %v\n", source, err)
+			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.Any("err", err))
+			os.Exit(1)
 		}
 
 		if !fileInfo.IsDir() {
-			os.MkdirAll(filepath.Dir(target), 0600)
+			os.MkdirAll(filepath.Dir(target), 0o0600)
+			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 			err = Touch(target)
 			if err != nil {
-				log.Fatalf("target %s touch error: %s", target, err.Error())
+				slog.Error("mount", slog.String("target", target), slog.Any("err", err))
+				os.Exit(1)
 			}
+			slog.Debug("mount", slog.String("action", "touch"), slog.String("source", target))
 		} else {
-			os.MkdirAll(target, 0600)
+			err = os.MkdirAll(target, 0o0600)
+			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target), slog.Any("error", err))
 		}
 	} else {
-		os.MkdirAll(target, 0600)
+		os.MkdirAll(target, 0o0600)
+		slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 	}
 
 	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
-		log.Fatalf("unable to mount %s %s %s %s", source, target, fstype, err)
+		slog.Error("mount", slog.String("action", "unix.Mount"), slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype), slog.Any("err", err))
+		os.Exit(1)
 	}
 }
 
@@ -149,7 +171,7 @@ func Touch(path string) error {
 	CREATE_FILE:
 		file, err := os.Create(path)
 		if os.IsNotExist(err) {
-			os.MkdirAll(filepath.Dir(path), 0600)
+			os.MkdirAll(filepath.Dir(path), 0o0600)
 			if !createTry {
 				goto CREATE_FILE
 			}

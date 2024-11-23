@@ -144,7 +144,7 @@ func execOnContainer(args []string) error {
 
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("unable to execute command %s rootfs %s err: %s", childArgs[0], c.RootfsDir, err.Error())
+		return fmt.Errorf("unable to execute command %s rootfs %s err: %s", childArgs[0], c.RootfsDir, err)
 	}
 
 	return nil

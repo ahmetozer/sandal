@@ -1,0 +1,44 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "sandal run",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "run",
+                "-name=test",
+                "-lw=/",
+                "-tmp=10",
+                "ifconfig"
+            ],
+            "envFile": "${workspaceFolder}/.debug.env"
+        },
+        {
+            "name": "sandal ps",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "ps"
+            ],
+            "envFile": "${workspaceFolder}/.debug.env"
+        },
+        {
+            "name": "sandal clear",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "clear",
+                "-all"
+            ],
+            "envFile": "${workspaceFolder}/.debug.env"
+        }
+    ],
+    
+}
