@@ -95,6 +95,7 @@ func Start(c *config.Config, args []string) (int, error) {
 		return 0, err
 	}
 
+	slog.Debug("Start", slog.String("cmd.Dir", cmd.Dir), slog.Any("cmd.Env", cmd.Env), slog.Any("cmd.Args", cmd.Args))
 	err = cmd.Start()
 
 	if err != nil {

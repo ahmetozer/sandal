@@ -15,7 +15,7 @@ var (
 func Main() {
 
 	if len(os.Args) < 2 {
-		slog.Error("Main", slog.String("err", "No argument provided\n\n"))
+		slog.Error("Main", slog.String("err", "No argument provided"))
 		subCommandsHelp()
 		os.Exit(0)
 	}
