@@ -12,7 +12,7 @@ import (
 )
 
 func ps(args []string) error {
-	conts, _ := config.AllContainers()
+	conts, _ := config.Containers()
 	flags := flag.NewFlagSet("ps", flag.ExitOnError)
 	var (
 		help bool

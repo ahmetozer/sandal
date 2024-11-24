@@ -114,38 +114,6 @@ func (c Config) Json() []byte {
 	return conf
 }
 
-var (
-	// Main folder for all container related files
-	LibDir string
-	RunDir string
-
-	BaseImageDir string
-	BaseStateDir string
-
-	BaseUpperdir         string
-	BaseWorkdir          string
-	BaseSquashFSMountDir string
-	BaseRootfsDir        string
-
-	DefaultHostNet string
-)
-
-func init() {
-
-	LibDir = GetEnv("SANDAL_LIB_DIR", "/var/lib/sandal")
-	RunDir = GetEnv("SANDAL_RUN_DIR", "/var/run/sandal")
-
-	BaseImageDir = GetEnv("SANDAL_IMAGE_DIR", path.Join(LibDir, "image"))
-	BaseStateDir = GetEnv("SANDAL_STATE_DIR", path.Join(LibDir, "state"))
-	BaseUpperdir = GetEnv("SANDAL_UPPERDIR", path.Join(LibDir, "upper"))
-
-	BaseWorkdir = GetEnv("SANDAL_WORKDIR", path.Join(RunDir, "workdir"))
-	BaseRootfsDir = GetEnv("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
-	BaseSquashFSMountDir = GetEnv("SANDAL_SQUASHFSMOUNTDIR", path.Join(RunDir, "squashfs"))
-
-	DefaultHostNet = GetEnv("SANDAL_HOST_NET", "172.16.0.1/24;fd34:0135:0123::1/64")
-}
-
 type DefaultInformation struct {
 	UpperDir  string
 	Workdir   string

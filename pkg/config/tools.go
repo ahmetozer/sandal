@@ -24,7 +24,7 @@ WriteFile:
 	if err != nil {
 		if os.IsNotExist(err) && !retry {
 			err := os.MkdirAll(savePath, 0o0755)
-			slog.Debug("ConfigFileLoc", slog.String("action", "mkdir conf path"), slog.String("path", savePath), slog.Any("err", err))
+			slog.Debug("ConfigFileLoc", slog.String("action", "mkdir conf path"), slog.String("path", savePath), slog.Any("error", err))
 			retry = true
 			goto WriteFile
 		}

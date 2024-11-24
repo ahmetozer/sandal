@@ -182,7 +182,7 @@ func execCommands(c []string, chroot string) {
 			if chroot != "" {
 				rootfs = "main rootfs"
 			}
-			slog.Info("execCommands", "unable to execute", "command", command, "rootfs", rootfs, slog.Any("err", err))
+			slog.Info("execCommands", "unable to execute", "command", command, "rootfs", rootfs, slog.Any("error", err))
 		}
 	}
 

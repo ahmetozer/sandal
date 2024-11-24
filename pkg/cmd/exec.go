@@ -46,7 +46,7 @@ func execOnContainer(args []string) error {
 		return fmt.Errorf("no command provided")
 	}
 
-	conts, err := config.AllContainers()
+	conts, err := config.Containers()
 	if err != nil {
 		return fmt.Errorf("failed to get containers: %v", err)
 	}

@@ -30,7 +30,7 @@ func clear(args []string) error {
 		return nil
 	}
 
-	conts, _ := config.AllContainers()
+	conts, _ := config.Containers()
 	for _, c := range conts {
 		if !deleteAll {
 			if !c.Remove {

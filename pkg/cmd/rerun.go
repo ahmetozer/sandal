@@ -18,7 +18,7 @@ func rerun(args []string) error {
 		exitCode = 0
 		return nil
 	}
-	conts, _ := config.AllContainers()
+	conts, _ := config.Containers()
 
 	for _, c := range conts {
 		if c.Name == args[0] {

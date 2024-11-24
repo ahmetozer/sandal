@@ -22,7 +22,7 @@ func rm(args []string) error {
 	flags.BoolVar(&help, "help", false, "show this help message")
 	flags.Parse(thisFlags)
 
-	conts, _ := config.AllContainers()
+	conts, _ := config.Containers()
 	var errs []error
 RequestedContainers:
 	for _, name := range args {

@@ -25,7 +25,7 @@ func kill(args []string) error {
 
 	flags.Parse(thisFlags)
 
-	conts, _ := config.AllContainers()
+	conts, _ := config.Containers()
 	for _, c := range conts {
 		if c.Name == args[0] {
 

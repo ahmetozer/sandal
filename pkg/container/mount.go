@@ -28,7 +28,7 @@ func childSysMounts(c *config.Config) {
 
 	os.Mkdir(path.Join(c.RootfsDir, ".old_root"), 0700)
 	if err := unix.PivotRoot(path.Join(c.RootfsDir), path.Join(c.RootfsDir, ".old_root")); err != nil {
-		slog.Error("childSysMounts", slog.String("action", "PivotRoot"), slog.Any("err", err))
+		slog.Error("childSysMounts", slog.String("action", "PivotRoot"), slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -39,7 +39,7 @@ func childSysMounts(c *config.Config) {
 	createHosts(c, hostsFile)
 
 	if err := os.Chdir("/"); err != nil {
-		slog.Error("childSysMounts", slog.String("action", "chdir"), slog.String("path", "/"), slog.Any("err", err))
+		slog.Error("childSysMounts", slog.String("action", "chdir"), slog.String("path", "/"), slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -60,11 +60,11 @@ func childSysMounts(c *config.Config) {
 			mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
 			slog.Debug("childSysMounts", slog.String("mount", "tmp"))
 		} else {
-			slog.Info("childSysMounts", slog.String("action", "check"), slog.Any("err", err))
+			slog.Info("childSysMounts", slog.String("action", "check"), slog.Any("error", err))
 		}
 	}
 	err = os.Chmod("/tmp", 0o1777)
-	slog.Debug("childSysMounts", slog.String("chmod", "1777"), slog.String("path", "/tmp"), slog.Any("err", err))
+	slog.Debug("childSysMounts", slog.String("chmod", "1777"), slog.String("path", "/tmp"), slog.Any("error", err))
 
 	mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
 
@@ -80,7 +80,7 @@ func childSysMounts(c *config.Config) {
 
 	mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err := unix.Unmount(sandalChildWorkdir, unix.MNT_DETACH); err != nil {
-		slog.Error("childSysMounts", slog.String("action", "unmount"), slog.String("path", sandalChildWorkdir), slog.Any("err", err))
+		slog.Error("childSysMounts", slog.String("action", "unmount"), slog.String("path", sandalChildWorkdir), slog.Any("error", err))
 		os.Exit(1)
 	}
 	os.Remove(sandalChildWorkdir)
@@ -113,10 +113,10 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 				try = false
 				goto CHECK
 			}
-			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.String("err", "path does not exist"))
+			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.String("error", "path does not exist"))
 		}
 		if err != nil {
-			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.Any("err", err))
+			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.Any("error", err))
 			os.Exit(1)
 		}
 
@@ -125,7 +125,7 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 			err = Touch(target)
 			if err != nil {
-				slog.Error("mount", slog.String("target", target), slog.Any("err", err))
+				slog.Error("mount", slog.String("target", target), slog.Any("error", err))
 				os.Exit(1)
 			}
 			slog.Debug("mount", slog.String("action", "touch"), slog.String("source", target))
@@ -139,7 +139,7 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 	}
 
 	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
-		slog.Error("mount", slog.String("action", "unix.Mount"), slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype), slog.Any("err", err))
+		slog.Error("mount", slog.String("action", "unix.Mount"), slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype), slog.Any("error", err))
 		os.Exit(1)
 	}
 }

@@ -12,7 +12,7 @@ func cmd(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("no container name is provided")
 	}
-	conts, err := config.AllContainers()
+	conts, err := config.Containers()
 	if err != nil {
 		return err
 	}

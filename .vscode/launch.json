@@ -12,7 +12,18 @@
                 "-name=test",
                 "-lw=/",
                 "-tmp=10",
-                "ifconfig"
+                "sh"
+            ],
+            "envFile": "${workspaceFolder}/.debug.env"
+        },
+        {
+            "name": "sandal daemon",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "daemon"
             ],
             "envFile": "${workspaceFolder}/.debug.env"
         },

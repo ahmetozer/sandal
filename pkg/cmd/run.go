@@ -174,7 +174,7 @@ func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
 func deRunContainer(c *config.Config) {
 	if err := container.UmountRootfs(c); err != nil {
 		for _, e := range err {
-			slog.Debug("deRunContainer", "umount", slog.Any("err", e))
+			slog.Debug("deRunContainer", "umount", slog.Any("error", e))
 		}
 	}
 	if c.NS["net"].Value != "host" {
@@ -185,7 +185,7 @@ func deRunContainer(c *config.Config) {
 
 		removeAll := func(name string) {
 			if err := os.RemoveAll(name); err != nil {
-				slog.Debug("deRunContainer", "removeall", slog.String("file", name), slog.Any("err", err))
+				slog.Debug("deRunContainer", "removeall", slog.String("file", name), slog.Any("error", err))
 			}
 		}
 

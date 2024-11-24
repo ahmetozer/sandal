@@ -72,7 +72,7 @@ func getGw(addrs string, t IP_TYPE) string {
 }
 
 func FindFreePodIPs(hostIpsText string) (string, error) {
-	configs, err := config.AllContainers()
+	configs, err := config.Containers()
 	if err != nil {
 		return "", err
 	}

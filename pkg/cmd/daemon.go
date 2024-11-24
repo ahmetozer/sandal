@@ -17,6 +17,8 @@ import (
 
 func deamon(args []string) error {
 
+	config.SetModeDeamon()
+
 	var (
 		install bool
 		help    bool
@@ -34,11 +36,13 @@ func deamon(args []string) error {
 
 	updateContainers := make(chan bool, 1)
 
-	conts, _ := config.AllContainers()
+	go config.Server()
+
+	conts, _ := config.Containers()
 	go func() {
 		loadConf := func() {
 			slog.Debug("deamon", slog.String("aciton", "reloading configurations"))
-			newConts, err := config.AllContainers()
+			newConts, err := config.Containers()
 			if err == nil {
 				conts = newConts
 			}
@@ -93,7 +97,7 @@ ContHealthCheck:
 				for i := 1; i < 5; i++ {
 					newCont, err := config.GetByName(&conts, cont.Name) // in case of new items
 					if err != nil {
-						slog.Error("deamon", slog.String("GetByName", "cannot get container"), slog.Any("err", err))
+						slog.Error("deamon", slog.String("GetByName", "cannot get container"), slog.Any("error", err))
 						break
 					}
 					// To capture sandal kill event
@@ -119,7 +123,7 @@ ContHealthCheck:
 				slog.Info("deamon", slog.String("action", "starting"), slog.String("container", cont.Name), slog.Int("oldpid", cont.ContPid))
 
 				if len(cont.HostArgs) < 2 {
-					slog.Error("deamon", slog.String("err", "unkown arg size"), slog.String("name", cont.Name), slog.String("args", strings.Join(cont.HostArgs, " ")))
+					slog.Error("deamon", slog.String("error", "unkown arg size"), slog.String("name", cont.Name), slog.String("args", strings.Join(cont.HostArgs, " ")))
 					continue
 				}
 				cmd := exec.Command("/usr/bin/sandal", cont.HostArgs[1:]...)
@@ -130,7 +134,7 @@ ContHealthCheck:
 				for i := 1; i < 5; i++ {
 					newCont, err := config.GetByName(&conts, cont.Name) // in case of new items
 					if err != nil {
-						slog.Warn("deamon", slog.String("GetByName", "cannot get container"), slog.String("name", cont.Name), slog.Any("err", err))
+						slog.Warn("deamon", slog.String("GetByName", "cannot get container"), slog.String("name", cont.Name), slog.Any("error", err))
 						break
 					}
 					if cont.ContPid != newCont.ContPid {
