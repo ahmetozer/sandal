@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ahmetozer/sandal/pkg/config"
-	"github.com/ahmetozer/sandal/pkg/container"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
-func clear(args []string) error {
+func Clear(args []string) error {
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
@@ -30,18 +30,18 @@ func clear(args []string) error {
 		return nil
 	}
 
-	conts, _ := config.AllContainers()
+	conts, _ := controller.Containers()
 	for _, c := range conts {
 		if !deleteAll {
 			if !c.Remove {
 				continue
 			}
 		}
-		if container.IsRunning(&c) {
-			log.Printf("container %s is running,  rm=%v", c.Name, c.Remove)
+		if cruntime.IsRunning(c) {
+			log.Printf("container %s is running, rm=%v", c.Name, c.Remove)
 			continue
 		}
-		deRunContainer(&c)
+		cruntime.DeRunContainer(c)
 	}
 	return nil
 }

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )

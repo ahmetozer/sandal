@@ -7,12 +7,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/config"
-	"github.com/ahmetozer/sandal/pkg/container"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/net"
 )
 
-func run(args []string) error {
+func Run(args []string) error {
 
 	if len(args) < 1 {
 		return fmt.Errorf("no command option provided")
@@ -49,7 +50,7 @@ func run(args []string) error {
 	var HostIface = config.NetIface{ALocFor: config.ALocForHost}
 	f.StringVar(&HostIface.Type, "net-type", "bridge", "bridge, macvlan, ipvlan")
 	f.StringVar(&HostIface.Name, "host-net", "sandal0", "host interface for bridge or macvlan")
-	f.StringVar(&HostIface.IP, "host-ips", config.DefaultHostNet, "host interface ips")
+	f.StringVar(&HostIface.IP, "host-ips", env.DefaultHostNet, "host interface ips")
 
 	var PodIface = config.NetIface{Type: "veth"}
 	f.StringVar(&PodIface.IP, "pod-ips", "", "container interface ips")
@@ -106,15 +107,15 @@ func run(args []string) error {
 		return fmt.Errorf("no executable provided")
 	}
 
-	if err := container.CheckExistence(&c); err != nil {
+	if err := cruntime.CheckExistence(&c); err != nil {
 		return err
 	}
 
-	if c.Status == container.ContainerStatusRunning {
+	if c.Status == cruntime.ContainerStatusRunning {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
 
-	deRunContainer(&c)
+	cruntime.DeRunContainer(&c)
 
 	if c.Startup && !c.Background {
 		return fmt.Errorf("startup only works with background mode, please enable with '-d' arg")
@@ -130,69 +131,7 @@ func run(args []string) error {
 			return err
 		}
 	}
-	err = Start(&c, HostIface, PodIface)
-	deRunContainer(&c)
+	err = cruntime.Run(&c, HostIface, PodIface)
+	cruntime.DeRunContainer(&c)
 	return err
-}
-
-func Start(c *config.Config, HostIface, PodIface config.NetIface) error {
-	// Starting container
-	var err error
-	if c.NS["net"].Value != "host" {
-
-		if HostIface.Type == "bridge" {
-			err = net.CreateIface(c, &HostIface)
-			if err != nil {
-				return fmt.Errorf("error creating host interface: %v", err)
-			}
-		}
-		err = net.CreateIface(c, &PodIface)
-		if err != nil {
-			return fmt.Errorf("error creating pod interface: %v", err)
-		}
-	}
-
-	// mount squasfs
-	err = container.MountRootfs(c)
-	if err != nil {
-		return fmt.Errorf("error mount: %v", err)
-	}
-
-	// Starting proccess
-	exitCode, err = container.Start(c, c.PodArgs)
-
-	if !c.Remove {
-		c.Status = fmt.Sprintf("exit %d", exitCode)
-		if err != nil {
-			c.Status = fmt.Sprintf("err %v", err)
-		}
-		c.SaveConftoDisk()
-	}
-	return err
-}
-
-func deRunContainer(c *config.Config) {
-	if err := container.UmountRootfs(c); err != nil {
-		for _, e := range err {
-			slog.Debug("deRunContainer", "umount", slog.Any("err", e))
-		}
-	}
-	if c.NS["net"].Value != "host" {
-		net.Clear(c)
-	}
-
-	if c.Remove {
-
-		removeAll := func(name string) {
-			if err := os.RemoveAll(name); err != nil {
-				slog.Debug("deRunContainer", "removeall", slog.String("file", name), slog.Any("err", err))
-			}
-		}
-
-		removeAll(c.RootfsDir)
-		removeAll(c.Workdir)
-		removeAll(c.Upperdir)
-		removeAll(c.ConfigFileLoc())
-	}
-
 }

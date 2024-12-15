@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/vishvananda/netlink"
 )
 

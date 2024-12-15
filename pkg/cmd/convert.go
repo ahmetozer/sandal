@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func convert(args []string) error {
+func Convert(args []string) error {
 
 	thisFlags, args := SplitFlagsArgs(args)
 

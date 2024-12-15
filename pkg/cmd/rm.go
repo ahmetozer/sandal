@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/config"
-	"github.com/ahmetozer/sandal/pkg/container"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
-func rm(args []string) error {
+func Rm(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("no container name is provided")
 	}
@@ -22,22 +22,22 @@ func rm(args []string) error {
 	flags.BoolVar(&help, "help", false, "show this help message")
 	flags.Parse(thisFlags)
 
-	conts, _ := config.AllContainers()
+	conts, _ := controller.Containers()
 	var errs []error
 RequestedContainers:
 	for _, name := range args {
 		for _, c := range conts {
 			if c.Name == name {
-				err := container.CheckExistence(&c)
+				err := cruntime.CheckExistence(c)
 				if err != nil {
 					errs = append(errs, fmt.Errorf("unable to check existence of '%s' container: %v", c.Name, err))
 				}
-				if c.Status == container.ContainerStatusRunning {
+				if c.Status == cruntime.ContainerStatusRunning {
 					errs = append(errs, fmt.Errorf("container %s is running, please stop it first", c.Name))
 				}
 
 				c.Remove = true
-				deRunContainer(&c)
+				cruntime.DeRunContainer(c)
 				continue RequestedContainers
 			}
 		}

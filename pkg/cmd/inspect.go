@@ -4,20 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
-func inspect(args []string) error {
+func Inspect(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("no container name is provided")
 	}
-	conts, _ := config.AllContainers()
-	for _, c := range conts {
-		if c.Name == args[0] {
-			b, err := json.MarshalIndent(c, "", "\t")
-			fmt.Printf("%s", b)
-			return err
-		}
+
+	c, err := controller.GetContainer(args[0])
+	if c != nil && err == nil {
+		b, _ := json.MarshalIndent(c, "", "\t")
+		fmt.Printf("%s", b)
+		return nil
 	}
+
 	return fmt.Errorf("container not found")
 }

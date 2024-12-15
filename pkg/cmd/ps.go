@@ -7,12 +7,13 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/config"
-	"github.com/ahmetozer/sandal/pkg/container"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
-func ps(args []string) error {
-	conts, _ := config.AllContainers()
+func Ps(args []string) error {
+	conts, _ := controller.Containers()
 	flags := flag.NewFlagSet("ps", flag.ExitOnError)
 	var (
 		help bool
@@ -31,7 +32,7 @@ func ps(args []string) error {
 		return nil
 	}
 
-	header := "NAME\tSQUASHFS\tCOMMAND\tCREATED\tSTATUS\tPID"
+	header := "NAME\tLOWER\tCOMMAND\tCREATED\tSTATUS\tPID"
 	printFunc := printVerified
 	if dry {
 		printFunc = printDry
@@ -46,15 +47,15 @@ func ps(args []string) error {
 	fmt.Fprintln(t, header)
 	defer t.Flush()
 	for _, c := range conts {
-		printFunc(&c, t)
+		printFunc(c, t)
 	}
 	return nil
 }
 
 func printVerified(c *config.Config, t *tabwriter.Writer) {
-	if c.Status == container.ContainerStatusRunning {
-		if !container.IsRunning(c) {
-			c.Status = container.ContainerStatusHang
+	if c.Status == cruntime.ContainerStatusRunning {
+		if !cruntime.IsRunning(c) {
+			c.Status = cruntime.ContainerStatusHang
 		}
 	}
 	printDry(c, t)

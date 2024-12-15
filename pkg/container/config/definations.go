@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path"
-	"strings"
 	"time"
+
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
+// Allocate For a Network Interface {host: bridge interfaces such as sandal0 , host-pod: veth, pod: lo0}
 type ALocFor uint8
 
 const (
@@ -22,24 +24,6 @@ type NetIface struct {
 	IP      string
 	ALocFor ALocFor // host, host-pod (aka veth), pod
 	Main    []NetIface
-}
-
-type StringFlags []string
-
-func (f *StringFlags) String() string {
-	b, _ := json.Marshal(*f)
-	return string(b)
-}
-
-func (f *StringFlags) Set(value string) error {
-	for _, str := range strings.Split(value, ",") {
-		*f = append(*f, str)
-	}
-	return nil
-}
-
-type StringWrapper struct {
-	Value string
 }
 
 type SquashFile struct {
@@ -114,38 +98,6 @@ func (c Config) Json() []byte {
 	return conf
 }
 
-var (
-	// Main folder for all container related files
-	LibDir string
-	RunDir string
-
-	BaseImageDir string
-	BaseStateDir string
-
-	BaseUpperdir         string
-	BaseWorkdir          string
-	BaseSquashFSMountDir string
-	BaseRootfsDir        string
-
-	DefaultHostNet string
-)
-
-func init() {
-
-	LibDir = GetEnv("SANDAL_LIB_DIR", "/var/lib/sandal")
-	RunDir = GetEnv("SANDAL_RUN_DIR", "/var/run/sandal")
-
-	BaseImageDir = GetEnv("SANDAL_IMAGE_DIR", path.Join(LibDir, "image"))
-	BaseStateDir = GetEnv("SANDAL_STATE_DIR", path.Join(LibDir, "state"))
-	BaseUpperdir = GetEnv("SANDAL_UPPERDIR", path.Join(LibDir, "upper"))
-
-	BaseWorkdir = GetEnv("SANDAL_WORKDIR", path.Join(RunDir, "workdir"))
-	BaseRootfsDir = GetEnv("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
-	BaseSquashFSMountDir = GetEnv("SANDAL_SQUASHFSMOUNTDIR", path.Join(RunDir, "squashfs"))
-
-	DefaultHostNet = GetEnv("SANDAL_HOST_NET", "172.16.0.1/24;fd34:0135:0123::1/64")
-}
-
 type DefaultInformation struct {
 	UpperDir  string
 	Workdir   string
@@ -154,8 +106,8 @@ type DefaultInformation struct {
 
 func Defs(containerName string) DefaultInformation {
 	return DefaultInformation{
-		UpperDir:  path.Join(BaseUpperdir, containerName),
-		Workdir:   path.Join(BaseWorkdir, containerName),
-		RootFsDir: path.Join(BaseRootfsDir, containerName),
+		UpperDir:  path.Join(env.BaseUpperdir, containerName),
+		Workdir:   path.Join(env.BaseWorkdir, containerName),
+		RootFsDir: path.Join(env.BaseRootfsDir, containerName),
 	}
 }

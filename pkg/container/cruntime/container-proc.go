@@ -1,7 +1,6 @@
-package container
+package cruntime
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -10,19 +9,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/net"
 	"golang.org/x/sys/unix"
 )
 
-func Exec() {
+func ContainerProc() {
 
 	var (
 		err error
-		c   config.Config
+		c   *config.Config
 	)
 	for retry := 1; retry < 10; retry++ {
-		c, err = loadConfig()
+		c, err = controller.GetContainer(os.Getenv("SANDAL_CHILD"))
 		if err == nil {
 			break
 		}
@@ -38,13 +38,13 @@ func Exec() {
 	}
 
 	if c.NS["net"].Value != "host" {
-		configureIfaces(&c)
+		configureIfaces(c)
 	}
 
-	childSysMounts(&c)
-	childSysNodes(&c)
+	childSysMounts(c)
+	childSysNodes(c)
 	execCommands(c.RunPrePivot, "/.old_root/")
-	purgeOldRoot(&c)
+	purgeOldRoot(c)
 	execCommands(c.RunPreExec, "")
 
 	_, args := childArgs(os.Args)
@@ -56,24 +56,6 @@ func Exec() {
 	if err := unix.Exec(execPath, append([]string{c.Exec}, args...), os.Environ()); err != nil {
 		log.Fatalf("unable to exec %s: %s", c.Exec, err)
 	}
-
-}
-
-func loadConfig() (config.Config, error) {
-
-	config := config.NewContainer()
-	confFileLoc := os.Getenv(CHILD_CONFIG_ENV_NAME)
-	if confFileLoc == "" {
-		return config, fmt.Errorf("config file location not present in env")
-	}
-
-	configFile, err := os.ReadFile(confFileLoc)
-	if err != nil {
-		return config, err
-	}
-
-	err = json.Unmarshal(configFile, &config)
-	return config, err
 
 }
 
@@ -182,7 +164,7 @@ func execCommands(c []string, chroot string) {
 			if chroot != "" {
 				rootfs = "main rootfs"
 			}
-			slog.Info("execCommands", "unable to execute", "command", command, "rootfs", rootfs, slog.Any("err", err))
+			slog.Info("execCommands", "unable to execute", "command", command, "rootfs", rootfs, slog.Any("error", err))
 		}
 	}
 

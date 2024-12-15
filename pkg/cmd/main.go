@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"text/tabwriter"
+
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 var (
@@ -15,37 +18,38 @@ var (
 func Main() {
 
 	if len(os.Args) < 2 {
-		slog.Error("Main", slog.String("err", "No argument provided"))
+		slog.Error("Main", slog.String("error", "No argument provided"))
 		subCommandsHelp()
 		os.Exit(0)
 	}
 	switch os.Args[1] {
 	case "run":
-		executeSubCommand(run)
+		executeSubCommand(Run)
 	case "ps":
-		executeSubCommand(ps)
+		executeSubCommand(Ps)
 	case "convert":
-		executeSubCommand(convert)
+		executeSubCommand(Convert)
 	case "kill":
-		executeSubCommand(kill)
+		executeSubCommand(Kill)
 	case "rerun":
-		executeSubCommand(rerun)
+		executeSubCommand(Rerun)
 	case "rm":
-		executeSubCommand(rm)
+		executeSubCommand(Rm)
 	case "inspect":
-		executeSubCommand(inspect)
+		executeSubCommand(Inspect)
 	case "daemon":
-		executeSubCommand(deamon)
+		executeSubCommand(Daemon)
 	case "cmd":
-		executeSubCommand(cmd)
+		executeSubCommand(Cmd)
 	case "clear":
-		executeSubCommand(clear)
+		executeSubCommand(Clear)
 	case "exec":
-		executeSubCommand(execOnContainer)
+		executeSubCommand(ExecOnContainer)
 	case "help":
 		subCommandsHelp()
+		envs()
 	default:
-		slog.Error("Main", slog.String("err", "Unknown sub command"), slog.String("arg", os.Args[1]))
+		slog.Error("Main", slog.String("error", "Unknown sub command"), slog.String("arg", os.Args[1]))
 		os.Exit(1)
 	}
 	os.Exit(exitCode)
@@ -59,7 +63,7 @@ func executeSubCommand(f func([]string) error) {
 		if exitCode == 0 {
 			exitCode = 1
 		}
-		slog.Error("executeSubCommand", slog.String("command", os.Args[1]), slog.Any("err", err))
+		slog.Error("executeSubCommand", slog.String("command", os.Args[1]), slog.Any("error", err))
 		os.Exit(exitCode)
 	}
 }
@@ -77,7 +81,24 @@ func subCommandsHelp() {
 	daemon - Start sandal daemon
 	clear - Clear unused containers
 	exec - Execute a command in a container
-	help - Show this help`)
+	help - Show help, default and current environment variables` + "\n")
 
-	fmt.Printf("\n\nVersion: %s\n", BuildVersion)
+	fmt.Printf("\nVersion: %s\n", BuildVersion)
+}
+
+func envs() {
+	w := tabwriter.NewWriter(os.Stdout, 7, 1, 0, ' ', 0)
+
+	fmt.Printf("\nDefault sandal variables:\n")
+	for _, r := range env.GetDefaults() {
+		fmt.Fprintln(w, "\t"+r)
+	}
+	w.Flush()
+
+	fmt.Printf("Current sandal variables:\n")
+	for _, r := range env.GetCurrents() {
+		fmt.Fprintln(w, "\t"+r)
+	}
+	w.Flush()
+
 }

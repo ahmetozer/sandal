@@ -1,4 +1,4 @@
-package container
+package cruntime
 
 import (
 	"errors"
@@ -8,7 +8,8 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
 )
 
@@ -70,5 +71,5 @@ func umountSquashfsFile(sq *config.SquashFile) error {
 }
 
 func getSquashfsMountDirName(sq *config.SquashFile) string {
-	return path.Join(config.BaseSquashFSMountDir, strconv.Itoa(int(sq.LoopNo)))
+	return path.Join(env.BaseSquashFSMountDir, strconv.Itoa(int(sq.LoopNo)))
 }
