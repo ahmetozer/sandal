@@ -6,7 +6,11 @@ import (
 	"strings"
 )
 
-func SetLogLoggerLevel() {
+func init() {
+	setLogLoggerLevel()
+}
+
+func setLogLoggerLevel() {
 
 	switch strings.ToLower(os.Getenv("SANDAL_LOG_LEVEL")) {
 	case "info":

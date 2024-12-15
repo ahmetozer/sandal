@@ -1,4 +1,4 @@
-package container
+package cruntime
 
 import (
 	"encoding/binary"
@@ -10,13 +10,13 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/net"
 )
 
 const (
-	bits                  = 32 << (^uint(0) >> 63)
-	CHILD_CONFIG_ENV_NAME = "SANDAL_CHILD"
+	bits = 32 << (^uint(0) >> 63)
 )
 
 var (
@@ -90,7 +90,7 @@ func Start(c *config.Config, args []string) (int, error) {
 		}
 	}
 
-	err := c.SaveConftoDisk()
+	err := controller.SetContainer(c)
 	if err != nil {
 		return 0, err
 	}
@@ -107,7 +107,7 @@ func Start(c *config.Config, args []string) (int, error) {
 
 	c.Status = ContainerStatusRunning
 
-	err = c.SaveConftoDisk()
+	err = controller.SetContainer(c)
 	if err != nil {
 		return 0, err
 	}
@@ -146,12 +146,12 @@ func Start(c *config.Config, args []string) (int, error) {
 }
 
 func IsChild() bool {
-	return os.Getenv(CHILD_CONFIG_ENV_NAME) != ""
+	return os.Getenv("SANDAL_CHILD") != ""
 }
 
 func childEnv(c *config.Config) []string {
 	if c.EnvAll {
-		return append(os.Environ(), CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
+		return appendSandalVariables(os.Environ(), c)
 	}
 	envVars := []string{}
 	pathIsSet := false
@@ -170,10 +170,15 @@ func childEnv(c *config.Config) []string {
 		envVars = append(envVars, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
 	}
 
-	envVars = append(envVars, CHILD_CONFIG_ENV_NAME+"="+c.ConfigFileLoc())
-	envVars = append(envVars, "SANDAL_LOG_LEVEL="+os.Getenv("SANDAL_LOG_LEVEL"))
+	envVars = appendSandalVariables(envVars, c)
 
 	return envVars
+}
+
+func appendSandalVariables(s []string, c *config.Config) []string {
+	s = append(s, "SANDAL_CHILD"+"="+c.Name)
+	s = append(s, "SANDAL_LOG_LEVEL="+os.Getenv("SANDAL_LOG_LEVEL"))
+	return s
 }
 
 func childArgs(args []string) (string, []string) {

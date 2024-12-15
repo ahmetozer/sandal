@@ -1,4 +1,4 @@
-package container
+package cruntime
 
 import (
 	"log"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"golang.org/x/sys/unix"
 )
 

@@ -7,11 +7,12 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
 
-func execOnContainer(args []string) error {
+func ExecOnContainer(args []string) error {
 
 	thisFlags, childArgs := SplitFlagsArgs(args)
 
@@ -46,11 +47,7 @@ func execOnContainer(args []string) error {
 		return fmt.Errorf("no command provided")
 	}
 
-	conts, err := config.Containers()
-	if err != nil {
-		return fmt.Errorf("failed to get containers: %v", err)
-	}
-	c, err := config.GetByName(&conts, childArgs[0])
+	c, err := controller.GetContainer(childArgs[0])
 	if err != nil {
 		return fmt.Errorf("failed to get container %s: %v", childArgs[0], err)
 	}

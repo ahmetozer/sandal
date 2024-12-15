@@ -3,7 +3,7 @@ package net
 import (
 	"log/slog"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/vishvananda/netlink"
 )
 

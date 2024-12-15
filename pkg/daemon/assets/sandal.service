@@ -1,0 +1,14 @@
+[Unit]
+Description=sandal daemon
+After=network.target local-fs.target remote-fs.target
+
+[Service]
+User=root
+RuntimeDirectory=sandal
+LogsDirectory=sandal
+StateDirectory=sandal
+ExecStart=/usr/bin/sandal daemon
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path"
-	"strings"
 	"time"
+
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
+// Allocate For a Network Interface {host: bridge interfaces such as sandal0 , host-pod: veth, pod: lo0}
 type ALocFor uint8
 
 const (
@@ -22,24 +24,6 @@ type NetIface struct {
 	IP      string
 	ALocFor ALocFor // host, host-pod (aka veth), pod
 	Main    []NetIface
-}
-
-type StringFlags []string
-
-func (f *StringFlags) String() string {
-	b, _ := json.Marshal(*f)
-	return string(b)
-}
-
-func (f *StringFlags) Set(value string) error {
-	for _, str := range strings.Split(value, ",") {
-		*f = append(*f, str)
-	}
-	return nil
-}
-
-type StringWrapper struct {
-	Value string
 }
 
 type SquashFile struct {
@@ -122,8 +106,8 @@ type DefaultInformation struct {
 
 func Defs(containerName string) DefaultInformation {
 	return DefaultInformation{
-		UpperDir:  path.Join(BaseUpperdir, containerName),
-		Workdir:   path.Join(BaseWorkdir, containerName),
-		RootFsDir: path.Join(BaseRootfsDir, containerName),
+		UpperDir:  path.Join(env.BaseUpperdir, containerName),
+		Workdir:   path.Join(env.BaseWorkdir, containerName),
+		RootFsDir: path.Join(env.BaseRootfsDir, containerName),
 	}
 }

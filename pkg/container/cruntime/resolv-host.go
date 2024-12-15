@@ -1,4 +1,4 @@
-package container
+package cruntime
 
 import (
 	"log"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 )
 
 func read(file string) *[]byte {

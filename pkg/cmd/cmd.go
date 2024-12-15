@@ -1,23 +1,31 @@
 package cmd
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
-func cmd(args []string) error {
-	if len(args) < 1 {
+func Cmd(args []string) error {
+
+	f := flag.NewFlagSet("", flag.ExitOnError)
+
+	all := f.Bool("all", false, "print all")
+	if len(args) < 1 && !*all {
 		return fmt.Errorf("no container name is provided")
 	}
-	conts, err := config.Containers()
+
+	f.Parse(args)
+
+	conts, err := controller.Containers()
 	if err != nil {
 		return err
 	}
 	for _, c := range conts {
-		if c.Name == args[0] {
+		if c.Name == args[0] || *all {
 			c.HostArgs[0] = os.Args[0] // sync with current command
 			for i := range c.HostArgs {
 				k := strings.Split(c.HostArgs[i], "=")

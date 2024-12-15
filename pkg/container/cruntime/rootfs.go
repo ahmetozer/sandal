@@ -1,4 +1,4 @@
-package container
+package cruntime
 
 import (
 	"fmt"
@@ -6,16 +6,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
 	"golang.org/x/sys/unix"
 )
 
 func MountRootfs(c *config.Config) error {
-	changeDir, err := prepareChangeDir(c)
+	changeDir, err := overlayfs.PrepareChangeDir(c)
 	if err != nil {
 		return fmt.Errorf("creating change directory: %s", err)
 	}
-	slog.Debug("MountRootfs", slog.String("upper", changeDir.upper), slog.String("work", changeDir.work))
+	slog.Debug("MountRootfs", slog.String("upper", changeDir.GetUpper()), slog.String("work", changeDir.GetWork()))
 
 	slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir))
 	if err := os.MkdirAll(c.RootfsDir, 0755); err != nil {
@@ -56,15 +57,15 @@ func MountRootfs(c *config.Config) error {
 	}
 
 	if len(LowerDirs) != 0 {
-		if s, err := isOverlayFS(changeDir.upper); err == nil {
+		if s, err := changeDir.IsOverlayFS(); err == nil {
 			if s {
-				return fmt.Errorf("upper (%s) is pointed to overlayfs. Kernel does not supports creating overlayfs under overlayfs. To overcome this, you can execute your container with temporary environment '-tmp', or you can point upper directory to real disk with '-udir' flag", changeDir.upper)
+				return fmt.Errorf("upper (%s) is pointed to overlayfs. Kernel does not supports creating overlayfs under overlayfs. To overcome this, you can execute your container with temporary environment '-tmp', or you can point upper directory to real disk with '-udir' flag", changeDir.GetUpper())
 			}
 		} else {
 			return fmt.Errorf("unable to check overlayfs %s", err)
 		}
 
-		options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(LowerDirs, ":"), changeDir.upper, changeDir.work)
+		options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(LowerDirs, ":"), changeDir.GetUpper(), changeDir.GetWork())
 		err = unix.Mount("overlay", c.RootfsDir, "overlay", 0, options)
 		if err != nil {
 			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name))
@@ -93,7 +94,7 @@ func UmountRootfs(c *config.Config) []error {
 	}
 
 	if c.TmpSize != 0 {
-		err = unix.Unmount(tmpdir(), 0)
+		err = unix.Unmount(overlayfs.Tmpdir(), 0)
 		if err != nil {
 			if !os.IsNotExist(err) {
 				errs = append(errs, err)
@@ -112,17 +113,4 @@ func UmountRootfs(c *config.Config) []error {
 		return nil
 	}
 	return errs
-}
-
-func isOverlayFS(path string) (bool, error) {
-	// Use unix.Statfs to get filesystem information about the path
-	var stat unix.Statfs_t
-	err := unix.Statfs(path, &stat)
-	if err != nil {
-		return false, fmt.Errorf("error getting statfs info for path %s: %w", path, err)
-	}
-
-	// Filesystem type is stored in stat.Type, check if it equals the value for overlayfs
-	const overlayfs = 0x794c7630 // This is the magic number for overlayfs
-	return stat.Type == overlayfs, nil
 }

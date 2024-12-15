@@ -3,7 +3,7 @@ package net
 import (
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/vishvananda/netlink"
 )
 
@@ -22,7 +22,7 @@ func SetName(c *config.Config, oldName string, newName string) error {
 			return nil
 		}
 	}
-	c.SaveConftoDisk()
+	// c.SaveConftoDisk()
 	return fmt.Errorf("interface with name %s not found", oldName)
 
 }

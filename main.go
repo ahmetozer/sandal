@@ -2,17 +2,13 @@ package main
 
 import (
 	"github.com/ahmetozer/sandal/pkg/cmd"
-	"github.com/ahmetozer/sandal/pkg/container"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 )
-
-func init() {
-	cmd.SetLogLoggerLevel()
-}
 
 func main() {
 
-	if container.IsChild() {
-		container.Exec()
+	if cruntime.IsChild() {
+		cruntime.ContainerProc()
 	} else {
 		cmd.Main()
 	}

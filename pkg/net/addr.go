@@ -5,7 +5,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -72,7 +73,7 @@ func getGw(addrs string, t IP_TYPE) string {
 }
 
 func FindFreePodIPs(hostIpsText string) (string, error) {
-	configs, err := config.Containers()
+	configs, err := controller.Containers()
 	if err != nil {
 		return "", err
 	}

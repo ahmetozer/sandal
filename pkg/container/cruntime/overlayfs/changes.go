@@ -1,4 +1,4 @@
-package container
+package overlayfs
 
 import (
 	"errors"
@@ -6,28 +6,37 @@ import (
 	"os"
 	"path"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
 )
 
-type changesDir struct {
+type ChangesDir struct {
 	upper string
 	work  string
 }
 
-func tmpdir() string {
-	return path.Join(config.RunDir, "tmpfs", "changes")
+func (c ChangesDir) GetUpper() string {
+	return c.upper
 }
 
-func prepareChangeDir(c *config.Config) (changesDir, error) {
+func (c ChangesDir) GetWork() string {
+	return c.work
+}
+
+func Tmpdir() string {
+	return path.Join(env.RunDir, "tmpfs", "changes")
+}
+
+func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 	var errs error
-	dir := changesDir{
+	dir := ChangesDir{
 		work:  c.Workdir,
 		upper: c.Upperdir,
 	}
 	// if temp size is set, create a tmpfs and allocate changes under tmpfs
 	if c.TmpSize != 0 {
-		tmpdir := tmpdir()
+		tmpdir := Tmpdir()
 
 		dir.work = path.Join(tmpdir, "work")
 		dir.upper = path.Join(tmpdir, "upper")

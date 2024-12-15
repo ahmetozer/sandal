@@ -1,12 +1,12 @@
-package container
+package cruntime
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/config"
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
 const (
@@ -17,22 +17,18 @@ const (
 )
 
 func CheckExistence(c *config.Config) error {
-	configLocation := c.ConfigFileLoc()
-	if _, err := os.Stat(configLocation); err == nil {
-		file, err := os.ReadFile(configLocation)
-		if err != nil {
-			return fmt.Errorf("container config %s is exist but unable to read: %v", configLocation, err)
-		}
-		oldConfig := config.NewContainer()
-		json.Unmarshal(file, &oldConfig)
+	oldConfig, err := controller.GetContainer(c.Name)
+	if err == nil {
 		b, err := IsPidRunning(oldConfig.ContPid)
-		if err != nil {
+		if err != nil && oldConfig.ContPid != 0 {
 			return fmt.Errorf("unable to check pid %d: %v", oldConfig.ContPid, err)
 		}
 		if b {
 			c.Status = ContainerStatusRunning
+			controller.SetContainer(c)
 		} else {
 			c.Status = ContainerStatusHang
+			controller.SetContainer(c)
 		}
 	}
 	return nil
