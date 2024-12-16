@@ -67,14 +67,14 @@ func init() {
 		BaseImageDir = Get("SANDAL_IMAGE_DIR", path.Join(LibDir, "image"))
 		BaseStateDir = Get("SANDAL_STATE_DIR", path.Join(LibDir, "state"))
 		BaseUpperdir = Get("SANDAL_UPPERDIR", path.Join(LibDir, "upper"))
+		BaseWorkdir = Get("SANDAL_WORKDIR", path.Join(LibDir, "workdir"))
 
-		BaseWorkdir = Get("SANDAL_WORKDIR", path.Join(RunDir, "workdir"))
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseSquashFSMountDir = Get("SANDAL_SQUASHFSMOUNTDIR", path.Join(RunDir, "squashfs"))
 
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24;fd34:0135:0123::1/64")
 
-		DaemonSocket = Get("SANDAL_SOCKET", path.Join(LibDir, "sandal.sock"))
+		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
 		Get = getCurrents
 	}
 	Get = getMain
