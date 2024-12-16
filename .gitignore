@@ -24,3 +24,4 @@ go.work
 testing
 sandal
 __debug*
+.*

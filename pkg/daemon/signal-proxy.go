@@ -12,6 +12,7 @@ import (
 
 func signalProxy(daemonKillRequested *bool) {
 	done := make(chan os.Signal, 1)
+	slog.Info("signalProxy", "service", "started")
 	for {
 		signal.Notify(done, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 		sig := <-done
@@ -29,4 +30,5 @@ func signalProxy(daemonKillRequested *bool) {
 			break
 		}
 	}
+	slog.Info("signalProxy", "service", "stopped")
 }

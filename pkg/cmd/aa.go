@@ -13,10 +13,10 @@ func init() {
 func setLogLoggerLevel() {
 
 	switch strings.ToLower(os.Getenv("SANDAL_LOG_LEVEL")) {
-	case "info":
-		slog.SetLogLoggerLevel(slog.LevelInfo)
-	case "", "debug":
+	case "debug":
 		slog.SetLogLoggerLevel(slog.LevelDebug)
+	case "", "info":
+		slog.SetLogLoggerLevel(slog.LevelInfo)
 	case "warn":
 		slog.SetLogLoggerLevel(slog.LevelWarn)
 	case "error":
