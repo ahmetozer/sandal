@@ -28,27 +28,11 @@ var (
 
 	Get func(EnvName, DefaultValue string) string
 
-	defaults []sEnv
+	defaults []SandalSystemEnv
 )
 
-func GetDefaults() []string {
-	var cur []string
-	for _, d := range defaults {
-		cur = append(cur, d.name+"="+d.def)
-	}
-	return cur
-}
-
-func GetCurrents() []string {
-	var cur []string
-	for _, d := range defaults {
-		env := Get(d.name, "")
-		if env == "" {
-			env = "\t\t(not set but used as: " + d.cur + ")"
-		}
-		cur = append(cur, d.name+"="+env)
-	}
-	return cur
+func GetDefaults() []SandalSystemEnv {
+	return defaults
 }
 
 func init() {
@@ -75,6 +59,9 @@ func init() {
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24;fd34:0135:0123::1/64")
 
 		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
+
+		Get("SANDAL_LOG_LEVEL", "info")
+
 		Get = getCurrents
 	}
 	Get = getMain

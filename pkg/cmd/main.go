@@ -89,16 +89,17 @@ func subCommandsHelp() {
 func envs() {
 	w := tabwriter.NewWriter(os.Stdout, 7, 1, 0, ' ', 0)
 
-	fmt.Printf("\nDefault sandal variables:\n")
+	fmt.Printf("\nSystem variable information:\n")
+	fmt.Fprintln(w, " ", "Variable Name", "\t", "Set by user", "\t", "Used as", "\t", "Default")
 	for _, r := range env.GetDefaults() {
-		fmt.Fprintln(w, "\t"+r)
+		fmt.Fprintln(w, " ", r.Name, "\t", env.Get(r.Name, ""), "\t", r.Cur, "\t", r.Def)
 	}
 	w.Flush()
 
-	fmt.Printf("Current sandal variables:\n")
-	for _, r := range env.GetCurrents() {
-		fmt.Fprintln(w, "\t"+r)
-	}
-	w.Flush()
+	// fmt.Printf("Current sandal variables:\n")
+	// for _, r := range env.GetCurrents() {
+	// 	fmt.Fprintln(w, "\t"+r)
+	// }
+	// w.Flush()
 
 }
