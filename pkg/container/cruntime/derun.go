@@ -27,8 +27,7 @@ func DeRunContainer(c *config.Config) {
 		}
 
 		removeAll(c.RootfsDir)
-		removeAll(c.Workdir)
-		removeAll(c.Upperdir)
+		removeAll(c.ChangeDir)
 		removeAll(c.ConfigFileLoc())
 	}
 

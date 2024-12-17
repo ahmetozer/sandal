@@ -17,8 +17,7 @@ var (
 	BaseImageDir string
 	BaseStateDir string
 
-	BaseUpperdir         string
-	BaseWorkdir          string
+	BaseChangeDir        string
 	BaseSquashFSMountDir string
 	BaseRootfsDir        string
 
@@ -50,8 +49,7 @@ func init() {
 
 		BaseImageDir = Get("SANDAL_IMAGE_DIR", path.Join(LibDir, "image"))
 		BaseStateDir = Get("SANDAL_STATE_DIR", path.Join(LibDir, "state"))
-		BaseUpperdir = Get("SANDAL_UPPERDIR", path.Join(LibDir, "upper"))
-		BaseWorkdir = Get("SANDAL_WORKDIR", path.Join(LibDir, "workdir"))
+		BaseChangeDir = Get("SANDAL_CHANGE_DIR", path.Join(LibDir, "changedir"))
 
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseSquashFSMountDir = Get("SANDAL_SQUASHFSMOUNTDIR", path.Join(RunDir, "squashfs"))
