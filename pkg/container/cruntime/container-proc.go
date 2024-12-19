@@ -53,6 +53,11 @@ func ContainerProc() {
 	if err != nil {
 		log.Fatalf("unable to find %s: %s", c.Exec, err)
 	}
+
+	if c.Dir != "/" {
+		os.Chdir(c.Dir)
+	}
+
 	if err := unix.Exec(execPath, append([]string{c.Exec}, args...), os.Environ()); err != nil {
 		log.Fatalf("unable to exec %s: %s", c.Exec, err)
 	}

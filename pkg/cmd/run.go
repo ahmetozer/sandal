@@ -66,7 +66,7 @@ func Run(args []string) error {
 		f.StringVar(&c.NS[k].Value, "ns-"+k, defaultValue, fmt.Sprintf("%s namespace or host", k))
 	}
 
-	f.StringVar(&c.ChangeDir, "cdir", config.Defs(containerId).ChangeDir, "container changes will saved this directory")
+	f.StringVar(&c.ChangeDir, "chdir", config.Defs(containerId).ChangeDir, "container changes will saved this directory")
 	f.StringVar(&c.RootfsDir, "rdir", config.Defs(containerId).RootFsDir, "root directory of operating system")
 
 	f.Var(&c.Volumes, "v", "volume mount point")

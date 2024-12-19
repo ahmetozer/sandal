@@ -101,6 +101,8 @@ func purgeOldRoot(c *config.Config) {
 
 func mount(source, target, fstype string, flags uintptr, data string) {
 
+	slog.Debug("mount", slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype))
+
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
 		try := true
@@ -109,7 +111,6 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 		if os.IsNotExist(err) {
 			if try {
 				os.MkdirAll(filepath.Dir(source), 0o0600)
-				slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", source))
 				try = false
 				goto CHECK
 			}
@@ -122,20 +123,16 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 
 		if !fileInfo.IsDir() {
 			os.MkdirAll(filepath.Dir(target), 0o0600)
-			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 			err = Touch(target)
 			if err != nil {
 				slog.Error("mount", slog.String("target", target), slog.Any("error", err))
 				os.Exit(1)
 			}
-			slog.Debug("mount", slog.String("action", "touch"), slog.String("source", target))
 		} else {
-			err = os.MkdirAll(target, 0o0600)
-			slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target), slog.Any("error", err))
+			os.MkdirAll(target, 0o0600)
 		}
 	} else {
 		os.MkdirAll(target, 0o0600)
-		slog.Debug("mount", slog.String("action", "mkdirall"), slog.String("source", target))
 	}
 
 	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
@@ -159,8 +156,9 @@ func mountVolumes(c *config.Config) {
 		default:
 			log.Fatalf("unexpected mount configuration '%s'", v)
 		}
+		slog.Debug("mount", slog.Any("volume", m))
 
-		mount(m[0], path.Join("rootfs", m[1]), "", unix.MS_BIND, m[2])
+		mount(m[0], path.Join(c.RootfsDir, m[1]), "", unix.MS_BIND, m[2])
 	}
 }
 

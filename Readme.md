@@ -296,7 +296,7 @@ sandal run -v="/usr/bin/bosphorus" -rpe="/sbin/apk add curl" -lw="/root/alpine" 
 Save changes in different disk
 
 ```bash
-sandal run  -lw="/mnt/sandal/images/ubuntu.sq" -chd="/mnt/nvme1/develop/" /usr/bin/df -h
+sandal run  -lw="/mnt/sandal/images/ubuntu.sq" -chdir="/mnt/nvme1/develop/" /usr/bin/df -h
 Filesystem      Size  Used Avail Use% Mounted on
 overlay         916G  3.2G  867G   1% /
 ```
