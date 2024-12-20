@@ -36,8 +36,14 @@ func Cmd(args []string) error {
 				}
 			}
 			fmt.Println(strings.Join(c.HostArgs, " "))
-			return nil
+			if !*all {
+				return nil
+			}
+
 		}
+	}
+	if *all {
+		return nil
 	}
 
 	return fmt.Errorf("container '%s' is not found", args[0])
