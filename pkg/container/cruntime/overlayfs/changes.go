@@ -3,6 +3,7 @@ package overlayfs
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 
@@ -24,35 +25,24 @@ func (c ChangesDir) GetWork() string {
 	return c.work
 }
 
-func Tmpdir() string {
-	return path.Join(env.RunDir, "tmpfs", "changes")
+func Tmpdir(c *config.Config) string {
+	return path.Join(env.RunDir, "tmpfs", "changes", c.Name)
 }
 
 func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 	var errs error
 	dir := ChangesDir{
-		work:  c.Workdir,
-		upper: c.Upperdir,
+		work:  path.Join(c.ChangeDir, "work"),
+		upper: path.Join(c.ChangeDir, "upper"),
 	}
 	// if temp size is set, create a tmpfs and allocate changes under tmpfs
 	if c.TmpSize != 0 {
-		tmpdir := Tmpdir()
+		tmpdir := Tmpdir(c)
 
 		dir.work = path.Join(tmpdir, "work")
 		dir.upper = path.Join(tmpdir, "upper")
 
-		if dir.upper == c.Upperdir {
-			errs = errors.Join(errs, fmt.Errorf("tmpfs (%s) cannot be the same as upperdir (%s)", dir.upper, c.Upperdir))
-		}
-		if dir.work == c.Workdir {
-			errs = errors.Join(errs, fmt.Errorf("tmpfs (%s) cannot be the same as workdir (%s)", dir.upper, c.Workdir))
-		}
-
-		if errs != nil {
-			return dir, errs
-		}
-
-		sizeBytes := uint64(c.TmpSize * 1024 * 1024) // 100MB
+		sizeBytes := uint64(c.TmpSize * 1024 * 1024) // 1MB
 		if err := os.MkdirAll(tmpdir, 0o0755); err != nil {
 			return dir, fmt.Errorf("creating %s directory: %s", tmpdir, err)
 		}
@@ -62,6 +52,7 @@ func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 			return dir, fmt.Errorf("tmpfs: %s", err)
 		}
 	}
+	slog.Debug("PrepareChangeDir", slog.Any("dir", dir))
 
 	if err := os.MkdirAll(dir.work, 0o0755); err != nil {
 		errs = errors.Join(err, fmt.Errorf("creating %s directory: %s", dir.work, err))

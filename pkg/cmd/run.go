@@ -66,8 +66,7 @@ func Run(args []string) error {
 		f.StringVar(&c.NS[k].Value, "ns-"+k, defaultValue, fmt.Sprintf("%s namespace or host", k))
 	}
 
-	f.StringVar(&c.Workdir, "wdir", config.Defs(containerId).Workdir, "overlay fs workdir")
-	f.StringVar(&c.Upperdir, "udir", config.Defs(containerId).UpperDir, "container changes will saved this directory")
+	f.StringVar(&c.ChangeDir, "chdir", config.Defs(containerId).ChangeDir, "container changes will saved this directory")
 	f.StringVar(&c.RootfsDir, "rdir", config.Defs(containerId).RootFsDir, "root directory of operating system")
 
 	f.Var(&c.Volumes, "v", "volume mount point")
@@ -86,11 +85,8 @@ func Run(args []string) error {
 	// If the name is presented and values are not filled by arguments
 	// re-fill values with new defaults.
 	if containerId != c.Name {
-		if c.Workdir == config.Defs(containerId).Workdir {
-			c.Workdir = config.Defs(c.Name).Workdir
-		}
-		if c.Upperdir == config.Defs(containerId).UpperDir {
-			c.Upperdir = config.Defs(c.Name).UpperDir
+		if c.ChangeDir == config.Defs(containerId).ChangeDir {
+			c.ChangeDir = config.Defs(c.Name).ChangeDir
 		}
 		if c.RootfsDir == config.Defs(containerId).RootFsDir {
 			c.RootfsDir = config.Defs(c.Name).RootFsDir

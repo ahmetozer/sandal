@@ -15,20 +15,20 @@ func getMain(EnvName, DefaultValue string) string {
 func getCurrents(EnvName, DefaultValue string) string {
 	env := getMain(EnvName, DefaultValue)
 	for i := range defaults {
-		if defaults[i].name == EnvName {
-			defaults[i].cur = env
+		if defaults[i].Name == EnvName {
+			defaults[i].Cur = env
 		}
 	}
 	return env
 }
 
 func getInit(EnvName, DefaultValue string) string {
-	defaults = append(defaults, sEnv{name: EnvName, def: DefaultValue})
+	defaults = append(defaults, SandalSystemEnv{Name: EnvName, Def: DefaultValue})
 	return DefaultValue
 }
 
-type sEnv struct {
-	name string
-	def  string
-	cur  string
+type SandalSystemEnv struct {
+	Name string
+	Def  string
+	Cur  string
 }

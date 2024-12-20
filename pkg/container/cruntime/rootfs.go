@@ -16,9 +16,8 @@ func MountRootfs(c *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("creating change directory: %s", err)
 	}
-	slog.Debug("MountRootfs", slog.String("upper", changeDir.GetUpper()), slog.String("work", changeDir.GetWork()))
+	slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir), slog.String("upper", changeDir.GetUpper()), slog.String("work", changeDir.GetWork()))
 
-	slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir))
 	if err := os.MkdirAll(c.RootfsDir, 0755); err != nil {
 		return fmt.Errorf("creating workdir: %s", err)
 	}
@@ -56,7 +55,7 @@ func MountRootfs(c *config.Config) error {
 		}
 	}
 
-	if len(LowerDirs) != 0 {
+	if len(LowerDirs) > 0 {
 		if s, err := changeDir.IsOverlayFS(); err == nil {
 			if s {
 				return fmt.Errorf("upper (%s) is pointed to overlayfs. Kernel does not supports creating overlayfs under overlayfs. To overcome this, you can execute your container with temporary environment '-tmp', or you can point upper directory to real disk with '-udir' flag", changeDir.GetUpper())
@@ -67,8 +66,9 @@ func MountRootfs(c *config.Config) error {
 
 		options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(LowerDirs, ":"), changeDir.GetUpper(), changeDir.GetWork())
 		err = unix.Mount("overlay", c.RootfsDir, "overlay", 0, options)
+		slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir), slog.Any("options", options))
 		if err != nil {
-			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name))
+			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name), slog.Any("error", err))
 			return fmt.Errorf("overlay: %s", err)
 		}
 	}
@@ -94,7 +94,7 @@ func UmountRootfs(c *config.Config) []error {
 	}
 
 	if c.TmpSize != 0 {
-		err = unix.Unmount(overlayfs.Tmpdir(), 0)
+		err = unix.Unmount(overlayfs.Tmpdir(c), 0)
 		if err != nil {
 			if !os.IsNotExist(err) {
 				errs = append(errs, err)

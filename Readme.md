@@ -139,6 +139,7 @@ Kill and restart container process with same args and current environment variab
 ```bash
 sandal run -d -lw=cont1.sqfs --name cont1 /bin/ping 1.0.0.1
 sandal rerun cont1
+# kills cont1 and re executes "sandal run -d -lw=cont1.sqfs --name cont1 /bin/ping 1.0.0.1"
 ```
 
 ### Exec
@@ -151,12 +152,16 @@ sandal exec minecraft /bin/bash
 
 ### Cmd
 
-Get last execution command.
+Get last execution command for given container.
 
 ```bash
 sandal cmd minecraft
-# Output
-"sandal run -name=minecraft -keep -lw=/mnt/sandal/images/ubuntu.sq -pod-ips=172.16.0.4/24 -startup -d /sbin/runit"
+sandal run -name=minecraft -lw=/mnt/sandal/images/ubuntu.sq -pod-ips=172.16.0.4/24 -startup -d /sbin/runit
+
+sandal cmd -all
+sandal run -name=minecraft -lw=/mnt/sandal/images/ubuntu.sq -pod-ips=172.16.0.4/24 -startup -d /sbin/runit
+sandal run -name=alpine  -lw="$HOME/alpine/" -tmp=100 /bin/ash
+...
 ```
 
 ### Daemon
@@ -192,7 +197,7 @@ sandal inspect minecraft
 
 ### Environment Variables
 
-The below variables which utilized by all sub commands
+The below variables are used for system management. You can get more details with `sandal help` command for current and default variables.
 
 ```bash
 export SANDAL_LIB_DIR="/var/lib/sandal"
@@ -219,7 +224,7 @@ If your compiled application require system lib files, you can use distro squash
 # Custom app as overlay
 mkdir -p myroot/bin/
 cp myBinnary myroot/bin/
-sandal run -name=mybinnary -keep -lw=ubuntu.sq -lw="$HOME/myroot/" /bin/myBinnary
+sandal run -name=mybinnary -lw=ubuntu.sq -lw="$HOME/myroot/" /bin/myBinnary
 ```
 
 In this example, alpine is used, and you can get alpine with below command
@@ -235,27 +240,27 @@ If you want to isolate your changes, you can start your system with lowerdir onl
 
 ```bash
 # Start alpine from disk
-sandal run -name=mybinnary -keep -lw="$HOME/alpine/" /bin/ash
+sandal run -name=mybinnary  -lw="$HOME/alpine/" /bin/ash
 ```
 
 Intermediate RootFS can be provisioned with temporary disk environment. Changes are saved on ram and deleted on exit.
 
 ```bash
 # With ramdisk
-sandal run -name=alpine -keep -lw="$HOME/alpine/" -tmp=100 /bin/ash
+sandal run -name=alpine  -lw="$HOME/alpine/" -tmp=100 /bin/ash
 ```
 
 Attaching single binary with/without configuration files.
 
 ```bash
 # Path of application on phsical disc /myApp/bin/myapp
-sandal run -name=mybinnarywithdistro -keep -lw="$HOME/alpine/" -lw="/myApp/" /bin/myapp
+sandal run -name=mybinnarywithdistro -lw="$HOME/alpine/" -lw="/myApp/" /bin/myapp
 # or locate your configs
 ls /myconfigs/
     /etc/
         dnsmasq.conf
         hostpad.conf
-sandal run -name=mybinnarywithdistro -keep -lw="$HOME/alpine/" -lw="/myApp/" -lw="/myconfig/" /bin/myapp
+sandal run -name=mybinnarywithdistro -lw="$HOME/alpine/" -lw="/myApp/" -lw="/myconfig/" /bin/myapp
 ```
 
 If you don't want to isolate your container file system with overlay, you can use -v to mount your system
@@ -291,7 +296,7 @@ sandal run -v="/usr/bin/bosphorus" -rpe="/sbin/apk add curl" -lw="/root/alpine" 
 Save changes in different disk
 
 ```bash
-sandal run  -lw="/mnt/sandal/images/ubuntu.sq" -chd="/mnt/nvme1/develop/" /usr/bin/df -h
+sandal run  -lw="/mnt/sandal/images/ubuntu.sq" -chdir="/mnt/nvme1/develop/" /usr/bin/df -h
 Filesystem      Size  Used Avail Use% Mounted on
 overlay         916G  3.2G  867G   1% /
 ```

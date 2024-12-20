@@ -85,7 +85,7 @@ func Server() {
 		panic(err)
 	}
 
-	slog.Debug("Server", slog.String("socket", unixListener.Addr().String()))
+	slog.Info("Server", slog.String("socket", unixListener.Addr().String()))
 
 	server.Serve(unixListener)
 

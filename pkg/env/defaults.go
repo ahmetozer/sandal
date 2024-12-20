@@ -17,8 +17,7 @@ var (
 	BaseImageDir string
 	BaseStateDir string
 
-	BaseUpperdir         string
-	BaseWorkdir          string
+	BaseChangeDir        string
 	BaseSquashFSMountDir string
 	BaseRootfsDir        string
 
@@ -28,27 +27,11 @@ var (
 
 	Get func(EnvName, DefaultValue string) string
 
-	defaults []sEnv
+	defaults []SandalSystemEnv
 )
 
-func GetDefaults() []string {
-	var cur []string
-	for _, d := range defaults {
-		cur = append(cur, d.name+"="+d.def)
-	}
-	return cur
-}
-
-func GetCurrents() []string {
-	var cur []string
-	for _, d := range defaults {
-		env := Get(d.name, "")
-		if env == "" {
-			env = "\t\t(not set but used as: " + d.cur + ")"
-		}
-		cur = append(cur, d.name+"="+env)
-	}
-	return cur
+func GetDefaults() []SandalSystemEnv {
+	return defaults
 }
 
 func init() {
@@ -66,15 +49,17 @@ func init() {
 
 		BaseImageDir = Get("SANDAL_IMAGE_DIR", path.Join(LibDir, "image"))
 		BaseStateDir = Get("SANDAL_STATE_DIR", path.Join(LibDir, "state"))
-		BaseUpperdir = Get("SANDAL_UPPERDIR", path.Join(LibDir, "upper"))
+		BaseChangeDir = Get("SANDAL_CHANGE_DIR", path.Join(LibDir, "changedir"))
 
-		BaseWorkdir = Get("SANDAL_WORKDIR", path.Join(RunDir, "workdir"))
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseSquashFSMountDir = Get("SANDAL_SQUASHFSMOUNTDIR", path.Join(RunDir, "squashfs"))
 
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24;fd34:0135:0123::1/64")
 
-		DaemonSocket = Get("SANDAL_SOCKET", path.Join(LibDir, "sandal.sock"))
+		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
+
+		Get("SANDAL_LOG_LEVEL", "info")
+
 		Get = getCurrents
 	}
 	Get = getMain

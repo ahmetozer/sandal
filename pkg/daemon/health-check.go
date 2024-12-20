@@ -13,10 +13,13 @@ import (
 )
 
 func daemonControlHealthCheck(daemonKillRequested *bool) {
+	slog.Info("daemonControlHealthCheck", "service", "started")
+
 	for {
 		conts, _ := controller.Containers()
 		for c := range conts {
 			if *daemonKillRequested {
+				slog.Info("daemonControlHealthCheck", "service", "stopped")
 				return
 			}
 
@@ -55,6 +58,10 @@ func recover(cont *config.Config) {
 	cmd := exec.Command(env.BinLoc, cont.HostArgs[1:]...)
 	// cmd.Stderr = os.Stderr
 	// cmd.Stdout = os.Stdout
-	cmd.Start()
+	err = cmd.Start()
+	if err != nil {
+		slog.Error("recover", slog.Any("error", err))
+	}
+	slog.Info("recover", slog.String("cont", cont.Name))
 
 }

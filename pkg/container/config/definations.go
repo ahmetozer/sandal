@@ -41,8 +41,7 @@ type Config struct {
 
 	ProjectDir string
 
-	Workdir   string
-	Upperdir  string
+	ChangeDir string
 	RootfsDir string
 
 	ReadOnly   bool
@@ -99,15 +98,13 @@ func (c Config) Json() []byte {
 }
 
 type DefaultInformation struct {
-	UpperDir  string
-	Workdir   string
+	ChangeDir string
 	RootFsDir string
 }
 
 func Defs(containerName string) DefaultInformation {
 	return DefaultInformation{
-		UpperDir:  path.Join(env.BaseUpperdir, containerName),
-		Workdir:   path.Join(env.BaseWorkdir, containerName),
+		ChangeDir: path.Join(env.BaseChangeDir, containerName),
 		RootFsDir: path.Join(env.BaseRootfsDir, containerName),
 	}
 }
