@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -12,6 +13,8 @@ type DaemonConfig struct {
 
 func (dc DaemonConfig) Start() error {
 
+	var wg sync.WaitGroup
+
 	go func() {
 		if dc.DiskReloadInterval == 0 {
 			dc.loadByEvent()
@@ -19,10 +22,11 @@ func (dc DaemonConfig) Start() error {
 	}()
 	slog.Info("daemon", "service", "started")
 
-	daemonKillRequested := false
-	go signalProxy(&daemonKillRequested)
-
-	daemonControlHealthCheck(&daemonKillRequested)
+	wg.Add(2)
+	daemonKillRequested := make(chan bool)
+	go signalProxy(daemonKillRequested, &wg)
+	go daemonControlHealthCheck(daemonKillRequested,&wg)
+	wg.Wait()
 	checkZombie()
 	slog.Info("daemon", slog.String("service", "stopped"))
 	return nil

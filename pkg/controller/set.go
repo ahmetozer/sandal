@@ -16,6 +16,10 @@ func SetContainer(c *config.Config) error {
 CONTROLLER:
 	slog.Debug("SetContainer", slog.Any("currentConrollerType", currentConrollerType))
 
+	if c.Name == "" {
+		return fmt.Errorf("no name set for request")
+	}
+
 	switch currentConrollerType {
 	// If controller not initialized
 	case 0:
@@ -60,6 +64,10 @@ func setContainerByMemory(c *config.Config) error {
 
 func setContainerByDisk(c *config.Config) error {
 	slog.Debug("setContainerByDisk", slog.Any("container", c.Name))
+
+	if c.Name == "" {
+		return fmt.Errorf("no name set for request")
+	}
 
 	savePath := filepath.Dir(c.ConfigFileLoc())
 	slog.Debug("ConfigFileLoc", slog.String("action", "saving config file"), slog.String("file", c.ConfigFileLoc()))
