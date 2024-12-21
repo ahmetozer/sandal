@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -12,34 +13,41 @@ import (
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
-func daemonControlHealthCheck(daemonKillRequested *bool) {
+func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup) {
 	slog.Info("daemonControlHealthCheck", "service", "started")
 
-	for {
-		conts, _ := controller.Containers()
-		for c := range conts {
-			if *daemonKillRequested {
-				slog.Info("daemonControlHealthCheck", "service", "stopped")
-				return
-			}
+	defer slog.Info("daemonControlHealthCheck", "service", "stopped")
+	defer wg.Done()
 
-			cont := (conts)[c]
-			slog.Debug("daemon", slog.String("action", "healthCheck"), slog.Any("len", len((conts))), slog.String("cont", cont.Name))
-			if cont.Startup && !cruntime.IsRunning(cont) {
-				go recover(cont)
+	for {
+		select {
+		case <-daemonKillRequested:
+			return
+		case <-time.After(3 * time.Second):
+			conts, _ := controller.Containers()
+			for c := range conts {
+				cont := (conts)[c]
+				slog.Debug("daemon", slog.String("action", "healthCheck"), slog.Any("len", len((conts))), slog.String("cont", cont.Name))
+				if cont.Startup && !cruntime.IsRunning(cont) {
+					go recover(cont)
+				}
 			}
 		}
-		time.Sleep(3 * time.Second)
 	}
 
 }
 
 func recover(cont *config.Config) {
+
 	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
+
+	if cont.Status == "killed" {
+		return
+	}
 
 	err := cruntime.Kill(cont.Name, 15, 10)
 	if err != nil {
-		cruntime.Kill(cont.Name, 9, 1)
+		cruntime.Kill(cont.Name, 9, 0)
 	}
 
 	// cruntime.SendSig(cont.HostPid, 9)
