@@ -11,8 +11,6 @@ import (
 
 func Convert(args []string) error {
 
-	thisFlags, args := SplitFlagsArgs(args)
-
 	mksquashfsPath, _ := exec.LookPath("mksquashfs")
 
 	// Parse the flags
@@ -31,7 +29,7 @@ func Convert(args []string) error {
 	flags.StringVar(&platform, "pf", defaultContainerPlatform(), "container platform (podman, docker)")
 	flags.BoolVar(&owerwrite, "ow", false, "owerwrite existing sqfs")
 	flags.StringVar(&mksquashfsPath, "mksquashfs", mksquashfsPath, "path to mksquashfs binnary")
-	flags.Parse(thisFlags)
+	flags.Parse(args)
 
 	if l := len(args); l < 1 {
 		fmt.Printf("Usage: %s convert [OPTIONS] CONTAINER \n\nOPTIONS:\n", os.Args[0])
@@ -49,12 +47,17 @@ func Convert(args []string) error {
 		return fmt.Errorf("mksquashfs not found, ensure squashfs-tools are installed")
 	}
 
-	i, err := inspectContainer(platform, args[0])
+	leftArgs := flags.Args()
+	if len(leftArgs) < 1 {
+		return fmt.Errorf("no container name is provided")
+	}
+
+	i, err := inspectContainer(platform, leftArgs[0])
 	if err != nil {
 		return err
 	}
 
-	fileName := args[0] + ".sqfs"
+	fileName := leftArgs[0] + ".sqfs"
 
 	if _, err := os.Stat(fileName); err == nil {
 		if !owerwrite {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
@@ -25,9 +24,13 @@ func Run(args []string) error {
 		thisFlags []string
 		err       error
 	)
-	thisFlags, c.PodArgs = SplitFlagsArgs(args)
+	thisFlags, c.PodArgs, err = SplitFlagsArgs(args)
 	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.PodArgs), slog.Any("args", os.Args))
-	c.HostArgs = os.Args
+	if err != nil {
+		return err
+	}
+
+	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ExitOnError)
 
 	containerId := config.GenerateContainerId()
@@ -96,11 +99,6 @@ func Run(args []string) error {
 	if help {
 		f.Usage()
 		return nil
-	}
-
-	if !hasItExecutable(args) {
-		slog.Debug("no executable provided", slog.String("args", strings.Join(args, " ")))
-		return fmt.Errorf("no executable provided")
 	}
 
 	if err := cruntime.CheckExistence(&c); err != nil {

@@ -3,18 +3,17 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
-	"os/exec"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
 
 func ExecOnContainer(args []string) error {
 
-	thisFlags, childArgs := SplitFlagsArgs(args)
+	thisFlags, childArgs, splitFlagErr := SplitFlagsArgs(args)
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
@@ -39,17 +38,26 @@ func ExecOnContainer(args []string) error {
 		return nil
 	}
 
-	var cmd *exec.Cmd
-	switch len(childArgs) {
-	case 0:
+	if splitFlagErr != nil {
+		return splitFlagErr
+	}
+
+	// var cmd *exec.Cmd
+
+	leftArgs := f.Args()
+
+	switch {
+	case len(leftArgs) < 1:
 		return fmt.Errorf("no container name provided")
-	case 1:
+	case len(childArgs) < 1:
 		return fmt.Errorf("no command provided")
 	}
 
-	c, err := controller.GetContainer(childArgs[0])
+	contName := leftArgs[0]
+
+	c, err := controller.GetContainer(contName)
 	if err != nil {
-		return fmt.Errorf("failed to get container %s: %v", childArgs[0], err)
+		return fmt.Errorf("failed to get container %s: %v", contName, err)
 	}
 
 	type nsConf struct {
@@ -98,53 +106,7 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("set hostname %s: %v", c.Name, err)
 	}
 
-	executable, err := exec.LookPath(childArgs[1])
-	if err != nil {
-		return fmt.Errorf("unable to find %s: %s", childArgs[1], err)
-	}
-	switch len(childArgs) {
-	case 2:
-		cmd = exec.Command(executable)
-	default:
-		cmd = exec.Command(executable, childArgs[2:]...)
-
-	}
-
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Dir = c.Dir
-	if Dir != "" {
-		cmd.Dir = Dir
-	}
-
-	cmd.Env = []string{}
-	if EnvAll {
-		cmd.Env = os.Environ()
-	} else {
-		pathIsSet := false
-		for _, env := range PassEnv {
-			if env == "PATH" {
-				pathIsSet = true
-			}
-			variable := os.Getenv(env)
-			if variable == "" {
-				slog.Info("enviroment variable not found", "variable", env)
-			} else {
-				cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env, variable))
-			}
-		}
-		if !pathIsSet {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
-		}
-	}
-
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("unable to execute command %s rootfs %s err: %s", childArgs[0], c.RootfsDir, err)
-	}
-
-	return nil
+	return cruntime.Exec(childArgs, "")
 }
 
 func setNs(nsname string, pid, nstype int) error {

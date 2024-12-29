@@ -51,7 +51,6 @@ type Config struct {
 	Startup    bool
 	NS         map[string]*StringWrapper
 
-	Exec        string
 	Devtmpfs    string
 	Resolv      string
 	Hosts       string
