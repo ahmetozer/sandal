@@ -41,7 +41,7 @@ func recover(cont *config.Config) {
 
 	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
 
-	if cont.Status == "killed" {
+	if cont.Status == "stop" {
 		return
 	}
 
@@ -52,7 +52,7 @@ func recover(cont *config.Config) {
 
 	// cruntime.SendSig(cont.HostPid, 9)
 
-	if cont.Status != "killed" {
+	if cont.Status != "stop" {
 		slog.Debug("daemon", slog.Any("status", cont.Status), slog.String("cont", cont.Name))
 		return
 	}
