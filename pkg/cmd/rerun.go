@@ -2,12 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/controller"
-	"github.com/ahmetozer/sandal/pkg/env"
-	"golang.org/x/sys/unix"
 )
 
 func Rerun(args []string) error {
@@ -29,11 +28,11 @@ func Rerun(args []string) error {
 		return err
 	}
 
-	err = unix.Exec(env.BinLoc, c.HostArgs, os.Environ())
-	if err != nil {
-		return fmt.Errorf("unable to rerun %s", err)
+	if len(c.HostArgs) < 2 {
+		return fmt.Errorf("not enough argment len(arg)< 2 %v", c.HostArgs)
 	}
 
-	return nil
+	slog.Debug("Rerun", slog.String("message", "re-executing command"), slog.Any("args", c.HostArgs[2:]))
+	return Run(c.HostArgs[2:])
 
 }
