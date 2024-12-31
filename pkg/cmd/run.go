@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/net"
+	"github.com/ahmetozer/sandal/pkg/tools/wordgenerator"
 )
 
 func Run(args []string) error {
@@ -23,17 +25,15 @@ func Run(args []string) error {
 		help      bool
 		thisFlags []string
 		err       error
+		splitErr  error
 	)
-	thisFlags, c.PodArgs, err = SplitFlagsArgs(args)
+	thisFlags, c.PodArgs, splitErr = SplitFlagsArgs(args)
 	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.PodArgs), slog.Any("args", os.Args))
-	if err != nil {
-		return err
-	}
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ExitOnError)
 
-	containerId := config.GenerateContainerId()
+	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
@@ -99,6 +99,10 @@ func Run(args []string) error {
 	if help {
 		f.Usage()
 		return nil
+	}
+
+	if splitErr != nil {
+		return splitErr
 	}
 
 	if err := cruntime.CheckExistence(&c); err != nil {
