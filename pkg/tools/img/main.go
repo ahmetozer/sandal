@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+type Partitions []Partition
 type Partition struct {
 	Boot   bool
 	Size   uint32
@@ -13,7 +14,7 @@ type Partition struct {
 }
 
 // OpenDiskImage opens the disk image file
-func GetImageInfo(path string) ([]Partition, error) {
+func GetImageInfo(path string) (Partitions, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open image: %v", err)
