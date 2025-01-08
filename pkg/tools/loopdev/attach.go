@@ -1,4 +1,4 @@
-package loop
+package loopdev
 
 import (
 	"fmt"

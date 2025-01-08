@@ -1,4 +1,4 @@
-package loop
+package loopdev
 
 // LoopInfo64 represents the loop device information structure
 type LoopInfo64 struct {
