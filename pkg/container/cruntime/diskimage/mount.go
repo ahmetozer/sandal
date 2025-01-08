@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/loop"
 	"github.com/ahmetozer/sandal/pkg/env"
 	detectfs "github.com/ahmetozer/sandal/pkg/tools/detectFs"
+	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,7 +36,7 @@ func Mount(path string) (ImmutableImage, error) {
 		return image, err
 	}
 
-	image.LoopConfig, err = loop.FindFreeLoopDevice()
+	image.LoopConfig, err = loopdev.FindFreeLoopDevice()
 	if err != nil {
 		return image, fmt.Errorf("cannot find free loop: %s", err)
 	}

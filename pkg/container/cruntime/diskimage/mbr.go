@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/loop"
 	"github.com/ahmetozer/sandal/pkg/tools/img"
+	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
 )
 
 type MountDataMBR struct {
@@ -55,7 +55,7 @@ func (i *ImmutableImage) parseMbrPath() error {
 		Offset:      offset,
 	}
 
-	i.LoopConfig.Info = &loop.LoopInfo64{
+	i.LoopConfig.Info = &loopdev.LoopInfo64{
 		Offset: uint64(offset),
 		Flags:  0,
 	}

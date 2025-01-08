@@ -1,7 +1,7 @@
 package diskimage
 
 import (
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/loop"
+	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
 )
 
 type immutableImageType uint8
@@ -13,7 +13,7 @@ const (
 
 type ImmutableImage struct {
 	File         string
-	LoopConfig   loop.Config
+	LoopConfig   loopdev.Config
 	MountDir     string
 	Type         immutableImageType
 	mountOptions interface{}
