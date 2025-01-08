@@ -26,12 +26,16 @@ func GetImageInfo(path string) (Partitions, error) {
 		return nil, err
 	}
 
-	if scheme == PartitionMBR {
+	switch scheme {
+	case PartitionMBR:
 		entries, err := readMBRPartitionTable(file)
 		if err != nil {
 			return nil, err
 		}
 		return entries, nil
+	case PartitionGPT:
+		return nil, fmt.Errorf("GPT is not supported")
 	}
-	return nil, fmt.Errorf("only MBR partition scheme is supported")
+
+	return nil, fmt.Errorf("unkown partition scheme")
 }
