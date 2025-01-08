@@ -17,9 +17,9 @@ var (
 	BaseImageDir string
 	BaseStateDir string
 
-	BaseChangeDir        string
-	BaseSquashFSMountDir string
-	BaseRootfsDir        string
+	BaseChangeDir         string
+	BaseImmutableImageDir string
+	BaseRootfsDir         string
 
 	DaemonSocket string
 
@@ -52,7 +52,7 @@ func init() {
 		BaseChangeDir = Get("SANDAL_CHANGE_DIR", path.Join(LibDir, "changedir"))
 
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
-		BaseSquashFSMountDir = Get("SANDAL_SQUASHFSMOUNTDIR", path.Join(RunDir, "squashfs"))
+		BaseImmutableImageDir = Get("SANDAL_IMMUTABLEIMAGEDIR", path.Join(RunDir, "immutable"))
 
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24;fd34:0135:0123::1/64")
 

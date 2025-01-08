@@ -33,7 +33,7 @@ func (dc DaemonConfig) Start() error {
 	os.MkdirAll(env.BaseStateDir, 0o0660)
 
 	os.MkdirAll(env.BaseChangeDir, 0o0660)
-	os.MkdirAll(env.BaseSquashFSMountDir, 0o0660)
+	os.MkdirAll(env.BaseImmutableImageDir, 0o0660)
 	os.MkdirAll(env.BaseRootfsDir, 0o0660)
 
 	wg.Add(2)

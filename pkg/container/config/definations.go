@@ -26,11 +26,6 @@ type NetIface struct {
 	Main    []NetIface
 }
 
-type SquashFile struct {
-	File   string
-	LoopNo int
-}
-
 type Config struct {
 	Name string
 
@@ -51,19 +46,19 @@ type Config struct {
 	Startup    bool
 	NS         map[string]*StringWrapper
 
-	Devtmpfs    string
-	Resolv      string
-	Hosts       string
-	Status      string
-	Dir         string
-	Volumes     StringFlags
-	SquashFiles []*SquashFile
-	HostArgs    []string
-	PodArgs     []string
-	Lower       StringFlags
-	RunPreExec  StringFlags
-	RunPrePivot StringFlags
-	PassEnv     StringFlags
+	Devtmpfs        string
+	Resolv          string
+	Hosts           string
+	Status          string
+	Dir             string
+	Volumes         StringFlags
+	ImmutableImages []interface{}
+	HostArgs        []string
+	PodArgs         []string
+	Lower           StringFlags
+	RunPreExec      StringFlags
+	RunPrePivot     StringFlags
+	PassEnv         StringFlags
 
 	Ifaces []NetIface
 }
