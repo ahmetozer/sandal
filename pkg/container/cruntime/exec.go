@@ -6,26 +6,15 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 
+	cmdline "github.com/ahmetozer/sandal/pkg/tools/cmdLine"
 	"golang.org/x/sys/unix"
 )
 
 func runCommands(c []string, chroot string) {
-	re := regexp.MustCompile(`([-a-zA-Z]+)|(".*?[^\\]")|("")`)
-
 	for _, command := range c {
-		allArgs := re.FindAllString(command, -1)
-		var args []string
-		for _, arg := range allArgs {
-			if arg[0] == '"' {
-				arg = arg[1 : len(arg)-1]
-			}
-			fmt.Println(arg)
-			args = append(args, arg)
-		}
-		Exec(args, chroot)
+		Exec(cmdline.Parse(command), chroot)
 	}
 }
 
