@@ -39,10 +39,6 @@ func FindFreeLoopDevice() (Config, error) {
 	}
 
 	c.No = int(dev)
-	c.Path = c.path()
+	c.Path = LOOP_DEVICE_PREFIX + strconv.Itoa(c.No)
 	return c, nil
-}
-
-func (c Config) path() string {
-	return LOOP_DEVICE_PREFIX + strconv.Itoa(c.No)
 }

@@ -11,7 +11,6 @@ import (
 type Config struct {
 	No   int
 	Path string
-	File *os.File
 	Info *LoopInfo64
 }
 
@@ -23,26 +22,28 @@ func (lc Config) Attach(imagePath string) error {
 	}
 	defer file.Close()
 
-	lc.File, err = os.OpenFile(LOOP_DEVICE_PREFIX+fmt.Sprint(lc.No), os.O_RDWR, 0)
+	loopFile, err := os.OpenFile(lc.Path, os.O_RDWR, 0)
 	if err != nil {
 		return fmt.Errorf("could not open loop device: %v", err)
 	}
+	defer loopFile.Close()
 
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, lc.File.Fd(), LOOP_SET_FD, file.Fd())
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), LOOP_SET_FD, file.Fd())
 	if errno != 0 {
 		return fmt.Errorf("could not associate loop device with file: %v", os.NewSyscallError("ioctl", errno))
 	}
 
-	// _, _, errno = unix.Syscall(unix.SYS_IOCTL, lc.File.Fd(), 0x4C00+7, 0)
-	// if errno != 0 {
-	// 	return fmt.Errorf("could not set autoclear on loop device: %v", os.NewSyscallError("ioctl", errno))
-	// }
+	_, _, errno = unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), 0x4C00+7, 0)
+	if errno != 0 {
+		unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), LOOP_CLR_FD, 0)
+		return fmt.Errorf("could not set autoclear on loop device: %v", os.NewSyscallError("ioctl", errno))
+	}
 
 	if lc.Info != nil {
-		_, _, errno = unix.Syscall(unix.SYS_IOCTL, lc.File.Fd(), unix.LOOP_SET_STATUS64, uintptr(unsafe.Pointer(lc.Info)))
+		_, _, errno = unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), unix.LOOP_SET_STATUS64, uintptr(unsafe.Pointer(lc.Info)))
 		if errno != 0 {
 			// Try to clean up if configuration fails
-			unix.Syscall(unix.SYS_IOCTL, lc.File.Fd(), unix.LOOP_CLR_FD, 0)
+			unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), unix.LOOP_CLR_FD, 0)
 			return fmt.Errorf("failed to set loop device info: %v", errno)
 		}
 	}
@@ -52,10 +53,17 @@ func (lc Config) Attach(imagePath string) error {
 }
 
 func (lc Config) Detach() error {
-	loopDevice, _ := os.OpenFile(LOOP_DEVICE_PREFIX+fmt.Sprint(lc.No), os.O_RDWR, 0660)
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, loopDevice.Fd(), LOOP_CLR_FD, 0)
+	loopFile, err := os.OpenFile(lc.Path, os.O_RDWR, 0)
+	if err != nil {
+		// loop device already deleted
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer loopFile.Close()
 
-	lc.File.Close()
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), LOOP_CLR_FD, 0)
 
 	//0 no error, 6 no device
 	if errno != 0 && errno != 6 {
