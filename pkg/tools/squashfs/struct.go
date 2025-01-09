@@ -1,4 +1,4 @@
-package sqfs
+package squashfs
 
 import (
 	"fmt"

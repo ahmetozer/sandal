@@ -6,6 +6,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -52,7 +53,7 @@ type Config struct {
 	Status          string
 	Dir             string
 	Volumes         StringFlags
-	ImmutableImages []interface{}
+	ImmutableImages []diskimage.ImmutableImage
 	HostArgs        []string
 	PodArgs         []string
 	Lower           StringFlags

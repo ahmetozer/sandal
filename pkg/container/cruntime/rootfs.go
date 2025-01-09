@@ -47,7 +47,7 @@ func MountRootfs(c *config.Config) error {
 				img, err := diskimage.Mount(argv)
 				slog.Debug("MountRootfs", slog.Any("img", img))
 
-				c.ImmutableImages = append(c.ImmutableImages, &img)
+				c.ImmutableImages = append(c.ImmutableImages, img)
 				if err != nil {
 					return fmt.Errorf("mounting file: %s", err)
 				}
@@ -106,7 +106,7 @@ func UmountRootfs(c *config.Config) []error {
 	}
 
 	for _, sq := range c.ImmutableImages {
-		err := diskimage.Umount(sq.(*diskimage.ImmutableImage))
+		err := diskimage.Umount(&sq)
 		if err != nil {
 			errs = append(errs, err)
 		}

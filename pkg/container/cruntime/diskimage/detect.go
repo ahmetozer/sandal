@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ahmetozer/sandal/pkg/tools/img"
-	"github.com/ahmetozer/sandal/pkg/tools/sqfs"
+	"github.com/ahmetozer/sandal/pkg/tools/squashfs"
 )
 
 func (i *ImmutableImage) detect() (immutableImageType, interface{}, error) {
@@ -23,7 +23,7 @@ func (i *ImmutableImage) detect() (immutableImageType, interface{}, error) {
 		errs = append(errs, fmt.Errorf("%d: %s", errno, err))
 	}
 
-	h, err = sqfs.Info(i.File)
+	h, err = squashfs.Info(i.File)
 	if err == nil {
 		return ImmutableImageTypeSquashfs, h, nil
 	} else {

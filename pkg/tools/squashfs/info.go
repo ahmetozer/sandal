@@ -1,4 +1,4 @@
-package sqfs
+package squashfs
 
 import (
 	"encoding/binary"
@@ -23,7 +23,6 @@ func Info(path string) (SquashfsHeader, error) {
 	if err != nil {
 		return header, fmt.Errorf("failed to read squashfs header: %v", err)
 	}
-
 
 	if header.Magic != SQUASHFS_MAGIC && header.Magic != SQUASHFS_MAGIC_LE {
 		return header, fmt.Errorf("not supported squashfs file")

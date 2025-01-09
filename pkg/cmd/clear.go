@@ -41,6 +41,9 @@ func Clear(args []string) error {
 			log.Printf("container %s is running, rm=%v", c.Name, c.Remove)
 			continue
 		}
+		if deleteAll {
+			c.Remove = true
+		}
 		cruntime.DeRunContainer(c)
 	}
 	return nil

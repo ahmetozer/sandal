@@ -62,12 +62,6 @@ func Mount(path string) (ImmutableImage, error) {
 
 func (c *ImmutableImage) unixMount() (err error) {
 
-	// // Open the file
-	// imgFile, err := os.Open(c.File)
-	// if err != nil {
-	// 	return fmt.Errorf("opening disk file: %s", err)
-	// }
-
 	c.MountDir = path.Join(env.BaseImmutableImageDir, strconv.Itoa(c.LoopConfig.No))
 
 	err = c.LoopConfig.Attach(c.File)
