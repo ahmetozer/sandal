@@ -7,8 +7,10 @@ import (
 type immutableImageType uint8
 
 const (
-	ImmutableImageTypeSquashfs immutableImageType = iota + 1
+	ImmutableImageTypeUnknown immutableImageType = iota
+	ImmutableImageTypeSquashfs
 	ImmutableImageTypeImgMBR
+	ImmutableImageTypeImgGPT
 )
 
 type ImmutableImage struct {
@@ -22,5 +24,10 @@ type ImmutableImage struct {
 }
 
 func (o immutableImageType) String() string {
-	return map[immutableImageType]string{ImmutableImageTypeSquashfs: "squashfs", ImmutableImageTypeImgMBR: "mbr"}[o]
+	return map[immutableImageType]string{
+		ImmutableImageTypeUnknown:  "unknown",
+		ImmutableImageTypeSquashfs: "squashfs",
+		ImmutableImageTypeImgMBR:   "mbr",
+		ImmutableImageTypeImgGPT:   "gpt",
+	}[o]
 }

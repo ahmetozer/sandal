@@ -42,8 +42,8 @@ func Mount(path string) (ImmutableImage, error) {
 	}
 
 	switch image.Type {
-	case ImmutableImageTypeImgMBR:
-		err = image.parseMbrPath()
+	case ImmutableImageTypeImgMBR, ImmutableImageTypeImgGPT:
+		err = image.parseImagePath()
 		if err != nil {
 			return image, err
 		}

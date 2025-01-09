@@ -10,12 +10,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
 )
 
-type MountDataMBR struct {
-	PartitionNo uint8
-	Offset      uint32
-}
-
-func (i *ImmutableImage) parseMbrPath() error {
+func (i *ImmutableImage) parseImagePath() error {
 
 	u, err := url.Parse(strings.Replace(i.path, ":", "?", 1))
 	if err != nil {
@@ -36,27 +31,32 @@ func (i *ImmutableImage) parseMbrPath() error {
 		return fmt.Errorf("unable to get partition info %s", err)
 	}
 
-	var offset uint32
+	var offset uint64
 	switch v := i.info.(type) {
-	case img.Partitions:
+	case ([]img.MBRPartitionEntry):
 		if int(part) > len(v) {
 			return fmt.Errorf("disk image has %d partition but you requested %d.th parth", len(v), part)
 		}
 		if part == 0 {
 			return fmt.Errorf("partition cannot be zero, please set positive numbers")
 		}
-		offset = 512 * v[part-1].Entry.(img.MBRPartitionEntry).StartLBA
-	default:
-		return fmt.Errorf("unkown ImmutableImage info header")
-	}
 
-	i.mountOptions = MountDataMBR{
-		PartitionNo: uint8(part),
-		Offset:      offset,
+		offset = uint64(v[part-1].StartByte())
+	case ([]img.GPTPartitionEntry):
+		if int(part) > len(v) {
+			return fmt.Errorf("disk image has %d partition but you requested %d.th parth", len(v), part)
+		}
+		if part == 0 {
+			return fmt.Errorf("partition cannot be zero, please set positive numbers")
+		}
+
+		offset = v[part-1].StartByte()
+	default:
+		return fmt.Errorf("unknown ImmutableImage info header")
 	}
 
 	i.LoopConfig.Info = &loopdev.LoopInfo64{
-		Offset: uint64(offset),
+		Offset: offset,
 		Flags:  0,
 	}
 

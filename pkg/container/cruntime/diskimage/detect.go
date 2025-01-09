@@ -10,14 +10,20 @@ import (
 func (i *ImmutableImage) detect() (immutableImageType, interface{}, error) {
 	var (
 		h     interface{}
+		s     img.PartitionScheme
 		err   error
 		errs  []error
 		errno uint8
 	)
 	//! Order is IMPORTANT othervise it can be false detect sqfs
-	h, err = img.GetImageInfo(i.File)
+	h, s, err = img.GetImageInfo(i.File)
 	if err == nil {
-		return ImmutableImageTypeImgMBR, h, nil
+		switch s {
+		case img.PartitionMBR:
+			return ImmutableImageTypeImgMBR, h, nil
+		case img.PartitionGPT:
+			return ImmutableImageTypeImgGPT, h, nil
+		}
 	} else {
 		errno += 1
 		errs = append(errs, fmt.Errorf("%d: %s", errno, err))
