@@ -70,5 +70,5 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
       - name: Deploy docs with mike
         run: |
-          mike set-default latest
           mike deploy --push --update-aliases ${{ steps.version.outputs.VERSION }} latest
+          mike set-default --push latest
