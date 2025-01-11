@@ -10,8 +10,8 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
 	"github.com/ahmetozer/sandal/pkg/net"
-	"github.com/ahmetozer/sandal/pkg/tools/wordgenerator"
 )
 
 func Run(args []string) error {

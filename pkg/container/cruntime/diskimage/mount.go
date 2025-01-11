@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
-	detectfs "github.com/ahmetozer/sandal/pkg/tools/detectFs"
-	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
+	detectfs "github.com/ahmetozer/sandal/pkg/lib/detectFs"
+	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 	"golang.org/x/sys/unix"
 )
 

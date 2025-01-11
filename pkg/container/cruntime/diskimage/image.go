@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/tools/img"
-	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
+	"github.com/ahmetozer/sandal/pkg/lib/img"
+	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 )
 
 func (i *ImmutableImage) parseImagePath() error {
