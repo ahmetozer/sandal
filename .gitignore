@@ -25,5 +25,5 @@ testing
 sandal
 __debug*
 .*
-
+site/
 !.github

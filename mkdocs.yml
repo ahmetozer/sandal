@@ -1,31 +1,36 @@
 site_name: Sandal
 repo_name: ahmetozer/sandal
 repo_url: https://github.com/ahmetozer/sandal
-edit_uri: edit/master/docs/
+edit_uri: "" #edit/master/docs/
+site_url: https://sandal.ahmetozer.org/
 strict: true
 docs_dir: docs
 
 plugins:
   - search
   - social
+  - mike
 theme:
   name: material
   language: en
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
+      primary: black
       toggle:
         icon: material/brightness-auto
         name: Switch to light mode
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default 
+      primary: black
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: black
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
@@ -81,8 +86,8 @@ extra_css:
 extra_javascript:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js
 
-# extra:
-#   version:
-#     provider: mike
-#     default: stable 
-#     alias: true
+extra:
+  version:
+    provider: mike
+    default: stable 
+    alias: true
