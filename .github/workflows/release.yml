@@ -1,4 +1,7 @@
-on: [push, pull_request]
+on:
+  push:
+    tags:
+      - 'v*'  # This will match tags that start with 'v', like v1.0.0
 name: CI
 jobs:
   test:
@@ -17,6 +20,22 @@ jobs:
         uses: actions/checkout@v3
       - name: Build
         run: go build -v -o /dev/null .
+
+  release_binaries:
+    name: Release Binaries
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: goreleaser
+        if: success()
+        uses: docker://goreleaser/goreleaser:latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: release --config .github/goreleaser.yml
 
   deploy:
     runs-on: ubuntu-latest
@@ -43,4 +62,13 @@ jobs:
             mkdocs-material-
       - run: pip install -r requirements.txt
       - run: DEBIAN_FRONTEND=noninteractive sudo apt install -y libcairo2
-      - run: mike deploy test
+      - name: Extract version
+        id: version
+        run: |
+          # Get full tag name including 'v' prefix
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Deploy docs with mike
+        run: |
+          mike set-default latest
+          mike deploy --push --update-aliases ${{ steps.version.outputs.VERSION }} latest

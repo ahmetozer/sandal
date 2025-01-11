@@ -11,6 +11,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/net"
+	"github.com/ahmetozer/sandal/pkg/tools/wordgenerator"
 )
 
 func Run(args []string) error {
@@ -24,13 +25,15 @@ func Run(args []string) error {
 		help      bool
 		thisFlags []string
 		err       error
+		splitErr  error
 	)
-	thisFlags, c.PodArgs = SplitFlagsArgs(args)
+	thisFlags, c.PodArgs, splitErr = SplitFlagsArgs(args)
 	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.PodArgs), slog.Any("args", os.Args))
-	c.HostArgs = os.Args
+
+	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ExitOnError)
 
-	containerId := config.GenerateContainerId()
+	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
@@ -98,9 +101,8 @@ func Run(args []string) error {
 		return nil
 	}
 
-	if !hasItExecutable(args) {
-		slog.Debug("no executable provided", slog.String("args", strings.Join(args, " ")))
-		return fmt.Errorf("no executable provided")
+	if splitErr != nil {
+		return splitErr
 	}
 
 	if err := cruntime.CheckExistence(&c); err != nil {

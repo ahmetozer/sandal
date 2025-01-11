@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
 	"golang.org/x/sys/unix"
 )
@@ -29,8 +30,8 @@ func MountRootfs(c *config.Config) error {
 		}
 	} else {
 		// check folder is exist
-		for _, path := range c.Lower {
-
+		for _, argv := range c.Lower {
+			path := strings.Split(argv, ":")[0]
 			fileStat, err := os.Stat(path)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
 
@@ -40,16 +41,18 @@ func MountRootfs(c *config.Config) error {
 			if fileStat.IsDir() {
 				LowerDirs = append(LowerDirs, path)
 			} else {
-				sq := config.SquashFile{File: path}
-				squasfsMountDir, err := mountSquashfsFile(&sq)
-				slog.Debug("MountRootfs", slog.String("squasfsMountDir", squasfsMountDir))
+				// Detect file type
+				//
 
-				c.SquashFiles = append(c.SquashFiles, &sq)
+				img, err := diskimage.Mount(argv)
+				slog.Debug("MountRootfs", slog.Any("img", img))
+
+				c.ImmutableImages = append(c.ImmutableImages, img)
 				if err != nil {
-					return fmt.Errorf("mounting squashfs file: %s", err)
+					return fmt.Errorf("mounting file: %s", err)
 				}
 				// this will last item of c.LowerDirs and lowest priority
-				LowerDirs = append(LowerDirs, squasfsMountDir)
+				LowerDirs = append(LowerDirs, img.MountDir)
 			}
 
 		}
@@ -102,8 +105,8 @@ func UmountRootfs(c *config.Config) []error {
 		}
 	}
 
-	for _, sq := range c.SquashFiles {
-		err := umountSquashfsFile(sq)
+	for _, sq := range c.ImmutableImages {
+		err := diskimage.Umount(&sq)
 		if err != nil {
 			errs = append(errs, err)
 		}

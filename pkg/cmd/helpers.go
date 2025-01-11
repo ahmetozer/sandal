@@ -1,25 +1,20 @@
 package cmd
 
+import "fmt"
+
 // returns flags and child proccess args
-func SplitFlagsArgs(args []string) ([]string, []string) {
+func SplitFlagsArgs(args []string) (flagArgs []string, commandArgs []string, err error) {
 
-	if !hasItExecutable(args) {
-		return args, []string{}
-	}
 	for childArgStartLoc, arg := range args {
-		if arg[0] != '-' {
-			return args[:childArgStartLoc], args[childArgStartLoc:]
+		if arg == "--" {
+			hostArgs := args[:childArgStartLoc]
+			podArgs := args[childArgStartLoc+1:]
+			if len(podArgs) < 1 {
+				return hostArgs, podArgs, fmt.Errorf("there is no command provided")
+			}
+			return hostArgs, podArgs, nil
 		}
 	}
-	return []string{}, args
+	return args, nil, fmt.Errorf("there is no command provided")
 
-}
-
-func hasItExecutable(args []string) bool {
-	for _, arg := range args {
-		if arg[0] != '-' {
-			return true
-		}
-	}
-	return false
 }

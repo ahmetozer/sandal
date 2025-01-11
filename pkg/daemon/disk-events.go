@@ -9,7 +9,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
-	"github.com/ahmetozer/sandal/pkg/inotify"
+	"github.com/ahmetozer/sandal/pkg/tools/inotify"
 )
 
 func (d DaemonConfig) loadByEvent() {

@@ -14,13 +14,12 @@ func Rm(args []string) error {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	thisFlags, args := SplitFlagsArgs(args)
 	flags := flag.NewFlagSet("clear", flag.ExitOnError)
 	var (
 		help bool
 	)
 	flags.BoolVar(&help, "help", false, "show this help message")
-	flags.Parse(thisFlags)
+	flags.Parse(args)
 
 	conts, _ := controller.Containers()
 	var errs []error

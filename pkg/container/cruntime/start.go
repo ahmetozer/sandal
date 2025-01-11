@@ -12,6 +12,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/net"
 )
 
@@ -34,9 +35,8 @@ func init() {
 
 func Start(c *config.Config, args []string) (int, error) {
 	c.Status = ContainerStatusCreating
-	c.Exec, args = childArgs(args)
 
-	cmd := exec.Command("/proc/self/exe", args...)
+	cmd := exec.Command("/proc/self/exe")
 
 	if !c.Background {
 		cmd.Stdin = os.Stdin
@@ -177,18 +177,11 @@ func childEnv(c *config.Config) []string {
 
 func appendSandalVariables(s []string, c *config.Config) []string {
 	s = append(s, "SANDAL_CHILD"+"="+c.Name)
-	s = append(s, "SANDAL_LOG_LEVEL="+os.Getenv("SANDAL_LOG_LEVEL"))
-	return s
-}
 
-func childArgs(args []string) (string, []string) {
-	if len(args) == 0 {
-		return "", nil
+	for _, r := range env.GetDefaults() {
+		s = append(s, r.Name+"="+r.Cur)
 	}
-	if len(args) == 1 {
-		return args[0], nil
-	}
-	return args[0], args[1:]
+	return s
 }
 
 func loadNamespaceIDs(c *config.Config) {

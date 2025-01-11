@@ -6,6 +6,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -24,11 +25,6 @@ type NetIface struct {
 	IP      string
 	ALocFor ALocFor // host, host-pod (aka veth), pod
 	Main    []NetIface
-}
-
-type SquashFile struct {
-	File   string
-	LoopNo int
 }
 
 type Config struct {
@@ -51,20 +47,19 @@ type Config struct {
 	Startup    bool
 	NS         map[string]*StringWrapper
 
-	Exec        string
-	Devtmpfs    string
-	Resolv      string
-	Hosts       string
-	Status      string
-	Dir         string
-	Volumes     StringFlags
-	SquashFiles []*SquashFile
-	HostArgs    []string
-	PodArgs     []string
-	Lower       StringFlags
-	RunPreExec  StringFlags
-	RunPrePivot StringFlags
-	PassEnv     StringFlags
+	Devtmpfs        string
+	Resolv          string
+	Hosts           string
+	Status          string
+	Dir             string
+	Volumes         StringFlags
+	ImmutableImages []diskimage.ImmutableImage
+	HostArgs        []string
+	PodArgs         []string
+	Lower           StringFlags
+	RunPreExec      StringFlags
+	RunPrePivot     StringFlags
+	PassEnv         StringFlags
 
 	Ifaces []NetIface
 }
