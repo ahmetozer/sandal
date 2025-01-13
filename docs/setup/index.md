@@ -1,6 +1,6 @@
 # Installation
 
-This software is capable to work with variety Linux distribution, it depends on Linux kernel capabilities.
+This software is independent to work with variety Linux distribution, it is only requiring some Linux kernel capabilities which is supported by most of the ready-made distribution.
 
 ## From GitHub
 
@@ -49,4 +49,4 @@ sandal help
 
 System has own daemon to run your containers at startup. To achieve this, you need to register sandal daemon service to your init component.
 
-Registration information are available at [Daemon](../commands/daemon/#registering-the-service)
+Registration information are available at [Daemon](../guide/daemon/#registering-the-service)
