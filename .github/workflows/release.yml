@@ -70,5 +70,6 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
       - name: Deploy docs with mike
         run: |
+          export GOLANG_LIB_URL=https://pkg.go.dev/github.com/ahmetozer/sandal@${{ steps.version.outputs.VERSION }}/pkg/lib
           mike deploy --push --update-aliases ${{ steps.version.outputs.VERSION }} latest
           mike set-default --push latest

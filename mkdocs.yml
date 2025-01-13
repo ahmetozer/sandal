@@ -10,6 +10,7 @@ plugins:
   - search
   - social
   - mike
+  - awesome-pages
 theme:
   name: material
   language: en
@@ -41,9 +42,11 @@ theme:
     code: Roboto Mono
   features:
     - toc.integrate
+    - toc.follow
     - navigation.tabs
     - navigation.instant
     - navigation.instant.progress
+    - navigation.instant.prefetch
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
@@ -94,3 +97,12 @@ extra:
     provider: mike
     default: stable 
     alias: true
+
+nav:
+  - Home: index.md
+  - Installation:
+    - ... | installation/*.md
+  - Guide:
+    - ... | guide/*.md
+  # - ...
+  - Golang Lib: !!python/object/apply:os.getenv ["GOLANG_LIB_URL"]
