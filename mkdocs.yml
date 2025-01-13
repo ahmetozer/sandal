@@ -41,6 +41,8 @@ theme:
     text: Roboto
     code: Roboto Mono
   features:
+    - content.code.copy
+    - content.code.annotate
     - toc.integrate
     - toc.follow
     - navigation.tabs

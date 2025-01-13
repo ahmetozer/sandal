@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+  - toc
+---
 # Sandal
 
 ![icon](./sandal_logo.png){width="300" align=right}

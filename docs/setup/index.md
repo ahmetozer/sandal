@@ -10,7 +10,7 @@ Set your system architecture.
 For Raspberry Pi 4 and newer you can set arm64 for others, armv7 and first generation can use armv6.
 
 ???+ abstract "Available Prebuild Binary Architectures"
-    ```bash
+    ```sh
     ARCH=amd64  # 64 Bit regular system
     ARCH=386    # Old x86 machines
     ARCH=arm64  # 64 Bit Arm, Raspberry Pi 4, Raspberry PI 5
@@ -20,19 +20,19 @@ For Raspberry Pi 4 and newer you can set arm64 for others, armv7 and first gener
 
 Download prebuild binary.
 
-```bash
-wget https://github.com/ahmetozer/sandal/releases/latest/download/sandal-linux-${ARCH} -O /usr/bin/sandal
+```sh
+sudo wget https://github.com/ahmetozer/sandal/releases/latest/download/sandal-linux-${ARCH} -O /usr/bin/sandal
 ```
 
 Set executable permission
 
-```bash
-chmod +x /usr/bin/sandal
+```sh
+sudo chmod +x /usr/bin/sandal
 ```
 
 Test downloaded version.
 
-```bash
+```sh
 sandal help
 ```
 
@@ -40,7 +40,7 @@ sandal help
 
 If Golang is already installed, you can get and build at locally.
 
-```bash
+```sh
 go install github.com/ahmetozer/sandal@latest
 sandal help
 ```
