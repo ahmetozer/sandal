@@ -1,7 +1,7 @@
 package diskimage
 
 import (
-	"github.com/ahmetozer/sandal/pkg/tools/loopdev"
+	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 )
 
 type immutableImageType uint8

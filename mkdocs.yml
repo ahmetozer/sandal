@@ -10,9 +10,15 @@ plugins:
   - search
   - social
   - mike
+  - awesome-pages
+  - markdownextradata: {}
+  - privacy:
+      assets_fetch: true
 theme:
   name: material
   language: en
+  favicon: sandal_icon.png
+  logo: sandal_logo.png
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
@@ -38,12 +44,18 @@ theme:
     text: Roboto
     code: Roboto Mono
   features:
+    - content.code.copy
+    - content.code.annotate
+    # - toc.integrate
+    - toc.follow
     - navigation.tabs
     - navigation.instant
+    - navigation.expand
     - navigation.instant.progress
+    - navigation.instant.prefetch
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.indexes
+    # - navigation.indexes
     - search.suggest
     - search.highlight
     - search.share
@@ -76,11 +88,17 @@ markdown_extensions:
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.superfences
+  - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 extra_css:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css
 extra_javascript:
@@ -91,3 +109,10 @@ extra:
     provider: mike
     default: stable 
     alias: true
+
+nav:
+  - Home: index.md
+  - ... | setup/*.md
+  - ... | guide/*.md
+  # - ...
+  - Golang Lib: !!python/object/apply:os.getenv ["SANDAL_GOLANG_LIB_URL"]

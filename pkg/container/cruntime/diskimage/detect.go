@@ -3,8 +3,8 @@ package diskimage
 import (
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/tools/img"
-	"github.com/ahmetozer/sandal/pkg/tools/squashfs"
+	"github.com/ahmetozer/sandal/pkg/lib/img"
+	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 )
 
 func (i *ImmutableImage) detect() (immutableImageType, interface{}, error) {

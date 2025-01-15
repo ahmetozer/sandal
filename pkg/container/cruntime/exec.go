@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	cmdline "github.com/ahmetozer/sandal/pkg/tools/cmdLine"
+	cmdline "github.com/ahmetozer/sandal/pkg/lib/cmdLine"
 	"golang.org/x/sys/unix"
 )
 

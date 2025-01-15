@@ -37,3 +37,7 @@ cairosvg~=2.7.1
 
 mkdocs-material
 mike
+
+mkdocs-awesome-pages-plugin
+
+mkdocs-markdownextradata-plugin
