@@ -115,4 +115,4 @@ nav:
   - ... | setup/*.md
   - ... | guide/*.md
   # - ...
-  - Golang Lib: !!python/object/apply:os.getenv ["GOLANG_LIB_URL"]
+  - Golang Lib: !!python/object/apply:os.getenv ["SANDAL_GOLANG_LIB_URL"]

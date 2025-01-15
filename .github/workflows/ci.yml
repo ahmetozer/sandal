@@ -43,4 +43,7 @@ jobs:
             mkdocs-material-
       - run: pip install -r requirements.txt
       - run: DEBIAN_FRONTEND=noninteractive sudo apt install -y libcairo2
-      - run: mike deploy test
+      - name: mike deploy test
+        run: |
+          export SANDAL_GOLANG_LIB_URL=https://pkg.go.dev/github.com/ahmetozer/sandal@${{ steps.version.outputs.VERSION }}/pkg/lib
+          mike deploy test
