@@ -11,6 +11,9 @@ plugins:
   - social
   - mike
   - awesome-pages
+  - markdownextradata: {}
+  - privacy:
+      assets_fetch: true
 theme:
   name: material
   language: en
@@ -43,7 +46,7 @@ theme:
   features:
     - content.code.copy
     - content.code.annotate
-    - toc.integrate
+    # - toc.integrate
     - toc.follow
     - navigation.tabs
     - navigation.instant
@@ -85,11 +88,17 @@ markdown_extensions:
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.superfences
+  - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 extra_css:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css
 extra_javascript:

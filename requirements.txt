@@ -39,3 +39,5 @@ mkdocs-material
 mike
 
 mkdocs-awesome-pages-plugin
+
+mkdocs-markdownextradata-plugin

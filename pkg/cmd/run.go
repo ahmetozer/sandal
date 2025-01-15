@@ -48,7 +48,7 @@ func Run(args []string) error {
 	f.Var(&c.PassEnv, "env-pass", "pass only requested enviroment variables to container")
 	f.StringVar(&c.Dir, "dir", "", "working directory")
 
-	f.UintVar(&c.TmpSize, "tmp", 0, "allocate changes at memory instead of disk. unit is in MB, disk is used used by default")
+	f.UintVar(&c.TmpSize, "tmp", 0, "allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled")
 
 	var HostIface = config.NetIface{ALocFor: config.ALocForHost}
 	f.StringVar(&HostIface.Type, "net-type", "bridge", "bridge, macvlan, ipvlan")
@@ -73,12 +73,12 @@ func Run(args []string) error {
 	f.StringVar(&c.RootfsDir, "rdir", config.Defs(containerId).RootFsDir, "root directory of operating system")
 
 	f.Var(&c.Volumes, "v", "volume mount point")
-	f.Var(&c.Lower, "lw", "you can merge multiple lowerdirs")
+	f.Var(&c.Lower, "lw", "Lower directory of the root file system")
 
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
-	f.Var(&c.RunPrePivot, "rpp", "run command before pivoting to container rootfs")
-	f.Var(&c.RunPreExec, "rpe", "run command before executing init")
+	f.Var(&c.RunPrePivot, "rcp", "run command before pivoting")
+	f.Var(&c.RunPreExec, "rci", "run command before init")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
