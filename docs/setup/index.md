@@ -49,4 +49,4 @@ sandal help
 
 System has own daemon to run your containers at startup. To achieve this, you need to register sandal daemon service to your init component.
 
-Registration information are available at [Daemon](../guide/daemon/#registering-the-service)
+Registration information are available at [Daemon](../guide/commands/daemon/#registering-the-service)

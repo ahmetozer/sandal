@@ -18,3 +18,12 @@ func SplitFlagsArgs(args []string) (flagArgs []string, commandArgs []string, err
 	return args, nil, fmt.Errorf("there is no command provided")
 
 }
+
+func isIn(a *[]string, s string) bool {
+	for _, p := range *a {
+		if p == s {
+			return true
+		}
+	}
+	return false
+}
