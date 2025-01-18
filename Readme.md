@@ -8,4 +8,4 @@ Sandal creates intermediate layer between host operating system and containers w
 
 Sandal enables easy deployment at field side without requering any other application, copy files to sd cards is enough for Raspberry Pi based deployments.
 
-## [Documentation](ahmetozer.github.io/sandal)
+## [Documentation](https://ahmetozer.github.io/sandal)

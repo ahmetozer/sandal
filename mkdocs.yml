@@ -2,7 +2,7 @@ site_name: Sandal
 repo_name: ahmetozer/sandal
 repo_url: https://github.com/ahmetozer/sandal
 edit_uri: "" #edit/master/docs/
-site_url: https://sandal.ahmetozer.org/
+site_url: https://ahmetozer.github.io/sandal
 strict: true
 docs_dir: docs
 
