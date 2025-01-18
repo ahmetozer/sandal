@@ -18,7 +18,7 @@ jobs:
       - name: Build
         run: go build -v -o /dev/null .
 
-  deploy:
+  mkdocs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,4 +46,5 @@ jobs:
       - name: mike deploy test
         run: |
           export SANDAL_GOLANG_LIB_URL=https://pkg.go.dev/github.com/ahmetozer/sandal@${{ steps.version.outputs.VERSION }}/pkg/lib
-          mike deploy test
+          mkdocs build
+        # mike deploy test

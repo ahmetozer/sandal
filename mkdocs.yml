@@ -113,6 +113,6 @@ extra:
 nav:
   - Home: index.md
   - ... | setup/*.md
-  - ... | guide/*.md
+  - ... | guide/*/*.md
   # - ...
   - Golang Lib: !!python/object/apply:os.getenv ["SANDAL_GOLANG_LIB_URL"]

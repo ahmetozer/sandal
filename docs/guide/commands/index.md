@@ -89,12 +89,6 @@ Allocation configuration of /etc/hosts file.
   Lower directories are attach folders or images to container to access but changes are saved under `-chdir`.  
   This flag can usable multiple times to attach multiple images and directories to container.
 
-!!! note
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla et euismod
-nulla. Curabitur feugiat, tortor non consequat finibus, justo purus auctor
-massa, nec semper lorem quam in massa.
-!!!
-
 ??? info "More"
 
     Example Commands
@@ -206,7 +200,7 @@ massa, nec semper lorem quam in massa.
 
 ### `-ns-user string`
 
-:   user namespace or host (default "host")
+:   user namespace or host
 
 ---
 
@@ -219,12 +213,16 @@ massa, nec semper lorem quam in massa.
 ### `-pod-ips string`
 
 :   container interface ips
+>
+  ```bash
+  sandal run -lw / -pod-ips "172.19.0.9/24;fd34:0135:0127::9/64" -- bash
+  ```
 
 ---
 
 ### `-rdir string`
 
-:   root directory of operating system (default "/")
+:   root directory of operating system for container init process (default "/")
 
 ---
 

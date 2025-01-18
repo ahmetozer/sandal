@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
@@ -106,8 +107,20 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("set hostname %s: %v", c.Name, err)
 	}
 
+	if !EnvAll {
+		PassEnv = append(PassEnv, "PATH")
+		for _, e := range os.Environ() {
+			key := strings.Split(e, "=")[0]
+			if !isIn((*[]string)(&PassEnv), key) {
+				os.Unsetenv(key)
+			}
+		}
+	}
+
 	return cruntime.Exec(childArgs, "")
 }
+
+
 
 func setNs(nsname string, pid, nstype int) error {
 	path := fmt.Sprintf("/proc/%d/ns/%s", pid, nsname)
