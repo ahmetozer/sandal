@@ -10,14 +10,14 @@ import (
 
 func Stop(args []string) error {
 
-	flags := flag.NewFlagSet("kill", flag.ExitOnError)
+	flags := flag.NewFlagSet("stop", flag.ExitOnError)
 	var (
 		help    bool
 		signal  int
 		timeout int
 	)
 	flags.BoolVar(&help, "help", false, "show this help message")
-	flags.IntVar(&signal, "signal", 15, "default kill signal")
+	flags.IntVar(&signal, "signal", 15, "default term signal")
 	flags.IntVar(&timeout, "timeout", 30, "timeout to wait proccess")
 
 	flags.Parse(args)

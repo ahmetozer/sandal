@@ -31,6 +31,8 @@ func Main() {
 		executeSubCommand(Convert)
 	case "kill":
 		executeSubCommand(Kill)
+	case "stop":
+		executeSubCommand(Stop)
 	case "rerun":
 		executeSubCommand(Rerun)
 	case "rm":
