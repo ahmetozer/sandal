@@ -8,7 +8,7 @@ import (
 func main() {
 
 	if cruntime.IsChild() {
-		cruntime.ContainerProc()
+		cruntime.ContainerInitProc()
 	} else {
 		cmd.Main()
 	}
