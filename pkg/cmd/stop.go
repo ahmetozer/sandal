@@ -32,15 +32,16 @@ func Stop(args []string) error {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	err := cruntime.Kill(leftArgs[0], signal, timeout)
-	if err != nil {
-		return err
-	}
-
 	cont, err := controller.GetContainer(leftArgs[0])
 	if err != nil {
 		return err
 	}
+
+	err = cruntime.Kill(cont, signal, timeout)
+	if err != nil {
+		return err
+	}
+
 	cont.Status = "stop"
 	return controller.SetContainer(cont)
 }

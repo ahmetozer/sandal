@@ -35,7 +35,6 @@ func Cmd(args []string) error {
 					c.HostArgs[i] = strings.Join(k, "=")
 				}
 			}
-			fmt.Println(strings.Join(c.HostArgs, " "))
 			if !*all {
 				return nil
 			}

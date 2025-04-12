@@ -9,9 +9,10 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
-	"github.com/ahmetozer/sandal/pkg/net"
 )
 
 func Run(args []string) error {
@@ -27,8 +28,8 @@ func Run(args []string) error {
 		err       error
 		splitErr  error
 	)
-	thisFlags, c.PodArgs, splitErr = SplitFlagsArgs(args)
-	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.PodArgs), slog.Any("args", os.Args))
+	thisFlags, c.ContArgs, splitErr = SplitFlagsArgs(args)
+	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.ContArgs), slog.Any("args", os.Args))
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ExitOnError)
@@ -48,15 +49,10 @@ func Run(args []string) error {
 	f.Var(&c.PassEnv, "env-pass", "pass only requested enviroment variables to container")
 	f.StringVar(&c.Dir, "dir", "", "working directory")
 
+	networkInterfacesCmd := config.StringFlags{}
+	f.Var(&networkInterfacesCmd, "net", "configure network interfaces")
+
 	f.UintVar(&c.TmpSize, "tmp", 0, "allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled")
-
-	var HostIface = config.NetIface{ALocFor: config.ALocForHost}
-	f.StringVar(&HostIface.Type, "net-type", "bridge", "bridge, macvlan, ipvlan")
-	f.StringVar(&HostIface.Name, "host-net", "sandal0", "host interface for bridge or macvlan")
-	f.StringVar(&HostIface.IP, "host-ips", env.DefaultHostNet, "host interface ips")
-
-	var PodIface = config.NetIface{Type: "veth"}
-	f.StringVar(&PodIface.IP, "pod-ips", "", "container interface ips")
 
 	f.StringVar(&c.Resolv, "resolv", "cp", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist), image(use image)")
@@ -84,6 +80,10 @@ func Run(args []string) error {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
 
+	conts, err := controller.Containers()
+	if err != nil {
+		return fmt.Errorf("unable to get other container informations %s", err)
+	}
 	// Flag does not have order while parsing
 	// If the name is presented and values are not filled by arguments
 	// re-fill values with new defaults.
@@ -113,23 +113,19 @@ func Run(args []string) error {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
 
-	cruntime.DeRunContainer(&c)
-
 	if c.Startup && !c.Background {
 		return fmt.Errorf("startup only works with background mode, please enable with '-d' arg")
 	}
 
-	c.Ifaces = []config.NetIface{HostIface}
-	PodIface.Main = append(PodIface.Main, HostIface)
-	if PodIface.IP == "" {
-		PodIface.IP, err = net.FindFreePodIPs(HostIface.IP)
-		// slog.Debug("no executable provided", slog.String("args", strings.Join(args, " ")))
-		slog.Debug("network interfaces", slog.String("podIface", fmt.Sprintf("%+v", PodIface)), slog.String("hostIface", fmt.Sprintf("%+v", HostIface)))
-		if err != nil {
-			return err
-		}
+	c.Net, err = net.ParseFlag(networkInterfacesCmd, conts, &c)
+	if err != nil {
+		return err
 	}
-	err = cruntime.Run(&c, HostIface, PodIface)
-	cruntime.DeRunContainer(&c)
-	return err
+
+	err = controller.SetContainer(&c)
+	if err != nil {
+		return err
+	}
+
+	return cruntime.Run(&c)
 }

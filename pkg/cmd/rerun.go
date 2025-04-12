@@ -23,7 +23,7 @@ func Rerun(args []string) error {
 		return err
 	}
 
-	err = cruntime.Kill(args[0], 9, 5)
+	err = cruntime.Kill(c, 9, 5)
 	if err != nil {
 		return err
 	}

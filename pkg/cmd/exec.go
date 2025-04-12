@@ -120,8 +120,6 @@ func ExecOnContainer(args []string) error {
 	return cruntime.Exec(childArgs, "")
 }
 
-
-
 func setNs(nsname string, pid, nstype int) error {
 	path := fmt.Sprintf("/proc/%d/ns/%s", pid, nsname)
 	file, err := os.Open(path)

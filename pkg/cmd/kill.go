@@ -31,5 +31,5 @@ func Kill(args []string) error {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	return cruntime.Kill(leftArgs[0], signal, timeout)
+	return cruntime.KillByName(leftArgs[0], signal, timeout)
 }
