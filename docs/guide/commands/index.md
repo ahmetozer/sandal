@@ -210,12 +210,12 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
-### `-pod-ips string`
+### `-net value`
 
 :   container interface ips
 >
   ```bash
-  sandal run -lw / -pod-ips "172.19.0.9/24;fd34:0135:0127::9/64" -- bash
+  sandal run -lw / -net "ip=172.19.0.3/24=fd34:0135:0127::9/64" -- bash
   ```
 
 ---
