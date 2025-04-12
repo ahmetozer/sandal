@@ -12,18 +12,42 @@ func init() {
 
 func setLogLoggerLevel() {
 
+	var (
+		level     slog.Leveler
+		AddSource bool
+	)
 	switch strings.ToLower(os.Getenv("SANDAL_LOG_LEVEL")) {
 	case "debug":
-		slog.SetLogLoggerLevel(slog.LevelDebug)
+		level = slog.LevelDebug
+		AddSource = true
 	case "", "info":
-		slog.SetLogLoggerLevel(slog.LevelInfo)
+		level = slog.LevelInfo
 	case "warn":
-		slog.SetLogLoggerLevel(slog.LevelWarn)
+		level = slog.LevelWarn
 	case "error":
-		slog.SetLogLoggerLevel(slog.LevelError)
+		level = slog.LevelError
 	default:
 		slog.Warn("SetLogLoggerLevel", slog.String("error", "unknown log level"), slog.String("level", os.Getenv("SANDAL_LOG_LEVEL")), slog.String("env", "SANDAL_LOG_LEVEL"), slog.Any("logLevels", []string{"info", "debug", "warn", "error"}))
-		slog.SetLogLoggerLevel(slog.LevelInfo)
+		level = slog.LevelInfo
 	}
+
+	slog.SetDefault(
+		slog.New(slog.NewTextHandler(os.Stderr,
+			&slog.HandlerOptions{
+				AddSource: AddSource,
+				Level:     level,
+				// ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				// 	if a.Key == slog.SourceKey {
+				// 		source, _ := a.Value.Any().(*slog.Source)
+				// 		if source != nil {
+				// 			// source.File = filepath.Base(source.File)
+				// 			source.File = " " + source.Function
+				// 		}
+				// 	}
+				// 	return a
+				// },
+			},
+		)),
+	)
 
 }
