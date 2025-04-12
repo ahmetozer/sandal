@@ -18,6 +18,7 @@ func runCommands(c []string, chroot string) {
 	}
 }
 
+// Execute under container chroot
 func Exec(c []string, chroot string) error {
 	var (
 		cmd      *exec.Cmd

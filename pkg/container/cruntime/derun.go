@@ -5,7 +5,8 @@ import (
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	"github.com/ahmetozer/sandal/pkg/net"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/vishvananda/netlink"
 )
 
 func DeRunContainer(c *config.Config) {
@@ -15,7 +16,18 @@ func DeRunContainer(c *config.Config) {
 		}
 	}
 	if c.NS["net"].Value != "host" {
-		net.Clear(c)
+		ifaces, err := net.ToLinks(&(c.Net))
+
+		if err == nil {
+			for i := range *ifaces {
+				link, err := netlink.LinkByName("s-" + (*ifaces)[i].Id)
+				if err == nil {
+					netlink.LinkDel(link)
+
+				}
+			}
+		}
+
 	}
 
 	if c.Remove {

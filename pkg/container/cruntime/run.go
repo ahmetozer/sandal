@@ -5,41 +5,28 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/controller"
-	"github.com/ahmetozer/sandal/pkg/net"
 )
 
-func Run(c *config.Config, HostIface, PodIface config.NetIface) error {
-	// Starting container
-	var err error
-	if c.NS["net"].Value != "host" {
+func Run(c *config.Config) error {
 
-		if HostIface.Type == "bridge" {
-			err = net.CreateIface(c, &HostIface)
-			if err != nil {
-				return fmt.Errorf("error creating host interface: %v", err)
-			}
-		}
-		err = net.CreateIface(c, &PodIface)
-		if err != nil {
-			return fmt.Errorf("error creating pod interface: %v", err)
-		}
-	}
+	DeRunContainer(c)
 
 	// mount squasfs
-	err = MountRootfs(c)
+	err := mountRootfs(c)
 	if err != nil {
 		return fmt.Errorf("error mount: %v", err)
 	}
 
 	// Starting proccess
-	exitCode, err := Start(c, c.PodArgs)
+	exitCode, err := crun(c)
 
-	if !c.Remove {
+	if !c.Remove && !c.Background {
 		c.Status = fmt.Sprintf("exit %d", exitCode)
 		if err != nil {
 			c.Status = fmt.Sprintf("err %v", err)
 		}
 		controller.SetContainer(c)
 	}
+
 	return err
 }

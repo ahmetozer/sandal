@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func MountRootfs(c *config.Config) error {
+func mountRootfs(c *config.Config) error {
 	changeDir, err := overlayfs.PrepareChangeDir(c)
 	if err != nil {
 		return fmt.Errorf("creating change directory: %s", err)
@@ -31,7 +31,10 @@ func MountRootfs(c *config.Config) error {
 	} else {
 		// check folder is exist
 		for _, argv := range c.Lower {
-			path := strings.Split(argv, ":")[0]
+			path := ""
+			if p := strings.Split(argv, ":"); len(p) > 0 {
+				path = p[0]
+			}
 			fileStat, err := os.Stat(path)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
 
