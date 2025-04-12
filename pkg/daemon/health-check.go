@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"log/slog"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/controller"
-	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup) {
@@ -27,9 +25,19 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 			conts, _ := controller.Containers()
 			for c := range conts {
 				cont := (conts)[c]
-				slog.Debug("daemon", slog.String("action", "healthCheck"), slog.Any("len", len((conts))), slog.String("cont", cont.Name))
-				if cont.Startup && !cruntime.IsRunning(cont) {
-					go recover(cont)
+				cont, err := controller.GetContainer(cont.Name)
+				if err != nil {
+					slog.Error(err.Error())
+					continue
+				}
+				isRunning := cruntime.IsRunning(cont)
+				slog.Debug("daemon", slog.String("action", "healthCheck"), slog.Any("len", len((conts))), slog.String("cont", cont.Name), slog.Bool("running", isRunning))
+				if !isRunning {
+					if cont.Startup {
+						go contRecover(cont)
+					} else {
+						slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovering bypassed"))
+					}
 				}
 			}
 		}
@@ -37,20 +45,22 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 
 }
 
-func recover(cont *config.Config) {
-
-	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
+func contRecover(cont *config.Config) {
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		slog.Debug("recover", slog.Any("err", r))
+	// 	}
+	// }()
 
 	if cont.Status == "stop" {
 		return
 	}
+	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
 
-	err := cruntime.Kill(cont.Name, 15, 10)
+	err := cruntime.Kill(cont, 15, 10)
 	if err != nil {
-		cruntime.Kill(cont.Name, 9, 0)
+		cruntime.Kill(cont, 9, 0)
 	}
-
-	// cruntime.SendSig(cont.HostPid, 9)
 
 	if !(cont.Status == "stop" || cont.Status == "killed") {
 		slog.Debug("daemon", slog.Any("status", cont.Status), slog.String("cont", cont.Name))
@@ -62,11 +72,7 @@ func recover(cont *config.Config) {
 		return
 	}
 
-	slog.Debug("daemon", slog.Any("action", "starting cont"), slog.Any("args", cont.HostArgs[1:]))
-	cmd := exec.Command(env.BinLoc, cont.HostArgs[1:]...)
-	// cmd.Stderr = os.Stderr
-	// cmd.Stdout = os.Stdout
-	err = cmd.Start()
+	err = cruntime.Run(cont)
 	if err != nil {
 		slog.Error("recover", slog.Any("error", err))
 	}

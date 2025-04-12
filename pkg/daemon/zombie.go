@@ -20,7 +20,7 @@ func checkZombie() {
 				slog.Warn("checkZombie", slog.String("cont", cont.Name), slog.Any("pid", cont.ContPid))
 				zombieDetected = true
 				if time.Now().After(expiry) {
-					cruntime.Kill(cont.Name, 9, 0)
+					cruntime.Kill(cont, 9, 0)
 				}
 			}
 		}

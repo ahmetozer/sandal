@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -41,6 +43,16 @@ func (dc DaemonConfig) Start() error {
 	go signalProxy(daemonKillRequested, &wg)
 	go daemonControlHealthCheck(daemonKillRequested, &wg)
 	wg.Wait()
+
+	conts, err := controller.Containers()
+	if err != nil {
+		slog.Error("unable to deprovision container during close process", "error", err.Error())
+	} else {
+		for _, cont := range conts {
+			cruntime.DeRunContainer(cont)
+		}
+	}
+
 	checkZombie()
 	slog.Info("daemon", slog.String("service", "stopped"))
 	return nil

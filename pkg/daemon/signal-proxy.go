@@ -22,7 +22,7 @@ func signalProxy(daemonKillRequested chan<- bool, wg *sync.WaitGroup) {
 		for _, cont := range conts {
 			// oldContPid := cont.ContPid
 			if cont.Startup && cruntime.IsRunning(cont) {
-				cruntime.Kill(cont.Name, int(sig.(syscall.Signal)), 0)
+				cruntime.Kill(cont, int(sig.(syscall.Signal)), 0)
 			}
 		}
 		// syscall.Kill(os.Getpid(), sig.(syscall.Signal))
