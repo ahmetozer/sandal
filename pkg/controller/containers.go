@@ -28,7 +28,7 @@ func containersInit() ([]*config.Config, error) {
 	slog.Debug("containersInit", slog.Any("args", os.Args))
 	if len(os.Args) > 1 && os.Args[1] == "daemon" {
 		Containers = containersFromMemory
-		currentConrollerType = controllerTypeMemory
+		currentConrollerType = ControllerTypeMemory
 		// firstly load by disk
 		containerList, _ = containersFromDir()
 		return Containers()
@@ -36,14 +36,14 @@ func containersInit() ([]*config.Config, error) {
 
 	if err := pingServerSocket(); err == nil {
 		Containers = containersFromServer
-		currentConrollerType = controllerTypeServer
+		currentConrollerType = ControllerTypeServer
 		return Containers()
 	} else {
 		slog.Debug("containersInit", slog.String("action", "pingServerSocket"), slog.Any("err", err))
 	}
 
 	Containers = containersFromDir
-	currentConrollerType = controllerTypeDisk
+	currentConrollerType = ControllerTypeDisk
 	return Containers()
 
 }

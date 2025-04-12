@@ -25,11 +25,11 @@ CONTROLLER:
 	case 0:
 		Containers()
 		goto CONTROLLER
-	case controllerTypeDisk:
+	case ControllerTypeDisk:
 		return setContainerByDisk(c)
-	case controllerTypeMemory:
+	case ControllerTypeMemory:
 		return setContainerByMemory(c)
-	case controllerTypeServer:
+	case ControllerTypeServer:
 		return setContainerByServer(c)
 	default:
 		return fmt.Errorf("unknown controller type")

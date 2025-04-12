@@ -11,9 +11,9 @@ import (
 type ConrollerType uint8
 
 const (
-	controllerTypeDisk ConrollerType = iota + 1
-	controllerTypeMemory
-	controllerTypeServer
+	ControllerTypeDisk ConrollerType = iota + 1
+	ControllerTypeMemory
+	ControllerTypeServer
 )
 
 var (
@@ -29,4 +29,8 @@ func init() {
 			},
 		},
 	}
+}
+
+func GetControllerType() ConrollerType {
+	return currentConrollerType
 }
