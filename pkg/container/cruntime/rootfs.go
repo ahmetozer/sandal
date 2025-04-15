@@ -45,13 +45,14 @@ func mountRootfs(c *config.Config) error {
 				LowerDirs = append(LowerDirs, path)
 			} else {
 				// Detect file type
-				//
-
 				img, err := diskimage.Mount(argv)
-				slog.Debug("MountRootfs", slog.Any("img", img))
-
-				c.ImmutableImages = append(c.ImmutableImages, img)
+				if c.ImmutableImages.Contains(img) {
+					c.ImmutableImages.ReplaceWith(img)
+				} else {
+					c.ImmutableImages = append(c.ImmutableImages, img)
+				}
 				if err != nil {
+					slog.Debug("MountRootfs", slog.Any("img", img))
 					return fmt.Errorf("mounting file: %s", err)
 				}
 				// this will last item of c.LowerDirs and lowest priority

@@ -90,3 +90,23 @@ func (c *ImmutableImage) unixMount() (err error) {
 
 	return nil
 }
+
+type ImmutableImages []ImmutableImage
+
+func (images ImmutableImages) Contains(image ImmutableImage) bool {
+	for i := range images {
+		if images[i].File == image.File {
+			return true
+		}
+	}
+	return false
+}
+func (images *ImmutableImages) ReplaceWith(image ImmutableImage) bool {
+	for i := range *images {
+		if (*images)[i].File == image.File {
+			(*images)[i] = image
+			return true
+		}
+	}
+	return false
+}

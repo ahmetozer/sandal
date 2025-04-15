@@ -39,7 +39,7 @@ type Config struct {
 	Status          string
 	Dir             string
 	Volumes         StringFlags
-	ImmutableImages []diskimage.ImmutableImage
+	ImmutableImages diskimage.ImmutableImages
 	HostArgs        []string
 	ContArgs        []string
 	Lower           StringFlags
