@@ -165,19 +165,27 @@ func mount(source, target, fstype string, flags uintptr, data string) error {
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
 		retried := false
-	CHECK:
-		fileInfo, err := os.Stat(source)
+	CHECK_FOLDER:
+		_, err := os.Stat(filepath.Dir(source))
 		if os.IsNotExist(err) {
 			if !retried {
 				os.MkdirAll(filepath.Dir(source), 0o0600)
 				retried = true
-				goto CHECK
+				goto CHECK_FOLDER
 			}
-			return fmt.Errorf("path does not exist and unable to created %s", filepath.Dir(source))
+			return fmt.Errorf("path %s does not exist and unable to created", filepath.Dir(source))
+		}
+
+		if err != nil {
+			return err
+		}
+
+		fileInfo, err := os.Stat(source)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("path does not exist %s", filepath.Dir(source))
 		}
 		if err != nil {
 			return err
-
 		}
 
 		if !fileInfo.IsDir() {
