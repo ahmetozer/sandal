@@ -14,7 +14,7 @@ const (
 // Expected to run once
 // In case of existence, returns error instead of nil to prevent
 // any multi ip configuration at deamonless execution
-func createDefaultBridge() (netlink.Link, error) {
+func CreateDefaultBridge() (netlink.Link, error) {
 
 	masterlink, err := netlink.LinkByName(DefaultBridgeInterface)
 	if err == nil {
@@ -48,5 +48,5 @@ func createDefaultBridge() (netlink.Link, error) {
 		return nil, err
 	}
 
-	return masterlink, nil
+	return netlink.LinkByName(DefaultBridgeInterface)
 }

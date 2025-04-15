@@ -24,8 +24,9 @@ func Cmd(args []string) error {
 	if err != nil {
 		return err
 	}
+
 	for _, c := range conts {
-		if c.Name == args[0] || *all {
+		if c.Name == args[0] || (*all) {
 			c.HostArgs[0] = os.Args[0] // sync with current command
 			for i := range c.HostArgs {
 				k := strings.Split(c.HostArgs[i], "=")
@@ -35,6 +36,7 @@ func Cmd(args []string) error {
 					c.HostArgs[i] = strings.Join(k, "=")
 				}
 			}
+			fmt.Println(strings.Join(c.HostArgs, " "))
 			if !*all {
 				return nil
 			}

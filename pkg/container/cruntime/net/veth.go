@@ -36,12 +36,16 @@ func (l *Link) createVeth() error {
 	if l.Master != "" && l.Master != "nil" {
 		var masterlink netlink.Link
 		if l.Master == DefaultBridgeInterface {
-			masterlink, err = createDefaultBridge()
+			masterlink, err = CreateDefaultBridge()
 			if err != os.ErrExist {
 				return err
 			}
 		} else {
-			return fmt.Errorf("currently multiple bridge interfaces are not supported")
+			// return fmt.Errorf("currently multiple bridge interfaces are not supported")
+			masterlink, err = netlink.LinkByName(l.Master)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = netlink.LinkSetMaster(hostLink, masterlink)

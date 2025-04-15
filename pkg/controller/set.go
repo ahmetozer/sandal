@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 )
@@ -49,7 +48,8 @@ func setContainerByMemory(c *config.Config) error {
 
 	for i := range containerList {
 		if containerList[i].Name == c.Name {
-			if strings.Join(containerList[i].HostArgs, " ") != strings.Join(c.HostArgs, " ") {
+
+			if !bytes.Equal(containerList[i].Json(), c.Json()) {
 				setContainerByDisk(c)
 			}
 			containerList[i] = c

@@ -15,6 +15,9 @@ func DeRunContainer(c *config.Config) {
 			slog.Debug("deRunContainer", "umount", slog.Any("error", e))
 		}
 	}
+
+	Kill(c, 9, 5)
+
 	if c.NS["net"].Value != "host" {
 		ifaces, err := net.ToLinks(&(c.Net))
 

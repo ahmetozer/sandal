@@ -25,7 +25,6 @@ func init() {
 
 // Run at first call and attach selected method as primary method
 func containersInit() ([]*config.Config, error) {
-	slog.Debug("containersInit", slog.Any("args", os.Args))
 	if len(os.Args) > 1 && os.Args[1] == "daemon" {
 		Containers = containersFromMemory
 		currentConrollerType = ControllerTypeMemory
@@ -98,9 +97,10 @@ CreateStateDir:
 		if !e.IsDir() {
 			filepath := path.Join(env.BaseStateDir, e.Name())
 			c, err := LoadFile(filepath)
-			slog.Debug("containersFromDir", slog.Any("action", "LoadConfig"), slog.Any("filepath", filepath), slog.Any("err", err))
 			if err == nil {
 				confs = append(confs, c)
+			} else {
+				slog.Warn("containersFromDir", slog.Any("action", "LoadConfig"), slog.Any("filepath", filepath), slog.Any("err", err))
 			}
 		}
 	}

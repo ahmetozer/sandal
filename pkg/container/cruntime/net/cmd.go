@@ -30,7 +30,7 @@ func randomString(length int) string {
 
 func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 
-	myar := strings.Split(cmd, ",")
+	myar := strings.Split(cmd, ";")
 	myIf := Link{Id: randomString(10)}
 
 	for v := range myar {
@@ -52,7 +52,7 @@ func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 			for _, ip := range kv[1:] {
 				IP, net, err := net.ParseCIDR(ip)
 				if err != nil {
-					slog.Debug(err.Error())
+					slog.Warn("unable to parse route %s %s", ip, err)
 					continue
 				}
 				myIf.Route = append(myIf.Route, Addr{IP, net})
@@ -78,6 +78,7 @@ func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 	links.Append(link)
 
 	(*conts)[len(*conts)-1].Net = *links
+	slog.Debug("link", "link", link)
 	return link, nil
 
 }

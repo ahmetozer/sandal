@@ -8,6 +8,9 @@ import (
 )
 
 func GetContainer(Name string) (*config.Config, error) {
+	if Name == "" || Name == " " {
+		return nil, fmt.Errorf("container name is empty")
+	}
 	conts, err := Containers()
 	if err != nil {
 		slog.Debug("GetContainer", slog.String("name", Name), slog.Any("error", err))

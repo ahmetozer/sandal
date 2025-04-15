@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -38,18 +39,24 @@ func (dc DaemonConfig) Start() error {
 	os.MkdirAll(env.BaseImmutableImageDir, 0o0660)
 	os.MkdirAll(env.BaseRootfsDir, 0o0660)
 
+	net.CreateDefaultBridge()
+
 	wg.Add(2)
 	daemonKillRequested := make(chan bool)
 	go signalProxy(daemonKillRequested, &wg)
 	go daemonControlHealthCheck(daemonKillRequested, &wg)
 	wg.Wait()
 
+	DaemonPid := os.Getpid()
 	conts, err := controller.Containers()
 	if err != nil {
 		slog.Error("unable to deprovision container during close process", "error", err.Error())
 	} else {
 		for _, cont := range conts {
-			cruntime.DeRunContainer(cont)
+			// Do not kill containers, which is executed before daemon
+			if cont.HostPid == DaemonPid {
+				cruntime.DeRunContainer(cont)
+			}
 		}
 	}
 

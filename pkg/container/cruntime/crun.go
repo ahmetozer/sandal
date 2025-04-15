@@ -1,7 +1,6 @@
 package cruntime
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
@@ -68,9 +67,9 @@ func crun(c *config.Config) (int, error) {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
-		if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
-			cmd.Stdout = NewLogWriter(c.Name, "stdout")
-			cmd.Stderr = NewLogWriter(c.Name, "stderr")
+		if env.Get("SANDAL_CRUN_STD", "false") == "true" {
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
 		}
 	}
 
@@ -176,7 +175,7 @@ func crun(c *config.Config) (int, error) {
 		go func() {
 			_, err := cmd.Process.Wait()
 			if err != nil {
-				fmt.Printf("running container: %v", err)
+				slog.Error("background container", "container", c.Name, "err", err)
 				return
 			}
 		}()

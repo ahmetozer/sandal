@@ -64,18 +64,6 @@ For example you are set variable with `export FOO=BAR`, and `-env-pass FOO` will
 
 ---
 
-### `-host-ips string`
-
-:   host interface ips (default "172.16.0.1/24;fd34:0135:0123::1/64")
-
----
-
-### `-host-net string`
-
-:   host interface for bridge or macvlan (default "sandal0")
-
----
-
 ### `-hosts string`
 
 :   cp (copy), cp-n (copy if not exist), image(use image) (default "cp")  
@@ -150,9 +138,18 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
-### `-net-type string`
+### `-net value`
 
-:   bridge, macvlan, ipvlan (default "bridge")
+:   container network interface configuration
+>
+  ```bash
+  # Allocate custom interface only
+  sandal run -lw / -net "ip=172.19.0.3/24=fd34:0135:0127::9/64" -- bash
+  # Allocate default and custom interface with different bridge
+  sandal run -lw / -net "" -net "ip=172.19.0.3/24=fd34:0135:0127::9/64;master=br0"  -- bash
+  # Custom interface naming
+  sandal run -lw / -net "" -net "name=pppoe;master=layer2"  -- bash
+  ```
 
 ---
 
@@ -210,12 +207,22 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
-### `-net value`
+### `-rci value`
 
-:   container interface ips
+:   run command before init
 >
   ```bash
-  sandal run -lw / -net "ip=172.19.0.3/24=fd34:0135:0127::9/64" -- bash
+  sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
+  ```
+
+---
+
+### `-rcp value`
+
+:   run command before pivoting.  
+>
+  ```bash
+  sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
   ```
 
 ---
@@ -241,26 +248,6 @@ Allocation configuration of /etc/hosts file.
 ### `-ro bool`
 
 :   read only rootfs
-
----
-
-### `-rci value`
-
-:   run command before init
->
-  ```bash
-  sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
-  ```
-
----
-
-### `-rcp value`
-
-:   run command before pivoting.  
->
-  ```bash
-  sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
-  ```
 
 ---
 

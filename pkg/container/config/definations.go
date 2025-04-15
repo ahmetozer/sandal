@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path"
@@ -73,7 +74,9 @@ func (c Config) Json() []byte {
 	if err != nil {
 		panic(err)
 	}
-	return conf
+	var buf bytes.Buffer
+	json.Indent(&buf, conf, "", "\t")
+	return buf.Bytes()
 }
 
 type DefaultInformation struct {

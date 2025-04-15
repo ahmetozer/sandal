@@ -1,13 +1,11 @@
 package cruntime
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -39,7 +37,7 @@ func ContainerInitProc() {
 			if retry > 5 {
 				return fmt.Errorf("unable to load config: %s", err)
 			}
-			time.Sleep(8 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 
 		if len(c.ContArgs) < 1 {
@@ -74,32 +72,31 @@ func ContainerInitProc() {
 				}
 
 			}
-			IPv4, IPv6 := (*links).FindGateways()
+			IPv4, IPv6 := links.FindGateways()
 			_, b, _ := net.HasRoute(net.Ipv4DefaultGatewayTestIp())
-			if !b {
-				net.Ipv4DefaultGatewayTestIp()
+			if !b && IPv4.IP != nil {
 				err = netlink.RouteAdd(&netlink.Route{
 					Dst: IPv4.IPNet,
 					Gw:  IPv4.IP,
 				})
 				if err != nil {
-					json.NewEncoder(os.Stdout).Encode(IPv4)
-					return err
+					slog.Warn("unable to add gateway", "IPv4", IPv4, "err", err)
+					// return err
 				}
 			}
 			_, b, _ = net.HasRoute(net.Ipv6DefaultGatewayTestIp())
-			if !b {
-				net.Ipv4DefaultGatewayTestIp()
+			if !b && IPv6.IP != nil {
 				err = netlink.RouteAdd(&netlink.Route{
 					Dst: IPv6.IPNet,
 					Gw:  IPv6.IP,
 				})
 				if err != nil {
-					return err
+					slog.Warn("unable to add gateway", "IPv6", IPv6, "err", err)
+					// return err
 				}
 			}
 
-			err = (*links).RenameLinks()
+			err = links.RenameLinks()
 			if err != nil {
 				return err
 			}
@@ -121,7 +118,7 @@ func ContainerInitProc() {
 			return fmt.Errorf("no container arg providen, malformed container file")
 		}
 		execPath, err := exec.LookPath(c.ContArgs[0])
-		slog.Debug("Exec", slog.String("c.Exec", c.ContArgs[0]), slog.String("execPath", execPath), slog.String("args", strings.Join(c.ContArgs[1:], " ")))
+		slog.Debug("Exec", "c.Exec", c.ContArgs[0], "execPath", execPath, slog.Any("args", c.ContArgs[1:]))
 		if err != nil {
 			return fmt.Errorf("unable to find %s: %s", c.ContArgs[0], err)
 		}

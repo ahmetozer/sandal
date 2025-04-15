@@ -19,16 +19,18 @@ func ExecOnContainer(args []string) error {
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
 	var (
-		help    bool
-		EnvAll  bool
-		PassEnv config.StringFlags
-		Dir     string
+		help     bool
+		EnvAll   bool
+		PassEnv  config.StringFlags
+		Dir      string
+		contName string
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&EnvAll, "env-all", false, "send all enviroment variables to container")
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
+	f.StringVar(&contName, "name", "", "container name")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -42,19 +44,6 @@ func ExecOnContainer(args []string) error {
 	if splitFlagErr != nil {
 		return splitFlagErr
 	}
-
-	// var cmd *exec.Cmd
-
-	leftArgs := f.Args()
-
-	switch {
-	case len(leftArgs) < 1:
-		return fmt.Errorf("no container name provided")
-	case len(childArgs) < 1:
-		return fmt.Errorf("no command provided")
-	}
-
-	contName := leftArgs[0]
 
 	c, err := controller.GetContainer(contName)
 	if err != nil {

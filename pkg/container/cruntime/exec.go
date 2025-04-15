@@ -63,6 +63,7 @@ func Exec(c []string, chroot string) error {
 		cmd = exec.Command(execPath, c[1:]...)
 	}
 
+	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()

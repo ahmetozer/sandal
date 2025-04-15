@@ -29,7 +29,7 @@ func Run(args []string) error {
 		splitErr  error
 	)
 	thisFlags, c.ContArgs, splitErr = SplitFlagsArgs(args)
-	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("podArgs", c.ContArgs), slog.Any("args", os.Args))
+	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("ContArgs", c.ContArgs), slog.Any("os.Args", os.Args))
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ExitOnError)

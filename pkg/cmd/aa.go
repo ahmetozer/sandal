@@ -32,7 +32,7 @@ func setLogLoggerLevel() {
 	}
 
 	slog.SetDefault(
-		slog.New(slog.NewTextHandler(os.Stderr,
+		slog.New(slog.NewJSONHandler(os.Stderr,
 			&slog.HandlerOptions{
 				AddSource: AddSource,
 				Level:     level,

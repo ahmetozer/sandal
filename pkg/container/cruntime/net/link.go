@@ -33,13 +33,12 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 	}
 
 	if l.Master == DefaultBridgeInterface {
-		createDefaultBridge()
+		CreateDefaultBridge()
 	}
 
+	hostAddrs, err := GetAddrsByName(l.Master)
 	// Allocate IP addresses to container for each subnet
 	if len(l.Addr) == 0 {
-
-		hostAddrs, err := GetAddrsByName(l.Master)
 		// hostAddrs, err := stringToAddrs(env.DefaultHostNet) //
 		contAddrs := make(Addrs, 0)
 
@@ -60,6 +59,11 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 
 			l.Route = append(hostAddrs, l.Route...)
 		}
+	}
+
+	// add route if its not present, it will used by FindGateways()
+	if len(l.Route) == 0 && err == nil {
+		l.Route = hostAddrs
 	}
 
 	return l

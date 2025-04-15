@@ -94,18 +94,18 @@ func childSysMounts(c *config.Config) error {
 	}
 
 	_, err = os.Stat("/tmp")
-	if err == nil {
-		slog.Debug("childSysMounts", slog.String("message", "/tmp exist"))
-	} else {
+	if err != nil {
 		if os.IsNotExist(err) {
-			mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
-			slog.Debug("childSysMounts", slog.String("mount", "tmp"))
-		} else {
-			slog.Info("childSysMounts", slog.String("action", "check"), slog.Any("error", err))
+			err = mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
+			if err != nil {
+				return err
+			}
 		}
 	}
 	err = os.Chmod("/tmp", 0o1777)
-	slog.Debug("childSysMounts", slog.String("chmod", "1777"), slog.String("path", "/tmp"), slog.Any("error", err))
+	if err != nil {
+		return err
+	}
 
 	err = mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
 	if err != nil {
