@@ -35,6 +35,10 @@ func Cmd(args []string) error {
 					k[len(k)-1] = k[len(k)-1] + "\""
 					c.HostArgs[i] = strings.Join(k, "=")
 				}
+
+				if strings.Contains(c.HostArgs[i], " ") {
+					c.HostArgs[i] = `'` + c.HostArgs[i] + `'`
+				}
 			}
 			fmt.Println(strings.Join(c.HostArgs, " "))
 			if !*all {
