@@ -66,6 +66,8 @@ func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 			myIf.Master = kv[1]
 		case "name":
 			myIf.Name = kv[1]
+		case "id":
+			myIf.Id = kv[1]
 		default:
 			return myIf, fmt.Errorf("unexpected property %s", key)
 		}

@@ -30,7 +30,6 @@ func ExecOnContainer(args []string) error {
 	f.BoolVar(&EnvAll, "env-all", false, "send all enviroment variables to container")
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
-	f.StringVar(&contName, "name", "", "container name")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -44,6 +43,16 @@ func ExecOnContainer(args []string) error {
 	if splitFlagErr != nil {
 		return splitFlagErr
 	}
+
+	switch len(f.Args()) {
+	case 0:
+		return fmt.Errorf("please provide name or provide name after arguments")
+	case 1:
+	default:
+		return fmt.Errorf("multiple unrecognized name provided, please provide only one %v", f.Args())
+	}
+
+	contName = f.Args()[0]
 
 	c, err := controller.GetContainer(contName)
 	if err != nil {
