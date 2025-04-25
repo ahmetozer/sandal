@@ -96,7 +96,7 @@ func ContainerInitProc() {
 				}
 			}
 
-			err = links.RenameLinks()
+			err = links.FinalizeLinks()
 			if err != nil {
 				return err
 			}

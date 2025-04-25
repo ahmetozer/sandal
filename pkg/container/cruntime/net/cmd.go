@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 
 	myar := strings.Split(cmd, ";")
 	myIf := Link{Id: randomString(10)}
+	var err error
 
 	for v := range myar {
 		kv := strings.Split(myar[v], "=")
@@ -68,6 +70,16 @@ func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 			myIf.Name = kv[1]
 		case "id":
 			myIf.Id = kv[1]
+		case "ether":
+			myIf.Ether, err = net.ParseMAC(kv[1])
+			if err != nil {
+				return myIf, err
+			}
+		case "mtu":
+			myIf.Mtu, err = strconv.Atoi(kv[1])
+			if err != nil {
+				return myIf, err
+			}
 		default:
 			return myIf, fmt.Errorf("unexpected property %s", key)
 		}

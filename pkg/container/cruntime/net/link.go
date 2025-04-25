@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -11,10 +12,12 @@ import (
 )
 
 type Link struct {
+	Mtu    int
 	Id     string
 	Master string
 	Type   string
 	Name   string
+	Ether  net.HardwareAddr
 
 	Addr  Addrs
 	Route Addrs
@@ -204,7 +207,28 @@ func (l Link) findFreeNewEthName() string {
 	return l.Id
 }
 
-func (links Links) RenameLinks() error {
+func (links Links) FinalizeLinks() error {
+	for i := range links {
+		link, err := netlink.LinkByName(links[i].Id)
+		if err != nil {
+			return err
+		}
+
+		if links[i].Ether != nil {
+			err = netlink.LinkSetHardwareAddr(link, links[i].Ether)
+			if err != nil {
+				return err
+			}
+		}
+
+		if links[i].Mtu > 0 {
+			err = netlink.LinkSetMTU(link, links[i].Mtu)
+			if err != nil {
+				return err
+			}
+		}
+
+	}
 	for i := range links {
 		if links[i].Name != "" {
 			link, err := netlink.LinkByName(links[i].Id)

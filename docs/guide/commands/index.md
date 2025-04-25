@@ -146,9 +146,11 @@ Allocation configuration of /etc/hosts file.
   # Allocate custom interface only
   sandal run -lw / -net "ip=172.19.0.3/24=fd34:0135:0127::9/64" -- bash
   # Allocate default and custom interface with different bridge
-  sandal run -lw / -net "" -net "ip=172.19.0.3/24=fd34:0135:0127::9/64;master=br0"  -- bash
+  sandal run -lw / -net "" -net "ip=172.19.0.3/24=fd34:0135:0127::9/64;master=br0" -- bash
   # Custom interface naming
-  sandal run -lw / -net "" -net "name=pppoe;master=layer2"  -- bash
+  sandal run -lw / -net "" -net "name=pppoe;master=layer2" -- bash
+  # Custom mtu or ethernet set
+  sandal run -lw / -net "" -net "ether="aa:ee:81:f4:c0:d3";mtu=1480" -- bash
   ```
 
 ---
