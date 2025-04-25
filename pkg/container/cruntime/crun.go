@@ -121,11 +121,6 @@ func crun(c *config.Config) (int, error) {
 		}
 	}
 
-	// err = controller.SetContainer(c)
-	// if err != nil {
-	// 	return 0, err
-	// }
-
 	go cmd.Run()
 
 	// Process information will filled during execution

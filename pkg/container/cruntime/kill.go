@@ -23,8 +23,10 @@ func KillByName(name string, signal int, second int) error {
 
 func Kill(c *config.Config, signal int, second int) error {
 	if c.ContPid == 0 {
-		c.Status = "killed"
-		controller.SetContainer(c)
+		if c.Status != "killed" {
+			c.Status = "killed"
+			return controller.SetContainer(c)
+		}
 		return nil
 	}
 	ch := make(chan bool, 1)

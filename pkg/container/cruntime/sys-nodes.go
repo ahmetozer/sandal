@@ -33,6 +33,7 @@ func childSysNodes(c *config.Config) error {
 	newOsNode("/dev/kmsg", 0620, 1, 11)
 	newOsNode("/dev/tty0", 0620, 4, 0)
 	newOsNode("/dev/ptmx", 0666, 5, 2)
+	newOsNode("/dev/net/tun", 0666, 10, 200)
 
 	return err
 
