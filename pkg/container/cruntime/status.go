@@ -5,7 +5,6 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -16,27 +15,17 @@ const (
 	ContainerStatusHang     = "hang"
 )
 
-func CheckExistence(c *config.Config) error {
-	oldConfig, err := controller.GetContainer(c.Name)
+func IsContainerRuning(name string) (bool, error) {
+	oldConfig, err := controller.GetContainer(name)
 	if err == nil {
 		b, err := IsPidRunning(oldConfig.ContPid)
 		if err != nil && oldConfig.ContPid != 0 {
-			return fmt.Errorf("unable to check pid %d: %v", oldConfig.ContPid, err)
+			return false, fmt.Errorf("unable to check pid %d: %v", oldConfig.ContPid, err)
 		}
-		if b {
-			c.Status = ContainerStatusRunning
-			controller.SetContainer(c)
-		} else {
-			c.Status = ContainerStatusHang
-			controller.SetContainer(c)
-		}
-	}
-	return nil
-}
+		return b, nil
 
-func IsRunning(c *config.Config) bool {
-	b, _ := IsPidRunning(c.ContPid)
-	return b
+	}
+	return false, nil
 }
 
 func SendSig(pid, sig int) error {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -54,7 +55,11 @@ func Ps(args []string) error {
 
 func printVerified(c *config.Config, t *tabwriter.Writer) {
 	if c.Status == cruntime.ContainerStatusRunning {
-		if !cruntime.IsRunning(c) {
+		isRunning, err := cruntime.IsPidRunning(c.ContPid)
+		if err != nil {
+			slog.Warn("unable to get container status,", "error", err.Error())
+		}
+		if !isRunning {
 			c.Status = cruntime.ContainerStatusHang
 		}
 	}

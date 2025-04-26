@@ -22,15 +22,17 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 		case <-daemonKillRequested:
 			return
 		case <-time.After(3 * time.Second):
-			conts, _ := controller.Containers()
+			conts, err := controller.Containers()
+			if err != nil {
+				slog.Warn("unable to get containers", "err", err.Error())
+			}
 			for c := range conts {
 				cont := (conts)[c]
-				cont, err := controller.GetContainer(cont.Name)
+
+				isRunning, err := cruntime.IsPidRunning(cont.ContPid)
 				if err != nil {
-					slog.Error(err.Error())
-					continue
+					slog.Warn("unable to get container status", "cont", cont.Name, "err", err.Error())
 				}
-				isRunning := cruntime.IsRunning(cont)
 				slog.Debug("daemon", slog.String("action", "healthCheck"), slog.Any("len", len((conts))), slog.String("cont", cont.Name), slog.Bool("running", isRunning))
 				if !isRunning {
 					if cont.Startup {

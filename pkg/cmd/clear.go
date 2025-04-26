@@ -3,7 +3,7 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -37,8 +37,13 @@ func Clear(args []string) error {
 				continue
 			}
 		}
-		if cruntime.IsRunning(c) {
-			log.Printf("container %s is running, rm=%v", c.Name, c.Remove)
+		isRunning, err := cruntime.IsPidRunning(c.ContPid)
+
+		if err != nil {
+			slog.Error("unable to get container status", "container", c.Name, "err", err)
+		}
+		if isRunning {
+			slog.Warn("container is running", "container", c.Name, "rm", c.Remove)
 			continue
 		}
 		if deleteAll {

@@ -105,11 +105,12 @@ func Run(args []string) error {
 		return splitErr
 	}
 
-	if err := cruntime.CheckExistence(&c); err != nil {
+	oldContStatus, err := cruntime.IsContainerRuning(c.Name)
+	if err != nil {
 		return err
 	}
 
-	if c.Status == cruntime.ContainerStatusRunning {
+	if oldContStatus {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
 

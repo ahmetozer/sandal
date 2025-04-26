@@ -21,7 +21,8 @@ func signalProxy(daemonKillRequested chan<- bool, wg *sync.WaitGroup) {
 		conts, _ := controller.Containers()
 		for _, cont := range conts {
 			// oldContPid := cont.ContPid
-			if cont.Startup && cruntime.IsRunning(cont) {
+			isRunning, err := cruntime.IsPidRunning(cont.ContPid)
+			if cont.Startup && isRunning && err == nil {
 				cruntime.Kill(cont, int(sig.(syscall.Signal)), 0)
 			}
 		}
