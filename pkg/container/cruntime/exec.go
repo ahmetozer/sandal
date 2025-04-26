@@ -19,16 +19,15 @@ func runCommands(c []string, chroot string) {
 }
 
 // Execute under container chroot
-func Exec(c []string, chroot string) error {
+func Exec(c []string, chroot string) (exitCode int, err error) {
 	var (
 		cmd      *exec.Cmd
 		mainRoot *os.File
-		err      error
 	)
 
 	switch len(c) {
 	case 0:
-		return fmt.Errorf("empty command")
+		return 1, fmt.Errorf("empty command")
 	default:
 		// enter chroot
 		if chroot != "" {
@@ -79,12 +78,20 @@ func Exec(c []string, chroot string) error {
 	}
 
 	err = cmd.Run()
+
+	if err != nil && err.Error() == "waitid: no child processes" {
+		err = nil
+	}
+
 	if err != nil {
 		rootfs := "container rootfs"
 		if chroot != "" {
 			rootfs = "main rootfs"
 		}
-		slog.Info("execCommands", "unable to execute", "command", c[0], "rootfs", rootfs, slog.Any("error", err))
+		slog.Debug("execCommands", "command", c[0], "rootfs", rootfs, "error", err.Error())
 	}
-	return err
+
+	sig, _ := cmd.Process.Wait()
+
+	return sig.ExitCode(), err
 }

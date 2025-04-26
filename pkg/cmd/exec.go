@@ -115,7 +115,11 @@ func ExecOnContainer(args []string) error {
 		}
 	}
 
-	return cruntime.Exec(childArgs, "")
+	exitCode, err = cruntime.Exec(childArgs, "")
+	if err != nil && strings.Contains(err.Error(), "exit status") {
+		err = nil
+	}
+	return err
 }
 
 func setNs(nsname string, pid, nstype int) error {
