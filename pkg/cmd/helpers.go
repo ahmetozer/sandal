@@ -1,6 +1,9 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // returns flags and child proccess args
 func SplitFlagsArgs(args []string) (flagArgs []string, commandArgs []string, err error) {
@@ -20,10 +23,5 @@ func SplitFlagsArgs(args []string) (flagArgs []string, commandArgs []string, err
 }
 
 func isIn(a *[]string, s string) bool {
-	for _, p := range *a {
-		if p == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(*a, s)
 }

@@ -10,14 +10,14 @@ import (
 
 func Stop(args []string) error {
 
-	flags := flag.NewFlagSet("kill", flag.ExitOnError)
+	flags := flag.NewFlagSet("stop", flag.ExitOnError)
 	var (
 		help    bool
 		signal  int
 		timeout int
 	)
 	flags.BoolVar(&help, "help", false, "show this help message")
-	flags.IntVar(&signal, "signal", 15, "default kill signal")
+	flags.IntVar(&signal, "signal", 15, "default term signal")
 	flags.IntVar(&timeout, "timeout", 30, "timeout to wait proccess")
 
 	flags.Parse(args)
@@ -32,15 +32,16 @@ func Stop(args []string) error {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	err := cruntime.Kill(leftArgs[0], signal, timeout)
-	if err != nil {
-		return err
-	}
-
 	cont, err := controller.GetContainer(leftArgs[0])
 	if err != nil {
 		return err
 	}
+
+	err = cruntime.Kill(cont, signal, timeout)
+	if err != nil {
+		return err
+	}
+
 	cont.Status = "stop"
 	return controller.SetContainer(cont)
 }

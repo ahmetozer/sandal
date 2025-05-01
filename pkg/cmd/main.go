@@ -31,6 +31,8 @@ func Main() {
 		executeSubCommand(Convert)
 	case "kill":
 		executeSubCommand(Kill)
+	case "stop":
+		executeSubCommand(Stop)
 	case "rerun":
 		executeSubCommand(Rerun)
 	case "rm":
@@ -64,8 +66,8 @@ func executeSubCommand(f func([]string) error) {
 			exitCode = 1
 		}
 		slog.Error("executeSubCommand", slog.String("command", os.Args[1]), slog.Any("error", err))
-		os.Exit(exitCode)
 	}
+	os.Exit(exitCode)
 }
 
 func subCommandsHelp() {

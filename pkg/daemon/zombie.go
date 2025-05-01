@@ -16,11 +16,12 @@ func checkZombie() {
 		zombieDetected := false
 		conts, _ := controller.Containers()
 		for _, cont := range conts {
-			if cont.Startup && cruntime.IsRunning(cont) {
+			isRunning, err := cruntime.IsPidRunning(cont.ContPid)
+			if cont.Startup && isRunning && err == nil {
 				slog.Warn("checkZombie", slog.String("cont", cont.Name), slog.Any("pid", cont.ContPid))
 				zombieDetected = true
 				if time.Now().After(expiry) {
-					cruntime.Kill(cont.Name, 9, 0)
+					cruntime.Kill(cont, 9, 0)
 				}
 			}
 		}

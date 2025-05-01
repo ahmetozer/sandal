@@ -1,6 +1,7 @@
 package cruntime
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -16,74 +17,132 @@ const (
 	sandalChildWorkdir = "/.sandal"
 )
 
-func childSysMounts(c *config.Config) {
+func childSysMounts(c *config.Config) error {
 
-	mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
-	mount(path.Join(c.RootfsDir), path.Join(c.RootfsDir), "", unix.MS_BIND|unix.MS_REC, "")
+	err := mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
+	if err != nil {
+		slog.Error("base private mount failed")
+		return err
+	}
+	err = mount(path.Join(c.RootfsDir), path.Join(c.RootfsDir), "", unix.MS_BIND|unix.MS_REC, "")
+	if err != nil {
+		slog.Error("base private mount failed")
+		return err
+	}
 
-	mountVolumes(c)
+	err = mountVolumes(c)
+	if err != nil {
+		slog.Error("mounting volumes failed")
+		return err
+	}
 
 	resolvFile := read("/etc/resolv.conf")
 	hostsFile := read("/etc/hosts")
 
-	os.Mkdir(path.Join(c.RootfsDir, ".old_root"), 0700)
-	if err := unix.PivotRoot(path.Join(c.RootfsDir), path.Join(c.RootfsDir, ".old_root")); err != nil {
-		slog.Error("childSysMounts", slog.String("action", "PivotRoot"), slog.Any("error", err))
-		os.Exit(1)
+	oldroot := path.Join(c.RootfsDir, ".old_root")
+	newroot := path.Join(c.RootfsDir)
+	os.Mkdir(oldroot, 0700)
+	if err := unix.PivotRoot(newroot, oldroot); err != nil {
+		slog.Error("pivoting root failed", "newroot", newroot, "oldroot", oldroot)
+		return err
 	}
 
-	mount("tmpfs", sandalChildWorkdir, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "size=65536k,mode=755")
-	mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
+	err = mount("tmpfs", sandalChildWorkdir, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "size=65536k,mode=755")
+	if err != nil {
+		slog.Error("mounting tmpfs failed")
+		return err
+	}
 
-	createResolv(c, resolvFile)
-	createHosts(c, hostsFile)
+	err = mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
+	if err != nil {
+		slog.Error("privating filesystem failed")
+		return err
+	}
+
+	err = createResolv(c, resolvFile)
+	if err != nil {
+		slog.Debug(string(*resolvFile))
+		return err
+	}
+	err = createHosts(c, hostsFile)
+	if err != nil {
+		slog.Debug(string(*hostsFile))
+		return err
+	}
 
 	if err := os.Chdir("/"); err != nil {
-		slog.Error("childSysMounts", slog.String("action", "chdir"), slog.String("path", "/"), slog.Any("error", err))
-		os.Exit(1)
+		return err
 	}
 
-	mount("proc", "/proc", "proc", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "")
+	err = mount("proc", "/proc", "proc", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "")
+	if err != nil {
+		return err
+	}
 
 	if c.Devtmpfs != "/dev" {
-		mount("tmpfs", "/dev", "tmpfs", unix.MS_RELATIME, "size=65536k,mode=755")
+		err = mount("tmpfs", "/dev", "tmpfs", unix.MS_RELATIME, "size=65536k,mode=755")
+		if err != nil {
+			return err
+		}
+
 	}
 	if c.Devtmpfs != "" {
 		mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
+		if err != nil {
+			return err
+		}
 	}
 
-	_, err := os.Stat("/tmp")
-	if err == nil {
-		slog.Debug("childSysMounts", slog.String("message", "/tmp exist"))
-	} else {
+	_, err = os.Stat("/tmp")
+	if err != nil {
 		if os.IsNotExist(err) {
-			mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
-			slog.Debug("childSysMounts", slog.String("mount", "tmp"))
-		} else {
-			slog.Info("childSysMounts", slog.String("action", "check"), slog.Any("error", err))
+			err = mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
+			if err != nil {
+				return err
+			}
 		}
 	}
 	err = os.Chmod("/tmp", 0o1777)
-	slog.Debug("childSysMounts", slog.String("chmod", "1777"), slog.String("path", "/tmp"), slog.Any("error", err))
-
-	mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
-
-	if c.NS["cgroup"].Value != "host" {
-		mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
+	if err != nil {
+		return err
 	}
 
-	mount("devpts", "/dev/pts", "devpts", unix.MS_NOSUID|unix.MS_NOEXEC|unix.MS_RELATIME, "gid=5,mode=620,ptmxmode=666")
+	err = mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
+	if err != nil {
+		return err
+	}
 
-	mount("shm", "/dev/shm", "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "size=64000k")
+	if c.NS["cgroup"].Value != "host" {
+		err = mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
+		if err != nil {
+			return err
+		}
+
+	}
+
+	err = mount("devpts", "/dev/pts", "devpts", unix.MS_NOSUID|unix.MS_NOEXEC|unix.MS_RELATIME, "gid=5,mode=620,ptmxmode=666")
+	if err != nil {
+		return err
+	}
+
+	err = mount("shm", "/dev/shm", "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "size=64000k")
+	if err != nil {
+		return err
+	}
 
 	// mount as private then unmount to remove access to old root
 
-	mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
+	err = mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
+	if err != nil {
+		return err
+	}
+
 	if err := unix.Unmount(sandalChildWorkdir, unix.MNT_DETACH); err != nil {
 		slog.Error("childSysMounts", slog.String("action", "unmount"), slog.String("path", sandalChildWorkdir), slog.Any("error", err))
-		os.Exit(1)
+		return err
 	}
 	os.Remove(sandalChildWorkdir)
+	return nil
 
 }
 
@@ -99,34 +158,41 @@ func purgeOldRoot(c *config.Config) {
 	}
 }
 
-func mount(source, target, fstype string, flags uintptr, data string) {
+func mount(source, target, fstype string, flags uintptr, data string) error {
 
 	slog.Debug("mount", slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype))
 
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
-		try := true
-	CHECK:
+		retried := false
+	CHECK_FOLDER:
+		_, err := os.Stat(filepath.Dir(source))
+		if os.IsNotExist(err) {
+			if !retried {
+				os.MkdirAll(filepath.Dir(source), 0o0600)
+				retried = true
+				goto CHECK_FOLDER
+			}
+			return fmt.Errorf("path %s does not exist and unable to created", filepath.Dir(source))
+		}
+
+		if err != nil {
+			return err
+		}
+
 		fileInfo, err := os.Stat(source)
 		if os.IsNotExist(err) {
-			if try {
-				os.MkdirAll(filepath.Dir(source), 0o0600)
-				try = false
-				goto CHECK
-			}
-			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.String("error", "path does not exist"))
+			return fmt.Errorf("path does not exist %s", filepath.Dir(source))
 		}
 		if err != nil {
-			slog.Error("mount", slog.String("action", "stat"), slog.String("source", source), slog.Any("error", err))
-			os.Exit(1)
+			return err
 		}
 
 		if !fileInfo.IsDir() {
 			os.MkdirAll(filepath.Dir(target), 0o0600)
 			err = Touch(target)
 			if err != nil {
-				slog.Error("mount", slog.String("target", target), slog.Any("error", err))
-				os.Exit(1)
+				return fmt.Errorf("unable to touch, %v", err)
 			}
 		} else {
 			os.MkdirAll(target, 0o0600)
@@ -136,12 +202,12 @@ func mount(source, target, fstype string, flags uintptr, data string) {
 	}
 
 	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
-		slog.Error("mount", slog.String("action", "unix.Mount"), slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype), slog.Any("error", err))
-		os.Exit(1)
+		return err
 	}
+	return nil
 }
 
-func mountVolumes(c *config.Config) {
+func mountVolumes(c *config.Config) error {
 	for _, v := range c.Volumes {
 
 		m := strings.Split(v, ":")
@@ -153,13 +219,16 @@ func mountVolumes(c *config.Config) {
 		case 2:
 			m = append(m, "")
 		case 3:
-		default:
-			log.Fatalf("unexpected mount configuration '%s'", v)
+		default: // Including lenght zero 0
+			return fmt.Errorf("unexpected mount configuration '%s'", v)
 		}
-		slog.Debug("mount", slog.Any("volume", m))
 
-		mount(m[0], path.Join(c.RootfsDir, m[1]), "", unix.MS_BIND, m[2])
+		err := mount(m[0], path.Join(c.RootfsDir, m[1]), "", unix.MS_BIND, m[2])
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func Touch(path string) error {

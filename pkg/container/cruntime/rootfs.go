@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func MountRootfs(c *config.Config) error {
+func mountRootfs(c *config.Config) error {
 	changeDir, err := overlayfs.PrepareChangeDir(c)
 	if err != nil {
 		return fmt.Errorf("creating change directory: %s", err)
@@ -31,7 +31,10 @@ func MountRootfs(c *config.Config) error {
 	} else {
 		// check folder is exist
 		for _, argv := range c.Lower {
-			path := strings.Split(argv, ":")[0]
+			path := ""
+			if p := strings.Split(argv, ":"); len(p) > 0 {
+				path = p[0]
+			}
 			fileStat, err := os.Stat(path)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
 
@@ -42,13 +45,14 @@ func MountRootfs(c *config.Config) error {
 				LowerDirs = append(LowerDirs, path)
 			} else {
 				// Detect file type
-				//
-
 				img, err := diskimage.Mount(argv)
-				slog.Debug("MountRootfs", slog.Any("img", img))
-
-				c.ImmutableImages = append(c.ImmutableImages, img)
+				if c.ImmutableImages.Contains(img) {
+					c.ImmutableImages.ReplaceWith(img)
+				} else {
+					c.ImmutableImages = append(c.ImmutableImages, img)
+				}
 				if err != nil {
+					slog.Debug("MountRootfs", slog.Any("img", img))
 					return fmt.Errorf("mounting file: %s", err)
 				}
 				// this will last item of c.LowerDirs and lowest priority

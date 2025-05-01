@@ -3,6 +3,7 @@ package cmd
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -54,7 +55,11 @@ func Ps(args []string) error {
 
 func printVerified(c *config.Config, t *tabwriter.Writer) {
 	if c.Status == cruntime.ContainerStatusRunning {
-		if !cruntime.IsRunning(c) {
+		isRunning, err := cruntime.IsPidRunning(c.ContPid)
+		if err != nil {
+			slog.Warn("unable to get container status,", "error", err.Error())
+		}
+		if !isRunning {
 			c.Status = cruntime.ContainerStatusHang
 		}
 	}
@@ -63,7 +68,11 @@ func printVerified(c *config.Config, t *tabwriter.Writer) {
 
 func printDry(c *config.Config, t *tabwriter.Writer) {
 	created := time.Unix(c.Created, 0).Format(time.RFC3339)
-	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.Lower.String(), c.PodArgs[0], created, c.Status, c.ContPid)
+	executable := "undefined"
+	if len(c.ContArgs) >= 1 {
+		executable = c.ContArgs[0]
+	}
+	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.Lower.String(), executable, created, c.Status, c.ContPid)
 }
 
 func printNamespaces(c *config.Config, t *tabwriter.Writer) {

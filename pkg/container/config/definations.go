@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path"
@@ -11,21 +12,6 @@ import (
 )
 
 // Allocate For a Network Interface {host: bridge interfaces such as sandal0 , host-pod: veth, pod: lo0}
-type ALocFor uint8
-
-const (
-	ALocForHost ALocFor = iota
-	ALocForHostPod
-	ALocForPod
-)
-
-type NetIface struct {
-	Name    string
-	Type    string
-	IP      string
-	ALocFor ALocFor // host, host-pod (aka veth), pod
-	Main    []NetIface
-}
 
 type Config struct {
 	Name string
@@ -53,15 +39,14 @@ type Config struct {
 	Status          string
 	Dir             string
 	Volumes         StringFlags
-	ImmutableImages []diskimage.ImmutableImage
+	ImmutableImages diskimage.ImmutableImages
 	HostArgs        []string
-	PodArgs         []string
+	ContArgs        []string
 	Lower           StringFlags
 	RunPreExec      StringFlags
 	RunPrePivot     StringFlags
 	PassEnv         StringFlags
-
-	Ifaces []NetIface
+	Net             any
 }
 
 var (
@@ -76,7 +61,7 @@ func NewContainer() Config {
 	Config := Config{}
 	Config.HostPid = os.Getpid()
 	Config.Created = time.Now().UTC().Unix()
-	Config.Ifaces = []NetIface{{ALocFor: ALocForHost}}
+	// Config.Ifaces = []NetIface{{ALocFor: ALocForHost}}
 	Config.NS = make(map[string]*StringWrapper, len(Namespaces))
 	for _, ns := range Namespaces {
 		Config.NS[ns] = &StringWrapper{Value: ""}
@@ -89,7 +74,9 @@ func (c Config) Json() []byte {
 	if err != nil {
 		panic(err)
 	}
-	return conf
+	var buf bytes.Buffer
+	json.Indent(&buf, conf, "", "\t")
+	return buf.Bytes()
 }
 
 type DefaultInformation struct {

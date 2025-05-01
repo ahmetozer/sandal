@@ -27,11 +27,12 @@ RequestedContainers:
 	for _, name := range args {
 		for _, c := range conts {
 			if c.Name == name {
-				err := cruntime.CheckExistence(c)
+				isRunning, err := cruntime.IsPidRunning(c.ContPid)
+
 				if err != nil {
 					errs = append(errs, fmt.Errorf("unable to check existence of '%s' container: %v", c.Name, err))
 				}
-				if c.Status == cruntime.ContainerStatusRunning {
+				if isRunning {
 					errs = append(errs, fmt.Errorf("container %s is running, please stop it first", c.Name))
 				}
 

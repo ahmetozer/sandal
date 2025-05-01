@@ -16,7 +16,7 @@ type Config struct {
 
 func (lc Config) Attach(imagePath string) error {
 
-	file, err := os.OpenFile(imagePath, os.O_RDWR, 0)
+	file, err := os.OpenFile(imagePath, os.O_RDONLY, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open image file: %v", err)
 	}

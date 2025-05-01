@@ -7,13 +7,13 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
-	"github.com/ahmetozer/sandal/pkg/net"
 )
 
 const (
@@ -33,15 +33,44 @@ func init() {
 
 }
 
-func Start(c *config.Config, args []string) (int, error) {
-	c.Status = ContainerStatusCreating
+type containerLog struct {
+	name    string
+	logType string
+}
 
-	cmd := exec.Command("/proc/self/exe")
+func (c containerLog) Write(p []byte) (n int, err error) {
+	slog.Debug(c.name, slog.Any("msg", p))
+	return len(p), nil
+}
+
+func NewLogWriter(name, t string) *containerLog {
+	lw := &containerLog{}
+	lw.name = name
+	lw.logType = t
+	return lw
+}
+
+// Container run time
+func crun(c *config.Config) (int, error) {
+	c.Status = ContainerStatusCreating
+	var err error
+
+	// To start proccess by daemon
+	if os.Getenv("SANDAL_DAEMON_PID") == "" && c.Background && controller.GetControllerType() == controller.ControllerTypeServer {
+		slog.Debug("Start", slog.Any("c.Background", c.Background), slog.Any("controller-type", controller.GetControllerType()))
+		return 0, nil
+	}
+	cmd := exec.Command(env.BinLoc, "sandal-child", c.Name)
 
 	if !c.Background {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+	} else {
+		if env.Get("SANDAL_CRUN_STD", "false") == "true" {
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
 	}
 
 	cmd.Env = childEnv(c)
@@ -87,38 +116,46 @@ func Start(c *config.Config, args []string) (int, error) {
 			GidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
+			Setpgid: true,
+			Pgid:    os.Getppid(),
 		}
 	}
 
-	err := controller.SetContainer(c)
-	if err != nil {
-		return 0, err
+	go cmd.Run()
+
+	// Process information will filled during execution
+	started := time.Now()
+	for cmd.Process == nil {
+		time.Sleep(time.Millisecond)
+		if time.Now().After(started.Add(time.Second)) {
+			return 1, fmt.Errorf("unable to allocate proccess under a second")
+		}
 	}
 
-	slog.Debug("Start", slog.String("cmd.Dir", cmd.Dir), slog.Any("cmd.Env", cmd.Env), slog.Any("cmd.Args", cmd.Args))
-	err = cmd.Start()
-
-	if err != nil {
-		return 0, fmt.Errorf("starting container: %v", err)
-	}
 	c.ContPid = cmd.Process.Pid
 
 	loadNamespaceIDs(c)
 
 	c.Status = ContainerStatusRunning
 
+	if c.NS["net"].Value != "host" {
+		links, err := net.ToLinks(&c.Net)
+		if err != nil {
+			return 1, err
+		}
+		for i := range *links {
+			err := (*links)[i].Create()
+			if err != nil {
+				return 1, err
+			}
+			(*links)[i].SetNsPid(c.ContPid)
+		}
+	}
+
+	slog.Debug("container provisioned", "name", c.Name, "pid", c.ContPid)
 	err = controller.SetContainer(c)
 	if err != nil {
 		return 0, err
-	}
-
-	for _, iface := range c.Ifaces {
-		if iface.ALocFor == config.ALocForPod {
-			err = net.SetNs(iface, c.ContPid)
-			if err != nil {
-				return 0, fmt.Errorf("setting network namespace: %v", err)
-			}
-		}
 	}
 
 	go func() {
@@ -133,15 +170,24 @@ func Start(c *config.Config, args []string) (int, error) {
 		go func() {
 			_, err := cmd.Process.Wait()
 			if err != nil {
-				fmt.Printf("running container: %v", err)
-				os.Exit(1)
+				slog.Error("background container", "container", c.Name, "err", err)
+				return
 			}
 		}()
-		AttachContainerToPID(c, 1)
-		os.Exit(0)
+		// err = AttachContainerToPID(c, os.Getpid())
+		// if err != nil {
+		// 	slog.Debug("AttachContainerToPID", slog.Any("error", err))
+		// }
+		return 0, nil
 	}
 
 	sig, err := cmd.Process.Wait()
+	if err != nil && err.Error() == "waitid: no child processes" {
+		err = nil
+	}
+
+	DeRunContainer(c)
+
 	return sig.ExitCode(), err
 }
 
@@ -171,56 +217,13 @@ func childEnv(c *config.Config) []string {
 	}
 
 	envVars = appendSandalVariables(envVars, c)
-
 	return envVars
 }
 
 func appendSandalVariables(s []string, c *config.Config) []string {
 	s = append(s, "SANDAL_CHILD"+"="+c.Name)
-
 	for _, r := range env.GetDefaults() {
 		s = append(s, r.Name+"="+r.Cur)
 	}
 	return s
-}
-
-func loadNamespaceIDs(c *config.Config) {
-	for _, ns := range config.Namespaces {
-		if c.NS[ns].Value == "host" {
-			continue
-		}
-		c.NS[ns].Value = readNamespace(fmt.Sprintf("/proc/%d/ns/%s", c.ContPid, ns))
-	}
-}
-
-func readNamespace(f string) string {
-	s, err := os.Readlink(f)
-	if err != nil {
-		return ""
-	}
-	return parseNamspaceInfo(s)
-}
-
-func parseNamspaceInfo(s string) string {
-
-	ns := strings.Split(s, "[")
-	if ns == nil {
-		return s
-	}
-	if len(ns) == 2 {
-		return strings.Trim(ns[1], "]")
-	}
-	return s
-}
-
-func AttachContainerToPID(c *config.Config, masterPid int) error {
-	if err := syscall.Setpgid(c.ContPid, masterPid); err != nil {
-		return fmt.Errorf("error setting %d process group id: %s", c.ContPid, err)
-	}
-
-	if pgid, err := syscall.Getpgid(c.ContPid); err != nil || pgid != masterPid {
-		return fmt.Errorf("container group pid is not verified: %s", err)
-	}
-
-	return nil
 }

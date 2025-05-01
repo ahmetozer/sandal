@@ -1,7 +1,8 @@
 package cruntime
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -9,13 +10,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func childSysNodes(c *config.Config) {
+func childSysNodes(c *config.Config) error {
 
 	// because already host has these nodes and mirrored to container
 	if c.Devtmpfs == "/dev" {
-		return
+		return nil
 	}
-
+	var err error
+	newOsNode := func(destination string, mode uint32, major, minor uint32) {
+		if err != nil {
+			return
+		}
+		err = newOsNode(destination, mode, major, minor)
+	}
 	newOsNode("/dev/null", 0777, 1, 3)
 	newOsNode("/dev/zero", 0666, 1, 5)
 	newOsNode("/dev/full", 0666, 1, 7)
@@ -26,13 +33,18 @@ func childSysNodes(c *config.Config) {
 	newOsNode("/dev/kmsg", 0620, 1, 11)
 	newOsNode("/dev/tty0", 0620, 4, 0)
 	newOsNode("/dev/ptmx", 0666, 5, 2)
+	newOsNode("/dev/net/tun", 0666, 10, 200)
+
+	return err
 
 }
 
-func newOsNode(destination string, mode uint32, major, minor uint32) {
+func newOsNode(destination string, mode uint32, major, minor uint32) error {
 	os.MkdirAll(filepath.Dir(destination), 0o0755) // no require to check error, it's ok if it exists
 	if err := unix.Mknod(destination, unix.S_IFCHR|mode, int(unix.Mkdev(major, minor))); err != nil {
-		log.Fatalf("unable to create node %s: %s", destination, err)
+		slog.Debug("node creation error", slog.String("destination", destination), slog.Any("mode", mode), slog.Any("major", major), slog.Any("minor", minor))
+		return fmt.Errorf("unable to create node %s: %s", destination, err)
 	}
 	os.Chmod(destination, os.FileMode(unix.S_IFCHR|mode))
+	return nil
 }

@@ -19,10 +19,11 @@ func ExecOnContainer(args []string) error {
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
 	var (
-		help    bool
-		EnvAll  bool
-		PassEnv config.StringFlags
-		Dir     string
+		help     bool
+		EnvAll   bool
+		PassEnv  config.StringFlags
+		Dir      string
+		contName string
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
@@ -43,18 +44,15 @@ func ExecOnContainer(args []string) error {
 		return splitFlagErr
 	}
 
-	// var cmd *exec.Cmd
-
-	leftArgs := f.Args()
-
-	switch {
-	case len(leftArgs) < 1:
-		return fmt.Errorf("no container name provided")
-	case len(childArgs) < 1:
-		return fmt.Errorf("no command provided")
+	switch len(f.Args()) {
+	case 0:
+		return fmt.Errorf("please provide name or provide name after arguments")
+	case 1:
+	default:
+		return fmt.Errorf("multiple unrecognized name provided, please provide only one %v", f.Args())
 	}
 
-	contName := leftArgs[0]
+	contName = f.Args()[0]
 
 	c, err := controller.GetContainer(contName)
 	if err != nil {
@@ -117,10 +115,12 @@ func ExecOnContainer(args []string) error {
 		}
 	}
 
-	return cruntime.Exec(childArgs, "")
+	exitCode, err = cruntime.Exec(childArgs, "")
+	if err != nil && strings.Contains(err.Error(), "exit status") {
+		err = nil
+	}
+	return err
 }
-
-
 
 func setNs(nsname string, pid, nstype int) error {
 	path := fmt.Sprintf("/proc/%d/ns/%s", pid, nsname)
