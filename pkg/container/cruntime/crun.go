@@ -76,40 +76,49 @@ func crun(c *config.Config) (int, error) {
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.RootfsDir
 
-	var Cloneflags uintptr
+	var Ns Namespaces
 
-	if c.NS["mnt"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWNS
+	err = Ns.allocateNs(c, "mnt")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["ipc"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWIPC
+
+	err = Ns.allocateNs(c, "ipc")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["time"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWTIME
+	err = Ns.allocateNs(c, "time")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["cgroup"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWCGROUP
+	err = Ns.allocateNs(c, "cgroup")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["pid"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWPID
+	err = Ns.allocateNs(c, "pid")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["net"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWNET
+	err = Ns.allocateNs(c, "net")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["user"].Value != "host" && c.NS["user"].Value != "" {
-		Cloneflags |= syscall.CLONE_NEWUSER
+	err = Ns.allocateNs(c, "user")
+	if err != nil {
+		return 1, err
 	}
-	if c.NS["uts"].Value != "host" {
-		Cloneflags |= syscall.CLONE_NEWUTS
+	err = Ns.allocateNs(c, "uts")
+	if err != nil {
+		return 1, err
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: Cloneflags,
+		Cloneflags: Ns.Cloneflags,
 	}
 
 	if c.NS["user"].Value != "host" && c.NS["user"].Value != "" && c.NS["pid"].Value != "host" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: Cloneflags,
+			Cloneflags: Ns.Cloneflags,
 			UidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
@@ -118,6 +127,13 @@ func crun(c *config.Config) (int, error) {
 			},
 			Setpgid: true,
 			Pgid:    os.Getppid(),
+		}
+	}
+
+	// Set the namespaces
+	for _, nsConf := range Ns.NsConfs {
+		if err := SetNs(nsConf.Nsname, nsConf.Pid, int(nsConf.CloneFlag)); err != nil {
+			return 1, err
 		}
 	}
 
