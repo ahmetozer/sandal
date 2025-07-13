@@ -20,5 +20,6 @@ func (f *StringFlags) Set(value string) error {
 }
 
 type StringWrapper struct {
-	Value string
+	Value  string
+	Custom map[string]interface{}
 }

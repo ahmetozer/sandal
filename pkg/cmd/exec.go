@@ -59,43 +59,38 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("failed to get container %s: %v", contName, err)
 	}
 
-	type nsConf struct {
-		nsname    string
-		CloneFlag int
-	}
-
-	var nsFuncs []nsConf
+	var NsConfs []cruntime.NsConf
 
 	Cloneflags := unix.CLONE_NEWIPC | unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP
 
 	if c.NS["pid"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWPID
-		nsFuncs = append(nsFuncs, nsConf{"pid", unix.CLONE_NEWPID})
+		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "pid", CloneFlag: unix.CLONE_NEWPID})
 	}
 	if c.NS["net"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWNET
-		nsFuncs = append(nsFuncs, nsConf{"net", unix.CLONE_NEWNET})
+		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "net", CloneFlag: unix.CLONE_NEWNET})
 	}
 	if c.NS["user"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWUSER
-		nsFuncs = append(nsFuncs, nsConf{"user", unix.CLONE_NEWUSER})
+		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "user", CloneFlag: unix.CLONE_NEWUSER})
 	}
 	if c.NS["uts"].Value != "host" {
 		Cloneflags |= unix.CLONE_NEWUTS
-		nsFuncs = append(nsFuncs, nsConf{"uts", unix.CLONE_NEWUTS})
+		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "uts", CloneFlag: unix.CLONE_NEWUTS})
 	}
 
-	nsFuncs = append(nsFuncs, nsConf{"pid", unix.CLONE_NEWPID})
-	nsFuncs = append(nsFuncs, nsConf{"cgroup", unix.CLONE_NEWCGROUP})
-	nsFuncs = append(nsFuncs, nsConf{"mnt", unix.CLONE_NEWNS})
+	NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "pid", CloneFlag: unix.CLONE_NEWPID})
+	NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "cgroup", CloneFlag: unix.CLONE_NEWCGROUP})
+	NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "mnt", CloneFlag: unix.CLONE_NEWNS})
 
 	// Unshare the namespaces
 	if err := unix.Unshare(Cloneflags); err != nil {
 		return fmt.Errorf("unshare namespaces: %v", err)
 	}
 	// Set the namespaces
-	for _, nsConf := range nsFuncs {
-		if err := setNs(nsConf.nsname, c.ContPid, nsConf.CloneFlag); err != nil {
+	for _, nsConf := range NsConfs {
+		if err := cruntime.SetNs(nsConf.Nsname, c.ContPid, int(nsConf.CloneFlag)); err != nil {
 			return err
 		}
 	}
@@ -120,18 +115,4 @@ func ExecOnContainer(args []string) error {
 		err = nil
 	}
 	return err
-}
-
-func setNs(nsname string, pid, nstype int) error {
-	path := fmt.Sprintf("/proc/%d/ns/%s", pid, nsname)
-	file, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("failed to open namespace file %s: %v", path, err)
-	}
-
-	// Set the namespace
-	if err := unix.Setns(int(file.Fd()), nstype); err != nil {
-		return fmt.Errorf("failed to set namespace %s: %v", nsname, err)
-	}
-	return nil
 }
