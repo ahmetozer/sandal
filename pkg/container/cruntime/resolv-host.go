@@ -38,6 +38,14 @@ func createResolv(c *config.Config, d *[]byte) error {
 		}
 	}
 
+	if info, err := os.Lstat("/etc/resolv.conf"); err == nil {
+		// Check if it's a symlink
+		if info.Mode()&os.ModeSymlink != 0 {
+			slog.Warn("symlink detected", "info", "/etc/resolv.conf is not a regular file, it will deleted. To keep orginal use --resolv=image")
+		}
+		os.Remove("/etc/resolv.conf")
+	}
+
 	if strings.Contains(".", c.Resolv) || strings.Contains(":", c.Resolv) {
 		*d = nil
 		nameServers := strings.Split(c.Resolv, ";")
@@ -87,6 +95,16 @@ func createHosts(c *config.Config, d *[]byte) error {
 		slog.Debug("unable to write /etc/hosts", "path", path.Join(sandalChildWorkdir, "/etc/hosts"))
 		return err
 	}
+
+	f, err := os.OpenFile(path.Join(sandalChildWorkdir, "/etc/hosts"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err = f.WriteString(fmt.Sprintf("127.0.0.1\t%s\n::1\t%s\n", c.Name, c.Name)); err != nil {
+		return err
+	}
+
 	err = mount(path.Join(sandalChildWorkdir, "/etc/hosts"), "/etc/hosts", "tmpfs", syscall.MS_BIND, "ro")
 	return err
 }

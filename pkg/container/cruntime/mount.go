@@ -240,6 +240,7 @@ func Touch(path string) error {
 		if os.IsNotExist(err) {
 			os.MkdirAll(filepath.Dir(path), 0o0600)
 			if !createTry {
+				createTry = true
 				goto CREATE_FILE
 			}
 		} else if err != nil {
