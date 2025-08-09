@@ -95,6 +95,16 @@ func createHosts(c *config.Config, d *[]byte) error {
 		slog.Debug("unable to write /etc/hosts", "path", path.Join(sandalChildWorkdir, "/etc/hosts"))
 		return err
 	}
+
+	f, err := os.OpenFile(path.Join(sandalChildWorkdir, "/etc/hosts"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err = f.WriteString(fmt.Sprintf("127.0.0.1\t%s\n::1\t%s\n", c.Name, c.Name)); err != nil {
+		return err
+	}
+
 	err = mount(path.Join(sandalChildWorkdir, "/etc/hosts"), "/etc/hosts", "tmpfs", syscall.MS_BIND, "ro")
 	return err
 }
