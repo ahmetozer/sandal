@@ -38,6 +38,14 @@ func createResolv(c *config.Config, d *[]byte) error {
 		}
 	}
 
+	if info, err := os.Lstat("/etc/resolv.conf"); err == nil {
+		// Check if it's a symlink
+		if info.Mode()&os.ModeSymlink != 0 {
+			slog.Warn("symlink detected", "info", "/etc/resolv.conf is not a regular file, it will deleted. To keep orginal use --resolv=image")
+		}
+		os.Remove("/etc/resolv.conf")
+	}
+
 	if strings.Contains(".", c.Resolv) || strings.Contains(":", c.Resolv) {
 		*d = nil
 		nameServers := strings.Split(c.Resolv, ";")
