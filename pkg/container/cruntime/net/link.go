@@ -40,6 +40,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 	}
 
 	hostAddrs, err := GetAddrsByName(l.Master)
+	slog.Debug("hostAddrs", "interface", l.Master, slog.Any("addrs", hostAddrs))
 	// Allocate IP addresses to container for each subnet
 	if len(l.Addr) == 0 {
 		// hostAddrs, err := stringToAddrs(env.DefaultHostNet) //

@@ -1,26 +1,30 @@
 package net
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 )
 
-func ipRequest(conts *[]*config.Config, net *net.IPNet) (ip net.IP, err error) {
+func ipRequest(conts *[]*config.Config, x *net.IPNet) (ip net.IP, err error) {
+	var IPnet net.IPNet
+	err = deepCopy(x, &IPnet)
+	if err != nil {
+		return nil, err
+	}
 
-	x := *net
-	IPnet := &x
 	brodcastSupport := false
 	cidr, bits := IPnet.Mask.Size()
 
-	ip = net.IP
+	ip = IPnet.IP
 
 	// Increment at below is bypass first ip like 192.168.2.0
 	switch bits {
 	case 128:
 		if cidr <= 120 {
-			ip, err = ipIncrement(ip, IPnet)
+			ip, err = ipIncrement(ip, &IPnet)
 			if err != nil {
 				return nil, err
 			}
@@ -28,7 +32,7 @@ func ipRequest(conts *[]*config.Config, net *net.IPNet) (ip net.IP, err error) {
 	case 32:
 		if cidr <= 24 {
 			brodcastSupport = true
-			ip, err = ipIncrement(ip, IPnet)
+			ip, err = ipIncrement(ip, &IPnet)
 			if err != nil {
 				return nil, err
 			}
@@ -41,18 +45,26 @@ func ipRequest(conts *[]*config.Config, net *net.IPNet) (ip net.IP, err error) {
 	for {
 		if !addrInUse(conts, ip) {
 			if ip.To4() != nil && brodcastSupport {
-				if ip.Equal(lastIP(IPnet)) {
+				if ip.Equal(lastIP(&IPnet)) {
 					return nil, fmt.Errorf("allocatable unicast ip block is exhausted")
 				}
 			}
 			// IP succesfully allocated
 			return ip, nil
 		}
-		ip, err = ipIncrement(ip, IPnet)
+		ip, err = ipIncrement(ip, &IPnet)
 		if err != nil {
 			return nil, err
 		}
 	}
+}
+
+func deepCopy(src, dst interface{}) error {
+	bytes, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, dst)
 }
 
 func addrInUse(configs *[]*config.Config, ip net.IP) bool {
