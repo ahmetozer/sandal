@@ -1,6 +1,7 @@
 package cruntime
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -41,6 +42,13 @@ func childSysNodes(c *config.Config) error {
 
 func newOsNode(destination string, mode uint32, major, minor uint32) error {
 	os.MkdirAll(filepath.Dir(destination), 0o0755) // no require to check error, it's ok if it exists
+	_, error := os.Stat(destination)
+	//return !os.IsNotExist(err)
+	if !errors.Is(error, os.ErrNotExist) {
+		slog.Warn("os node is exist", "destination", destination)
+		return nil
+	}
+
 	if err := unix.Mknod(destination, unix.S_IFCHR|mode, int(unix.Mkdev(major, minor))); err != nil {
 		slog.Debug("node creation error", slog.String("destination", destination), slog.Any("mode", mode), slog.Any("major", major), slog.Any("minor", minor))
 		return fmt.Errorf("unable to create node %s: %s", destination, err)

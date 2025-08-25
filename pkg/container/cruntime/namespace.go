@@ -16,11 +16,14 @@ func loadNamespaceIDs(c *config.Config) {
 		if c.NS[ns].Value == "host" {
 			continue
 		}
+		if c.NS[ns].Custom == nil {
+			c.NS[ns].Custom = make(map[string]interface{})
+		}
 		if c.NS[ns].Value != "" {
 			c.NS[ns].Custom = make(map[string]interface{})
 			c.NS[ns].Custom["changed"] = true
 		}
-		c.NS[ns].Value = readNamespace(fmt.Sprintf("/proc/%d/ns/%s", c.ContPid, ns))
+		c.NS[ns].Custom["value"] = readNamespace(fmt.Sprintf("/proc/%d/ns/%s", c.ContPid, ns))
 	}
 }
 
@@ -121,4 +124,18 @@ func (ns *Namespaces) allocateNs(c *config.Config, name string) error {
 		ns.NsConfs = append(ns.NsConfs, NsConf{Nsname: name, Pid: i, CloneFlag: clone})
 	}
 	return nil
+}
+
+func GetNamespaceValue(c *config.Config, ns string) string {
+	if c.NS[ns].Value == "host" {
+		return c.NS[ns].Value
+	}
+	if c.NS[ns].Value != "" {
+		return c.NS[ns].Value
+	}
+	k, ok := c.NS[ns].Custom["value"]
+	if ok {
+		return k.(string)
+	}
+	return ""
 }
