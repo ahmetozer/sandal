@@ -70,22 +70,26 @@ func SetNs(nsname string, pid, nstype int) error {
 	return nil
 }
 
-type NsConf struct {
+type NamespaceConf struct {
 	Nsname    string
 	CloneFlag uintptr
 	Pid       int
 }
 
 type Namespaces struct {
-	Cloneflags uintptr
-	NsConfs    []NsConf
+	NamespaceConfs []NamespaceConf
+	provisioned    bool
 }
 
-func checkNewNsRequired(val string) bool {
-	return val != "host" && val == ""
+func (NS Namespaces) Cloneflags() uintptr {
+	var Cloneflags uintptr
+	for _, ns := range NS.NamespaceConfs {
+		Cloneflags |= ns.CloneFlag
+	}
+	return Cloneflags
 }
 
-func toSyscall(s string) (i uintptr, e error) {
+func namespacetoSyscall(s string) (i uintptr, e error) {
 	switch s {
 	case "mnt":
 		i = syscall.CLONE_NEWNS
@@ -109,20 +113,43 @@ func toSyscall(s string) (i uintptr, e error) {
 	return
 }
 
-func (ns *Namespaces) allocateNs(c *config.Config, name string) error {
-	clone, err := toSyscall(name)
-	if err != nil {
-		return err
+func (Ns *Namespaces) ProvisionNS(c *config.Config) error {
+	// allocate namespaces on the fly to prevent re allocation anywhere else
+	if Ns.provisioned {
+		return fmt.Errorf("namespaces allready provisioned")
 	}
-	if checkNewNsRequired(c.NS[name].Value) {
-		ns.Cloneflags |= clone
-	} else if c.NS[name].Value != "host" {
-		i, err := strconv.Atoi(c.NS[name].Value)
+
+	checkNewNsRequired := func(val string) bool {
+		return val != "host" && val == ""
+	}
+
+	allocateNs := func(ns *Namespaces, c *config.Config, name string) error {
+		clone, err := namespacetoSyscall(name)
 		if err != nil {
 			return err
 		}
-		ns.NsConfs = append(ns.NsConfs, NsConf{Nsname: name, Pid: i, CloneFlag: clone})
+		if checkNewNsRequired(c.NS[name].Value) {
+			ns.NamespaceConfs = append(ns.NamespaceConfs, NamespaceConf{Nsname: name, CloneFlag: clone})
+		} else if c.NS[name].Value != "host" {
+			i, err := strconv.Atoi(c.NS[name].Value)
+			if err != nil {
+				return err
+			}
+			ns.NamespaceConfs = append(ns.NamespaceConfs, NamespaceConf{Nsname: name, Pid: i, CloneFlag: clone})
+		}
+		return nil
 	}
+
+	var NamespaceList = []string{"mnt", "ipc", "time", "cgroup", "pid", "net", "user", "uts"}
+
+	for _, namespace := range NamespaceList {
+		err := allocateNs(Ns, c, namespace)
+		if err != nil {
+			return err
+		}
+	}
+	Ns.provisioned = true
+
 	return nil
 }
 

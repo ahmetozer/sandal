@@ -78,47 +78,18 @@ func crun(c *config.Config) (int, error) {
 
 	var Ns Namespaces
 
-	err = Ns.allocateNs(c, "mnt")
-	if err != nil {
-		return 1, err
-	}
-
-	err = Ns.allocateNs(c, "ipc")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "time")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "cgroup")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "pid")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "net")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "user")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "uts")
+	err = Ns.ProvisionNS(c)
 	if err != nil {
 		return 1, err
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: Ns.Cloneflags,
+		Cloneflags: Ns.Cloneflags(),
 	}
 
 	if c.NS["user"].Value != "host" && c.NS["user"].Value != "" && c.NS["pid"].Value != "host" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: Ns.Cloneflags,
+			Cloneflags: Ns.Cloneflags(),
 			UidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
@@ -131,7 +102,7 @@ func crun(c *config.Config) (int, error) {
 	}
 
 	// Set the namespaces
-	for _, nsConf := range Ns.NsConfs {
+	for _, nsConf := range Ns.NamespaceConfs {
 		if err := SetNs(nsConf.Nsname, nsConf.Pid, int(nsConf.CloneFlag)); err != nil {
 			return 1, err
 		}
