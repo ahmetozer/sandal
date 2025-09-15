@@ -1,4 +1,4 @@
-package config
+package wrapper
 
 import (
 	"encoding/json"
@@ -20,6 +20,5 @@ func (f *StringFlags) Set(value string) error {
 }
 
 type StringWrapper struct {
-	Value  string
-	Custom map[string]interface{}
+	Value string // set by Cli
 }

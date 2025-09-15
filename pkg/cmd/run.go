@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -49,7 +51,7 @@ func Run(args []string) error {
 	f.Var(&c.PassEnv, "env-pass", "pass only requested enviroment variables to container")
 	f.StringVar(&c.Dir, "dir", "", "working directory")
 
-	networkInterfacesCmd := config.StringFlags{}
+	networkInterfacesCmd := wrapper.StringFlags{}
 	f.Var(&networkInterfacesCmd, "net", "configure network interfaces")
 
 	f.UintVar(&c.TmpSize, "tmp", 0, "allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled")
@@ -57,13 +59,7 @@ func Run(args []string) error {
 	f.StringVar(&c.Resolv, "resolv", "cp", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist), image(use image)")
 
-	for _, k := range config.Namespaces {
-		defaultValue := ""
-		if k == "user" {
-			defaultValue = "host"
-		}
-		f.StringVar(&c.NS[k].Value, "ns-"+k, defaultValue, fmt.Sprintf("%s namespace or host", k))
-	}
+	c.NS = namespace.ParseFlagSet(f)
 
 	f.StringVar(&c.ChangeDir, "chdir", config.Defs(containerId).ChangeDir, "container changes will saved this directory")
 	f.StringVar(&c.RootfsDir, "rdir", config.Defs(containerId).RootFsDir, "root directory of operating system")

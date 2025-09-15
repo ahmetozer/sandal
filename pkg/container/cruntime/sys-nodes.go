@@ -7,14 +7,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ahmetozer/sandal/pkg/container/config"
 	"golang.org/x/sys/unix"
 )
 
-func childSysNodes(c *config.Config) error {
+func childSysNodes(Devtmpfs string) error {
 
 	// because already host has these nodes and mirrored to container
-	if c.Devtmpfs == "/dev" {
+	if Devtmpfs == "/dev" {
 		return nil
 	}
 	var err error

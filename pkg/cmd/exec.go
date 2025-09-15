@@ -7,8 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
@@ -22,7 +23,7 @@ func ExecOnContainer(args []string) error {
 	var (
 		help     bool
 		EnvAll   bool
-		PassEnv  config.StringFlags
+		PassEnv  wrapper.StringFlags
 		Dir      string
 		contName string
 	)
@@ -60,47 +61,22 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("failed to get container %s: %v", contName, err)
 	}
 
-	var Ns cruntime.Namespaces
+	var Ns namespace.Namespaces
 
-	err = Ns.ProvisionNS(c)
+	err = Ns.AllocateNS()
 	if err != nil {
 		return err
 	}
 
-	// Ns.Cloneflags = unix.CLONE_NEWIPC | unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP
-
-	// if c.NS["pid"].Value != "host" {
-	// 	Ns.Cloneflags |= unix.CLONE_NEWPID
-	// 	Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "pid", CloneFlag: unix.CLONE_NEWPID})
-	// }
-	// if c.NS["net"].Value != "host" {
-	// 	Ns.Cloneflags |= unix.CLONE_NEWNET
-	// 	Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "net", CloneFlag: unix.CLONE_NEWNET})
-	// }
-	// if c.NS["user"].Value != "host" {
-	// 	Ns.Cloneflags |= unix.CLONE_NEWUSER
-	// 	Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "user", CloneFlag: unix.CLONE_NEWUSER})
-	// }
-	// if c.NS["uts"].Value != "host" {
-	// 	Ns.Cloneflags |= unix.CLONE_NEWUTS
-	// 	Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "uts", CloneFlag: unix.CLONE_NEWUTS})
-	// }
-
-	// Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "pid", CloneFlag: unix.CLONE_NEWPID})
-	// Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "cgroup", CloneFlag: unix.CLONE_NEWCGROUP})
-	// Ns.NsConfs = append(Ns.NsConfs, cruntime.NsConf{Nsname: "mnt", CloneFlag: unix.CLONE_NEWNS})
-
 	slog.Debug("current namespaces", slog.Any("Ns", Ns))
-	// Unshare the namespaces
+	// Unshare the namespaces to be ready to switch new namespace
 	if err := unix.Unshare(int(Ns.Cloneflags())); err != nil {
 		return fmt.Errorf("unshare namespaces: %v", err)
 	}
-	// Set the namespaces
-	for _, nsConf := range Ns.NamespaceConfs {
-		if err := cruntime.SetNs(nsConf.Nsname, c.ContPid, int(nsConf.CloneFlag)); err != nil {
-			slog.Debug("setNS", "nsname", nsConf.Nsname, "pid", c.ContPid)
-			return err
-		}
+
+	err = Ns.SetNS()
+	if err != nil {
+		return err
 	}
 
 	// Set the hostname

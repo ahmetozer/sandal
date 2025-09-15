@@ -18,7 +18,7 @@ func DeRunContainer(c *config.Config) {
 
 	Kill(c, 9, 5)
 
-	if c.NS["net"].Value != "host" {
+	if c.NS.GetNamespaceValue("net") != "host" {
 		ifaces, err := net.ToLinks(&(c.Net))
 
 		if err == nil {
