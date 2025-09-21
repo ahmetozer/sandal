@@ -1,7 +1,6 @@
 package cruntime
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,23 +14,6 @@ import (
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
-
-const (
-	bits = 32 << (^uint(0) >> 63)
-)
-
-var (
-	procSize = 65535
-)
-
-func init() {
-	// fix for cpu architecture
-	if bits == 64 {
-		bin := binary.BigEndian.AppendUint64([]byte{255, 255, 255, 255}, 0)
-		procSize = int(binary.BigEndian.Uint32(bin))
-	}
-
-}
 
 type containerLog struct {
 	name    string
@@ -76,49 +58,18 @@ func crun(c *config.Config) (int, error) {
 	cmd.Env = childEnv(c)
 	cmd.Dir = c.RootfsDir
 
-	var Ns Namespaces
-
-	err = Ns.allocateNs(c, "mnt")
-	if err != nil {
-		return 1, err
-	}
-
-	err = Ns.allocateNs(c, "ipc")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "time")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "cgroup")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "pid")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "net")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "user")
-	if err != nil {
-		return 1, err
-	}
-	err = Ns.allocateNs(c, "uts")
+	err = c.NS.Defaults()
 	if err != nil {
 		return 1, err
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: Ns.Cloneflags,
+		Cloneflags: c.NS.Cloneflags(),
 	}
 
-	if c.NS["user"].Value != "host" && c.NS["user"].Value != "" && c.NS["pid"].Value != "host" {
+	if c.NS.Get("user").IsUserDefined && !c.NS.Get("pid").IsHost {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: Ns.Cloneflags,
+			Cloneflags: c.NS.Cloneflags(),
 			UidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
@@ -130,12 +81,13 @@ func crun(c *config.Config) (int, error) {
 		}
 	}
 
-	// Set the namespaces
-	for _, nsConf := range Ns.NsConfs {
-		if err := SetNs(nsConf.Nsname, nsConf.Pid, int(nsConf.CloneFlag)); err != nil {
-			return 1, err
-		}
-	}
+	// !Switching custom namespace while container create not supported.
+	// ?The reason is it will impacted daemon due to proccess based impact
+	// // Switch custom namespaces before starting new command
+	// err = c.NS.SetNS()
+	// if err != nil {
+	// 	return 1, err
+	// }
 
 	go cmd.Run()
 
@@ -150,11 +102,11 @@ func crun(c *config.Config) (int, error) {
 
 	c.ContPid = cmd.Process.Pid
 
-	loadNamespaceIDs(c)
+	// c.NS.LoadNamespaceIDs(c.ContPid)
 
 	c.Status = ContainerStatusRunning
 
-	if c.NS["net"].Value != "host" {
+	if !c.NS.Get("net").IsHost {
 		links, err := net.ToLinks(&c.Net)
 		if err != nil {
 			return 1, err

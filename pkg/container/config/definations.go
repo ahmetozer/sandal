@@ -7,7 +7,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -26,26 +28,25 @@ type Config struct {
 	ChangeDir string
 	RootfsDir string
 
-	ReadOnly   bool
-	Remove     bool
-	EnvAll     bool
-	Background bool
-	Startup    bool
-	NS         map[string]*StringWrapper
-
+	ReadOnly        bool
+	Remove          bool
+	EnvAll          bool
+	Background      bool
+	Startup         bool
+	NS              namespace.Namespaces
 	Devtmpfs        string
 	Resolv          string
 	Hosts           string
 	Status          string
 	Dir             string
-	Volumes         StringFlags
+	Volumes         wrapper.StringFlags
 	ImmutableImages diskimage.ImmutableImages
 	HostArgs        []string
 	ContArgs        []string
-	Lower           StringFlags
-	RunPreExec      StringFlags
-	RunPrePivot     StringFlags
-	PassEnv         StringFlags
+	Lower           wrapper.StringFlags
+	RunPreExec      wrapper.StringFlags
+	RunPrePivot     wrapper.StringFlags
+	PassEnv         wrapper.StringFlags
 	Net             any
 }
 
@@ -55,17 +56,10 @@ var (
 	TypeUint   uint
 )
 
-var Namespaces []string = []string{"pid", "net", "user", "uts", "ipc", "cgroup", "mnt", "time", "ns"}
-
 func NewContainer() Config {
 	Config := Config{}
 	Config.HostPid = os.Getpid()
 	Config.Created = time.Now().UTC().Unix()
-	// Config.Ifaces = []NetIface{{ALocFor: ALocForHost}}
-	Config.NS = make(map[string]*StringWrapper, len(Namespaces))
-	for _, ns := range Namespaces {
-		Config.NS[ns] = &StringWrapper{Value: ""}
-	}
 	return Config
 }
 

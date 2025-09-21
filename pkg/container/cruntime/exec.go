@@ -67,13 +67,13 @@ func Exec(c []string, chroot string) (exitCode int, err error) {
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
 	cmd.SysProcAttr = &unix.SysProcAttr{
-		Cloneflags: unix.CLONE_NEWUTS,
+		// Cloneflags: unix.CLONE_NEWUTS,
 	}
 
 	if chroot != "" {
 		cmd.SysProcAttr = &unix.SysProcAttr{
-			Cloneflags: unix.CLONE_NEWUTS,
-			Chroot:     chroot,
+			// Cloneflags: unix.CLONE_NEWUTS,
+			Chroot: chroot,
 		}
 	}
 

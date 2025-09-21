@@ -37,7 +37,7 @@ func ContainerInitProc() {
 			if retry > 5 {
 				return fmt.Errorf("unable to load config: %s", err)
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(time.Second / 10)
 		}
 
 		if len(c.ContArgs) < 1 {
@@ -48,7 +48,7 @@ func ContainerInitProc() {
 			return fmt.Errorf("unable to set hostname %s", err)
 		}
 
-		if c.NS["net"].Value != "host" && c.NS["net"].Custom["changed"] != true {
+		if !c.NS.Get("net").IsHost {
 
 			k, err := netlink.LinkByName("lo")
 			if err == nil {
@@ -57,7 +57,7 @@ func ContainerInitProc() {
 
 			links, err := net.ToLinks(&c.Net)
 			if err != nil {
-				return fmt.Errorf("unable to set hostname %s", err)
+				return fmt.Errorf("net to links %s", err)
 			}
 
 			_, err = links.WaitUntilCreated(5)
@@ -106,7 +106,7 @@ func ContainerInitProc() {
 		if err != nil {
 			return err
 		}
-		err = childSysNodes(c)
+		err = childSysNodes(c.Devtmpfs)
 		if err != nil {
 			return err
 		}

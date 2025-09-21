@@ -6,14 +6,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
 
 func ExecOnContainer(args []string) error {
-
 	thisFlags, childArgs, splitFlagErr := SplitFlagsArgs(args)
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
@@ -21,7 +21,7 @@ func ExecOnContainer(args []string) error {
 	var (
 		help     bool
 		EnvAll   bool
-		PassEnv  config.StringFlags
+		PassEnv  wrapper.StringFlags
 		Dir      string
 		contName string
 	)
@@ -31,9 +31,14 @@ func ExecOnContainer(args []string) error {
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
 
+	// Allocate variable locations
+	NS := namespace.ParseFlagSet(f)
+
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
+	// Execute after parsing flag to prevent nil pointer issues or empty variable
+	NS.Defaults()
 
 	if help {
 		f.Usage()
@@ -59,40 +64,15 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("failed to get container %s: %v", contName, err)
 	}
 
-	var NsConfs []cruntime.NsConf
+	merge := c.NS.SetEmptyToPid(c.ContPid).Merge(NS)
 
-	Cloneflags := unix.CLONE_NEWIPC | unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP
-
-	if c.NS["pid"].Value != "host" {
-		Cloneflags |= unix.CLONE_NEWPID
-		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "pid", CloneFlag: unix.CLONE_NEWPID})
-	}
-	if c.NS["net"].Value != "host" {
-		Cloneflags |= unix.CLONE_NEWNET
-		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "net", CloneFlag: unix.CLONE_NEWNET})
-	}
-	if c.NS["user"].Value != "host" {
-		Cloneflags |= unix.CLONE_NEWUSER
-		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "user", CloneFlag: unix.CLONE_NEWUSER})
-	}
-	if c.NS["uts"].Value != "host" {
-		Cloneflags |= unix.CLONE_NEWUTS
-		NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "uts", CloneFlag: unix.CLONE_NEWUTS})
+	if err := merge.Unshare(); err != nil {
+		return err
 	}
 
-	NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "pid", CloneFlag: unix.CLONE_NEWPID})
-	NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "cgroup", CloneFlag: unix.CLONE_NEWCGROUP})
-	NsConfs = append(NsConfs, cruntime.NsConf{Nsname: "mnt", CloneFlag: unix.CLONE_NEWNS})
-
-	// Unshare the namespaces
-	if err := unix.Unshare(Cloneflags); err != nil {
-		return fmt.Errorf("unshare namespaces: %v", err)
-	}
-	// Set the namespaces
-	for _, nsConf := range NsConfs {
-		if err := cruntime.SetNs(nsConf.Nsname, c.ContPid, int(nsConf.CloneFlag)); err != nil {
-			return err
-		}
+	err = merge.SetNS()
+	if err != nil {
+		return err
 	}
 
 	// Set the hostname
