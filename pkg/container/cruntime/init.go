@@ -127,6 +127,11 @@ func ContainerInitProc() {
 			os.Chdir(c.Dir)
 		}
 
+		err = switchUser(c.User)
+		if err != nil {
+			return err
+		}
+
 		// Jump to real process
 		if err := unix.Exec(execPath, append([]string{c.ContArgs[0]}, c.ContArgs[1:]...), os.Environ()); err != nil {
 			return fmt.Errorf("unable to exec %s: %s", c.ContArgs[0], err)

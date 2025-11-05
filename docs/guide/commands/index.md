@@ -270,6 +270,24 @@ Benefical for:
 
 ---
 
+### `-user string`
+
+:   Start container as custom user or user:group configuration.  
+>
+  ```bash
+  # chroot to given path
+  sandal run -rm --lw / -user dnsmasq -- id
+  uid=100(dnsmasq) gid=101(dnsmasq)
+  sandal run -rm --lw / -user dnsmasq:wheel -- id
+  uid=100(dnsmasq) gid=10(wheel)
+  sandal run -rm --lw / -user 10:nogroup -- id
+  uid=10(uucp) gid=65533(nogroup)
+  sandal run -rm --lw / -user 10 -- id
+  uid=10(uucp) gid=10(wheel)
+  sandal run -rm --lw / -user adm:10 -- id
+  uid=3(adm) gid=10(wheel)
+  ```
+
 ### `-v value`
 
 :   volume mount point

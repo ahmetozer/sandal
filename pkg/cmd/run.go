@@ -69,6 +69,8 @@ func Run(args []string) error {
 
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
+	f.StringVar(&c.User, "user", "", "user or user:group information")
+
 	f.Var(&c.RunPrePivot, "rcp", "run command before pivoting")
 	f.Var(&c.RunPreExec, "rci", "run command before init")
 

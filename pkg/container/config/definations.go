@@ -23,8 +23,6 @@ type Config struct {
 	ContPid int
 	TmpSize uint
 
-	ProjectDir string
-
 	ChangeDir string
 	RootfsDir string
 
@@ -34,6 +32,7 @@ type Config struct {
 	Background      bool
 	Startup         bool
 	NS              namespace.Namespaces
+	User            string
 	Devtmpfs        string
 	Resolv          string
 	Hosts           string
