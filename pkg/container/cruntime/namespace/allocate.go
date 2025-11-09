@@ -1,6 +1,12 @@
 package namespace
 
 func (ns *NamespaceConf) defaults() {
+
+	if ns.UserValue == nil {
+		temp := ""
+		ns.UserValue = &temp
+	}
+
 	switch *ns.UserValue {
 	case "host":
 		ns.IsHost = true

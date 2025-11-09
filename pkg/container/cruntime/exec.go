@@ -12,14 +12,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func runCommands(c []string, chroot string) {
+func runCommands(c []string, chroot string, user string) {
 	for _, command := range c {
-		Exec(cmdline.Parse(command), chroot)
+		Exec(cmdline.Parse(command), chroot, user)
 	}
 }
 
 // Execute under container chroot
-func Exec(c []string, chroot string) (exitCode int, err error) {
+func Exec(c []string, chroot string, user string) (exitCode int, err error) {
 	var (
 		cmd      *exec.Cmd
 		mainRoot *os.File
@@ -70,11 +70,22 @@ func Exec(c []string, chroot string) (exitCode int, err error) {
 		// Cloneflags: unix.CLONE_NEWUTS,
 	}
 
-	if chroot != "" {
-		cmd.SysProcAttr = &unix.SysProcAttr{
-			// Cloneflags: unix.CLONE_NEWUTS,
-			Chroot: chroot,
+	if user != "" {
+		u, err2 := getUser(user)
+		if err2 != nil {
+			err = err2
+			return
 		}
+
+		cmd.SysProcAttr.Credential = u.Credential
+		if u.User != nil && u.User.HomeDir != "" {
+			cmd.Dir = u.User.HomeDir
+			cmd.Env = append([]string{"HOME=" + u.User.HomeDir}, cmd.Env...)
+		}
+	}
+
+	if chroot != "" {
+		cmd.SysProcAttr.Chroot = chroot
 	}
 
 	err = cmd.Run()

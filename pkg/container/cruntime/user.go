@@ -1,54 +1,90 @@
 package cruntime
 
 import (
+	"os"
 	os_user "os/user"
 	"strconv"
 	"strings"
 	"syscall"
 )
 
-func switchUser(user string) (err error) {
+type User struct {
+	Credential *syscall.Credential
+	User       *os_user.User
+}
 
-	if user == "" {
-		return nil
+func getUser(ug string) (User User, err error) {
+	if ug == "" {
+		return
 	}
 
 	var (
-		uid int
-		gid int
+		uid uint64
+		gid uint64
 	)
-	credential := strings.Split(user, ":")
+	user_group := strings.Split(ug, ":")
 
-	if uid, err = strconv.Atoi(credential[0]); err != nil {
-		user, err := os_user.Lookup(credential[0])
+	if uid, err = strconv.ParseUint(user_group[0], 10, 32); err != nil {
+		User.User, err = os_user.Lookup(user_group[0])
 		if err == nil {
-			uid, _ = strconv.Atoi(user.Uid)
+			uid, _ = strconv.ParseUint(User.User.Uid, 10, 32)
 			// if usergroup is not presented, try gid info from user information
 
-			if len(credential) == 1 && user.Gid != "" {
-				credential = append(credential, user.Gid)
+			if len(user_group) == 1 && User.User.Gid != "" {
+				user_group = append(user_group, User.User.Gid)
 			}
 		} else {
-			return err
+			return
 		}
+
 	}
 
 	// if usergroup is not presented, set group name identical to username
-	if len(credential) == 1 {
-		credential = append(credential, credential[0])
+	if len(user_group) == 1 {
+		user_group = append(user_group, user_group[0])
 	}
 
-	if gid, err = strconv.Atoi(credential[1]); err != nil {
-		group, err := os_user.LookupGroup(credential[1])
+	if gid, err = strconv.ParseUint(user_group[1], 10, 32); err != nil {
+		group, err := os_user.LookupGroup(user_group[1])
 		if err == nil {
-			gid, _ = strconv.Atoi(group.Gid)
+			gid, _ = strconv.ParseUint(group.Gid, 10, 32)
 		}
 	}
 
-	err = syscall.Setgid(gid)
+	User.Credential = &syscall.Credential{}
+	User.Credential.Uid = uint32(uid)
+	User.Credential.Gid = uint32(gid)
+
+	return
+}
+
+func switchUser(user User) error {
+	err := switchCredential(user.Credential)
 	if err != nil {
 		return err
 	}
-	err = syscall.Setuid(uid)
+
+	if user.User == nil {
+		return nil
+	}
+
+	if user.User.HomeDir != "" {
+		os.Chdir(user.User.HomeDir)
+	}
+
+	return nil
+}
+
+func switchCredential(Credential *syscall.Credential) (err error) {
+	if Credential == nil {
+		return
+	}
+	err = syscall.Setgid(int(Credential.Gid))
+	if err != nil {
+		return
+	}
+
+	err = syscall.Setuid(int(Credential.Uid))
+
 	return
 }
