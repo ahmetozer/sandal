@@ -1,6 +1,7 @@
 package cruntime
 
 import (
+	"os"
 	os_user "os/user"
 	"strconv"
 	"strings"
@@ -31,6 +32,10 @@ func switchUser(user string) (err error) {
 		} else {
 			return err
 		}
+
+		if user.HomeDir != "" {
+			os.Chdir(user.HomeDir)
+		}
 	}
 
 	// if usergroup is not presented, set group name identical to username
@@ -50,5 +55,6 @@ func switchUser(user string) (err error) {
 		return err
 	}
 	err = syscall.Setuid(uid)
+
 	return
 }
