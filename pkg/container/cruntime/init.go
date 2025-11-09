@@ -110,9 +110,10 @@ func ContainerInitProc() {
 		if err != nil {
 			return err
 		}
-		runCommands(c.RunPrePivot, "/.old_root/")
+		// do not execute pre commands as defined user
+		runCommands(c.RunPrePivot, "/.old_root/", "")
 		purgeOldRoot(c)
-		runCommands(c.RunPreExec, "")
+		runCommands(c.RunPreExec, "", "")
 
 		if len(c.ContArgs) == 0 {
 			return fmt.Errorf("no container arg providen, malformed container file")
@@ -127,7 +128,11 @@ func ContainerInitProc() {
 			os.Chdir(c.Dir)
 		}
 
-		err = switchUser(c.User)
+		user, err := getUser(c.User)
+		if err != nil {
+			return err
+		}
+		err = switchUser(user)
 		if err != nil {
 			return err
 		}

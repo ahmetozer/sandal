@@ -23,12 +23,15 @@ func ExecOnContainer(args []string) error {
 		EnvAll   bool
 		PassEnv  wrapper.StringFlags
 		Dir      string
+		User     string
 		contName string
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&EnvAll, "env-all", false, "send all enviroment variables to container")
 	f.StringVar(&Dir, "dir", "", "working directory")
+	f.StringVar(&User, "user", "", "work user")
+
 	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
 
 	// Allocate variable locations
@@ -90,7 +93,10 @@ func ExecOnContainer(args []string) error {
 		}
 	}
 
-	exitCode, err = cruntime.Exec(childArgs, "")
+	if User == "" {
+		User = c.User
+	}
+	exitCode, err = cruntime.Exec(childArgs, "", User)
 	if err != nil && strings.Contains(err.Error(), "exit status") {
 		err = nil
 	}
