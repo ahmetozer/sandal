@@ -15,7 +15,7 @@ type User struct {
 
 func getUser(ug string) (User User, err error) {
 	if ug == "" {
-		ug = "root" // set default user to root
+		// set default user to root
 		User.User = &os_user.User{
 			Uid:      "0",
 			Gid:      "0",
@@ -27,6 +27,7 @@ func getUser(ug string) (User User, err error) {
 			Uid: 0,
 			Gid: 0,
 		}
+		return
 	}
 
 	var (
