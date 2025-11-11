@@ -15,7 +15,18 @@ type User struct {
 
 func getUser(ug string) (User User, err error) {
 	if ug == "" {
-		return
+		ug = "root" // set default user to root
+		User.User = &os_user.User{
+			Uid:      "0",
+			Gid:      "0",
+			Username: "root",
+			Name:     "root",
+			HomeDir:  "/root",
+		}
+		User.Credential = &syscall.Credential{
+			Uid: 0,
+			Gid: 0,
+		}
 	}
 
 	var (
@@ -24,6 +35,7 @@ func getUser(ug string) (User User, err error) {
 	)
 	user_group := strings.Split(ug, ":")
 
+	// if it's user id instead of username set username, else get user id from username
 	if uid, err = strconv.ParseUint(user_group[0], 10, 32); err != nil {
 		User.User, err = os_user.Lookup(user_group[0])
 		if err == nil {
@@ -44,6 +56,7 @@ func getUser(ug string) (User User, err error) {
 		user_group = append(user_group, user_group[0])
 	}
 
+	// if it's group id instead of groupname set groupid, else get user id from groupname
 	if gid, err = strconv.ParseUint(user_group[1], 10, 32); err != nil {
 		group, err := os_user.LookupGroup(user_group[1])
 		if err == nil {
@@ -69,6 +82,8 @@ func switchUser(user User) error {
 	}
 
 	if user.User.HomeDir != "" {
+		// error excepted because if home dir is not availbe
+		// expected behivor keep at /
 		os.Chdir(user.User.HomeDir)
 	}
 

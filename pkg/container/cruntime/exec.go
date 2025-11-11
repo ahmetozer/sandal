@@ -70,18 +70,16 @@ func Exec(c []string, chroot string, user string) (exitCode int, err error) {
 		// Cloneflags: unix.CLONE_NEWUTS,
 	}
 
-	if user != "" {
-		u, err2 := getUser(user)
-		if err2 != nil {
-			err = err2
-			return
-		}
+	u, err2 := getUser(user)
+	if err2 != nil {
+		err = err2
+		return
+	}
 
-		cmd.SysProcAttr.Credential = u.Credential
-		if u.User != nil && u.User.HomeDir != "" {
-			cmd.Dir = u.User.HomeDir
-			cmd.Env = append([]string{"HOME=" + u.User.HomeDir}, cmd.Env...)
-		}
+	cmd.SysProcAttr.Credential = u.Credential
+	if u.User != nil && u.User.HomeDir != "" {
+		cmd.Dir = u.User.HomeDir
+		cmd.Env = append([]string{"HOME=" + u.User.HomeDir}, cmd.Env...)
 	}
 
 	if chroot != "" {
