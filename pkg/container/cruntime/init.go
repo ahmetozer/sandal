@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Executed at namespace environement before real process
+// Executed at namespace environment before real process
 func ContainerInitProc() {
 	runtime.GOMAXPROCS(1)
 
@@ -124,21 +124,29 @@ func ContainerInitProc() {
 			return fmt.Errorf("unable to find %s: %s", c.ContArgs[0], err)
 		}
 
-		if c.Dir != "/" {
-			os.Chdir(c.Dir)
-		}
-
+		var environ []string
 		user, err := getUser(c.User)
 		if err != nil {
 			return err
 		}
+
+		if user.User != nil && user.User.HomeDir != "" {
+			environ = []string{"HOME=" + user.User.HomeDir}
+		}
+
+		environ = append(environ, os.Environ()...)
+
 		err = switchUser(user)
 		if err != nil {
 			return err
 		}
 
+		if c.Dir != "" {
+			os.Chdir(c.Dir)
+		}
+
 		// Jump to real process
-		if err := unix.Exec(execPath, append([]string{c.ContArgs[0]}, c.ContArgs[1:]...), os.Environ()); err != nil {
+		if err := unix.Exec(execPath, append([]string{c.ContArgs[0]}, c.ContArgs[1:]...), environ); err != nil {
 			return fmt.Errorf("unable to exec %s: %s", c.ContArgs[0], err)
 		}
 		return nil
