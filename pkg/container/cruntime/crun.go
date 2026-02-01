@@ -63,21 +63,34 @@ func crun(c *config.Config) (int, error) {
 		return 1, err
 	}
 
+	// Get clone flags for namespaces
+	cloneFlags := c.NS.Cloneflags()
+
+	// For interactive containers, avoid PID namespace to allow proper signal delivery
+	// PID 1 in a namespace has special signal handling that ignores SIGINT/SIGTERM
+	// unless explicit handlers are installed (which most programs don't have)
+	if !c.Background && !c.NS.Get("pid").IsHost {
+		// Remove CLONE_NEWPID flag for interactive containers
+		cloneFlags &^= syscall.CLONE_NEWPID
+		slog.Debug("disabled PID namespace for interactive container to enable signal delivery")
+	}
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: c.NS.Cloneflags(),
+		Cloneflags: cloneFlags,
 	}
 
 	if c.NS.Get("user").IsUserDefined && !c.NS.Get("pid").IsHost {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: c.NS.Cloneflags(),
+			Cloneflags: cloneFlags,
 			UidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
 			GidMappings: []syscall.SysProcIDMap{
 				{ContainerID: 0, HostID: 0, Size: procSize},
 			},
-			Setpgid: true,
-			Pgid:    os.Getppid(),
+			// Only set process group for background containers
+			// Interactive containers need to stay in the same process group to receive terminal signals
+			Setpgid: c.Background,
 		}
 	}
 
@@ -126,13 +139,31 @@ func crun(c *config.Config) (int, error) {
 		return 0, err
 	}
 
-	go func() {
-		done := make(chan os.Signal, 1)
-		for {
-			signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGCHLD, syscall.SIGABRT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGWINCH, syscall.SIGIO, syscall.SIGURG, syscall.SIGPIPE, syscall.SIGALRM, syscall.SIGVTALRM, syscall.SIGPROF, syscall.SIGSYS, syscall.SIGTRAP, syscall.SIGBUS, syscall.SIGSEGV, syscall.SIGILL, syscall.SIGFPE, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
-			cmd.Process.Signal(<-done)
-		}
-	}()
+	// Forward signals to the container process
+	// This is essential for interactive containers to handle Ctrl-C, terminal resize, etc.
+	if !c.Background {
+		go func() {
+			sigChan := make(chan os.Signal, 1)
+			// Register for common signals once before the loop
+			signal.Notify(sigChan,
+				syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT,
+				syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGWINCH,
+				syscall.SIGUSR1, syscall.SIGUSR2,
+			)
+			defer signal.Stop(sigChan)
+
+			for sig := range sigChan {
+				if cmd.Process != nil {
+					if err := cmd.Process.Signal(sig); err != nil {
+						slog.Debug("failed to forward signal", "signal", sig, "error", err)
+						// Process likely exited, stop forwarding
+						return
+					}
+					slog.Debug("forwarded signal to container", "signal", sig, "pid", cmd.Process.Pid)
+				}
+			}
+		}()
+	}
 
 	if c.Background {
 		go func() {
