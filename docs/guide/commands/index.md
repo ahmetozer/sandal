@@ -16,6 +16,24 @@ sandal run -lw / -tmp 10 --rm --  bash
 
 ---
 
+### `-cap-add value`
+
+:   add capabilities to the container (multiple values allowed)  
+  See [Linux Capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html) for available capabilities.  
+  Example: `-cap-add NET_BIND_SERVICE -cap-add SYS_ADMIN`  
+  By default, containers start with a restricted set of capabilities. This flag adds additional capabilities when needed.
+
+---
+
+### `-cap-drop value`
+
+:   drop capabilities from the container (multiple values allowed)  
+  Remove specific capabilities even in privileged mode.  
+  Example: `-cap-drop SYS_ADMIN -cap-drop NET_ADMIN`  
+  This provides an additional layer of security by explicitly removing potentially dangerous capabilities.
+
+---
+
 ### `-chdir string`
 
 :   container changes will saved this directory (default "/var/lib/sandal/changedir/new-york")
@@ -226,6 +244,15 @@ Allocation configuration of /etc/hosts file.
   ```bash
   sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
   ```
+
+---
+
+### `-privileged bool`
+
+:   give extended privileges to the container  
+  When enabled, the container runs with all Linux capabilities (except those explicitly dropped with `-cap-drop`).  
+  **⚠️ Warning:** This significantly increases security risks. Use only when absolutely necessary.  
+  Equivalent to Docker's `--privileged` flag. The container will have access to host devices and can perform system-level operations.
 
 ---
 

@@ -136,9 +136,22 @@ func ContainerInitProc() {
 
 		environ = append(environ, os.Environ()...)
 
+		// Set system capabilities before switching user
+		// This must be done while still running as root
+		if err := c.Capabilities.Set(); err != nil {
+			return fmt.Errorf("unable to set capabilities: %s", err)
+		}
+
 		err = switchUser(user)
 		if err != nil {
 			return err
+		}
+
+		// After switching from root to non-root user, restore effective capabilities
+		// The kernel clears the effective set during user switch, even though
+		// permitted capabilities are preserved via PR_SET_KEEPCAPS
+		if err := c.Capabilities.RestoreEffective(); err != nil {
+			return fmt.Errorf("unable to restore effective capabilities: %s", err)
 		}
 
 		if c.Dir != "" {

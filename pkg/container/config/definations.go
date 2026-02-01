@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/capabilities"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -32,6 +33,7 @@ type Config struct {
 	Background      bool
 	Startup         bool
 	NS              namespace.Namespaces
+	Capabilities    capabilities.Capabilities
 	User            string
 	Devtmpfs        string
 	Resolv          string

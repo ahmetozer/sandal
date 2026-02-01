@@ -10,6 +10,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/capabilities"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -73,6 +74,7 @@ func Run(args []string) error {
 
 	f.Var(&c.RunPrePivot, "rcp", "run command before pivoting")
 	f.Var(&c.RunPreExec, "rci", "run command before init")
+	capabilities.ParseFlagSet(f, &c.Capabilities)
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
