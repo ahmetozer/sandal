@@ -1,9 +1,10 @@
 {
-    "go.alternateTools": {
-
-    },
-    "go.delveConfig": {
-        "debugAdapter": "dlv-dap",
-        "dlvFlags": ["--only-same-user=false"],
-    }
+  "go.alternateTools": {},
+  "go.delveConfig": {
+    "debugAdapter": "dlv-dap",
+    "dlvFlags": ["--only-same-user=false"]
+  },
+  "gopls": { "env": { "GOOS": "linux" } },
+  "go.toolsEnvVars": { "GOOS": "linux" },
+  "go.buildTags": "linux"
 }
