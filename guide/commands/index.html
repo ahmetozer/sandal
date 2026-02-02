@@ -1,0 +1,2326 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/guide/commands/">
+      
+      
+        <link rel="prev" href="../../setup/configuration/">
+      
+      
+        <link rel="next" href="clear/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Run - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Run - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/guide/commands/index.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/guide/commands/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Run - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/guide/commands/index.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#run" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Run
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://pkg.go.dev/github.com/ahmetozer/sandal@v1.9.5/pkg/lib" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Golang Lib
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-cap-add-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -cap-add value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-cap-drop-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -cap-drop value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-cpu-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --cpu string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-chdir-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -chdir string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-d-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -d bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-devtmpfs-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -devtmpfs string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-dir-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -dir string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-env-all-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -env-all bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-env-pass-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -env-pass value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-help-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -help bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-hosts-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -hosts string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-lw-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -lw value
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="-lw value">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-lower-directories-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Lower Directories Works ?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-memory-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --memory string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-name-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -name string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-net-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -net value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-cgroup-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-cgroup string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-ipc-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-ipc string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-mnt-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-mnt string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-net-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-net string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-ns-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-ns string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-pid-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-pid string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-time-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-time string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-user-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-user string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-uts-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-uts string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rci-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rci value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rcp-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rcp value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-privileged-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -privileged bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rdir-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rdir string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-resolv-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -resolv string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rm-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rm bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ro-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ro bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-tmp-uint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -tmp uint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-user-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -user string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-v-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -v value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://pkg.go.dev/github.com/ahmetozer/sandal@v1.9.5/pkg/lib" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golang Lib
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-cap-add-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -cap-add value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-cap-drop-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -cap-drop value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-cpu-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --cpu string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-chdir-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -chdir string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-d-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -d bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-devtmpfs-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -devtmpfs string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-dir-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -dir string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-env-all-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -env-all bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-env-pass-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -env-pass value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-help-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -help bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-hosts-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -hosts string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-lw-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -lw value
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="-lw value">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-lower-directories-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Lower Directories Works ?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-memory-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --memory string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-name-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -name string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-net-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -net value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-cgroup-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-cgroup string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-ipc-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-ipc string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-mnt-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-mnt string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-net-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-net string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-ns-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-ns string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-pid-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-pid string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-time-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-time string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-user-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-user string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ns-uts-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-uts string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rci-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rci value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rcp-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rcp value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-privileged-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -privileged bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rdir-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rdir string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-resolv-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -resolv string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-rm-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -rm bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ro-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ro bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-tmp-uint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -tmp uint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-user-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -user string
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-v-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -v value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="run">Run<a class="headerlink" href="#run" title="Permanent link">&para;</a></h1>
+<p>This sub command provisiones a new container to the system.</p>
+<div class="annotate highlight"><span class="filename">Example usage</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-tmp<span class="w"> </span><span class="m">10</span><span class="w"> </span>--rm<span class="w"> </span>--<span class="w">  </span>bash
+</code></pre></div>
+<h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Flag Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bool</code></td>
+<td>by default it is set to false, in case of presence, it will be true.</td>
+</tr>
+<tr>
+<td><code>string</code></td>
+<td>only accepts single string value.</td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td>similar to string but multiple presences are accepted</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="-cap-add-value"><code>-cap-add value</code><a class="headerlink" href="#-cap-add-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>add capabilities to the container (multiple values allowed)<br />
+  See <a href="https://man7.org/linux/man-pages/man7/capabilities.7.html">Linux Capabilities</a> for available capabilities.<br />
+  Example: <code>-cap-add NET_BIND_SERVICE -cap-add SYS_ADMIN</code><br />
+  By default, containers start with a restricted set of capabilities. This flag adds additional capabilities when needed.</dd>
+</dl>
+<hr />
+<h3 id="-cap-drop-value"><code>-cap-drop value</code><a class="headerlink" href="#-cap-drop-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>drop capabilities from the container (multiple values allowed)
+  Remove specific capabilities even in privileged mode.
+  Example: <code>-cap-drop SYS_ADMIN -cap-drop NET_ADMIN</code>
+  This provides an additional layer of security by explicitly removing potentially dangerous capabilities.</dd>
+</dl>
+<hr />
+<h3 id="-cpu-string"><code>--cpu string</code><a class="headerlink" href="#-cpu-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>limit the number of CPUs available to the container
+  Specify the maximum number of CPUs the container can use as a decimal value.
+  Uses cgroup v2 cpu controller to enforce CPU throttling.
+  Example: <code>--cpu 0.5</code> (half a CPU), <code>--cpu 2</code> (two CPUs)
+  The value is rounded up to the nearest integer for display in <code>/proc/cpuinfo</code>.
+  <strong>Note:</strong> Requires cgroup v2 with cpu controller available. If unavailable, a warning is logged but the container continues to run.</dd>
+</dl>
+<hr />
+<h3 id="-chdir-string"><code>-chdir string</code><a class="headerlink" href="#-chdir-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>container changes will saved this directory (default "/var/lib/sandal/changedir/new-york")</dd>
+</dl>
+<hr />
+<h3 id="-d-bool"><code>-d bool</code><a class="headerlink" href="#-d-bool" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>run container in background</dd>
+</dl>
+<hr />
+<h3 id="-devtmpfs-string"><code>-devtmpfs string</code><a class="headerlink" href="#-devtmpfs-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>mount point of devtmpfs<br />
+example: -devtmpfs /mnt/devtmpfs<br />
+<a href="https://unix.stackexchange.com/questions/77933/using-devtmpfs-for-dev">more info unix.stackexchange.com</a></dd>
+</dl>
+<hr />
+<h3 id="-dir-string"><code>-dir string</code><a class="headerlink" href="#-dir-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>working directory<br />
+Default it is set to root folder <code>/</code></dd>
+</dl>
+<hr />
+<h3 id="-env-all-bool"><code>-env-all bool</code><a class="headerlink" href="#-env-all-bool" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>send all enviroment variables to container<br />
+Environment variables which currently you are seing at <code>env</code> command.</dd>
+</dl>
+<hr />
+<h3 id="-env-pass-value"><code>-env-pass value</code><a class="headerlink" href="#-env-pass-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>pass only requested enviroment variables to container<br />
+For example you are set variable with <code>export FOO=BAR</code>, and <code>-env-pass FOO</code> will read variable from existing environment and passes to container.<br />
+<strong><em>It does not accepts <code>-env-pass FOO=BAR</code> for security purposes</em></strong></dd>
+</dl>
+<hr />
+<h3 id="-help-bool"><code>-help bool</code><a class="headerlink" href="#-help-bool" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>show this help message</dd>
+</dl>
+<hr />
+<h3 id="-hosts-string"><code>-hosts string</code><a class="headerlink" href="#-hosts-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>cp (copy), cp-n (copy if not exist), image(use image) (default "cp")<br />
+Allocation configuration of /etc/hosts file.</dd>
+</dl>
+<hr />
+<h3 id="-lw-value"><code>-lw value</code><a class="headerlink" href="#-lw-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>Lower directory of the root file system<br />
+  Lower directories are attach folders or images to container to access but changes are saved under <code>-chdir</code>.<br />
+  This flag can usable multiple times to attach multiple images and directories to container.</dd>
+</dl>
+<details class="info">
+<summary>More</summary>
+<p>Example Commands</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Single Lower Directory</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/my/dir/lw1<span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1"># Multiple Lower Directories</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/my/dir/lw1<span class="w"> </span>-lw<span class="w"> </span>/my/dir/lw2<span class="w"> </span>-lw<span class="w"> </span>/my/dir/lw3<span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1"># SquashFS # (1)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/my/img/debian.sqfs<span class="w"> </span>-lw<span class="w"> </span>/my/image/config.sqfs<span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1"># Mounting .img file # (2)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1000</span><span class="w"> </span>-lw<span class="w"> </span>/my/img/2024-11-19-raspios-bookworm-arm64-lite.img:part<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+-lw<span class="w"> </span>/my/image/config.sqfs<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span>bash<span class="w"> </span>
+</code></pre></div>
+<ol>
+<li>You can create SquashFS files with <code>sandal convert</code>.</li>
+<li>Image files consist of multiple partition, you have to specificly define partition information in commandline.
+  You can find image details with <code>sandal image info file.img</code></li>
+</ol>
+<dl>
+<dd>
+<h4 id="how-lower-directories-works">How Lower Directories Works ?<a class="headerlink" href="#how-lower-directories-works" title="Permanent link">&para;</a></h4>
+</dd>
+<dd>
+<p>Read file operation</p>
+</dd>
+<dt><pre class="mermaid"><code>graph LR
+M1([MyApp]) --Access--&gt; O1[OverlayFs]
+O1 -- Return File --&gt; M1
+
+O1[OverlayFs] --&gt; E4
+E4{Exist at chdir ?} -- Yes | Read from --&gt; C1[(ChangeDir)]
+E4 -- No | TRY --&gt; E3
+
+E3{Exist at lw3 ?} -- Yes | Read from --&gt; LW3[(lower3)] 
+E3 -- No | TRY --&gt; E2
+
+E2{Exist at lw2 ?} -- Yes | Read from --&gt; LW2[(lower2)] 
+E2 -- No | TRY --&gt; E1
+
+E1{Exist at lw3 ?} -- Yes | Read from --&gt; LW1[(lower1)]
+E1 -- No | File Not Found --&gt; O1</code></pre></dt>
+<dd>
+<p>Write file operation</p>
+</dd>
+</dl>
+<pre class="mermaid"><code>graph LR
+M1([MyApp]) --Write--&gt; O1[OverlayFs]
+
+O1[OverlayFs] --&gt; C1[(ChangeDir)]
+</code></pre>
+</details>
+<hr />
+<h3 id="-memory-string"><code>--memory string</code><a class="headerlink" href="#-memory-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>limit the memory available to the container
+  Specify the maximum amount of memory the container can use.
+  Supports human-readable units: K, M, G, T (1000-based) or Ki, Mi, Gi, Ti (1024-based).
+  Uses cgroup v2 memory controller to enforce memory limits (triggers OOM killer if exceeded).
+  Custom <code>/proc/meminfo</code> is generated to show the limited memory inside the container.</dd>
+</dl>
+<p>Example usage:
+  <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--memory<span class="w"> </span>512M<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>--<span class="w"> </span>bash<span class="w">    </span><span class="c1"># 512 megabytes</span>
+sandal<span class="w"> </span>run<span class="w"> </span>--memory<span class="w"> </span>1G<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>--<span class="w"> </span>bash<span class="w">      </span><span class="c1"># 1 gigabyte</span>
+sandal<span class="w"> </span>run<span class="w"> </span>--memory<span class="w"> </span>1Gi<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>--<span class="w"> </span>bash<span class="w">     </span><span class="c1"># 1 gibibyte (1024-based)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>--memory<span class="w"> </span><span class="m">134217728</span><span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>--<span class="w"> </span>bash<span class="w">  </span><span class="c1"># 128MB in bytes</span>
+</code></pre></div></p>
+<p><strong>Note:</strong> Requires cgroup v2 with memory controller available. If unavailable, a warning is logged and only <code>/proc/meminfo</code> is customized (without kernel enforcement).</p>
+<hr />
+<h3 id="-name-string"><code>-name string</code><a class="headerlink" href="#-name-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>name of the container (default "new-york")</dd>
+</dl>
+<hr />
+<h3 id="-net-value"><code>-net value</code><a class="headerlink" href="#-net-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>container network interface configuration<blockquote>
+<div class="highlight"><pre><span></span><code><span class="c1"># Allocate custom interface only</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ip=172.19.0.3/24=fd34:0135:0127::9/64&quot;</span><span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1"># Allocate default and custom interface with different bridge</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ip=172.19.0.3/24=fd34:0135:0127::9/64;master=br0&quot;</span><span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1"># Custom interface naming</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;name=pppoe;master=layer2&quot;</span><span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1"># Custom mtu or ethernet set</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ether=&quot;</span>aa:ee:81:f4:c0:d3<span class="s2">&quot;;mtu=1480&quot;</span><span class="w"> </span>--<span class="w"> </span>bash
+</code></pre></div>
+</blockquote>
+</dd>
+</dl>
+<hr />
+<h3 id="-ns-cgroup-string"><code>-ns-cgroup string</code><a class="headerlink" href="#-ns-cgroup-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>cgroup namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-ipc-string"><code>-ns-ipc string</code><a class="headerlink" href="#-ns-ipc-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>ipc namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-mnt-string"><code>-ns-mnt string</code><a class="headerlink" href="#-ns-mnt-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>mnt namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-net-string"><code>-ns-net string</code><a class="headerlink" href="#-ns-net-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>net namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-ns-string"><code>-ns-ns string</code><a class="headerlink" href="#-ns-ns-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>ns namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-pid-string"><code>-ns-pid string</code><a class="headerlink" href="#-ns-pid-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>pid namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-time-string"><code>-ns-time string</code><a class="headerlink" href="#-ns-time-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>time namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-user-string"><code>-ns-user string</code><a class="headerlink" href="#-ns-user-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>user namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-ns-uts-string"><code>-ns-uts string</code><a class="headerlink" href="#-ns-uts-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>uts namespace or host</dd>
+</dl>
+<hr />
+<h3 id="-rci-value"><code>-rci value</code><a class="headerlink" href="#-rci-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>run command before init<blockquote>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-rci<span class="o">=</span><span class="s2">&quot;ifconfig eth0&quot;</span><span class="w"> </span>--<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>hello
+</code></pre></div>
+</blockquote>
+</dd>
+</dl>
+<hr />
+<h3 id="-rcp-value"><code>-rcp value</code><a class="headerlink" href="#-rcp-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>run command before pivoting.  <blockquote>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-rci<span class="o">=</span><span class="s2">&quot;ifconfig eth0&quot;</span><span class="w"> </span>--<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>hello
+</code></pre></div>
+</blockquote>
+</dd>
+</dl>
+<hr />
+<h3 id="-privileged-bool"><code>-privileged bool</code><a class="headerlink" href="#-privileged-bool" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>give extended privileges to the container<br />
+  When enabled, the container runs with all Linux capabilities (except those explicitly dropped with <code>-cap-drop</code>).<br />
+<strong>⚠️ Warning:</strong> This significantly increases security risks. Use only when absolutely necessary.<br />
+  Equivalent to Docker's <code>--privileged</code> flag. The container will have access to host devices and can perform system-level operations.</dd>
+</dl>
+<hr />
+<h3 id="-rdir-string"><code>-rdir string</code><a class="headerlink" href="#-rdir-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>root directory of operating system for container init process (default "/")</dd>
+</dl>
+<hr />
+<h3 id="-resolv-string"><code>-resolv string</code><a class="headerlink" href="#-resolv-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers) (default "cp")</dd>
+</dl>
+<hr />
+<h3 id="-rm-bool"><code>-rm bool</code><a class="headerlink" href="#-rm-bool" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>remove container files on exit</dd>
+</dl>
+<hr />
+<h3 id="-ro-bool"><code>-ro bool</code><a class="headerlink" href="#-ro-bool" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>read only rootfs</dd>
+</dl>
+<hr />
+<h3 id="-startup"><code>-startup</code><a class="headerlink" href="#-startup" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>run container at startup by sandal daemon</dd>
+</dl>
+<hr />
+<h3 id="-tmp-uint"><code>-tmp uint</code><a class="headerlink" href="#-tmp-uint" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>
+<dl>
+<dt>allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled.</dt>
+<dt>Benefical for:</dt>
+<dd>
+<ul>
+<li>Provisioning ephemeral environments</li>
+<li>Able to execute sandal under sandal or docker with tmpfs to prevent overlayFs in overlayFs limitations</li>
+<li>Reduce disk calls for writing</li>
+<li>Work with not supported file systems such as fat32, exfat</li>
+</ul>
+</dd>
+</dl>
+</dd>
+</dl>
+<hr />
+<h3 id="-user-string"><code>-user string</code><a class="headerlink" href="#-user-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>Start container as custom user or user:group configuration.  <blockquote>
+<div class="highlight"><pre><span></span><code><span class="c1"># chroot to given path</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>--lw<span class="w"> </span>/<span class="w"> </span>-user<span class="w"> </span>dnsmasq<span class="w"> </span>--<span class="w"> </span>id
+<span class="nv">uid</span><span class="o">=</span><span class="m">100</span><span class="o">(</span>dnsmasq<span class="o">)</span><span class="w"> </span><span class="nv">gid</span><span class="o">=</span><span class="m">101</span><span class="o">(</span>dnsmasq<span class="o">)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>--lw<span class="w"> </span>/<span class="w"> </span>-user<span class="w"> </span>dnsmasq:wheel<span class="w"> </span>--<span class="w"> </span>id
+<span class="nv">uid</span><span class="o">=</span><span class="m">100</span><span class="o">(</span>dnsmasq<span class="o">)</span><span class="w"> </span><span class="nv">gid</span><span class="o">=</span><span class="m">10</span><span class="o">(</span>wheel<span class="o">)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>--lw<span class="w"> </span>/<span class="w"> </span>-user<span class="w"> </span><span class="m">10</span>:nogroup<span class="w"> </span>--<span class="w"> </span>id
+<span class="nv">uid</span><span class="o">=</span><span class="m">10</span><span class="o">(</span>uucp<span class="o">)</span><span class="w"> </span><span class="nv">gid</span><span class="o">=</span><span class="m">65533</span><span class="o">(</span>nogroup<span class="o">)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>--lw<span class="w"> </span>/<span class="w"> </span>-user<span class="w"> </span><span class="m">10</span><span class="w"> </span>--<span class="w"> </span>id
+<span class="nv">uid</span><span class="o">=</span><span class="m">10</span><span class="o">(</span>uucp<span class="o">)</span><span class="w"> </span><span class="nv">gid</span><span class="o">=</span><span class="m">10</span><span class="o">(</span>wheel<span class="o">)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>--lw<span class="w"> </span>/<span class="w"> </span>-user<span class="w"> </span>adm:10<span class="w"> </span>--<span class="w"> </span>id
+<span class="nv">uid</span><span class="o">=</span><span class="m">3</span><span class="o">(</span>adm<span class="o">)</span><span class="w"> </span><span class="nv">gid</span><span class="o">=</span><span class="m">10</span><span class="o">(</span>wheel<span class="o">)</span>
+</code></pre></div>
+</blockquote>
+</dd>
+</dl>
+<h3 id="-v-value"><code>-v value</code><a class="headerlink" href="#-v-value" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>volume mount point<blockquote>
+<div class="highlight"><pre><span></span><code><span class="c1"># chroot to given path</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>-v<span class="w"> </span>/mnt/disk1:/<span class="w"> </span>--<span class="w"> </span>bash
+<span class="c1">#  attach file,attach path to custom path, attach path, and  to the container.</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </span>-v<span class="w"> </span>/etc/nftables.conf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/run/dbus<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/etc/homeas/config:/config<span class="w">  </span>--<span class="w"> </span>bash
+</code></pre></div>
+</blockquote>
+</dd>
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+    
+  </body>
+</html>
