@@ -79,6 +79,31 @@ func childSysMounts(c *config.Config) error {
 		return err
 	}
 
+	// Bind mount custom proc files if resource limits are set
+	if c.MemoryLimit != "" {
+		meminfoPath := "/.sandal-proc/meminfo"
+		if _, err := os.Stat(meminfoPath); err == nil {
+			err = mount(meminfoPath, "/proc/meminfo", "", unix.MS_BIND, "")
+			if err != nil {
+				slog.Warn("failed to mount custom meminfo", "error", err)
+			} else {
+				slog.Debug("mounted custom meminfo")
+			}
+		}
+	}
+
+	if c.CPULimit != "" {
+		cpuinfoPath := "/.sandal-proc/cpuinfo"
+		if _, err := os.Stat(cpuinfoPath); err == nil {
+			err = mount(cpuinfoPath, "/proc/cpuinfo", "", unix.MS_BIND, "")
+			if err != nil {
+				slog.Warn("failed to mount custom cpuinfo", "error", err)
+			} else {
+				slog.Debug("mounted custom cpuinfo")
+			}
+		}
+	}
+
 	if c.Devtmpfs != "/dev" {
 		err = mount("tmpfs", "/dev", "tmpfs", unix.MS_RELATIME, "size=65536k,mode=755")
 		if err != nil {

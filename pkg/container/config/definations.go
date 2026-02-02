@@ -49,6 +49,10 @@ type Config struct {
 	RunPrePivot     wrapper.StringFlags
 	PassEnv         wrapper.StringFlags
 	Net             any
+
+	// Resource limits (cgroups v2)
+	MemoryLimit string // Memory limit with units (e.g., "512M", "1G")
+	CPULimit    string // CPU limit as number of CPUs (e.g., "0.5", "2")
 }
 
 var (

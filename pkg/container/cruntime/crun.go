@@ -11,6 +11,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -63,17 +64,24 @@ func crun(c *config.Config) (int, error) {
 		return 1, err
 	}
 
+	// Setup resource limits via cgroups
+	var cgroupPath string
+	if c.MemoryLimit != "" || c.CPULimit != "" {
+		cgroupPath, err = resources.SetupCgroup(c.Name, c.MemoryLimit, c.CPULimit)
+		if err != nil {
+			return 1, fmt.Errorf("cgroup setup failed: %w", err)
+		}
+		slog.Debug("cgroup created", "path", cgroupPath)
+
+		// Generate custom proc files for resource visibility
+		err = resources.GenerateProcFiles(c.RootfsDir, c.MemoryLimit, c.CPULimit)
+		if err != nil {
+			return 1, fmt.Errorf("proc file generation failed: %w", err)
+		}
+	}
+
 	// Get clone flags for namespaces
 	cloneFlags := c.NS.Cloneflags()
-
-	// For interactive containers, avoid PID namespace to allow proper signal delivery
-	// PID 1 in a namespace has special signal handling that ignores SIGINT/SIGTERM
-	// unless explicit handlers are installed (which most programs don't have)
-	if !c.Background && !c.NS.Get("pid").IsHost {
-		// Remove CLONE_NEWPID flag for interactive containers
-		cloneFlags &^= syscall.CLONE_NEWPID
-		slog.Debug("disabled PID namespace for interactive container to enable signal delivery")
-	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: cloneFlags,
@@ -115,6 +123,17 @@ func crun(c *config.Config) (int, error) {
 
 	c.ContPid = cmd.Process.Pid
 
+	// Move container process into cgroup
+	if cgroupPath != "" {
+		err = resources.AddProcess(cgroupPath, c.ContPid)
+		if err != nil {
+			slog.Warn("failed to add process to cgroup", "error", err)
+			// Don't fail container, limits may not be critical
+		} else {
+			slog.Debug("process added to cgroup", "path", cgroupPath, "pid", c.ContPid)
+		}
+	}
+
 	// c.NS.LoadNamespaceIDs(c.ContPid)
 
 	c.Status = ContainerStatusRunning
@@ -140,11 +159,12 @@ func crun(c *config.Config) (int, error) {
 	}
 
 	// Forward signals to the container process
-	// This is essential for interactive containers to handle Ctrl-C, terminal resize, etc.
+	// For termination signals (SIGINT, SIGTERM, SIGQUIT), use SIGKILL since
+	// PID 1 in a namespace ignores signals unless it has explicit handlers.
+	// SIGKILL cannot be ignored and ensures proper container termination.
 	if !c.Background {
 		go func() {
 			sigChan := make(chan os.Signal, 1)
-			// Register for common signals once before the loop
 			signal.Notify(sigChan,
 				syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT,
 				syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGWINCH,
@@ -154,12 +174,17 @@ func crun(c *config.Config) (int, error) {
 
 			for sig := range sigChan {
 				if cmd.Process != nil {
-					if err := cmd.Process.Signal(sig); err != nil {
+					// Convert termination signals to SIGKILL for PID 1 in namespace
+					signalToSend := sig
+					if sig == syscall.SIGINT || sig == syscall.SIGTERM || sig == syscall.SIGQUIT {
+						signalToSend = syscall.SIGKILL
+					}
+
+					if err := cmd.Process.Signal(signalToSend); err != nil {
 						slog.Debug("failed to forward signal", "signal", sig, "error", err)
-						// Process likely exited, stop forwarding
 						return
 					}
-					slog.Debug("forwarded signal to container", "signal", sig, "pid", cmd.Process.Pid)
+					slog.Debug("forwarded signal to container", "original", sig, "sent", signalToSend, "pid", cmd.Process.Pid)
 				}
 			}
 		}()
