@@ -34,12 +34,12 @@ sandal run -lw / -tmp 10 --rm --  bash
 
 ---
 
-### `--cpus string`
+### `--cpu string`
 
 :   limit the number of CPUs available to the container
   Specify the maximum number of CPUs the container can use as a decimal value.
   Uses cgroup v2 cpu controller to enforce CPU throttling.
-  Example: `--cpus 0.5` (half a CPU), `--cpus 2` (two CPUs)
+  Example: `--cpu 0.5` (half a CPU), `--cpu 2` (two CPUs)
   The value is rounded up to the nearest integer for display in `/proc/cpuinfo`.
   **Note:** Requires cgroup v2 with cpu controller available. If unavailable, a warning is logged but the container continues to run.
 

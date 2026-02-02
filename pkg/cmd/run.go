@@ -78,7 +78,7 @@ func Run(args []string) error {
 
 	// Resource limits
 	f.StringVar(&c.MemoryLimit, "memory", "", "memory limit (e.g., 512M, 1G)")
-	f.StringVar(&c.CPULimit, "cpus", "", "number of CPUs (e.g., 0.5, 2)")
+	f.StringVar(&c.CPULimit, "cpu", "", "number of CPUs (e.g., 0.5, 2)")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)

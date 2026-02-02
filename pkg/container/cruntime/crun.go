@@ -83,15 +83,6 @@ func crun(c *config.Config) (int, error) {
 	// Get clone flags for namespaces
 	cloneFlags := c.NS.Cloneflags()
 
-	// For interactive containers, avoid PID namespace to allow proper signal delivery
-	// PID 1 in a namespace has special signal handling that ignores SIGINT/SIGTERM
-	// unless explicit handlers are installed (which most programs don't have)
-	if !c.Background && !c.NS.Get("pid").IsHost {
-		// Remove CLONE_NEWPID flag for interactive containers
-		cloneFlags &^= syscall.CLONE_NEWPID
-		slog.Debug("disabled PID namespace for interactive container to enable signal delivery")
-	}
-
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: cloneFlags,
 	}
@@ -168,11 +159,12 @@ func crun(c *config.Config) (int, error) {
 	}
 
 	// Forward signals to the container process
-	// This is essential for interactive containers to handle Ctrl-C, terminal resize, etc.
+	// For termination signals (SIGINT, SIGTERM, SIGQUIT), use SIGKILL since
+	// PID 1 in a namespace ignores signals unless it has explicit handlers.
+	// SIGKILL cannot be ignored and ensures proper container termination.
 	if !c.Background {
 		go func() {
 			sigChan := make(chan os.Signal, 1)
-			// Register for common signals once before the loop
 			signal.Notify(sigChan,
 				syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT,
 				syscall.SIGTSTP, syscall.SIGCONT, syscall.SIGWINCH,
@@ -182,12 +174,17 @@ func crun(c *config.Config) (int, error) {
 
 			for sig := range sigChan {
 				if cmd.Process != nil {
-					if err := cmd.Process.Signal(sig); err != nil {
+					// Convert termination signals to SIGKILL for PID 1 in namespace
+					signalToSend := sig
+					if sig == syscall.SIGINT || sig == syscall.SIGTERM || sig == syscall.SIGQUIT {
+						signalToSend = syscall.SIGKILL
+					}
+
+					if err := cmd.Process.Signal(signalToSend); err != nil {
 						slog.Debug("failed to forward signal", "signal", sig, "error", err)
-						// Process likely exited, stop forwarding
 						return
 					}
-					slog.Debug("forwarded signal to container", "signal", sig, "pid", cmd.Process.Pid)
+					slog.Debug("forwarded signal to container", "original", sig, "sent", signalToSend, "pid", cmd.Process.Pid)
 				}
 			}
 		}()
