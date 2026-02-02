@@ -27,10 +27,21 @@ sandal run -lw / -tmp 10 --rm --  bash
 
 ### `-cap-drop value`
 
-:   drop capabilities from the container (multiple values allowed)  
-  Remove specific capabilities even in privileged mode.  
-  Example: `-cap-drop SYS_ADMIN -cap-drop NET_ADMIN`  
+:   drop capabilities from the container (multiple values allowed)
+  Remove specific capabilities even in privileged mode.
+  Example: `-cap-drop SYS_ADMIN -cap-drop NET_ADMIN`
   This provides an additional layer of security by explicitly removing potentially dangerous capabilities.
+
+---
+
+### `--cpus string`
+
+:   limit the number of CPUs available to the container
+  Specify the maximum number of CPUs the container can use as a decimal value.
+  Uses cgroup v2 cpu controller to enforce CPU throttling.
+  Example: `--cpus 0.5` (half a CPU), `--cpus 2` (two CPUs)
+  The value is rounded up to the nearest integer for display in `/proc/cpuinfo`.
+  **Note:** Requires cgroup v2 with cpu controller available. If unavailable, a warning is logged but the container continues to run.
 
 ---
 
@@ -147,6 +158,26 @@ Allocation configuration of /etc/hosts file.
     O1[OverlayFs] --> C1[(ChangeDir)]
 
     ```
+
+---
+
+### `--memory string`
+
+:   limit the memory available to the container
+  Specify the maximum amount of memory the container can use.
+  Supports human-readable units: K, M, G, T (1000-based) or Ki, Mi, Gi, Ti (1024-based).
+  Uses cgroup v2 memory controller to enforce memory limits (triggers OOM killer if exceeded).
+  Custom `/proc/meminfo` is generated to show the limited memory inside the container.
+
+  Example usage:
+  ```bash
+  sandal run --memory 512M -lw / -- bash    # 512 megabytes
+  sandal run --memory 1G -lw / -- bash      # 1 gigabyte
+  sandal run --memory 1Gi -lw / -- bash     # 1 gibibyte (1024-based)
+  sandal run --memory 134217728 -lw / -- bash  # 128MB in bytes
+  ```
+
+  **Note:** Requires cgroup v2 with memory controller available. If unavailable, a warning is logged and only `/proc/meminfo` is customized (without kernel enforcement).
 
 ---
 

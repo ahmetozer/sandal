@@ -11,6 +11,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -61,6 +62,22 @@ func crun(c *config.Config) (int, error) {
 	err = c.NS.Defaults()
 	if err != nil {
 		return 1, err
+	}
+
+	// Setup resource limits via cgroups
+	var cgroupPath string
+	if c.MemoryLimit != "" || c.CPULimit != "" {
+		cgroupPath, err = resources.SetupCgroup(c.Name, c.MemoryLimit, c.CPULimit)
+		if err != nil {
+			return 1, fmt.Errorf("cgroup setup failed: %w", err)
+		}
+		slog.Debug("cgroup created", "path", cgroupPath)
+
+		// Generate custom proc files for resource visibility
+		err = resources.GenerateProcFiles(c.RootfsDir, c.MemoryLimit, c.CPULimit)
+		if err != nil {
+			return 1, fmt.Errorf("proc file generation failed: %w", err)
+		}
 	}
 
 	// Get clone flags for namespaces
@@ -114,6 +131,17 @@ func crun(c *config.Config) (int, error) {
 	}
 
 	c.ContPid = cmd.Process.Pid
+
+	// Move container process into cgroup
+	if cgroupPath != "" {
+		err = resources.AddProcess(cgroupPath, c.ContPid)
+		if err != nil {
+			slog.Warn("failed to add process to cgroup", "error", err)
+			// Don't fail container, limits may not be critical
+		} else {
+			slog.Debug("process added to cgroup", "path", cgroupPath, "pid", c.ContPid)
+		}
+	}
 
 	// c.NS.LoadNamespaceIDs(c.ContPid)
 
