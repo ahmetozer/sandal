@@ -47,6 +47,8 @@ func Main() {
 		executeSubCommand(Clear)
 	case "exec":
 		executeSubCommand(ExecOnContainer)
+	case "vm":
+		executeSubCommand(VM)
 	case "help":
 		subCommandsHelp()
 		envs()
@@ -83,6 +85,7 @@ func subCommandsHelp() {
 	daemon - Start sandal daemon
 	clear - Clear unused containers
 	exec - Execute a command in a container
+	vm - Manage virtual machines (macOS only)
 	help - Show help, default and current environment variables` + "\n")
 
 	fmt.Printf("\nVersion: %s\n", BuildVersion)

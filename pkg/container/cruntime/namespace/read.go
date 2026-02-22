@@ -1,3 +1,5 @@
+//go:build linux
+
 package namespace
 
 // func (Ns *Namespaces) LoadNamespaceIDs(containerPid int) {
