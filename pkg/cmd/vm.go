@@ -264,6 +264,12 @@ func startVM(name string, cfg vz.VMConfig) error {
 		return fmt.Errorf("VM '%s' is already running (pid %d)", name, pid)
 	}
 
+	// Validate that all referenced files still exist (kernel, initrd, disk, iso, mounts).
+	// Config may have been created earlier and files could have been moved or deleted since.
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("config validation: %w", err)
+	}
+
 	// Auto-generate cloud-init ISO for virtiofs mounts
 	if len(cfg.Mounts) > 0 {
 		var ciMounts []cloudinit.MountInfo
@@ -304,6 +310,12 @@ func startVM(name string, cfg vz.VMConfig) error {
 		}
 	}
 
+	return bootVM(name, cfg)
+}
+
+// bootVM boots the VM without applying any cloud-init or initrd overlays.
+// Use startVM() for the standard flow with auto-generated overlays.
+func bootVM(name string, cfg vz.VMConfig) error {
 	// Kill stale VM processes holding the disk file
 	if cfg.DiskPath != "" {
 		if killed, err := killStaleDiskHolders(cfg.DiskPath); err != nil {

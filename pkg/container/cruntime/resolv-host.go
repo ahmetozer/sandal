@@ -4,7 +4,6 @@ package cruntime
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"path"
@@ -17,7 +16,9 @@ import (
 func read(file string) *[]byte {
 	resolv, err := os.ReadFile(file)
 	if err != nil {
-		log.Fatalf("unable to read %s: %s", file, err)
+		slog.Info(fmt.Sprintf("unable to read %s: %s", file, err))
+		empty := []byte{}
+		return &empty
 	}
 	return &resolv
 

@@ -112,13 +112,19 @@ func crun(c *config.Config) (int, error) {
 	// 	return 1, err
 	// }
 
-	go cmd.Run()
+	var cmdErr error
+	go func() {
+		cmdErr = cmd.Run()
+	}()
 
 	// Process information will filled during execution
 	started := time.Now()
 	for cmd.Process == nil {
 		time.Sleep(time.Millisecond)
 		if time.Now().After(started.Add(time.Second)) {
+			if cmdErr != nil {
+				return 1, fmt.Errorf("unable to start child process: %w", cmdErr)
+			}
 			return 1, fmt.Errorf("unable to allocate proccess under a second")
 		}
 	}

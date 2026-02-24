@@ -190,6 +190,118 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 	return strings.Join(result, "\n")
 }
 
+// CreateFromBinary creates an initramfs CPIO archive with the given binary as /init.
+// If baseInitrdPath is non-empty, the base initrd is prepended so kernel modules
+// from it remain available. The binary's /init entry in the appended CPIO overrides
+// any /init in the base.
+// Returns the path to a temporary file (caller must remove it).
+func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) {
+	binData, err := os.ReadFile(binaryPath)
+	if err != nil {
+		return "", fmt.Errorf("reading binary %s: %w", binaryPath, err)
+	}
+
+	cpioData := newcCPIO("init", binData, 0100755)
+
+	// Gzip-compress the CPIO overlay so the kernel can parse it when
+	// concatenated after a gzip-compressed base initrd.
+	var compressed bytes.Buffer
+	gz := gzip.NewWriter(&compressed)
+	if _, err := gz.Write(cpioData); err != nil {
+		return "", fmt.Errorf("compressing cpio: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return "", fmt.Errorf("finalizing gzip: %w", err)
+	}
+
+	tmp, err := os.CreateTemp("", "sandal-initrd-*.img")
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
+
+	// Prepend base initrd if provided (for kernel modules)
+	if baseInitrdPath != "" {
+		baseData, err := os.ReadFile(baseInitrdPath)
+		if err != nil {
+			os.Remove(tmp.Name())
+			return "", fmt.Errorf("reading base initrd %s: %w", baseInitrdPath, err)
+		}
+		if _, err := tmp.Write(baseData); err != nil {
+			os.Remove(tmp.Name())
+			return "", err
+		}
+	}
+
+	if _, err := tmp.Write(compressed.Bytes()); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+
+	return tmp.Name(), nil
+}
+
+// CreateContainerOverlay is like CreateOverlay but replaces all exec switch_root
+// calls with the given execCommand. This allows running a program (e.g. sandal)
+// directly in the initramfs environment without requiring a root filesystem on disk.
+func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand string) (string, error) {
+	if len(mounts) == 0 && execCommand == "" {
+		return initrdPath, nil
+	}
+
+	initScript, err := extractInit(initrdPath)
+	if err != nil {
+		return "", fmt.Errorf("extract init from initramfs: %w", err)
+	}
+
+	modified := string(initScript)
+	if len(mounts) > 0 {
+		modified = injectMounts(modified, mounts)
+	}
+	if execCommand != "" {
+		modified = replaceSwitch(modified, execCommand)
+	}
+
+	overlay := newcCPIO("init", []byte(modified), 0100755)
+
+	origData, err := os.ReadFile(initrdPath)
+	if err != nil {
+		return "", err
+	}
+
+	tmp, err := os.CreateTemp("", "sandal-initrd-*.img")
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
+
+	if _, err := tmp.Write(origData); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	if _, err := tmp.Write(overlay); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+
+	return tmp.Name(), nil
+}
+
+// replaceSwitch replaces all exec switch_root lines with the given command.
+func replaceSwitch(initScript string, command string) string {
+	lines := strings.Split(initScript, "\n")
+	var result []string
+	for _, line := range lines {
+		if strings.Contains(line, "exec switch_root") {
+			result = append(result, "# sandal-vm: replaced switch_root with container exec")
+			result = append(result, "exec "+command)
+		} else {
+			result = append(result, line)
+		}
+	}
+	return strings.Join(result, "\n")
+}
+
 // newcCPIO builds a minimal newc-format CPIO archive containing a single file
 // and a trailer.
 func newcCPIO(name string, data []byte, mode uint32) []byte {

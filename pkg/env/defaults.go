@@ -40,12 +40,14 @@ func init() {
 	if len(os.Args) > 0 {
 		ex, err := os.Executable()
 		if err != nil {
-			panic(err)
-		}
-		BinLoc, err = exec.LookPath(ex)
-		if err != nil {
-			slog.Debug(err.Error())
+			// /proc may not be mounted yet (e.g. sandal running as VM init PID 1)
 			BinLoc = os.Args[0]
+		} else {
+			BinLoc, err = exec.LookPath(ex)
+			if err != nil {
+				slog.Debug(err.Error())
+				BinLoc = os.Args[0]
+			}
 		}
 	} else {
 		BinLoc = "/proc/self/exe"

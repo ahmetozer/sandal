@@ -41,6 +41,9 @@ func Run(args []string) error {
 
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
+	var vmFlag string
+	f.StringVar(&vmFlag, "vm", "", "VM name (macOS only, ignored on Linux)")
+
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
 	f.StringVar(&c.Name, "name", containerId, "name of the container")
