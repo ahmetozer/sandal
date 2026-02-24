@@ -125,18 +125,34 @@ func Run(args []string) error {
 	vmArgs = append(vmArgs, "-resolv", "image", "-hosts", "image")
 
 	// Process -lw flags: mount each host path via VirtioFS, adjust to /mnt/lw-N
+	// VirtioFS only supports sharing directories, so if -lw points to a file
+	// (e.g. a squashfs image), share the parent directory and adjust the
+	// in-VM path to include the filename.
 	for i, lwPath := range lw {
 		absPath, err := filepath.Abs(lwPath)
 		if err != nil {
 			return fmt.Errorf("resolving -lw path %q: %w", lwPath, err)
 		}
 		tag := fmt.Sprintf("lw-%d", i)
+		vmLwPath := fmt.Sprintf("/mnt/%s", tag)
+
+		fi, err := os.Stat(absPath)
+		if err != nil {
+			return fmt.Errorf("stat -lw path %q: %w", absPath, err)
+		}
+		hostSharePath := absPath
+		if !fi.IsDir() {
+			// Share the parent directory; append filename to the in-VM path
+			hostSharePath = filepath.Dir(absPath)
+			vmLwPath = fmt.Sprintf("/mnt/%s/%s", tag, filepath.Base(absPath))
+		}
+
 		vmMounts = append(vmMounts, vz.MountConfig{
 			Tag:      tag,
-			HostPath: absPath,
+			HostPath: hostSharePath,
 		})
 		mountTags = append(mountTags, tag)
-		vmArgs = append(vmArgs, "-lw", fmt.Sprintf("/mnt/%s", tag))
+		vmArgs = append(vmArgs, "-lw", vmLwPath)
 	}
 
 	// Process -v flags: mount host path via VirtioFS, adjust to /mnt/vol-N:container
@@ -179,9 +195,24 @@ func Run(args []string) error {
 	cfg.CommandLine = fmt.Sprintf("console=hvc0 SANDAL_VM_ARGS=%s SANDAL_VM_MOUNTS=%s",
 		string(argsJSON), strings.Join(mountTags, ","))
 
+	// Auto-discover initrd alongside the kernel if not configured.
+	// Kernel modules (virtiofs, overlay, etc.) live in the base initrd.
+	baseInitrd := cfg.InitrdPath
+	if baseInitrd == "" {
+		kernelDir := filepath.Dir(cfg.KernelPath)
+		candidates := []string{"initramfs-virt", "initramfs-lts", "initrd.img", "initramfs.img"}
+		for _, name := range candidates {
+			p := filepath.Join(kernelDir, name)
+			if _, err := os.Stat(p); err == nil {
+				baseInitrd = p
+				break
+			}
+		}
+	}
+
 	// Create initrd: sandal Linux binary as /init, prepend base initrd if available
 	// (base initrd provides kernel modules like virtiofs)
-	initrdPath, err := initrd.CreateFromBinary(sandalBin, cfg.InitrdPath)
+	initrdPath, err := initrd.CreateFromBinary(sandalBin, baseInitrd)
 	if err != nil {
 		return fmt.Errorf("creating initrd from sandal binary: %w", err)
 	}

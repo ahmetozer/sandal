@@ -5,10 +5,10 @@ package cruntime
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
 	"golang.org/x/sys/unix"
 )
 
@@ -38,14 +38,11 @@ func VMInit() error {
 	unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
 
 	// Load kernel modules before switch_root (modules live in the base initrd).
-	// Use absolute path since PATH may not include /sbin in initramfs.
-	modprobe := "/sbin/modprobe"
-	if _, err := os.Stat(modprobe); err != nil {
-		modprobe = "modprobe" // fallback to PATH lookup
+	for _, mod := range []string{"fuse", "virtiofs", "overlay", "loop", "squashfs"} {
+		if err := modprobe.Load(mod); err != nil {
+			fmt.Fprintf(os.Stderr, "modprobe %s: %v\n", mod, err)
+		}
 	}
-	exec.Command(modprobe, "fuse").Run()
-	exec.Command(modprobe, "virtiofs").Run()
-	exec.Command(modprobe, "overlay").Run()
 
 	// The kernel's initramfs root (rootfs) doesn't support pivot_root.
 	// Use switch_root approach: mount tmpfs, chroot into it.
