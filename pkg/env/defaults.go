@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 )
 
 var (
@@ -26,6 +27,8 @@ var (
 	DaemonSocket string
 
 	DefaultHostNet string
+
+	VMBinPath string
 
 	Get func(EnvName, DefaultValue string) string
 
@@ -68,6 +71,9 @@ func init() {
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123::1/64")
 
 		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
+
+		home, _ := os.UserHomeDir()
+		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(home, ".sandal-vm", "bin", "sandal"))
 
 		Get("SANDAL_LOG_LEVEL", "info")
 

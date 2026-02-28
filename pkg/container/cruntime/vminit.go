@@ -18,6 +18,12 @@ func IsVMInit() bool {
 	return os.Getpid() == 1 && os.Getenv("SANDAL_VM_ARGS") != ""
 }
 
+// isVM returns true if the container runtime is running inside a VM.
+// Unlike IsVMInit (PID 1 check), this works for child processes too.
+func isVM() bool {
+	return os.Getenv("SANDAL_VM_ARGS") != ""
+}
+
 // VMInit performs early system setup when sandal runs as PID 1 (init) inside a VM.
 // It mounts essential filesystems, switches from initramfs rootfs to a real tmpfs
 // (so the container runtime can later pivot_root), loads virtiofs modules, and
@@ -79,18 +85,26 @@ func VMInit() error {
 	// Update BinLoc to use the binary in the new root
 	env.BinLoc = "/init"
 
-	// Mount virtiofs shares from SANDAL_VM_MOUNTS (comma-separated tags)
-	mountTags := os.Getenv("SANDAL_VM_MOUNTS")
-	if mountTags == "" {
+	// Mount virtiofs shares from SANDAL_VM_MOUNTS (format: tag=hostpath,tag=hostpath)
+	// Each share is mounted at /mnt/<hostpath> to mirror the host filesystem layout.
+	mountSpec := os.Getenv("SANDAL_VM_MOUNTS")
+	if mountSpec == "" {
 		return nil
 	}
 
-	for _, tag := range strings.Split(mountTags, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == "" {
+	for _, entry := range strings.Split(mountSpec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
 			continue
 		}
-		mountPoint := "/mnt/" + tag
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) != 2 {
+			fmt.Fprintf(os.Stderr, "Warning: invalid mount spec %q\n", entry)
+			continue
+		}
+		tag := parts[0]
+		hostPath := parts[1]
+		mountPoint := "/mnt" + hostPath
 		os.MkdirAll(mountPoint, 0755)
 		if err := unix.Mount(tag, mountPoint, "virtiofs", 0, ""); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to mount virtiofs %s at %s: %v\n", tag, mountPoint, err)
@@ -99,5 +113,3 @@ func VMInit() error {
 
 	return nil
 }
-
-

@@ -4,12 +4,12 @@ package cmd
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/vm/initrd"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
@@ -19,71 +19,14 @@ func Run(args []string) error {
 		return fmt.Errorf("no command option provided")
 	}
 
-	thisFlags, contArgs, splitErr := SplitFlagsArgs(args)
+	// Extract -vm flag (darwin-only, not forwarded to VM).
+	vmFlag, cleanArgs := extractFlag(args, "vm", "default-vm")
 
-	f := flag.NewFlagSet("run", flag.ExitOnError)
+	// Scan args for -lw and -v values to determine VirtioFS shares.
+	// The args themselves are NOT modified.
+	hostPaths := scanMountPaths(cleanArgs)
 
-	var (
-		vmFlag  string
-		name    string
-		rm      bool
-		lw      repeatableFlag
-		volumes repeatableFlag
-	)
-
-	f.StringVar(&vmFlag, "vm", "default-vm", "VM config name")
-	f.StringVar(&name, "name", "", "name of the container")
-	f.BoolVar(&rm, "rm", true, "remove container files on exit")
-	f.Var(&lw, "lw", "Lower directory of the root file system")
-	f.Var(&volumes, "v", "volume mount point")
-
-	// Accept Linux-only flags without error (ignored on macOS)
-	var ignored string
-	var ignoredBool bool
-	var ignoredUint uint
-	f.BoolVar(&ignoredBool, "d", false, "")
-	f.BoolVar(&ignoredBool, "ro", false, "")
-	f.BoolVar(&ignoredBool, "startup", false, "")
-	f.BoolVar(&ignoredBool, "env-all", false, "")
-	f.StringVar(&ignored, "dir", "", "")
-	f.StringVar(&ignored, "resolv", "", "")
-	f.StringVar(&ignored, "hosts", "", "")
-	f.StringVar(&ignored, "chdir", "", "")
-	f.StringVar(&ignored, "rdir", "", "")
-	f.StringVar(&ignored, "devtmpfs", "", "")
-	f.StringVar(&ignored, "user", "", "")
-	f.StringVar(&ignored, "memory", "", "")
-	f.StringVar(&ignored, "cpu", "", "")
-	f.UintVar(&ignoredUint, "tmp", 0, "")
-	var ignoredRepeat repeatableFlag
-	f.Var(&ignoredRepeat, "net", "")
-	f.Var(&ignoredRepeat, "env-pass", "")
-	f.Var(&ignoredRepeat, "rcp", "")
-	f.Var(&ignoredRepeat, "rci", "")
-	f.Var(&ignoredRepeat, "cap-add", "")
-	f.Var(&ignoredRepeat, "cap-drop", "")
-	// Namespace flags
-	f.StringVar(&ignored, "ns-mount", "", "")
-	f.StringVar(&ignored, "ns-ipc", "", "")
-	f.StringVar(&ignored, "ns-pid", "", "")
-	f.StringVar(&ignored, "ns-net", "", "")
-	f.StringVar(&ignored, "ns-user", "", "")
-	f.StringVar(&ignored, "ns-uts", "", "")
-	f.StringVar(&ignored, "ns-cgroup", "", "")
-
-	if err := f.Parse(thisFlags); err != nil {
-		return fmt.Errorf("error parsing flags: %v", err)
-	}
-
-	if splitErr != nil {
-		return splitErr
-	}
-
-	if len(lw) == 0 {
-		return fmt.Errorf("at least one -lw (lower directory) is required")
-	}
-
-	// Load VM config (when -vm=new, use default-vm as the base)
+	// Load VM config
 	configName := vmFlag
 	if vmFlag == "new" {
 		configName = "default-vm"
@@ -93,110 +36,70 @@ func Run(args []string) error {
 		return fmt.Errorf("loading VM config '%s': %w (create with: sandal vm create -name %s -kernel <path>)", configName, err, configName)
 	}
 
-	// Resolve Linux sandal binary
-	sandalBin := os.Getenv("SANDAL_VM_BIN")
-	if sandalBin == "" {
-		home, _ := os.UserHomeDir()
-		sandalBin = filepath.Join(home, ".sandal-vm", "bin", "sandal")
-	}
-	if _, err := os.Stat(sandalBin); err != nil {
-		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", sandalBin, sandalBin)
+	// Resolve Linux sandal binary (configured via SANDAL_VM_BIN env var)
+	if _, err := os.Stat(env.VMBinPath); err != nil {
+		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", env.VMBinPath, env.VMBinPath)
 	}
 
-	// Build VirtioFS mounts and adjusted args for inside the VM
+	// Build VirtioFS mounts from collected host paths.
+	// Each unique host directory gets a VirtioFS share.
+	// Mount mapping is passed as SANDAL_VM_MOUNTS=tag=hostpath,tag=hostpath
 	var vmMounts []vz.MountConfig
-	var mountTags []string
-	var vmArgs []string
+	var mountEntries []string
+	seen := make(map[string]bool)
 
-	vmArgs = append(vmArgs, "run")
-	if rm {
-		vmArgs = append(vmArgs, "-rm")
-	}
-	if name != "" {
-		vmArgs = append(vmArgs, "-name", name)
-	}
-	/*
-		TODO Instead of append, set default runs at top
-		! With below approach, it will break user inputs
-	*/
-	// Use host namespaces where possible inside the VM
-	vmArgs = append(vmArgs, "-ns-net", "host", "-ns-cgroup", "host", "-ns-user", "host")
-	// Skip resolv.conf/hosts copying (no /etc in initramfs)
-	vmArgs = append(vmArgs, "-resolv", "image", "-hosts", "image")
-
-	// Process -lw flags: mount each host path via VirtioFS, adjust to /mnt/lw-N
-	// VirtioFS only supports sharing directories, so if -lw points to a file
-	// (e.g. a squashfs image), share the parent directory and adjust the
-	// in-VM path to include the filename.
-	for i, lwPath := range lw {
-		absPath, err := filepath.Abs(lwPath)
-		if err != nil {
-			return fmt.Errorf("resolving -lw path %q: %w", lwPath, err)
-		}
-		tag := fmt.Sprintf("lw-%d", i)
-		vmLwPath := fmt.Sprintf("/mnt/%s", tag)
-
-		fi, err := os.Stat(absPath)
-		if err != nil {
-			return fmt.Errorf("stat -lw path %q: %w", absPath, err)
-		}
-		hostSharePath := absPath
-		if !fi.IsDir() {
-			// Share the parent directory; append filename to the in-VM path
-			hostSharePath = filepath.Dir(absPath)
-			vmLwPath = fmt.Sprintf("/mnt/%s/%s", tag, filepath.Base(absPath))
-		}
-
-		vmMounts = append(vmMounts, vz.MountConfig{
-			Tag:      tag,
-			HostPath: hostSharePath,
-		})
-		mountTags = append(mountTags, tag)
-		vmArgs = append(vmArgs, "-lw", vmLwPath)
-	}
-
-	// Process -v flags: mount host path via VirtioFS, adjust to /mnt/vol-N:container
-	for i, vol := range volumes {
-		parts := strings.SplitN(vol, ":", 2)
-		if len(parts) < 2 {
-			return fmt.Errorf("invalid volume format %q (expected host:container)", vol)
-		}
-		hostPath := parts[0]
-		containerPath := parts[1]
-
+	for i, hostPath := range hostPaths {
 		absPath, err := filepath.Abs(hostPath)
 		if err != nil {
-			return fmt.Errorf("resolving -v host path %q: %w", hostPath, err)
+			return fmt.Errorf("resolving path %q: %w", hostPath, err)
 		}
-		tag := fmt.Sprintf("vol-%d", i)
+
+		// VirtioFS only supports directories — use parent dir for files
+		shareDir := absPath
+		if fi, err := os.Stat(absPath); err == nil && !fi.IsDir() {
+			shareDir = filepath.Dir(absPath)
+		}
+
+		// Deduplicate: skip if this directory is already shared
+		if seen[shareDir] {
+			continue
+		}
+		seen[shareDir] = true
+
+		tag := fmt.Sprintf("fs-%d", i)
 		vmMounts = append(vmMounts, vz.MountConfig{
 			Tag:      tag,
-			HostPath: absPath,
+			HostPath: shareDir,
 		})
-		mountTags = append(mountTags, tag)
-		vmArgs = append(vmArgs, "-v", fmt.Sprintf("/mnt/%s:%s", tag, containerPath))
+		mountEntries = append(mountEntries, fmt.Sprintf("%s=%s", tag, shareDir))
 	}
 
-	// Add -- and container command
-	vmArgs = append(vmArgs, "--")
-	vmArgs = append(vmArgs, contArgs...)
+	cfg.Mounts = append(cfg.Mounts, vmMounts...)
 
-	// Build compact JSON (no spaces) for kernel cmdline env var
+	// Pass ALL original args unchanged as SANDAL_VM_ARGS
+	vmArgs := append([]string{"run"}, cleanArgs...)
 	argsJSON, err := json.Marshal(vmArgs)
 	if err != nil {
 		return fmt.Errorf("marshaling VM args: %w", err)
 	}
 
-	// Append mounts to VM config
-	cfg.Mounts = append(cfg.Mounts, vmMounts...)
-
-	// Build kernel command line with SANDAL_VM_ARGS and SANDAL_VM_MOUNTS
-	// sandal as PID 1 reads these env vars to mount virtiofs and dispatch run
-	cfg.CommandLine = fmt.Sprintf("console=hvc0 SANDAL_VM_ARGS=%s SANDAL_VM_MOUNTS=%s",
-		string(argsJSON), strings.Join(mountTags, ","))
+	// Build kernel command line with resolved env vars so the VM
+	// inherits the host's sandal configuration.
+	var cmdLineParts []string
+	cmdLineParts = append(cmdLineParts, "console=hvc0")
+	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+string(argsJSON))
+	if len(mountEntries) > 0 {
+		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
+	}
+	// Pass resolved sandal env vars to the VM
+	for _, e := range env.GetDefaults() {
+		if val := os.Getenv(e.Name); val != "" {
+			cmdLineParts = append(cmdLineParts, fmt.Sprintf("%s=%s", e.Name, val))
+		}
+	}
+	cfg.CommandLine = strings.Join(cmdLineParts, " ")
 
 	// Auto-discover initrd alongside the kernel if not configured.
-	// Kernel modules (virtiofs, overlay, etc.) live in the base initrd.
 	baseInitrd := cfg.InitrdPath
 	if baseInitrd == "" {
 		kernelDir := filepath.Dir(cfg.KernelPath)
@@ -211,8 +114,7 @@ func Run(args []string) error {
 	}
 
 	// Create initrd: sandal Linux binary as /init, prepend base initrd if available
-	// (base initrd provides kernel modules like virtiofs)
-	initrdPath, err := initrd.CreateFromBinary(sandalBin, baseInitrd)
+	initrdPath, err := initrd.CreateFromBinary(env.VMBinPath, baseInitrd)
 	if err != nil {
 		return fmt.Errorf("creating initrd from sandal binary: %w", err)
 	}
@@ -220,7 +122,6 @@ func Run(args []string) error {
 	cfg.InitrdPath = initrdPath
 
 	// Use the VM config name for identification (PID file, list, stop/kill).
-	// Only create an ephemeral VM when -vm=new.
 	vmName := vmFlag
 	if vmFlag == "new" {
 		vmName = fmt.Sprintf("run-%d", os.Getpid())
@@ -231,4 +132,54 @@ func Run(args []string) error {
 	}
 
 	return bootVM(vmName, cfg)
+}
+
+// extractFlag removes a flag and its value from args, returning the value and cleaned args.
+// Handles both "-flag value" and "-flag=value" forms.
+func extractFlag(args []string, name string, defaultVal string) (string, []string) {
+	val := defaultVal
+	prefix := "-" + name
+	var clean []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		// -flag=value form
+		if strings.HasPrefix(arg, prefix+"=") {
+			val = arg[len(prefix)+1:]
+			continue
+		}
+
+		// -flag value form
+		if arg == prefix && i+1 < len(args) {
+			val = args[i+1]
+			i++ // skip value
+			continue
+		}
+
+		clean = append(clean, arg)
+	}
+
+	return val, clean
+}
+
+// scanMountPaths scans args for -lw and -v flag values and returns the host paths
+// that need VirtioFS shares. Does not modify args.
+func scanMountPaths(args []string) []string {
+	var paths []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			break
+		}
+		if (args[i] == "-lw" || args[i] == "-v") && i+1 < len(args) {
+			i++
+			hostPath := args[i]
+			// For -v, extract host path from host:container format
+			if parts := strings.SplitN(hostPath, ":", 2); len(parts) >= 1 {
+				hostPath = parts[0]
+			}
+			paths = append(paths, hostPath)
+		}
+	}
+	return paths
 }
