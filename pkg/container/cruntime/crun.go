@@ -115,9 +115,9 @@ func crun(c *config.Config) (int, error) {
 	// 	return 1, err
 	// }
 
-	// Allocate a PTY for interactive containers in VM mode so the
-	// shell gets a real terminal (isatty=true, job control works).
-	if !c.Background && isVM() {
+	// Allocate a PTY for interactive containers when -t is passed
+	// so the shell gets a real terminal (isatty=true, job control works).
+	if !c.Background && c.TTY {
 		master, slave, ptyErr := allocPTY()
 		if ptyErr == nil {
 			setPTYSize(master, 24, 80)

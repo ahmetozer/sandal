@@ -16,7 +16,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/ahmetozer/sandal/pkg/vm/cloudinit"
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
 	"github.com/ahmetozer/sandal/pkg/vm/initrd"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
@@ -268,28 +267,6 @@ func startVM(name string, cfg vz.VMConfig) error {
 	// Config may have been created earlier and files could have been moved or deleted since.
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("config validation: %w", err)
-	}
-
-	// Auto-generate cloud-init ISO for virtiofs mounts
-	if len(cfg.Mounts) > 0 {
-		var ciMounts []cloudinit.MountInfo
-		for _, m := range cfg.Mounts {
-			ciMounts = append(ciMounts, cloudinit.MountInfo{
-				Tag:      m.Tag,
-				ReadOnly: m.ReadOnly,
-			})
-		}
-		isoPath, err := cloudinit.GenerateNoCloudISO(ciMounts)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not generate cloud-init ISO: %v\n", err)
-		} else if isoPath != "" {
-			defer os.Remove(isoPath)
-			if cfg.ISOPath == "" {
-				cfg.ISOPath = isoPath
-			} else {
-				fmt.Fprintf(os.Stderr, "Warning: cloud-init ISO generated but -iso already specified, skipping auto-attach\n")
-			}
-		}
 	}
 
 	// Auto-generate initramfs overlay for virtiofs mounts (fallback if no cloud-init)

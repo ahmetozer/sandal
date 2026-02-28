@@ -34,6 +34,7 @@ type Config struct {
 	EnvAll          bool
 	Background      bool
 	Startup         bool
+	TTY             bool
 	NS              namespace.Namespaces
 	Capabilities    capabilities.Capabilities
 	User            string

@@ -57,6 +57,7 @@ func Run(args []string) error {
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
+	f.BoolVar(&c.TTY, "t", false, "allocate a pseudo-TTY")
 	f.StringVar(&c.Name, "name", containerId, "name of the container")
 	f.BoolVar(&c.ReadOnly, "ro", false, "read only rootfs")
 
