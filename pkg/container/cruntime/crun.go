@@ -47,8 +47,8 @@ func crun(c *config.Config) (int, error) {
 	}
 	cmd := exec.Command(env.BinLoc, "sandal-child", c.Name)
 
-	// PTY master for interactive VM containers; nil otherwise
-	var ptmx *os.File
+	// PTY master/slave for interactive VM containers; nil otherwise
+	var ptmx, ptySlave *os.File
 
 	if !c.Background {
 		cmd.Stdin = os.Stdin
@@ -128,7 +128,7 @@ func crun(c *config.Config) (int, error) {
 			cmd.SysProcAttr.Setctty = true
 			cmd.SysProcAttr.Ctty = 0 // fd 0 = stdin = slave after dup2
 			ptmx = master
-			defer slave.Close()
+			ptySlave = slave
 		} else {
 			slog.Warn("PTY allocation failed, falling back to serial console", "error", ptyErr)
 		}
@@ -152,6 +152,14 @@ func crun(c *config.Config) (int, error) {
 	}
 
 	c.ContPid = cmd.Process.Pid
+
+	// Close the slave PTY fd in the parent now that the child has inherited it.
+	// This ensures when the child exits, all slave fds are closed and master
+	// read returns EIO, allowing the relay goroutine to terminate.
+	if ptySlave != nil {
+		ptySlave.Close()
+		ptySlave = nil
+	}
 
 	// Move container process into cgroup
 	if cgroupPath != "" {
