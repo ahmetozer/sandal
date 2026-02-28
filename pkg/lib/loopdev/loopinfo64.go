@@ -1,3 +1,5 @@
+//go:build linux
+
 package loopdev
 
 // LoopInfo64 represents the loop device information structure

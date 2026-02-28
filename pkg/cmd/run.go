@@ -1,3 +1,5 @@
+//go:build linux
+
 package cmd
 
 import (
@@ -16,8 +18,19 @@ import (
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
+	"golang.org/x/sys/unix"
 )
 
+func init() {
+	ExitHandler = func(code int) {
+		os.Exit(code)
+	}
+	if vmArgs := os.Getenv("SANDAL_VM_ARGS"); vmArgs != "" {
+		ExitHandler = func(code int) {
+			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
+		}
+	}
+}
 func Run(args []string) error {
 
 	if len(args) < 1 {
@@ -35,9 +48,12 @@ func Run(args []string) error {
 	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("ContArgs", c.ContArgs), slog.Any("os.Args", os.Args))
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
-	f := flag.NewFlagSet("run", flag.ExitOnError)
+	f := flag.NewFlagSet("run", flag.ContinueOnError)
 
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
+
+	var vmFlag string
+	f.StringVar(&vmFlag, "vm", "", "VM name (macOS only, ignored on Linux)")
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
@@ -124,6 +140,15 @@ func Run(args []string) error {
 
 	c.Net, err = net.ParseFlag(networkInterfacesCmd, conts, &c)
 	if err != nil {
+		return err
+	}
+
+	// Apply namespace defaults (sets IsHost, IsUserDefined) before saving
+	// the config to disk. The child process reads the config immediately
+	// after starting; without this, it races and reads a stale config where
+	// IsHost=false even when --ns-net host was passed, causing
+	// WaitUntilCreated to time out waiting for veths that were never created.
+	if err := c.NS.Defaults(); err != nil {
 		return err
 	}
 

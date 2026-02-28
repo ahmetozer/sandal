@@ -1,3 +1,5 @@
+//go:build linux
+
 package cruntime
 
 import (
@@ -186,6 +188,14 @@ func purgeOldRoot(c *config.Config) {
 func mount(source, target, fstype string, flags uintptr, data string) error {
 
 	slog.Debug("mount", slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype))
+
+	// In VM mode, host paths are available under /mnt/
+	if source != "" && source[0:1] == "/" && isVM() && !strings.HasPrefix(source, "/mnt/") {
+		vmSource := "/mnt" + source
+		if _, err := os.Stat(vmSource); err == nil {
+			source = vmSource
+		}
+	}
 
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {

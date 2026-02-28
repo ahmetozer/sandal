@@ -1,0 +1,185 @@
+//go:build darwin
+
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/vm/initrd"
+	"github.com/ahmetozer/sandal/pkg/vm/vz"
+)
+
+func Run(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("no command option provided")
+	}
+
+	// Extract -vm flag (darwin-only, not forwarded to VM).
+	vmFlag, cleanArgs := extractFlag(args, "vm", "default-vm")
+
+	// Scan args for -lw and -v values to determine VirtioFS shares.
+	// The args themselves are NOT modified.
+	hostPaths := scanMountPaths(cleanArgs)
+
+	// Load VM config
+	configName := vmFlag
+	if vmFlag == "new" {
+		configName = "default-vm"
+	}
+	cfg, err := vz.LoadConfig(configName)
+	if err != nil {
+		return fmt.Errorf("loading VM config '%s': %w (create with: sandal vm create -name %s -kernel <path>)", configName, err, configName)
+	}
+
+	// Resolve Linux sandal binary (configured via SANDAL_VM_BIN env var)
+	if _, err := os.Stat(env.VMBinPath); err != nil {
+		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", env.VMBinPath, env.VMBinPath)
+	}
+
+	// Build VirtioFS mounts from collected host paths.
+	// Each unique host directory gets a VirtioFS share.
+	// Mount mapping is passed as SANDAL_VM_MOUNTS=tag=hostpath,tag=hostpath
+	var vmMounts []vz.MountConfig
+	var mountEntries []string
+	seen := make(map[string]bool)
+
+	for i, hostPath := range hostPaths {
+		absPath, err := filepath.Abs(hostPath)
+		if err != nil {
+			return fmt.Errorf("resolving path %q: %w", hostPath, err)
+		}
+
+		// VirtioFS only supports directories — use parent dir for files
+		shareDir := absPath
+		if fi, err := os.Stat(absPath); err == nil && !fi.IsDir() {
+			shareDir = filepath.Dir(absPath)
+		}
+
+		// Deduplicate: skip if this directory is already shared
+		if seen[shareDir] {
+			continue
+		}
+		seen[shareDir] = true
+
+		tag := fmt.Sprintf("fs-%d", i)
+		vmMounts = append(vmMounts, vz.MountConfig{
+			Tag:      tag,
+			HostPath: shareDir,
+		})
+		mountEntries = append(mountEntries, fmt.Sprintf("%s=%s", tag, shareDir))
+	}
+
+	cfg.Mounts = append(cfg.Mounts, vmMounts...)
+
+	// Pass ALL original args unchanged as SANDAL_VM_ARGS
+	vmArgs := append([]string{"run"}, cleanArgs...)
+	argsJSON, err := json.Marshal(vmArgs)
+	if err != nil {
+		return fmt.Errorf("marshaling VM args: %w", err)
+	}
+
+	// Build kernel command line with resolved env vars so the VM
+	// inherits the host's sandal configuration.
+	var cmdLineParts []string
+	cmdLineParts = append(cmdLineParts, "console=hvc0")
+	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+string(argsJSON))
+	if len(mountEntries) > 0 {
+		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
+	}
+	// Pass resolved sandal env vars to the VM
+	for _, e := range env.GetDefaults() {
+		if val := os.Getenv(e.Name); val != "" {
+			cmdLineParts = append(cmdLineParts, fmt.Sprintf("%s=%s", e.Name, val))
+		}
+	}
+	cfg.CommandLine = strings.Join(cmdLineParts, " ")
+
+	// Auto-discover initrd alongside the kernel if not configured.
+	baseInitrd := cfg.InitrdPath
+	if baseInitrd == "" {
+		kernelDir := filepath.Dir(cfg.KernelPath)
+		candidates := []string{"initramfs-virt", "initramfs-lts", "initrd.img", "initramfs.img"}
+		for _, name := range candidates {
+			p := filepath.Join(kernelDir, name)
+			if _, err := os.Stat(p); err == nil {
+				baseInitrd = p
+				break
+			}
+		}
+	}
+
+	// Create initrd: sandal Linux binary as /init, prepend base initrd if available
+	initrdPath, err := initrd.CreateFromBinary(env.VMBinPath, baseInitrd)
+	if err != nil {
+		return fmt.Errorf("creating initrd from sandal binary: %w", err)
+	}
+	defer os.Remove(initrdPath)
+	cfg.InitrdPath = initrdPath
+
+	// Use the VM config name for identification (PID file, list, stop/kill).
+	vmName := vmFlag
+	if vmFlag == "new" {
+		vmName = fmt.Sprintf("run-%d", os.Getpid())
+		if err := vz.SaveConfig(vmName, cfg); err != nil {
+			return fmt.Errorf("saving ephemeral VM config: %w", err)
+		}
+		defer vz.DeleteVM(vmName)
+	}
+
+	return bootVM(vmName, cfg)
+}
+
+// extractFlag removes a flag and its value from args, returning the value and cleaned args.
+// Handles both "-flag value" and "-flag=value" forms.
+func extractFlag(args []string, name string, defaultVal string) (string, []string) {
+	val := defaultVal
+	prefix := "-" + name
+	var clean []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		// -flag=value form
+		if strings.HasPrefix(arg, prefix+"=") {
+			val = arg[len(prefix)+1:]
+			continue
+		}
+
+		// -flag value form
+		if arg == prefix && i+1 < len(args) {
+			val = args[i+1]
+			i++ // skip value
+			continue
+		}
+
+		clean = append(clean, arg)
+	}
+
+	return val, clean
+}
+
+// scanMountPaths scans args for -lw and -v flag values and returns the host paths
+// that need VirtioFS shares. Does not modify args.
+func scanMountPaths(args []string) []string {
+	var paths []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			break
+		}
+		if (args[i] == "-lw" || args[i] == "-v") && i+1 < len(args) {
+			i++
+			hostPath := args[i]
+			// For -v, extract host path from host:container format
+			if parts := strings.SplitN(hostPath, ":", 2); len(parts) >= 1 {
+				hostPath = parts[0]
+			}
+			paths = append(paths, hostPath)
+		}
+	}
+	return paths
+}

@@ -1,3 +1,5 @@
+//go:build linux
+
 package cruntime
 
 import (
@@ -44,6 +46,9 @@ func crun(c *config.Config) (int, error) {
 		return 0, nil
 	}
 	cmd := exec.Command(env.BinLoc, "sandal-child", c.Name)
+
+	// PTY master/slave for interactive VM containers; nil otherwise
+	var ptmx, ptySlave *os.File
 
 	if !c.Background {
 		cmd.Stdin = os.Stdin
@@ -110,18 +115,51 @@ func crun(c *config.Config) (int, error) {
 	// 	return 1, err
 	// }
 
-	go cmd.Run()
+	// Allocate a PTY for interactive containers in VM mode so the
+	// shell gets a real terminal (isatty=true, job control works).
+	if !c.Background && isVM() {
+		master, slave, ptyErr := allocPTY()
+		if ptyErr == nil {
+			setPTYSize(master, 24, 80)
+			cmd.Stdin = slave
+			cmd.Stdout = slave
+			cmd.Stderr = slave
+			cmd.SysProcAttr.Setsid = true
+			cmd.SysProcAttr.Setctty = true
+			cmd.SysProcAttr.Ctty = 0 // fd 0 = stdin = slave after dup2
+			ptmx = master
+			ptySlave = slave
+		} else {
+			slog.Warn("PTY allocation failed, falling back to serial console", "error", ptyErr)
+		}
+	}
+
+	var cmdErr error
+	go func() {
+		cmdErr = cmd.Run()
+	}()
 
 	// Process information will filled during execution
 	started := time.Now()
 	for cmd.Process == nil {
 		time.Sleep(time.Millisecond)
 		if time.Now().After(started.Add(time.Second)) {
+			if cmdErr != nil {
+				return 1, fmt.Errorf("unable to start child process: %w", cmdErr)
+			}
 			return 1, fmt.Errorf("unable to allocate proccess under a second")
 		}
 	}
 
 	c.ContPid = cmd.Process.Pid
+
+	// Close the slave PTY fd in the parent now that the child has inherited it.
+	// This ensures when the child exits, all slave fds are closed and master
+	// read returns EIO, allowing the relay goroutine to terminate.
+	if ptySlave != nil {
+		ptySlave.Close()
+		ptySlave = nil
+	}
 
 	// Move container process into cgroup
 	if cgroupPath != "" {
@@ -156,6 +194,12 @@ func crun(c *config.Config) (int, error) {
 	err = controller.SetContainer(c)
 	if err != nil {
 		return 0, err
+	}
+
+	// Start PTY relay after the child is running
+	var stopRelay func()
+	if ptmx != nil {
+		stopRelay = startPTYRelay(ptmx, os.Stdin, os.Stdout)
 	}
 
 	// Forward signals to the container process
@@ -210,6 +254,14 @@ func crun(c *config.Config) (int, error) {
 		err = nil
 	}
 
+	// Clean up PTY relay after child exits
+	if ptmx != nil {
+		ptmx.Close()
+		if stopRelay != nil {
+			stopRelay()
+		}
+	}
+
 	DeRunContainer(c)
 
 	return sig.ExitCode(), err
@@ -237,7 +289,11 @@ func childEnv(c *config.Config) []string {
 		}
 	}
 	if !pathIsSet {
-		envVars = append(envVars, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
+		hostPath := os.Getenv("PATH")
+		if hostPath == "" {
+			hostPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+		}
+		envVars = append(envVars, fmt.Sprintf("PATH=%s", hostPath))
 	}
 
 	envVars = appendSandalVariables(envVars, c)

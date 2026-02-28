@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 )
 
 var (
@@ -27,6 +28,8 @@ var (
 
 	DefaultHostNet string
 
+	VMBinPath string
+
 	Get func(EnvName, DefaultValue string) string
 
 	defaults []SandalSystemEnv
@@ -40,12 +43,14 @@ func init() {
 	if len(os.Args) > 0 {
 		ex, err := os.Executable()
 		if err != nil {
-			panic(err)
-		}
-		BinLoc, err = exec.LookPath(ex)
-		if err != nil {
-			slog.Debug(err.Error())
+			// /proc may not be mounted yet (e.g. sandal running as VM init PID 1)
 			BinLoc = os.Args[0]
+		} else {
+			BinLoc, err = exec.LookPath(ex)
+			if err != nil {
+				slog.Debug(err.Error())
+				BinLoc = os.Args[0]
+			}
 		}
 	} else {
 		BinLoc = "/proc/self/exe"
@@ -66,6 +71,9 @@ func init() {
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123::1/64")
 
 		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
+
+		home, _ := os.UserHomeDir()
+		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(home, ".sandal-vm", "bin", "sandal"))
 
 		Get("SANDAL_LOG_LEVEL", "info")
 
