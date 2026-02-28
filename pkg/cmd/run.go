@@ -143,6 +143,15 @@ func Run(args []string) error {
 		return err
 	}
 
+	// Apply namespace defaults (sets IsHost, IsUserDefined) before saving
+	// the config to disk. The child process reads the config immediately
+	// after starting; without this, it races and reads a stale config where
+	// IsHost=false even when --ns-net host was passed, causing
+	// WaitUntilCreated to time out waiting for veths that were never created.
+	if err := c.NS.Defaults(); err != nil {
+		return err
+	}
+
 	err = controller.SetContainer(&c)
 	if err != nil {
 		return err
