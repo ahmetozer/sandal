@@ -30,7 +30,7 @@ func Main() {
 	if len(os.Args) < 2 {
 		slog.Error("Main", slog.String("error", "No argument provided"))
 		subCommandsHelp()
-		os.Exit(0)
+		exitCode = 0
 	}
 	switch os.Args[1] {
 	case "run":
@@ -69,7 +69,6 @@ func Main() {
 	if ExitHandler != nil {
 		ExitHandler(exitCode)
 	}
-	os.Exit(exitCode)
 }
 
 var (
@@ -88,7 +87,6 @@ func executeSubCommand(f func([]string) error) {
 	if ExitHandler != nil {
 		ExitHandler(exitCode)
 	}
-	os.Exit(exitCode)
 }
 
 func subCommandsHelp() {

@@ -18,8 +18,19 @@ import (
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
+	"golang.org/x/sys/unix"
 )
 
+func init() {
+	ExitHandler = func(code int) {
+		os.Exit(code)
+	}
+	if vmArgs := os.Getenv("SANDAL_VM_ARGS"); vmArgs != "" {
+		ExitHandler = func(code int) {
+			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
+		}
+	}
+}
 func Run(args []string) error {
 
 	if len(args) < 1 {
@@ -37,7 +48,7 @@ func Run(args []string) error {
 	slog.Debug("run", slog.Any("thisFlags", thisFlags), slog.Any("ContArgs", c.ContArgs), slog.Any("os.Args", os.Args))
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
-	f := flag.NewFlagSet("run", flag.ExitOnError)
+	f := flag.NewFlagSet("run", flag.ContinueOnError)
 
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 

@@ -245,7 +245,11 @@ func childEnv(c *config.Config) []string {
 		}
 	}
 	if !pathIsSet {
-		envVars = append(envVars, fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
+		hostPath := os.Getenv("PATH")
+		if hostPath == "" {
+			hostPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+		}
+		envVars = append(envVars, fmt.Sprintf("PATH=%s", hostPath))
 	}
 
 	envVars = appendSandalVariables(envVars, c)
