@@ -71,10 +71,12 @@ func VMInit() error {
 		os.MkdirAll("/newroot"+dir, 0755)
 	}
 
-	// Mount proc/sys/dev in the new root
+	// Mount proc/sys/dev/devpts in the new root
 	unix.Mount("proc", "/newroot/proc", "proc", 0, "")
 	unix.Mount("sysfs", "/newroot/sys", "sysfs", 0, "")
 	unix.Mount("devtmpfs", "/newroot/dev", "devtmpfs", 0, "")
+	os.MkdirAll("/newroot/dev/pts", 0755)
+	unix.Mount("devpts", "/newroot/dev/pts", "devpts", 0, "gid=5,mode=620,ptmxmode=666")
 
 	// Chroot into the new tmpfs root (rootfs doesn't support pivot_root)
 	if err := unix.Chroot("/newroot"); err != nil {
