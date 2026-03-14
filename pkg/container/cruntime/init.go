@@ -1,3 +1,5 @@
+//go:build linux
+
 package cruntime
 
 import (
@@ -48,12 +50,12 @@ func ContainerInitProc() {
 			return fmt.Errorf("unable to set hostname %s", err)
 		}
 
-		if !c.NS.Get("net").IsHost {
+		k, err := netlink.LinkByName("lo")
+		if err == nil {
+			netlink.LinkSetUp(k)
+		}
 
-			k, err := netlink.LinkByName("lo")
-			if err == nil {
-				netlink.LinkSetUp(k)
-			}
+		if !c.NS.Get("net").IsHost {
 
 			links, err := net.ToLinks(&c.Net)
 			if err != nil {

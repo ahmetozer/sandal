@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,48 +17,65 @@ var (
 )
 
 func Main() {
+	// When running inside a VM, the kernel passes SANDAL_VM_ARGS as an env var
+	// to PID 1 (init). Override os.Args with the decoded JSON array so the
+	// normal subcommand dispatch works.
+	if vmArgs := os.Getenv("SANDAL_VM_ARGS"); vmArgs != "" {
+		var args []string
+		if err := json.Unmarshal([]byte(vmArgs), &args); err == nil && len(args) > 0 {
+			os.Args = append([]string{os.Args[0]}, args...)
+		}
+	}
 
 	if len(os.Args) < 2 {
 		slog.Error("Main", slog.String("error", "No argument provided"))
 		subCommandsHelp()
-		os.Exit(0)
+		exitCode = 0
+	} else {
+		switch os.Args[1] {
+		case "run":
+			executeSubCommand(Run)
+		case "ps":
+			executeSubCommand(Ps)
+		case "convert":
+			executeSubCommand(Convert)
+		case "kill":
+			executeSubCommand(Kill)
+		case "stop":
+			executeSubCommand(Stop)
+		case "rerun":
+			executeSubCommand(Rerun)
+		case "rm":
+			executeSubCommand(Rm)
+		case "inspect":
+			executeSubCommand(Inspect)
+		case "daemon":
+			executeSubCommand(Daemon)
+		case "cmd":
+			executeSubCommand(Cmd)
+		case "clear":
+			executeSubCommand(Clear)
+		case "exec":
+			executeSubCommand(ExecOnContainer)
+		case "vm":
+			executeSubCommand(VM)
+		case "help":
+			subCommandsHelp()
+			envs()
+		default:
+			slog.Error("Main", slog.String("error", "Unknown sub command"), slog.String("arg", os.Args[1]))
+			exitCode = 1
+		}
 	}
-	switch os.Args[1] {
-	case "run":
-		executeSubCommand(Run)
-	case "ps":
-		executeSubCommand(Ps)
-	case "convert":
-		executeSubCommand(Convert)
-	case "kill":
-		executeSubCommand(Kill)
-	case "stop":
-		executeSubCommand(Stop)
-	case "rerun":
-		executeSubCommand(Rerun)
-	case "rm":
-		executeSubCommand(Rm)
-	case "inspect":
-		executeSubCommand(Inspect)
-	case "daemon":
-		executeSubCommand(Daemon)
-	case "cmd":
-		executeSubCommand(Cmd)
-	case "clear":
-		executeSubCommand(Clear)
-	case "exec":
-		executeSubCommand(ExecOnContainer)
-	case "help":
-		subCommandsHelp()
-		envs()
-	default:
-		slog.Error("Main", slog.String("error", "Unknown sub command"), slog.String("arg", os.Args[1]))
-		os.Exit(1)
+	if ExitHandler != nil {
+		ExitHandler(exitCode)
 	}
-	os.Exit(exitCode)
 }
 
-var exitCode = 0
+var (
+	exitCode    = 0
+	ExitHandler func(int) // called before os.Exit when set (e.g. VM power-off)
+)
 
 func executeSubCommand(f func([]string) error) {
 	err := f(os.Args[2:])
@@ -67,7 +85,9 @@ func executeSubCommand(f func([]string) error) {
 		}
 		slog.Error("executeSubCommand", slog.String("command", os.Args[1]), slog.Any("error", err))
 	}
-	os.Exit(exitCode)
+	if ExitHandler != nil {
+		ExitHandler(exitCode)
+	}
 }
 
 func subCommandsHelp() {
@@ -83,6 +103,7 @@ func subCommandsHelp() {
 	daemon - Start sandal daemon
 	clear - Clear unused containers
 	exec - Execute a command in a container
+	vm - Manage virtual machines (macOS only)
 	help - Show help, default and current environment variables` + "\n")
 
 	fmt.Printf("\nVersion: %s\n", BuildVersion)

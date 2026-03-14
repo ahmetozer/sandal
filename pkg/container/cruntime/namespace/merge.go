@@ -1,3 +1,5 @@
+//go:build linux
+
 package namespace
 
 func (source Namespaces) Merge(destination Namespaces) (merge Namespaces) {

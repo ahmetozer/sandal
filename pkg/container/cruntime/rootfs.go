@@ -1,3 +1,5 @@
+//go:build linux
+
 package cruntime
 
 import (
@@ -35,6 +37,7 @@ func mountRootfs(c *config.Config) error {
 			if p := strings.Split(argv, ":"); len(p) > 0 {
 				path = p[0]
 			}
+			path = vmResolvePath(path)
 			fileStat, err := os.Stat(path)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
 
@@ -45,7 +48,7 @@ func mountRootfs(c *config.Config) error {
 				LowerDirs = append(LowerDirs, path)
 			} else {
 				// Detect file type
-				img, err := diskimage.Mount(argv)
+				img, err := diskimage.Mount(path)
 				if c.ImmutableImages.Contains(img) {
 					c.ImmutableImages.ReplaceWith(img)
 				} else {

@@ -1,3 +1,5 @@
+//go:build linux
+
 package cruntime
 
 import (
@@ -187,6 +189,8 @@ func mount(source, target, fstype string, flags uintptr, data string) error {
 
 	slog.Debug("mount", slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype))
 
+	source = vmResolvePath(source)
+
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
 		retried := false
@@ -248,7 +252,9 @@ func mountVolumes(c *config.Config) error {
 			return fmt.Errorf("unexpected mount configuration '%s'", v)
 		}
 
-		err := mount(m[0], path.Join(c.RootfsDir, m[1]), "", unix.MS_BIND, m[2])
+		src := vmResolvePath(m[0])
+
+		err := mount(src, path.Join(c.RootfsDir, m[1]), "", unix.MS_BIND, m[2])
 		if err != nil {
 			return err
 		}
