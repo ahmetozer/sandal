@@ -39,22 +39,7 @@ func Load(name string) error {
 	// Try modules.dep first for proper dependency resolution
 	deps, depErr := parseDeps(baseDir)
 	if depErr == nil {
-		if entry, ok := deps[normalized]; ok {
-			// Load dependencies first (in order)
-			for _, depPath := range entry.deps {
-				depName := normalizeModName(depPath)
-				if loaded[depName] {
-					continue
-				}
-				fullPath := filepath.Join(baseDir, depPath)
-				if err := loadModuleFile(fullPath, ""); err != nil {
-					return fmt.Errorf("loading dependency %s: %w", depName, err)
-				}
-				loaded[depName] = true
-			}
-			// Load the target module
-			return loadModuleFile(filepath.Join(baseDir, entry.filePath), "")
-		}
+		return loadWithDeps(normalized, baseDir, deps, loaded)
 	}
 
 	// Fallback: search for the .ko file directly (no dependency resolution).
@@ -64,6 +49,51 @@ func Load(name string) error {
 		return fmt.Errorf("module %q not found in %s: %w", name, baseDir, err)
 	}
 	return loadModuleFile(modFile, "")
+}
+
+// loadWithDeps recursively loads a module and its dependencies using modules.dep.
+// Each dependency's own dependencies are resolved before loading it, ensuring
+// the correct load order regardless of how modules.dep lists them.
+func loadWithDeps(name, baseDir string, deps map[string]depEntry, loaded map[string]bool) error {
+	if loaded[name] {
+		return nil
+	}
+
+	entry, ok := deps[name]
+	if !ok {
+		// Module not in modules.dep — try to find and load directly
+		modFile, err := findModuleFile(baseDir, name)
+		if err != nil {
+			return fmt.Errorf("module %q not found in %s: %w", name, baseDir, err)
+		}
+		err = loadModuleFile(modFile, "")
+		if err == nil {
+			loaded[name] = true
+		}
+		return err
+	}
+
+	// Recursively load dependencies first
+	for _, depPath := range entry.deps {
+		depName := normalizeModName(depPath)
+		if loaded[depName] {
+			continue
+		}
+		if err := loadWithDeps(depName, baseDir, deps, loaded); err != nil {
+			// Non-fatal: dependency may be missing or be a soft dep.
+			// The kernel will reject the target module if required
+			// symbols are truly unavailable.
+			fmt.Fprintf(os.Stderr, "modprobe: optional dependency %s: %v\n", depName, err)
+		}
+	}
+
+	// Load the target module
+	fullPath := filepath.Join(baseDir, entry.filePath)
+	if err := loadModuleFile(fullPath, ""); err != nil {
+		return err
+	}
+	loaded[name] = true
+	return nil
 }
 
 // findModuleFile walks baseDir looking for a module file matching the given
