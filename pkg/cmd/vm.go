@@ -17,7 +17,6 @@ import (
 	"unsafe"
 
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
-	"github.com/ahmetozer/sandal/pkg/vm/initrd"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
@@ -293,14 +292,14 @@ func startVM(name string, cfg vz.VMConfig) error {
 
 	// Auto-generate initramfs overlay for virtiofs mounts (fallback if no cloud-init)
 	if len(cfg.Mounts) > 0 && cfg.InitrdPath != "" && cfg.ISOPath == "" {
-		var mounts []initrd.MountInfo
+		var mounts []kernel.MountInfo
 		for _, m := range cfg.Mounts {
-			mounts = append(mounts, initrd.MountInfo{
+			mounts = append(mounts, kernel.MountInfo{
 				Tag:      m.Tag,
 				ReadOnly: m.ReadOnly,
 			})
 		}
-		overlayPath, err := initrd.CreateOverlay(cfg.InitrdPath, mounts)
+		overlayPath, err := kernel.CreateOverlay(cfg.InitrdPath, mounts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not generate initrd overlay: %v\n", err)
 		} else if overlayPath != cfg.InitrdPath {

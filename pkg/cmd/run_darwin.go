@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
-	"github.com/ahmetozer/sandal/pkg/vm/initrd"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
@@ -164,7 +163,7 @@ func Run(args []string) error {
 	}
 
 	// Create initrd: sandal Linux binary as /init, prepend base initrd if available
-	initrdPath, err := initrd.CreateFromBinary(env.VMBinPath, baseInitrd)
+	initrdPath, err := kernel.CreateFromBinary(env.VMBinPath, baseInitrd)
 	if err != nil {
 		return fmt.Errorf("creating initrd from sandal binary: %w", err)
 	}
