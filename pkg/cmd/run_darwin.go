@@ -20,29 +20,26 @@ func Run(args []string) error {
 	}
 
 	// Extract -vm flag (darwin-only, not forwarded to VM).
-	vmFlag, cleanArgs := extractFlag(args, "vm", "default-vm")
+	// If specified, load that config as a base template; otherwise use defaults.
+	vmFlag, cleanArgs := extractFlag(args, "vm", "")
 
 	// Scan args for -lw and -v values to determine VirtioFS shares.
 	// The args themselves are NOT modified.
 	hostPaths := scanMountPaths(cleanArgs)
 
-	// Load VM config, auto-creating default if it doesn't exist
-	configName := vmFlag
-	if vmFlag == "new" {
-		configName = "default-vm"
-	}
-	cfg, err := vz.LoadConfig(configName)
-	autoCreated := false
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("loading VM config '%s': %w", configName, err)
+	// Build VM config: load from template if -vm was specified, otherwise use defaults
+	var cfg vz.VMConfig
+	if vmFlag != "" {
+		var err error
+		cfg, err = vz.LoadConfig(vmFlag)
+		if err != nil {
+			return fmt.Errorf("loading VM config '%s': %w", vmFlag, err)
 		}
-		// Auto-create default config with auto-downloaded kernel
+	} else {
 		cfg = vz.VMConfig{
 			CPUCount:    vz.DefaultCPUCount,
 			MemoryBytes: vz.DefaultMemoryMB * vz.MB,
 		}
-		autoCreated = true
 	}
 
 	// Auto-download kernel if not configured or missing
@@ -58,13 +55,6 @@ func Run(args []string) error {
 			return fmt.Errorf("kernel %s not found and auto-download failed: %w", cfg.KernelPath, err)
 		}
 		cfg.KernelPath = p
-	}
-
-	// Save config if it was auto-created (before per-run modifications)
-	if autoCreated {
-		if saveErr := vz.SaveConfig(configName, cfg); saveErr != nil {
-			return fmt.Errorf("saving auto-created VM config: %w", saveErr)
-		}
 	}
 
 	// Resolve Linux sandal binary (configured via SANDAL_VM_BIN env var)
@@ -170,15 +160,12 @@ func Run(args []string) error {
 	defer os.Remove(initrdPath)
 	cfg.InitrdPath = initrdPath
 
-	// Use the VM config name for identification (PID file, list, stop/kill).
-	vmName := vmFlag
-	if vmFlag == "new" {
-		vmName = fmt.Sprintf("run-%d", os.Getpid())
-		if err := vz.SaveConfig(vmName, cfg); err != nil {
-			return fmt.Errorf("saving ephemeral VM config: %w", err)
-		}
-		defer vz.DeleteVM(vmName)
+	// Each run gets an ephemeral VM that is cleaned up on exit.
+	vmName := fmt.Sprintf("run-%d", os.Getpid())
+	if err := vz.SaveConfig(vmName, cfg); err != nil {
+		return fmt.Errorf("saving ephemeral VM config: %w", err)
 	}
+	defer vz.DeleteVM(vmName)
 
 	return bootVM(vmName, cfg)
 }

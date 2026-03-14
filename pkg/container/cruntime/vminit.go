@@ -18,12 +18,6 @@ func IsVMInit() bool {
 	return os.Getpid() == 1 && os.Getenv("SANDAL_VM_ARGS") != ""
 }
 
-// isVM returns true if the container runtime is running inside a VM.
-// Unlike IsVMInit (PID 1 check), this works for child processes too.
-func isVM() bool {
-	return os.Getenv("SANDAL_VM_ARGS") != ""
-}
-
 // VMInit performs early system setup when sandal runs as PID 1 (init) inside a VM.
 // It mounts essential filesystems, switches from initramfs rootfs to a real tmpfs
 // (so the container runtime can later pivot_root), loads virtiofs modules, and
@@ -129,4 +123,32 @@ func VMInit() error {
 	}
 
 	return nil
+}
+
+// vmResolvePath translates a host path to its VirtioFS mount location inside the VM.
+// Only paths that fall under a SANDAL_VM_MOUNTS entry are translated (prefixed with /mnt).
+// Paths that don't match any VirtioFS share are returned unchanged.
+func vmResolvePath(hostPath string) string {
+	if strings.HasPrefix(hostPath, "/mnt/") {
+		return hostPath
+	}
+
+	mountSpec := os.Getenv("SANDAL_VM_MOUNTS")
+	if mountSpec == "" {
+		return hostPath
+	}
+
+	for _, entry := range strings.Split(mountSpec, ",") {
+		parts := strings.SplitN(strings.TrimSpace(entry), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		shareDir := parts[1]
+		// Check if hostPath is under this VirtioFS share
+		if hostPath == shareDir || strings.HasPrefix(hostPath, shareDir+"/") {
+			return "/mnt" + hostPath
+		}
+	}
+
+	return hostPath
 }

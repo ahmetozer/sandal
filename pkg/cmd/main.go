@@ -31,40 +31,41 @@ func Main() {
 		slog.Error("Main", slog.String("error", "No argument provided"))
 		subCommandsHelp()
 		exitCode = 0
-	}
-	switch os.Args[1] {
-	case "run":
-		executeSubCommand(Run)
-	case "ps":
-		executeSubCommand(Ps)
-	case "convert":
-		executeSubCommand(Convert)
-	case "kill":
-		executeSubCommand(Kill)
-	case "stop":
-		executeSubCommand(Stop)
-	case "rerun":
-		executeSubCommand(Rerun)
-	case "rm":
-		executeSubCommand(Rm)
-	case "inspect":
-		executeSubCommand(Inspect)
-	case "daemon":
-		executeSubCommand(Daemon)
-	case "cmd":
-		executeSubCommand(Cmd)
-	case "clear":
-		executeSubCommand(Clear)
-	case "exec":
-		executeSubCommand(ExecOnContainer)
-	case "vm":
-		executeSubCommand(VM)
-	case "help":
-		subCommandsHelp()
-		envs()
-	default:
-		slog.Error("Main", slog.String("error", "Unknown sub command"), slog.String("arg", os.Args[1]))
-		exitCode = 1
+	} else {
+		switch os.Args[1] {
+		case "run":
+			executeSubCommand(Run)
+		case "ps":
+			executeSubCommand(Ps)
+		case "convert":
+			executeSubCommand(Convert)
+		case "kill":
+			executeSubCommand(Kill)
+		case "stop":
+			executeSubCommand(Stop)
+		case "rerun":
+			executeSubCommand(Rerun)
+		case "rm":
+			executeSubCommand(Rm)
+		case "inspect":
+			executeSubCommand(Inspect)
+		case "daemon":
+			executeSubCommand(Daemon)
+		case "cmd":
+			executeSubCommand(Cmd)
+		case "clear":
+			executeSubCommand(Clear)
+		case "exec":
+			executeSubCommand(ExecOnContainer)
+		case "vm":
+			executeSubCommand(VM)
+		case "help":
+			subCommandsHelp()
+			envs()
+		default:
+			slog.Error("Main", slog.String("error", "Unknown sub command"), slog.String("arg", os.Args[1]))
+			exitCode = 1
+		}
 	}
 	if ExitHandler != nil {
 		ExitHandler(exitCode)

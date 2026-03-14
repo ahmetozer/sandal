@@ -37,13 +37,7 @@ func mountRootfs(c *config.Config) error {
 			if p := strings.Split(argv, ":"); len(p) > 0 {
 				path = p[0]
 			}
-			// In VM mode, host paths are available under /mnt/
-			if isVM() && !strings.HasPrefix(path, "/mnt/") {
-				vmPath := "/mnt" + path
-				if _, err := os.Stat(vmPath); err == nil {
-					path = vmPath
-				}
-			}
+			path = vmResolvePath(path)
 			fileStat, err := os.Stat(path)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
 
