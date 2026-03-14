@@ -191,27 +191,19 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 }
 
 // CreateFromBinary creates an initramfs CPIO archive with the given binary as /init.
-// If baseInitrdPath is non-empty, the base initrd is prepended so kernel modules
-// from it remain available. The binary's /init entry in the appended CPIO overrides
-// any /init in the base.
+// If baseInitrdPath is non-empty, the base initrd's CPIO entries are merged into
+// a single CPIO archive so kernel modules remain available. The binary is added
+// as /init after the base entries.
+//
+// The result is a single gzip-compressed CPIO archive (not concatenated archives)
+// because the kernel's initramfs unpacker stops processing at the first TRAILER
+// entry within a CPIO stream.
+//
 // Returns the path to a temporary file (caller must remove it).
 func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) {
 	binData, err := os.ReadFile(binaryPath)
 	if err != nil {
 		return "", fmt.Errorf("reading binary %s: %w", binaryPath, err)
-	}
-
-	cpioData := newcCPIO("init", binData, 0100755)
-
-	// Gzip-compress the CPIO overlay so the kernel can parse it when
-	// concatenated after a gzip-compressed base initrd.
-	var compressed bytes.Buffer
-	gz := gzip.NewWriter(&compressed)
-	if _, err := gz.Write(cpioData); err != nil {
-		return "", fmt.Errorf("compressing cpio: %w", err)
-	}
-	if err := gz.Close(); err != nil {
-		return "", fmt.Errorf("finalizing gzip: %w", err)
 	}
 
 	tmp, err := os.CreateTemp("", "sandal-initrd-*.img")
@@ -220,25 +212,85 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	}
 	defer tmp.Close()
 
-	// Prepend base initrd if provided (for kernel modules)
+	gz := gzip.NewWriter(tmp)
+
+	// Include base initrd content (decompressed CPIO, trailer stripped)
 	if baseInitrdPath != "" {
 		baseData, err := os.ReadFile(baseInitrdPath)
 		if err != nil {
 			os.Remove(tmp.Name())
 			return "", fmt.Errorf("reading base initrd %s: %w", baseInitrdPath, err)
 		}
-		if _, err := tmp.Write(baseData); err != nil {
+		baseCPIO, err := decompressInitrd(baseData)
+		if err != nil {
+			os.Remove(tmp.Name())
+			return "", fmt.Errorf("decompressing base initrd: %w", err)
+		}
+		// Strip the TRAILER entry so we can append more entries
+		baseCPIO = stripCPIOTrailer(baseCPIO)
+		if _, err := gz.Write(baseCPIO); err != nil {
 			os.Remove(tmp.Name())
 			return "", err
 		}
 	}
 
-	if _, err := tmp.Write(compressed.Bytes()); err != nil {
+	// Append /init entry + final TRAILER
+	cpioData := newcCPIO("init", binData, 0100755)
+	if _, err := gz.Write(cpioData); err != nil {
 		os.Remove(tmp.Name())
 		return "", err
 	}
 
+	if err := gz.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return "", fmt.Errorf("finalizing gzip: %w", err)
+	}
+
 	return tmp.Name(), nil
+}
+
+// decompressInitrd decompresses a gzip-compressed initrd to get raw CPIO data.
+// If the data is not gzip-compressed, it is returned as-is.
+func decompressInitrd(data []byte) ([]byte, error) {
+	if len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+		return data, nil
+	}
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return io.ReadAll(r)
+}
+
+// stripCPIOTrailer removes the TRAILER!!! entry and any trailing padding
+// from a raw CPIO archive, allowing more entries to be appended.
+func stripCPIOTrailer(data []byte) []byte {
+	trailerHeader := []byte("070701")
+	trailerName := "TRAILER!!!"
+
+	// Scan from the end looking for the TRAILER entry
+	// TRAILER entry = 110-byte header + "TRAILER!!!\0" (11 bytes) + padding
+	for offset := len(data) - 1; offset >= 110; offset-- {
+		if !bytes.Equal(data[offset-5:offset+1], trailerHeader) {
+			continue
+		}
+		pos := offset - 5
+		// Check if this header's name is TRAILER!!!
+		nameSize := parseHex(data[pos+94 : pos+102])
+		if nameSize < 11 {
+			continue
+		}
+		nameStart := pos + 110
+		nameEnd := nameStart + int(nameSize) - 1 // exclude null
+		if nameEnd > len(data) {
+			continue
+		}
+		if string(data[nameStart:nameEnd]) == trailerName {
+			return data[:pos]
+		}
+	}
+	return data
 }
 
 // CreateContainerOverlay is like CreateOverlay but replaces all exec switch_root

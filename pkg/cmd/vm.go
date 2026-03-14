@@ -18,6 +18,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
 	"github.com/ahmetozer/sandal/pkg/vm/initrd"
+	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
 
@@ -60,7 +61,7 @@ Commands:
   stop         Gracefully stop a running VM
   kill         Force kill a running VM
   list         List all VMs
-  delete       Delete a VM
+  delete       Delete one or more VMs (use -all to delete all)
   create-disk  Create a raw disk image`)
 }
 
@@ -106,7 +107,7 @@ func parseMountFlags(mounts repeatableFlag) ([]vz.MountConfig, error) {
 func vmCreate(args []string) error {
 	fs := flag.NewFlagSet("vm create", flag.ExitOnError)
 	name := fs.String("name", "", "VM name (required)")
-	kernel := fs.String("kernel", "", "Path to Linux kernel Image (required)")
+	kernelFlag := fs.String("kernel", "", "Path to Linux kernel Image (auto-downloaded if empty)")
 	initrdFlag := fs.String("initrd", "", "Path to initrd (optional)")
 	cmdLine := fs.String("cmdline", "console=hvc0", "Kernel command line")
 	diskPath := fs.String("disk", "", "Path to disk image (optional)")
@@ -119,21 +120,34 @@ func vmCreate(args []string) error {
 	memoryMB := fs.Uint("memory", vz.DefaultMemoryMB, "Memory in MB")
 	fs.Parse(args)
 
-	if *name == "" || *kernel == "" {
-		fmt.Fprintln(os.Stderr, "Error: -name and -kernel are required")
+	if *name == "" {
+		fmt.Fprintln(os.Stderr, "Error: -name is required")
 		fs.Usage()
-		return fmt.Errorf("-name and -kernel are required")
+		return fmt.Errorf("-name is required")
 	}
 
-	kernelAbs, _ := filepath.Abs(*kernel)
+	kernelPath := *kernelFlag
+	if kernelPath == "" {
+		p, err := kernel.EnsureKernel()
+		if err != nil {
+			return fmt.Errorf("auto-downloading kernel: %w", err)
+		}
+		kernelPath = p
+	}
+	kernelAbs, _ := filepath.Abs(kernelPath)
 	var diskAbs string
 	if *diskPath != "" {
 		diskAbs, _ = filepath.Abs(*diskPath)
 	}
-	var initrdAbs string
-	if *initrdFlag != "" {
-		initrdAbs, _ = filepath.Abs(*initrdFlag)
+	initrdPath := *initrdFlag
+	if initrdPath == "" {
+		p, err := kernel.EnsureInitrd()
+		if err != nil {
+			return fmt.Errorf("auto-downloading initrd: %w", err)
+		}
+		initrdPath = p
 	}
+	initrdAbs, _ := filepath.Abs(initrdPath)
 	var isoAbs string
 	if *isoPath != "" {
 		isoAbs, _ = filepath.Abs(*isoPath)
@@ -170,8 +184,8 @@ func vmCreate(args []string) error {
 func vmRun(args []string) error {
 	fs := flag.NewFlagSet("vm run", flag.ExitOnError)
 	name := fs.String("name", "", "VM name (auto-generated if empty)")
-	kernel := fs.String("kernel", "", "Path to Linux kernel Image (required)")
-	initrdFlag := fs.String("initrd", "", "Path to initrd (optional)")
+	kernelFlag := fs.String("kernel", "", "Path to Linux kernel Image (auto-downloaded if empty)")
+	initrdFlag := fs.String("initrd", "", "Path to initrd (auto-downloaded if empty)")
 	cmdLine := fs.String("cmdline", "console=hvc0", "Kernel command line")
 	diskPath := fs.String("disk", "", "Path to disk image (optional)")
 	isoPath := fs.String("iso", "", "Path to ISO image (optional)")
@@ -183,10 +197,13 @@ func vmRun(args []string) error {
 	memoryMB := fs.Uint("memory", vz.DefaultMemoryMB, "Memory in MB")
 	fs.Parse(args)
 
-	if *kernel == "" {
-		fmt.Fprintln(os.Stderr, "Error: -kernel is required")
-		fs.Usage()
-		return fmt.Errorf("-kernel is required")
+	kernelPath := *kernelFlag
+	if kernelPath == "" {
+		p, err := kernel.EnsureKernel()
+		if err != nil {
+			return fmt.Errorf("auto-downloading kernel: %w", err)
+		}
+		kernelPath = p
 	}
 
 	vmName := *name
@@ -194,15 +211,20 @@ func vmRun(args []string) error {
 		vmName = fmt.Sprintf("run-%d", os.Getpid())
 	}
 
-	kernelAbs, _ := filepath.Abs(*kernel)
+	kernelAbs, _ := filepath.Abs(kernelPath)
 	var diskAbs string
 	if *diskPath != "" {
 		diskAbs, _ = filepath.Abs(*diskPath)
 	}
-	var initrdAbs string
-	if *initrdFlag != "" {
-		initrdAbs, _ = filepath.Abs(*initrdFlag)
+	initrdPath := *initrdFlag
+	if initrdPath == "" {
+		p, err := kernel.EnsureInitrd()
+		if err != nil {
+			return fmt.Errorf("auto-downloading initrd: %w", err)
+		}
+		initrdPath = p
 	}
+	initrdAbs, _ := filepath.Abs(initrdPath)
 	var isoAbs string
 	if *isoPath != "" {
 		isoAbs, _ = filepath.Abs(*isoPath)
@@ -394,19 +416,40 @@ func vmList() error {
 
 func vmDelete(args []string) error {
 	fs := flag.NewFlagSet("vm delete", flag.ExitOnError)
-	name := fs.String("name", "", "VM name (required)")
+	all := fs.Bool("all", false, "Delete all VMs")
 	fs.Parse(args)
 
-	if *name == "" {
-		fmt.Fprintln(os.Stderr, "Error: -name is required")
-		fs.Usage()
-		return fmt.Errorf("-name is required")
+	var names []string
+	if *all {
+		var err error
+		names, err = vz.ListVMs()
+		if err != nil {
+			return err
+		}
+		if len(names) == 0 {
+			fmt.Println("No VMs to delete.")
+			return nil
+		}
+	} else {
+		names = fs.Args()
+		if len(names) == 0 {
+			fmt.Fprintln(os.Stderr, "Usage: sandal vm delete <name>... | -all")
+			return fmt.Errorf("at least one VM name is required")
+		}
 	}
 
-	if err := vz.DeleteVM(*name); err != nil {
-		return err
+	var errs []error
+	for _, name := range names {
+		if err := vz.DeleteVM(name); err != nil {
+			fmt.Fprintf(os.Stderr, "Error deleting VM '%s': %v\n", name, err)
+			errs = append(errs, err)
+		} else {
+			fmt.Printf("VM '%s' deleted.\n", name)
+		}
 	}
-	fmt.Printf("VM '%s' deleted.\n", *name)
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to delete %d VM(s)", len(errs))
+	}
 	return nil
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/vm/initrd"
+	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
 
@@ -26,14 +27,45 @@ func Run(args []string) error {
 	// The args themselves are NOT modified.
 	hostPaths := scanMountPaths(cleanArgs)
 
-	// Load VM config
+	// Load VM config, auto-creating default if it doesn't exist
 	configName := vmFlag
 	if vmFlag == "new" {
 		configName = "default-vm"
 	}
 	cfg, err := vz.LoadConfig(configName)
+	autoCreated := false
 	if err != nil {
-		return fmt.Errorf("loading VM config '%s': %w (create with: sandal vm create -name %s -kernel <path>)", configName, err, configName)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("loading VM config '%s': %w", configName, err)
+		}
+		// Auto-create default config with auto-downloaded kernel
+		cfg = vz.VMConfig{
+			CPUCount:    vz.DefaultCPUCount,
+			MemoryBytes: vz.DefaultMemoryMB * vz.MB,
+		}
+		autoCreated = true
+	}
+
+	// Auto-download kernel if not configured or missing
+	if cfg.KernelPath == "" {
+		p, err := kernel.EnsureKernel()
+		if err != nil {
+			return fmt.Errorf("auto-downloading kernel: %w", err)
+		}
+		cfg.KernelPath = p
+	} else if _, err := os.Stat(cfg.KernelPath); err != nil {
+		p, err := kernel.EnsureKernel()
+		if err != nil {
+			return fmt.Errorf("kernel %s not found and auto-download failed: %w", cfg.KernelPath, err)
+		}
+		cfg.KernelPath = p
+	}
+
+	// Save config if it was auto-created (before per-run modifications)
+	if autoCreated {
+		if saveErr := vz.SaveConfig(configName, cfg); saveErr != nil {
+			return fmt.Errorf("saving auto-created VM config: %w", saveErr)
+		}
 	}
 
 	// Resolve Linux sandal binary (configured via SANDAL_VM_BIN env var)
@@ -109,6 +141,24 @@ func Run(args []string) error {
 			if _, err := os.Stat(p); err == nil {
 				baseInitrd = p
 				break
+			}
+		}
+		// Also try versioned initramfs matching the kernel filename pattern
+		// (e.g. vmlinuz-virt-6.18.17-r0 -> initramfs-virt-6.18.17-r0)
+		if baseInitrd == "" {
+			kernelBase := filepath.Base(cfg.KernelPath)
+			if after, ok := strings.CutPrefix(kernelBase, "vmlinuz-"); ok {
+				p := filepath.Join(kernelDir, "initramfs-"+after)
+				if _, err := os.Stat(p); err == nil {
+					baseInitrd = p
+				}
+			}
+		}
+
+		// Fallback: auto-download modules initrd if local discovery failed
+		if baseInitrd == "" {
+			if p, err := kernel.EnsureInitrd(); err == nil {
+				baseInitrd = p
 			}
 		}
 	}

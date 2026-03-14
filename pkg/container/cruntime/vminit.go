@@ -44,7 +44,22 @@ func VMInit() error {
 	unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
 
 	// Load kernel modules before switch_root (modules live in the base initrd).
-	for _, mod := range []string{"fuse", "virtiofs", "overlay", "loop", "squashfs"} {
+	for _, mod := range []string{
+		// Filesystems
+		"fuse", "virtiofs", "overlay", "loop", "squashfs",
+		// Networking
+		"veth", "bridge", "tun",
+		// Netfilter / NAT
+		"nf_conntrack", "nf_nat", "nf_tables",
+		"ip_tables", "iptable_nat", "iptable_filter",
+		"ip6_tables", "ip6table_nat", "ip6table_filter",
+		// IPVS
+		"ip_vs", "ip_vs_rr", "ip_vs_wrr", "ip_vs_sh",
+		// Overlay networking
+		"vxlan", "geneve", "ipvlan", "macvlan",
+		// Block / virtio
+		"virtio_net", "virtio_blk",
+	} {
 		if err := modprobe.Load(mod); err != nil {
 			fmt.Fprintf(os.Stderr, "modprobe %s: %v\n", mod, err)
 		}
