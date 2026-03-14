@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -120,7 +121,7 @@ func vmCreate(args []string) error {
 	fs.Parse(args)
 
 	if *name == "" {
-		fmt.Fprintln(os.Stderr, "Error: -name is required")
+		slog.Error("vmCreate", slog.String("error", "-name is required"))
 		fs.Usage()
 		return fmt.Errorf("-name is required")
 	}
@@ -176,7 +177,7 @@ func vmCreate(args []string) error {
 		return fmt.Errorf("saving config: %w", err)
 	}
 
-	fmt.Printf("VM '%s' created.\n", *name)
+	slog.Info("vmCreate", slog.String("name", *name), slog.String("status", "created"))
 	return nil
 }
 
@@ -265,7 +266,7 @@ func vmStart(args []string) error {
 	fs.Parse(args)
 
 	if *name == "" {
-		fmt.Fprintln(os.Stderr, "Error: -name is required")
+		slog.Error("vmStart", slog.String("error", "-name is required"))
 		fs.Usage()
 		return fmt.Errorf("-name is required")
 	}
@@ -301,7 +302,7 @@ func startVM(name string, cfg vz.VMConfig) error {
 		}
 		overlayPath, err := kernel.CreateOverlay(cfg.InitrdPath, mounts)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not generate initrd overlay: %v\n", err)
+			slog.Warn("startVM", slog.String("action", "initrd overlay"), slog.Any("error", err))
 		} else if overlayPath != cfg.InitrdPath {
 			defer os.Remove(overlayPath)
 			cfg.InitrdPath = overlayPath
@@ -317,22 +318,22 @@ func bootVM(name string, cfg vz.VMConfig) error {
 	// Kill stale VM processes holding the disk file
 	if cfg.DiskPath != "" {
 		if killed, err := killStaleDiskHolders(cfg.DiskPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to check for stale processes: %v\n", err)
+			slog.Warn("bootVM", slog.String("action", "check stale processes"), slog.Any("error", err))
 		} else if killed > 0 {
-			fmt.Fprintf(os.Stderr, "Killed %d stale VM process(es) holding %s\n", killed, cfg.DiskPath)
+			slog.Info("bootVM", slog.String("action", "killed stale processes"), slog.Int("count", killed), slog.String("disk", cfg.DiskPath))
 		}
 	}
 
 	// Write PID file
 	if err := vz.WritePidFile(name); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not write pid file: %v\n", err)
+		slog.Warn("bootVM", slog.String("action", "write pid file"), slog.Any("error", err))
 	}
 	defer vz.RemovePidFile(name)
 
 	// Set terminal to raw mode for serial console (skip if not a TTY)
 	restore, err := setRawTerminal()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not set raw terminal: %v\n", err)
+		slog.Warn("bootVM", slog.String("action", "set raw terminal"), slog.Any("error", err))
 		restore = func() {} // no-op
 	}
 	// Ensure terminal is always restored, even on signals
@@ -365,20 +366,20 @@ func bootVM(name string, cfg vz.VMConfig) error {
 	go func() {
 		if err := vm.Start(); err != nil {
 			restore()
-			fmt.Fprintf(os.Stderr, "\nError starting VM: %v\n", err)
+			slog.Error("bootVM", slog.String("action", "start"), slog.Any("error", err))
 			vz.StopMainRunLoop()
 			return
 		}
-		fmt.Fprintf(os.Stderr, "\r\n[VM started - state: %s]\r\n", vm.State())
+		slog.Debug("bootVM", slog.String("action", "started"), slog.String("state", vm.State().String()))
 	}()
 
 	// Wait for VM to stop
 	go func() {
 		err := vm.WaitUntilStopped()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "\r\n[VM stopped with error: %v]\r\n", err)
+			slog.Error("bootVM", slog.String("action", "stopped"), slog.Any("error", err))
 		} else {
-			fmt.Fprintf(os.Stderr, "\r\n[VM stopped]\r\n")
+			slog.Debug("bootVM", slog.String("action", "stopped"))
 		}
 		vz.StopMainRunLoop()
 	}()
@@ -440,10 +441,10 @@ func vmDelete(args []string) error {
 	var errs []error
 	for _, name := range names {
 		if err := vz.DeleteVM(name); err != nil {
-			fmt.Fprintf(os.Stderr, "Error deleting VM '%s': %v\n", name, err)
+			slog.Error("vmDelete", slog.String("name", name), slog.Any("error", err))
 			errs = append(errs, err)
 		} else {
-			fmt.Printf("VM '%s' deleted.\n", name)
+			slog.Info("vmDelete", slog.String("name", name), slog.String("status", "deleted"))
 		}
 	}
 	if len(errs) > 0 {
@@ -458,7 +459,7 @@ func vmStop(args []string) error {
 	fs.Parse(args)
 
 	if *name == "" {
-		fmt.Fprintln(os.Stderr, "Error: -name is required")
+		slog.Error("vmStop", slog.String("error", "-name is required"))
 		fs.Usage()
 		return fmt.Errorf("-name is required")
 	}
@@ -475,7 +476,7 @@ func vmStop(args []string) error {
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
 		return fmt.Errorf("sending SIGTERM to pid %d: %w", pid, err)
 	}
-	fmt.Printf("Sent SIGTERM to VM '%s' (pid %d)\n", *name, pid)
+	slog.Info("vmStop", slog.String("name", *name), slog.Int("pid", pid), slog.String("signal", "SIGTERM"))
 	return nil
 }
 
@@ -486,7 +487,7 @@ func vmKill(args []string) error {
 	fs.Parse(args)
 
 	if *name == "" {
-		fmt.Fprintln(os.Stderr, "Error: -name is required")
+		slog.Error("vmKill", slog.String("error", "-name is required"))
 		fs.Usage()
 		return fmt.Errorf("-name is required")
 	}
@@ -504,20 +505,20 @@ func vmKill(args []string) error {
 	}
 
 	if !*force {
-		fmt.Printf("Sending SIGTERM to VM '%s' (pid %d)...\n", *name, pid)
+		slog.Info("vmKill", slog.String("name", *name), slog.Int("pid", pid), slog.String("signal", "SIGTERM"))
 		if err := proc.Signal(syscall.SIGTERM); err != nil {
-			fmt.Fprintf(os.Stderr, "Error sending SIGTERM: %v\n", err)
+			slog.Error("vmKill", slog.String("action", "SIGTERM"), slog.Any("error", err))
 		} else {
 			for i := 0; i < 30; i++ {
 				if err := proc.Signal(syscall.Signal(0)); err != nil {
 					vz.RemovePidFile(*name)
-					fmt.Printf("VM '%s' stopped gracefully\n", *name)
+					slog.Info("vmKill", slog.String("name", *name), slog.String("status", "stopped gracefully"))
 					exec.Command("stty", "sane").Run()
 					return nil
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
-			fmt.Println("Graceful shutdown timeout, sending SIGKILL...")
+			slog.Warn("vmKill", slog.String("action", "graceful shutdown timeout"))
 		}
 	}
 
@@ -525,7 +526,7 @@ func vmKill(args []string) error {
 		return fmt.Errorf("sending SIGKILL to pid %d: %w", pid, err)
 	}
 	vz.RemovePidFile(*name)
-	fmt.Printf("Sent SIGKILL to VM '%s' (pid %d)\n", *name, pid)
+	slog.Info("vmKill", slog.String("name", *name), slog.Int("pid", pid), slog.String("signal", "SIGKILL"))
 	exec.Command("stty", "sane").Run()
 	return nil
 }
@@ -537,7 +538,7 @@ func vmCreateDisk(args []string) error {
 	fs.Parse(args)
 
 	if *path == "" {
-		fmt.Fprintln(os.Stderr, "Error: -path is required")
+		slog.Error("vmCreateDisk", slog.String("error", "-path is required"))
 		fs.Usage()
 		return fmt.Errorf("-path is required")
 	}
@@ -546,7 +547,7 @@ func vmCreateDisk(args []string) error {
 	if err := disk.CreateRawDisk(*path, sizeBytes); err != nil {
 		return err
 	}
-	fmt.Printf("Disk image created: %s (%d MB)\n", *path, *sizeMB)
+	slog.Info("vmCreateDisk", slog.String("path", *path), slog.Int64("sizeMB", *sizeMB))
 	return nil
 }
 

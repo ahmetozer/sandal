@@ -107,7 +107,7 @@ func Run(args []string) error {
 	// Build kernel command line with resolved env vars so the VM
 	// inherits the host's sandal configuration.
 	var cmdLineParts []string
-	cmdLineParts = append(cmdLineParts, "console=hvc0")
+	cmdLineParts = append(cmdLineParts, "console=hvc0", "quiet", "loglevel="+KernelLogLevel)
 	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+string(argsJSON))
 	if len(mountEntries) > 0 {
 		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
