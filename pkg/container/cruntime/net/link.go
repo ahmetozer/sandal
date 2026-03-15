@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
 )
 
@@ -50,7 +50,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 
 	// Allocate IP addresses to container for each subnet
 	if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
-		if os.Getenv("SANDAL_VM_MOUNTS") != "" {
+		if isVM, _ := env.IsVM(); isVM {
 			// VM mode: containers DHCP directly through the L2 bridge.
 			// Use the original VZ-assigned MAC — VZ NAT only forwards this MAC.
 			l.DHCPv4 = true

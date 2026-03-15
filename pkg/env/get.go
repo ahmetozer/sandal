@@ -32,3 +32,10 @@ type SandalSystemEnv struct {
 	Def  string
 	Cur  string
 }
+
+// IsVM reports whether sandal is running inside a VM and returns the VM type
+// (e.g. "mac"). When not in a VM both values are zero.
+func IsVM() (bool, string) {
+	v := os.Getenv("SANDAL_VM")
+	return v != "", v
+}

@@ -305,8 +305,11 @@ func appendSandalVariables(s []string, c *config.Config) []string {
 	for _, r := range env.GetDefaults() {
 		s = append(s, r.Name+"="+r.Cur)
 	}
-	// Pass VM mount info so the child can resolve host paths to VirtioFS mounts.
+	// Pass VM info so the child can detect VM mode and resolve VirtioFS mounts.
 	// Do NOT pass SANDAL_VM_ARGS — it causes Main() to override os.Args and re-exec.
+	if val := os.Getenv("SANDAL_VM"); val != "" {
+		s = append(s, "SANDAL_VM="+val)
+	}
 	if val := os.Getenv("SANDAL_VM_MOUNTS"); val != "" {
 		s = append(s, "SANDAL_VM_MOUNTS="+val)
 	}

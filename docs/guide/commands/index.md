@@ -200,7 +200,29 @@ Allocation configuration of /etc/hosts file.
   sandal run -lw / -net "" -net "name=pppoe;master=layer2" -- bash
   # Custom mtu or ethernet set
   sandal run -lw / -net "" -net "ether="aa:ee:81:f4:c0:d3";mtu=1480" -- bash
+  # DHCP: obtain IP from an upstream DHCP server
+  sandal run -lw / -net "ip=dhcp" -- bash          # dual-stack (DHCPv4 + DHCPv6)
+  sandal run -lw / -net "ip=dhcp4" -- bash         # IPv4 only
+  sandal run -lw / -net "ip=dhcp6" -- bash         # IPv6 only
   ```
+
+??? info "DHCP"
+
+    When `ip=dhcp`, `ip=dhcp4`, or `ip=dhcp6` is specified, the container runs a
+    built-in DHCP client on its interface instead of receiving a statically
+    allocated address.
+
+    - **`ip=dhcp`** — runs both DHCPv4 and DHCPv6 (dual-stack).
+    - **`ip=dhcp4`** — runs DHCPv4 only.
+    - **`ip=dhcp6`** — runs DHCPv6 only. Failure is non-fatal (logged as a warning).
+
+    The DHCP client retransmits every 2 seconds for up to 30 seconds. The
+    obtained IP, default gateway, and DNS servers are applied automatically.
+
+    **macOS (VM mode):** When running on macOS, containers default to DHCPv4
+    automatically. The container's interface receives the VM's original MAC
+    address so that the VZ NAT network accepts its frames. No manual `-net`
+    flag is needed — DHCP is used by default.
 
 ---
 

@@ -47,7 +47,7 @@ func CreateDefaultBridge() (netlink.Link, error) {
 		return nil, err
 	}
 
-	if os.Getenv("SANDAL_VM_MOUNTS") != "" {
+	if isVM, _ := env.IsVM(); isVM {
 		// VM mode: sandal0 is a pure L2 bridge between eth0 and container veths.
 		// No IPs on the bridge — containers DHCP directly through it.
 		if err := bridgeUplinkToSandal0(masterlink); err != nil {
