@@ -42,7 +42,7 @@ func VMInit() error {
 		// Filesystems
 		"fuse", "virtiofs", "overlay", "loop", "squashfs",
 		// Networking
-		"veth", "bridge", "tun",
+		"veth", "bridge", "tun", "af_packet",
 		// Netfilter / NAT
 		"nf_conntrack", "nf_nat", "nf_tables",
 		"ip_tables", "iptable_nat", "iptable_filter",

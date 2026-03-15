@@ -45,12 +45,22 @@ func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
 		switch key := kv[0]; key {
 		case "ip":
 			for _, ip := range kv[1:] {
-				IP, net, err := net.ParseCIDR(ip)
-				if err != nil {
-					slog.Debug(err.Error())
-					continue
+				switch ip {
+				case "dhcp":
+					myIf.DHCPv4 = true
+					myIf.DHCPv6 = true
+				case "dhcp4":
+					myIf.DHCPv4 = true
+				case "dhcp6":
+					myIf.DHCPv6 = true
+				default:
+					IP, net, err := net.ParseCIDR(ip)
+					if err != nil {
+						slog.Debug(err.Error())
+						continue
+					}
+					myIf.Addr = append(myIf.Addr, Addr{IP, net})
 				}
-				myIf.Addr = append(myIf.Addr, Addr{IP, net})
 			}
 		case "route":
 			for _, ip := range kv[1:] {

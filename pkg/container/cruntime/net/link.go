@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
 )
 
@@ -23,6 +24,9 @@ type Link struct {
 
 	Addr  Addrs
 	Route Addrs
+
+	DHCPv4 bool `json:",omitempty"`
+	DHCPv6 bool `json:",omitempty"`
 }
 
 type Links []Link
@@ -43,32 +47,39 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 
 	hostAddrs, err := GetAddrsByName(l.Master)
 	slog.Debug("hostAddrs", "interface", l.Master, slog.Any("addrs", hostAddrs))
+
 	// Allocate IP addresses to container for each subnet
-	if len(l.Addr) == 0 {
-		// hostAddrs, err := stringToAddrs(env.DefaultHostNet) //
-		contAddrs := make(Addrs, 0)
-
-		if err == nil {
-			for i := range hostAddrs {
-
-				IP, err := ipRequest(conts, hostAddrs[i].IPNet)
-				if err != nil {
-					slog.Warn("unable to allocate ip", "err", err)
-					continue
-				}
-				contAddrs = append(contAddrs, Addr{
-					IP:    IP,
-					IPNet: hostAddrs[i].IPNet,
-				})
+	if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
+		if isVM, _ := env.IsVM(); isVM {
+			// VM mode: containers DHCP directly through the L2 bridge.
+			// Use the original VZ-assigned MAC — VZ NAT only forwards this MAC.
+			l.DHCPv4 = true
+			if vmUplinkMAC != nil {
+				l.Ether = make(net.HardwareAddr, len(vmUplinkMAC))
+				copy(l.Ether, vmUplinkMAC)
 			}
-			l.Addr = contAddrs
-
-			l.Route = append(hostAddrs, l.Route...)
+		} else {
+			contAddrs := make(Addrs, 0)
+			if err == nil {
+				for i := range hostAddrs {
+					IP, err := ipRequest(conts, hostAddrs[i].IPNet)
+					if err != nil {
+						slog.Warn("unable to allocate ip", "err", err)
+						continue
+					}
+					contAddrs = append(contAddrs, Addr{
+						IP:    IP,
+						IPNet: hostAddrs[i].IPNet,
+					})
+				}
+				l.Addr = contAddrs
+				l.Route = append(hostAddrs, l.Route...)
+			}
 		}
 	}
 
 	// add route if its not present, it will used by FindGateways()
-	if len(l.Route) == 0 && err == nil {
+	if len(l.Route) == 0 && !l.DHCPv4 && !l.DHCPv6 && err == nil {
 		l.Route = hostAddrs
 	}
 
@@ -105,16 +116,32 @@ func (l Link) SetNsPid(pid int) error {
 }
 
 // Assign Ip addresses and set interface up
-func (l Link) Configure() error {
+func (l *Link) Configure() error {
 
 	nLink, err := netlink.LinkByName(l.Id)
 	if err != nil {
 		return err
 	}
+
+	// Set MAC before bringing up — needed for VM mode where VZ NAT
+	// only forwards frames from the assigned MAC.
+	if l.Ether != nil {
+		if err := netlink.LinkSetHardwareAddr(nLink, l.Ether); err != nil {
+			slog.Warn("setting MAC on "+l.Id, "err", err)
+		}
+	}
+
 	for i := range l.Addr {
 		l.Addr[i].Add(nLink)
 	}
 	netlink.LinkSetUp(nLink)
+
+	// Run DHCP if requested
+	if l.DHCPv4 || l.DHCPv6 {
+		if err := l.configureDHCP(); err != nil {
+			return fmt.Errorf("dhcp on %s: %w", l.Id, err)
+		}
+	}
 	return nil
 }
 
