@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 )
@@ -81,6 +82,11 @@ func addrInUse(configs *[]*config.Config, ip net.IP) bool {
 
 ContainerInstances:
 	for config := range *configs {
+		// Skip dead containers — their IPs are available for reuse
+		status := (*configs)[config].Status
+		if strings.HasPrefix(status, "exit") || strings.HasPrefix(status, "err") {
+			continue ContainerInstances
+		}
 		l, err := ToLinks(&((*configs)[config].Net))
 		links := *l
 		if err != nil {
