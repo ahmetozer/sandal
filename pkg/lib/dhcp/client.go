@@ -33,8 +33,10 @@ func (l *Lease) IPNet() *net.IPNet {
 
 // Client is a DHCP client bound to a network interface.
 type Client struct {
-	iface   *net.Interface
-	Timeout time.Duration
+	iface      *net.Interface
+	Timeout    time.Duration
+	ClientPort int // UDP port to listen on (default 68)
+	ServerPort int // UDP port to send to (default 67)
 }
 
 // NewClient creates a DHCP client for the named network interface.
@@ -46,7 +48,12 @@ func NewClient(ifName string) (*Client, error) {
 	if len(iface.HardwareAddr) == 0 {
 		return nil, fmt.Errorf("dhcp: interface %q has no hardware address", ifName)
 	}
-	return &Client{iface: iface, Timeout: 10 * time.Second}, nil
+	return &Client{
+		iface:      iface,
+		Timeout:    10 * time.Second,
+		ClientPort: 68,
+		ServerPort: 67,
+	}, nil
 }
 
 // ObtainLease performs a full DORA exchange (Discover → Offer → Request → Ack).
@@ -63,7 +70,7 @@ func (c *Client) ObtainLease(ctx context.Context) (*Lease, error) {
 	}
 
 	// DISCOVER
-	if err := sendBroadcast(conn, c.newDiscover(xid)); err != nil {
+	if err := sendBroadcast(conn, c.newDiscover(xid), c.broadcastAddr()); err != nil {
 		return nil, fmt.Errorf("dhcp: DISCOVER: %w", err)
 	}
 
@@ -74,7 +81,7 @@ func (c *Client) ObtainLease(ctx context.Context) (*Lease, error) {
 	}
 
 	// REQUEST
-	if err := sendBroadcast(conn, c.newRequest(xid, offer)); err != nil {
+	if err := sendBroadcast(conn, c.newRequest(xid, offer), c.broadcastAddr()); err != nil {
 		return nil, fmt.Errorf("dhcp: REQUEST: %w", err)
 	}
 
@@ -111,7 +118,7 @@ func (c *Client) RenewLease(ctx context.Context, lease *Lease) (*Lease, error) {
 			OptionClientID(HTypeEthernet, c.iface.HardwareAddr),
 		},
 	}
-	if err := sendTo(conn, renew, &net.UDPAddr{IP: lease.ServerIP, Port: 67}); err != nil {
+	if err := sendTo(conn, renew, &net.UDPAddr{IP: lease.ServerIP, Port: c.ServerPort}); err != nil {
 		return nil, fmt.Errorf("dhcp: RENEW: %w", err)
 	}
 
@@ -146,7 +153,7 @@ func (c *Client) ReleaseLease(lease *Lease) error {
 			OptionServerID(lease.ServerIP),
 		},
 	}
-	return sendTo(conn, release, &net.UDPAddr{IP: lease.ServerIP, Port: 67})
+	return sendTo(conn, release, &net.UDPAddr{IP: lease.ServerIP, Port: c.ServerPort})
 }
 
 // Internal packet builders
@@ -195,7 +202,7 @@ func (c *Client) listen() (net.PacketConn, error) {
 			return sockErr
 		},
 	}
-	return lc.ListenPacket(context.Background(), "udp4", "0.0.0.0:68")
+	return lc.ListenPacket(context.Background(), "udp4", fmt.Sprintf("0.0.0.0:%d", c.ClientPort))
 }
 
 func (c *Client) recv(ctx context.Context, conn net.PacketConn, xid uint32, want MessageType) (*Packet, error) {
@@ -230,10 +237,12 @@ func (c *Client) recv(ctx context.Context, conn net.PacketConn, xid uint32, want
 	}
 }
 
-var broadcastAddr = &net.UDPAddr{IP: net.IPv4bcast, Port: 67}
+func (c *Client) broadcastAddr() *net.UDPAddr {
+	return &net.UDPAddr{IP: net.IPv4bcast, Port: c.ServerPort}
+}
 
-func sendBroadcast(conn net.PacketConn, pkt *Packet) error {
-	_, err := conn.WriteTo(pkt.Marshal(), broadcastAddr)
+func sendBroadcast(conn net.PacketConn, pkt *Packet, addr *net.UDPAddr) error {
+	_, err := conn.WriteTo(pkt.Marshal(), addr)
 	return err
 }
 

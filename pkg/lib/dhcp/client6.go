@@ -32,9 +32,11 @@ func (l *Lease6) IPNet() *net.IPNet {
 
 // Client6 is a DHCPv6 client bound to a network interface.
 type Client6 struct {
-	iface   *net.Interface
-	duid    []byte
-	Timeout time.Duration
+	iface      *net.Interface
+	duid       []byte
+	Timeout    time.Duration
+	ClientPort int // UDP port to listen on (default 546)
+	ServerPort int // UDP port to send to (default 547)
 }
 
 // NewClient6 creates a DHCPv6 client for the named network interface.
@@ -48,9 +50,11 @@ func NewClient6(ifName string) (*Client6, error) {
 		return nil, fmt.Errorf("dhcp6: interface %q has no hardware address", ifName)
 	}
 	return &Client6{
-		iface:   iface,
-		duid:    DUIDLL(1, iface.HardwareAddr), // hardware type 1 = ethernet
-		Timeout: 10 * time.Second,
+		iface:      iface,
+		duid:       DUIDLL(1, iface.HardwareAddr), // hardware type 1 = ethernet
+		Timeout:    10 * time.Second,
+		ClientPort: 546,
+		ServerPort: 547,
 	}, nil
 }
 
@@ -198,7 +202,7 @@ func (c *Client6) newRequest(txID [3]byte, adv *Packet6) *Packet6 {
 func (c *Client6) serverAddr() *net.UDPAddr {
 	return &net.UDPAddr{
 		IP:   net.ParseIP("ff02::1:2"),
-		Port: 547,
+		Port: c.ServerPort,
 		Zone: c.iface.Name,
 	}
 }
@@ -213,7 +217,7 @@ func (c *Client6) listen() (net.PacketConn, error) {
 			return sockErr
 		},
 	}
-	return lc.ListenPacket(context.Background(), "udp6", "[::]:546")
+	return lc.ListenPacket(context.Background(), "udp6", fmt.Sprintf("[::]:%d", c.ClientPort))
 }
 
 func (c *Client6) recv6(ctx context.Context, conn net.PacketConn, txID [3]byte, want byte) (*Packet6, error) {
