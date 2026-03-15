@@ -16,3 +16,10 @@ func setSockOpts(fd uintptr, iface *net.Interface) error {
 	}
 	return syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, iface.Name)
 }
+
+func setSockOpts6(fd uintptr, iface *net.Interface) error {
+	if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		return err
+	}
+	return syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, iface.Name)
+}
