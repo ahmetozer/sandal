@@ -57,6 +57,8 @@ func NewClient(ifName string) (*Client, error) {
 }
 
 // ObtainLease performs a full DORA exchange (Discover → Offer → Request → Ack).
+// DISCOVER is retransmitted every 2 seconds until an OFFER is received,
+// which handles bridge/interface warmup delays.
 func (c *Client) ObtainLease(ctx context.Context) (*Lease, error) {
 	conn, err := c.listen()
 	if err != nil {
@@ -69,15 +71,11 @@ func (c *Client) ObtainLease(ctx context.Context) (*Lease, error) {
 		return nil, err
 	}
 
-	// DISCOVER
-	if err := sendBroadcast(conn, c.newDiscover(xid), c.broadcastAddr()); err != nil {
-		return nil, fmt.Errorf("dhcp: DISCOVER: %w", err)
-	}
-
-	// Wait for OFFER
-	offer, err := c.recv(ctx, conn, xid, MsgOffer)
+	// DISCOVER with retransmission
+	discover := c.newDiscover(xid)
+	offer, err := c.discoverOffer(ctx, conn, xid, discover)
 	if err != nil {
-		return nil, fmt.Errorf("dhcp: waiting OFFER: %w", err)
+		return nil, err
 	}
 
 	// REQUEST
@@ -92,6 +90,50 @@ func (c *Client) ObtainLease(ctx context.Context) (*Lease, error) {
 	}
 
 	return toLease(ack), nil
+}
+
+// discoverOffer sends DISCOVER and waits for OFFER, retransmitting every 2 seconds.
+func (c *Client) discoverOffer(ctx context.Context, conn net.PacketConn, xid uint32, discover *Packet) (*Packet, error) {
+	retransmit := 2 * time.Second
+	buf := make([]byte, 1500)
+
+	if err := sendBroadcast(conn, discover, c.broadcastAddr()); err != nil {
+		return nil, fmt.Errorf("dhcp: DISCOVER: %w", err)
+	}
+	nextRetransmit := time.Now().Add(retransmit)
+
+	for {
+		conn.SetReadDeadline(time.Now().Add(time.Second))
+		n, _, err := conn.ReadFrom(buf)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("dhcp: waiting OFFER: %w", ctx.Err())
+			}
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				// Retransmit DISCOVER periodically
+				if time.Now().After(nextRetransmit) {
+					sendBroadcast(conn, discover, c.broadcastAddr())
+					nextRetransmit = time.Now().Add(retransmit)
+				}
+				continue
+			}
+			return nil, fmt.Errorf("dhcp: waiting OFFER: %w", err)
+		}
+		pkt, err := Unmarshal(buf[:n])
+		if err != nil {
+			continue
+		}
+		if pkt.XID != xid || pkt.Op != OpReply {
+			continue
+		}
+		mt := pkt.Options.MessageType()
+		if mt == MsgNak {
+			return nil, fmt.Errorf("dhcp: server sent NAK")
+		}
+		if mt == MsgOffer {
+			return pkt, nil
+		}
+	}
 }
 
 // RenewLease unicasts a REQUEST to renew an existing lease.
