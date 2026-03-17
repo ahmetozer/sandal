@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
@@ -37,7 +38,7 @@ func Snapshot(args []string) error {
 		return fmt.Errorf("container %q not found: %w", containerName, err)
 	}
 
-	upperDir := path.Join(c.ChangeDir, "upper")
+	upperDir := overlayfs.GetChangeDir(c).GetUpper()
 	if _, err := os.Stat(upperDir); err != nil {
 		return fmt.Errorf("change directory not found: %w", err)
 	}
