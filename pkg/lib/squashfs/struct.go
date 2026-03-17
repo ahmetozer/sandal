@@ -11,7 +11,7 @@ type SquashfsMkfsTime uint32
 type SquashfsCompression uint16
 type SquashfsVersion uint16
 
-// SquashfsHeader represents the squashfs superblock structure
+// SquashfsHeader represents the squashfs superblock structure (96 bytes)
 type SquashfsHeader struct {
 	Magic               SquashfsMagic
 	Inodes              uint32
@@ -22,7 +22,8 @@ type SquashfsHeader struct {
 	BlockLog            uint16
 	Flags               uint16
 	NoIds               uint16
-	Version             SquashfsVersion
+	VersionMajor        SquashfsVersion
+	VersionMinor        uint16
 	RootInode           uint64
 	BytesUsed           uint64
 	IdTableStart        uint64
@@ -34,7 +35,7 @@ type SquashfsHeader struct {
 }
 
 func (m SquashfsMagic) String() string {
-	return map[bool]string{true: "Little", false: "Big"}[m == SQUASHFS_MAGIC_LE]
+	return map[bool]string{true: "Little", false: "Big"}[m == SQUASHFS_MAGIC]
 }
 func (d SquashfsMagic) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + d.String() + "\""), nil
@@ -48,7 +49,7 @@ func (d SquashfsMkfsTime) MarshalJSON() ([]byte, error) {
 }
 
 func (v SquashfsVersion) String() string {
-	return fmt.Sprintf("%d.%d", v&0xFF, v>>8)
+	return fmt.Sprintf("%d", v)
 }
 func (d SquashfsVersion) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + d.String() + "\""), nil

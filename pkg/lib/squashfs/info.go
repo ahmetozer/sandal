@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"unsafe"
 )
 
-const SquashfsHeaderSize = int(unsafe.Sizeof(SquashfsHeader{}))
+const SquashfsHeaderSize = 96
 
 func Info(path string) (SquashfsHeader, error) {
 	var header SquashfsHeader
@@ -26,15 +25,6 @@ func Info(path string) (SquashfsHeader, error) {
 
 	if header.Magic != SQUASHFS_MAGIC && header.Magic != SQUASHFS_MAGIC_LE {
 		return header, fmt.Errorf("not supported squashfs file")
-	}
-
-	// Determine endianness and adjust values if needed
-	isLittleEndian := header.Magic == SQUASHFS_MAGIC_LE
-	if !isLittleEndian {
-		// Convert relevant fields from big endian
-		header.BlockSize = binary.BigEndian.Uint32((*[4]byte)(unsafe.Pointer(&header.BlockSize))[:])
-		header.Inodes = binary.BigEndian.Uint32((*[4]byte)(unsafe.Pointer(&header.Inodes))[:])
-		header.BytesUsed = binary.BigEndian.Uint64((*[8]byte)(unsafe.Pointer(&header.BytesUsed))[:])
 	}
 
 	return header, nil
