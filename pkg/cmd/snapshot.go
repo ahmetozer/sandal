@@ -6,12 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
+	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/controller"
-	"github.com/ahmetozer/sandal/pkg/env"
-	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 )
 
 func Snapshot(args []string) error {
@@ -38,35 +35,11 @@ func Snapshot(args []string) error {
 		return fmt.Errorf("container %q not found: %w", containerName, err)
 	}
 
-	upperDir := overlayfs.GetChangeDir(c).GetUpper()
-	if _, err := os.Stat(upperDir); err != nil {
-		return fmt.Errorf("change directory not found: %w", err)
-	}
-
-	if filePath == "" {
-		if err := os.MkdirAll(env.BaseSnapshotDir, 0o755); err != nil {
-			return fmt.Errorf("creating snapshot directory: %w", err)
-		}
-		filePath = path.Join(env.BaseSnapshotDir, containerName+".sqfs")
-	}
-
-	outFile, err := os.Create(filePath)
+	outPath, err := snapshot.Create(c, filePath)
 	if err != nil {
-		return fmt.Errorf("creating output file: %w", err)
-	}
-	defer outFile.Close()
-
-	w, err := squashfs.NewWriter(outFile)
-	if err != nil {
-		os.Remove(filePath)
-		return fmt.Errorf("creating squashfs writer: %w", err)
+		return err
 	}
 
-	if err := w.CreateFromDir(upperDir); err != nil {
-		os.Remove(filePath)
-		return fmt.Errorf("creating squashfs image: %w", err)
-	}
-
-	fmt.Printf("%s\n", filePath)
+	fmt.Printf("%s\n", outPath)
 	return nil
 }

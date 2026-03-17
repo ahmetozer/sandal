@@ -28,6 +28,7 @@ type Config struct {
 
 	ChangeDir string
 	RootfsDir string
+	Snapshot  string
 
 	ReadOnly        bool
 	Remove          bool
