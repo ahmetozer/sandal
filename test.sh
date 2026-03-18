@@ -120,7 +120,7 @@ cleanup() {
     # Kill any test containers
     for name in test-basic test-background test-readonly test-volumes test-network \
                 test-memory test-cpu test-env test-user test-namespace test-tmpfs \
-                test-multi-lower test-workdir test-exec; do
+                test-multi-lower test-workdir test-exec test-kill-cleanup test-rerun; do
         $SANDAL_BIN kill "$name" 2>/dev/null || true
         $SANDAL_BIN rm "$name" 2>/dev/null || true
     done
@@ -671,7 +671,93 @@ test_exec_in_container() {
 }
 
 # ============================================================================
-# TEST SECTION 8: Clear and Cleanup Tests
+# TEST SECTION 8: Kill Cleanup and Re-run Race Test
+# ============================================================================
+
+test_kill_cleans_mounts() {
+    log_test "Kill cleans up mounts (no resource leak)"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start background container
+    $SANDAL_BIN run -name="test-kill-cleanup" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 120 2>&1 || true
+    sleep 1
+
+    # Verify mounts exist while running
+    if ! mount | grep -q "test-kill-cleanup"; then
+        log_fail "Kill cleanup: container mounts not found while running"
+        $SANDAL_BIN kill test-kill-cleanup 2>/dev/null || true
+        return
+    fi
+
+    # Kill container
+    $SANDAL_BIN kill test-kill-cleanup 2>&1 || true
+    sleep 1
+
+    # Verify mounts are cleaned up
+    if mount | grep -q "test-kill-cleanup"; then
+        log_fail "Kill cleanup: mounts still present after kill"
+    else
+        log_pass "Kill cleans up mounts"
+    fi
+}
+
+test_kill_rerun_no_race() {
+    log_test "Kill then immediate re-run (no duplicate containers)"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start background container with a marker volume
+    mkdir -p "$TEST_DIR/vol-old"
+    echo "old-config" > "$TEST_DIR/vol-old/marker"
+    $SANDAL_BIN run -name="test-rerun" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol-old:/marker" -d -- /bin/sleep 120 2>&1 || true
+    sleep 1
+
+    # Get old PID
+    old_pid=$($SANDAL_BIN inspect test-rerun 2>&1 | grep -o '"ContPid":[0-9]*' | grep -o '[0-9]*')
+
+    # Kill and immediately re-run with different volume (simulates user's workflow)
+    $SANDAL_BIN kill test-rerun 2>&1 || true
+    mkdir -p "$TEST_DIR/vol-new"
+    echo "new-config" > "$TEST_DIR/vol-new/marker"
+    $SANDAL_BIN run -name="test-rerun" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol-new:/marker" -d -- /bin/sleep 120 2>&1 || true
+    sleep 1
+
+    # Get new PID
+    new_pid=$($SANDAL_BIN inspect test-rerun 2>&1 | grep -o '"ContPid":[0-9]*' | grep -o '[0-9]*')
+
+    # Verify: new PID should be different from old
+    if [ -z "$new_pid" ] || [ "$new_pid" = "0" ]; then
+        log_fail "Kill/re-run: new container not running"
+        $SANDAL_BIN kill test-rerun 2>/dev/null || true
+        return
+    fi
+
+    if [ "$old_pid" = "$new_pid" ]; then
+        log_fail "Kill/re-run: PID unchanged (old container still running?)"
+        $SANDAL_BIN kill test-rerun 2>/dev/null || true
+        return
+    fi
+
+    # Verify new config is active (new volume content)
+    output=$($SANDAL_BIN exec test-rerun -- /bin/cat /marker/marker 2>&1) || true
+    if echo "$output" | grep -q "new-config"; then
+        log_pass "Kill then immediate re-run works (new config active)"
+    else
+        log_fail "Kill/re-run: expected new-config, got: $output"
+    fi
+
+    $SANDAL_BIN kill test-rerun 2>/dev/null || true
+}
+
+# ============================================================================
+# TEST SECTION 9: Clear and Cleanup Tests (renumbered)
 # ============================================================================
 
 test_clear_unused() {
@@ -686,7 +772,7 @@ test_clear_unused() {
 }
 
 # ============================================================================
-# TEST SECTION 9: Error Handling Tests
+# TEST SECTION 10: Error Handling Tests
 # ============================================================================
 
 test_run_without_args() {
@@ -743,7 +829,7 @@ test_duplicate_container_name() {
 }
 
 # ============================================================================
-# TEST SECTION 10: Go Unit Tests
+# TEST SECTION 11: Go Unit Tests
 # ============================================================================
 
 test_go_unit_tests() {
@@ -819,18 +905,23 @@ main() {
     test_exec_in_container
 
     echo ""
-    echo "=== Section 8: Cleanup Tests ==="
+    echo "=== Section 8: Kill Cleanup and Re-run Race Tests ==="
+    test_kill_cleans_mounts
+    test_kill_rerun_no_race
+
+    echo ""
+    echo "=== Section 9: Cleanup Tests ==="
     test_clear_unused
 
     echo ""
-    echo "=== Section 9: Error Handling Tests ==="
+    echo "=== Section 10: Error Handling Tests ==="
     test_run_without_args
     test_run_nonexistent_image
     test_kill_nonexistent_container
     test_duplicate_container_name
 
     echo ""
-    echo "=== Section 10: Go Unit Tests ==="
+    echo "=== Section 11: Go Unit Tests ==="
     test_go_unit_tests
 
     # Summary

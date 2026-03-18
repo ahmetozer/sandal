@@ -12,14 +12,16 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func DeRunContainer(c *config.Config) {
+// CleanupResources releases mounts, cgroups, and network interfaces
+// for a container whose process is already dead. It is idempotent —
+// calling it multiple times is safe (unmounting an already-unmounted
+// path is a no-op).
+func CleanupResources(c *config.Config) {
 	if err := UmountRootfs(c); err != nil {
 		for _, e := range err {
-			slog.Debug("deRunContainer", "umount", slog.Any("error", e))
+			slog.Debug("cleanupResources", "umount", slog.Any("error", e))
 		}
 	}
-
-	Kill(c, 9, 5)
 
 	// Clean up resource limits
 	if c.MemoryLimit != "" || c.CPULimit != "" {
@@ -40,12 +42,16 @@ func DeRunContainer(c *config.Config) {
 				link, err := netlink.LinkByName("s-" + (*ifaces)[i].Id)
 				if err == nil {
 					netlink.LinkDel(link)
-
 				}
 			}
 		}
-
 	}
+}
+
+func DeRunContainer(c *config.Config) {
+	CleanupResources(c)
+
+	Kill(c, 9, 5)
 
 	if c.Remove {
 
