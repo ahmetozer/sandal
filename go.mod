@@ -1,6 +1,6 @@
 module github.com/ahmetozer/sandal
 
-go 1.24.0
+go 1.26.1
 
 require github.com/vishvananda/netlink v1.3.1
 
