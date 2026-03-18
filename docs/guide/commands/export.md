@@ -18,6 +18,22 @@ sandal export -from /my/rootfs output.sqfs
 output.sqfs
 ```
 
+### `-i string`
+
+:   include path — only export content under these paths (can be specified multiple times). If not set, everything is included.
+
+```bash
+sandal export -from /srv/rootfs -i /etc -i /bin output.sqfs
+```
+
+### `-e string`
+
+:   exclude path — skip content under these paths (can be specified multiple times). Excludes take priority over includes.
+
+```bash
+sandal export mycontainer -e /tmp -e /var/cache output.sqfs
+```
+
 ### `-help bool`
 
 :   show help message

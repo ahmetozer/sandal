@@ -15,6 +15,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// FilterOptions controls which paths are included/excluded from the snapshot.
+type FilterOptions struct {
+	Includes []string // paths to include (default: everything if empty)
+	Excludes []string // paths to exclude (takes priority over includes)
+}
+
 // Resolve returns the snapshot file path for the container if one exists.
 // It checks c.Snapshot first, then the default location. Returns "" if no snapshot exists.
 func Resolve(c *config.Config) string {
@@ -49,7 +55,7 @@ func resolveOutputPath(c *config.Config, filePath string) (string, error) {
 // if that is also empty, the default SANDAL_SNAPSHOT_DIR/<name>.sqfs is used.
 // If a previous snapshot exists, it is merged with the current upper dir
 // so that accumulated changes are preserved across successive snapshots.
-func Create(c *config.Config, filePath string) (string, error) {
+func Create(c *config.Config, filePath string, filter FilterOptions) (string, error) {
 	upperDir := overlayfs.GetChangeDir(c).GetUpper()
 	if _, err := os.Stat(upperDir); err != nil {
 		return "", fmt.Errorf("change directory not found: %w", err)
@@ -83,7 +89,18 @@ func Create(c *config.Config, filePath string) (string, error) {
 	}
 	tmpPath := tmpFile.Name()
 
-	w, err := squashfs.NewWriter(tmpFile)
+	var writerOpts []squashfs.WriterOption
+	if len(filter.Includes) > 0 || len(filter.Excludes) > 0 {
+		includes := filter.Includes
+		if len(includes) == 0 {
+			includes = []string{"/"}
+		}
+		writerOpts = append(writerOpts, squashfs.WithPathFilter(
+			squashfs.NewIncludeExcludeFilter(includes, filter.Excludes),
+		))
+	}
+
+	w, err := squashfs.NewWriter(tmpFile, writerOpts...)
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)

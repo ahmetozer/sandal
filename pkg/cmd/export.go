@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 )
@@ -15,9 +16,12 @@ func Export(args []string) error {
 	flags := flag.NewFlagSet("export", flag.ExitOnError)
 	var help bool
 	var fromDir string
+	var includes, excludes wrapper.StringFlags
 
 	flags.BoolVar(&help, "help", false, "show this help message")
 	flags.StringVar(&fromDir, "from", "", "create squashfs from a custom directory instead of a container")
+	flags.Var(&includes, "i", "include path (can be specified multiple times)")
+	flags.Var(&excludes, "e", "exclude path (can be specified multiple times)")
 	flags.Parse(args)
 
 	if fromDir != "" {
@@ -32,7 +36,7 @@ func Export(args []string) error {
 			return fmt.Errorf("source directory not found: %w", err)
 		}
 
-		return createSquashfs(fromDir, outputPath)
+		return createSquashfs(fromDir, outputPath, includes, excludes)
 	}
 
 	if help || len(flags.Args()) < 2 {
@@ -55,17 +59,28 @@ func Export(args []string) error {
 		return fmt.Errorf("rootfs directory not found (is the container running?): %w", err)
 	}
 
-	return createSquashfs(rootfsDir, outputPath)
+	return createSquashfs(rootfsDir, outputPath, includes, excludes)
 }
 
-func createSquashfs(sourceDir, outputPath string) error {
+func createSquashfs(sourceDir, outputPath string, includes, excludes []string) error {
 	outFile, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("creating output file: %w", err)
 	}
 	defer outFile.Close()
 
-	w, err := squashfs.NewWriter(outFile)
+	var opts []squashfs.WriterOption
+	if len(includes) > 0 || len(excludes) > 0 {
+		inc := includes
+		if len(inc) == 0 {
+			inc = []string{"/"}
+		}
+		opts = append(opts, squashfs.WithPathFilter(
+			squashfs.NewIncludeExcludeFilter(inc, excludes),
+		))
+	}
+
+	w, err := squashfs.NewWriter(outFile, opts...)
 	if err != nil {
 		os.Remove(outputPath)
 		return fmt.Errorf("creating squashfs writer: %w", err)

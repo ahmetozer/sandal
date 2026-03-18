@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
@@ -16,10 +17,14 @@ func Snapshot(args []string) error {
 	var (
 		help     bool
 		filePath string
+		includes wrapper.StringFlags
+		excludes wrapper.StringFlags
 	)
 
 	flags.BoolVar(&help, "help", false, "show this help message")
 	flags.StringVar(&filePath, "f", "", "custom output file path (default: SANDAL_SNAPSHOT_DIR/<container>.sqfs)")
+	flags.Var(&includes, "i", "include path (can be specified multiple times)")
+	flags.Var(&excludes, "e", "exclude path (can be specified multiple times)")
 	flags.Parse(args)
 
 	if help || len(flags.Args()) < 1 {
@@ -35,7 +40,10 @@ func Snapshot(args []string) error {
 		return fmt.Errorf("container %q not found: %w", containerName, err)
 	}
 
-	outPath, err := snapshot.Create(c, filePath)
+	outPath, err := snapshot.Create(c, filePath, snapshot.FilterOptions{
+		Includes: includes,
+		Excludes: excludes,
+	})
 	if err != nil {
 		return err
 	}

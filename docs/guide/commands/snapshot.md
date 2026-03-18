@@ -18,9 +18,43 @@ sandal snapshot -f /backup/test-snapshot.sqfs test
 /backup/test-snapshot.sqfs
 ```
 
+### `-i string`
+
+:   include path — only snapshot content under these paths (can be specified multiple times). If not set, everything is included.
+
+```bash
+sandal snapshot -i /folder1/ -i /folder2/folder2-1/ test
+```
+
+### `-e string`
+
+:   exclude path — skip content under these paths (can be specified multiple times). Excludes take priority over includes.
+
+```bash
+sandal snapshot -e /tmp test
+```
+
 ### `-help bool`
 
 :   show help message
+
+## Include and Exclude Filters
+
+Use `-i` and `-e` to control which paths end up in the snapshot. This keeps unrelated data (caches, logs, temp files) out of the image.
+
+Include only `/folder1/` and `/folder2/folder2-1/`, but exclude `/folder1/tmp`:
+
+```bash
+sandal snapshot -i /folder1/ -i /folder2/folder2-1/ -e /folder1/tmp test
+```
+
+Snapshot everything except `/tmp`:
+
+```bash
+sandal snapshot -e /tmp test
+```
+
+When no `-i` is specified, all paths are included by default. Excludes always take priority over includes.
 
 ## How It Works
 

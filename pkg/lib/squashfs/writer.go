@@ -1,6 +1,7 @@
 package squashfs
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -64,6 +66,14 @@ type Writer struct {
 	fragments []fragmentEntry
 	fragBuf   bytes.Buffer
 
+	// Reusable compression state
+	compBuf bytes.Buffer  // reusable output buffer for compress()
+	compW   *zlib.Writer  // reusable zlib writer
+
+	// Optional path filter: receives path relative to rootPath (e.g. "/etc/motd").
+	// Returns true to include the entry, false to skip it.
+	pathFilter func(relPath string, isDir bool) bool
+
 	dataPos int64
 }
 
@@ -104,6 +114,13 @@ func WithMkfsTime(t time.Time) WriterOption {
 	return func(w *Writer) { w.mkfsTime = t }
 }
 
+// WithPathFilter sets a filter function that controls which paths are included.
+// The filter receives the path relative to the root (e.g. "/etc/motd", "/bin")
+// and whether the entry is a directory. Return true to include, false to skip.
+func WithPathFilter(fn func(relPath string, isDir bool) bool) WriterOption {
+	return func(w *Writer) { w.pathFilter = fn }
+}
+
 // NewWriter creates a new squashfs writer.
 func NewWriter(out io.WriteSeeker, opts ...WriterOption) (*Writer, error) {
 	w := &Writer{
@@ -122,6 +139,11 @@ func NewWriter(out io.WriteSeeker, opts ...WriterOption) (*Writer, error) {
 	if _, err := w.out.Seek(w.dataPos, io.SeekStart); err != nil {
 		return nil, err
 	}
+	zw, err := zlib.NewWriterLevel(&w.compBuf, zlib.DefaultCompression)
+	if err != nil {
+		return nil, err
+	}
+	w.compW = zw
 	return w, nil
 }
 
@@ -142,18 +164,18 @@ func (w *Writer) lookupID(id uint32) uint16 {
 }
 
 func (w *Writer) compress(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	zw, err := zlib.NewWriterLevel(&buf, zlib.BestCompression)
-	if err != nil {
+	w.compBuf.Reset()
+	w.compW.Reset(&w.compBuf)
+	if _, err := w.compW.Write(data); err != nil {
 		return nil, err
 	}
-	if _, err := zw.Write(data); err != nil {
+	if err := w.compW.Close(); err != nil {
 		return nil, err
 	}
-	if err := zw.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	// Return a copy since compBuf is reused
+	out := make([]byte, w.compBuf.Len())
+	copy(out, w.compBuf.Bytes())
+	return out, nil
 }
 
 // writeDataBlock compresses and writes a data block to disk.
@@ -219,26 +241,34 @@ func (w *Writer) flushFragBlock() error {
 	return nil
 }
 
-func (w *Writer) writeFileData(data []byte) (uint32, []uint32, uint32, uint32, error) {
+func (w *Writer) writeFileDataStreamed(f *os.File, fileSize int64) (uint32, []uint32, uint32, uint32, error) {
 	startBlock := uint32(w.dataPos)
 	var blockSizes []uint32
 	fragIdx := uint32(0xFFFFFFFF)
 	fragOff := uint32(0)
 
-	fullBlocks := len(data) / int(w.blockSize)
-	remainder := len(data) % int(w.blockSize)
+	bs := int(w.blockSize)
+	buf := make([]byte, bs)
+	r := bufio.NewReaderSize(f, bs)
 
-	for i := 0; i < fullBlocks; i++ {
-		chunk := data[i*int(w.blockSize) : (i+1)*int(w.blockSize)]
-		size, err := w.writeDataBlock(chunk)
+	remaining := fileSize
+	for remaining >= int64(bs) {
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return 0, nil, 0, 0, err
+		}
+		size, err := w.writeDataBlock(buf)
 		if err != nil {
 			return 0, nil, 0, 0, err
 		}
 		blockSizes = append(blockSizes, size)
+		remaining -= int64(bs)
 	}
 
-	if remainder > 0 {
-		tail := data[fullBlocks*int(w.blockSize):]
+	if remaining > 0 {
+		tail := buf[:remaining]
+		if _, err := io.ReadFull(r, tail); err != nil {
+			return 0, nil, 0, 0, err
+		}
 		var err error
 		fragIdx, fragOff, err = w.addFragment(tail)
 		if err != nil {
@@ -254,12 +284,19 @@ func (w *Writer) appendInode(inodeNum uint32, data []byte) {
 	w.inodeRaw.Write(data)
 }
 
-// computeMetadataBlockOffsets does a dry-run compression to find each 8KB block's compressed byte offset.
-func (w *Writer) computeMetadataBlockOffsets(raw []byte) ([]int64, error) {
-	var offsets []int64
+// metadataCache holds pre-compressed metadata blocks to avoid redundant compression.
+type metadataCache struct {
+	offsets []int64  // byte offset of each block relative to table start
+	blocks  [][]byte // compressed (or raw if incompressible) data per block
+	headers []uint16 // metadata header per block
+}
+
+// compressMetadataBlocks compresses all 8KB metadata chunks and caches the results.
+func (w *Writer) compressMetadataBlocks(raw []byte) (*metadataCache, error) {
+	mc := &metadataCache{}
 	pos := int64(0)
 	for i := 0; i < len(raw); i += metadataBlockSize {
-		offsets = append(offsets, pos)
+		mc.offsets = append(mc.offsets, pos)
 		end := i + metadataBlockSize
 		if end > len(raw) {
 			end = len(raw)
@@ -270,51 +307,40 @@ func (w *Writer) computeMetadataBlockOffsets(raw []byte) ([]int64, error) {
 			return nil, err
 		}
 		if len(compressed) < len(chunk) {
+			mc.blocks = append(mc.blocks, compressed)
+			mc.headers = append(mc.headers, uint16(len(compressed)))
 			pos += 2 + int64(len(compressed))
 		} else {
+			// Store a copy of the raw chunk since caller may mutate raw
+			stored := make([]byte, len(chunk))
+			copy(stored, chunk)
+			mc.blocks = append(mc.blocks, stored)
+			mc.headers = append(mc.headers, uint16(len(chunk))|metadataUncompBit)
 			pos += 2 + int64(len(chunk))
 		}
 	}
-	return offsets, nil
+	return mc, nil
+}
+
+// writeMetadataCached writes pre-compressed metadata blocks to disk. Returns start offset.
+func (w *Writer) writeMetadataCached(mc *metadataCache) (int64, error) {
+	startOff := w.dataPos
+	for i, block := range mc.blocks {
+		if err := binary.Write(w.out, binary.LittleEndian, mc.headers[i]); err != nil {
+			return 0, err
+		}
+		if _, err := w.out.Write(block); err != nil {
+			return 0, err
+		}
+		w.dataPos += 2 + int64(len(block))
+	}
+	return startOff, nil
 }
 
 func inodeRef(rawPos int, blockOffsets []int64) uint64 {
 	blockIdx := rawPos / metadataBlockSize
 	offsetInBlock := rawPos % metadataBlockSize
 	return uint64(blockOffsets[blockIdx])<<16 | uint64(offsetInBlock)
-}
-
-// writeMetadataBlocks writes compressed metadata blocks to disk. Returns start offset.
-func (w *Writer) writeMetadataBlocks(raw []byte) (int64, error) {
-	startOff := w.dataPos
-	for i := 0; i < len(raw); i += metadataBlockSize {
-		end := i + metadataBlockSize
-		if end > len(raw) {
-			end = len(raw)
-		}
-		chunk := raw[i:end]
-		compressed, err := w.compress(chunk)
-		if err != nil {
-			return 0, err
-		}
-		var header uint16
-		var toWrite []byte
-		if len(compressed) < len(chunk) {
-			header = uint16(len(compressed))
-			toWrite = compressed
-		} else {
-			header = uint16(len(chunk)) | metadataUncompBit
-			toWrite = chunk
-		}
-		if err := binary.Write(w.out, binary.LittleEndian, header); err != nil {
-			return 0, err
-		}
-		if _, err := w.out.Write(toWrite); err != nil {
-			return 0, err
-		}
-		w.dataPos += 2 + int64(len(toWrite))
-	}
-	return startOff, nil
 }
 
 // writeMetadataBlocksTracked writes metadata blocks and returns each block's disk position.
@@ -367,13 +393,15 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 	dirData := w.dirRaw.Bytes()
 
 	// Phase 2: Resolve circular dependency between inode and dir table positions.
-	// Strategy: iterate patch→dry-run until compressed offsets stabilize,
-	// then write the final data exactly once.
+	// Strategy: iterate patch→compress→check until offsets stabilize.
+	// Compression results are cached so the final write reuses them (no re-compression).
 	inodeTableStart := w.dataPos
 
+	var inodeCache, dirCache *metadataCache
+
 	for iter := 0; iter < 20; iter++ {
-		// Compute inode block offsets (dry-run)
-		inodeBlockOffsets, err2 := w.computeMetadataBlockOffsets(inodeData)
+		var err2 error
+		inodeCache, err2 = w.compressMetadataBlocks(inodeData)
 		if err2 != nil {
 			return fmt.Errorf("computing inode block offsets: %w", err2)
 		}
@@ -383,7 +411,7 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 		for _, fix := range w.dirEntryFixups {
 			rawPos := w.inodePos[fix.firstInodeNum]
 			blockIdx := rawPos / metadataBlockSize
-			val := uint32(inodeBlockOffsets[blockIdx])
+			val := uint32(inodeCache.offsets[blockIdx])
 			old := binary.LittleEndian.Uint32(dirData[fix.dirRawOffset:])
 			if old != val {
 				binary.LittleEndian.PutUint32(dirData[fix.dirRawOffset:], val)
@@ -391,8 +419,7 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 			}
 		}
 
-		// Compute dir block offsets (dry-run)
-		dirBlockOffsets, err2 := w.computeMetadataBlockOffsets(dirData)
+		dirCache, err2 = w.compressMetadataBlocks(dirData)
 		if err2 != nil {
 			return fmt.Errorf("computing dir block offsets: %w", err2)
 		}
@@ -400,7 +427,7 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 		// Patch dir inode block_index/block_offset with dir block offsets
 		for _, fix := range w.dirInodeFixups {
 			blockIdx := fix.dirRawPos / metadataBlockSize
-			val := uint32(dirBlockOffsets[blockIdx])
+			val := uint32(dirCache.offsets[blockIdx])
 			old := binary.LittleEndian.Uint32(inodeData[fix.inodeRawOffset:])
 			if old != val {
 				binary.LittleEndian.PutUint32(inodeData[fix.inodeRawOffset:], val)
@@ -414,21 +441,23 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 		}
 	}
 
-	// Final write: the data is now stable. Dry-run offsets match what will be written.
+	// Final compression pass: inode data may have been patched in the last dir fixup round
+	var err2 error
+	inodeCache, err2 = w.compressMetadataBlocks(inodeData)
+	if err2 != nil {
+		return fmt.Errorf("computing final inode offsets: %w", err2)
+	}
+
 	rootInodeNum := w.nextInode - 1
 	rootRawPos := w.inodePos[rootInodeNum]
+	rootRef := inodeRef(rootRawPos, inodeCache.offsets)
 
-	inodeBlockOffsets, err := w.computeMetadataBlockOffsets(inodeData)
-	if err != nil {
-		return fmt.Errorf("computing final inode offsets: %w", err)
-	}
-	rootRef := inodeRef(rootRawPos, inodeBlockOffsets)
-
-	if _, err := w.writeMetadataBlocks(inodeData); err != nil {
+	// Write cached compressed blocks directly — no re-compression
+	if _, err := w.writeMetadataCached(inodeCache); err != nil {
 		return fmt.Errorf("writing inode table: %w", err)
 	}
 	dirTableStart := w.dataPos
-	if _, err := w.writeMetadataBlocks(dirData); err != nil {
+	if _, err := w.writeMetadataCached(dirCache); err != nil {
 		return fmt.Errorf("writing directory table: %w", err)
 	}
 
@@ -504,6 +533,26 @@ func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
 		info, err := os.Lstat(childPath)
 		if err != nil {
 			return 0, err
+		}
+
+		// Apply path filter if set
+		if w.pathFilter != nil {
+			relPath := "/" + strings.TrimPrefix(strings.TrimPrefix(childPath, rootPath), "/")
+			if !info.IsDir() && info.Mode()&fs.ModeSymlink == 0 {
+				// Non-directory: skip if filter rejects
+				if !w.pathFilter(relPath, false) {
+					continue
+				}
+			} else if info.IsDir() {
+				// Directory: skip if filter rejects
+				if !w.pathFilter(relPath, true) {
+					continue
+				}
+			} else if info.Mode()&fs.ModeSymlink != 0 {
+				if !w.pathFilter(relPath, false) {
+					continue
+				}
+			}
 		}
 
 		switch {
@@ -650,12 +699,13 @@ func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos
 
 // buildFileInode creates a basic file inode (type 2).
 func (w *Writer) buildFileInode(path string, info fs.FileInfo) (uint32, error) {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return 0, err
 	}
+	defer f.Close()
 
-	startBlock, blockSizes, fragIdx, fragOff, err := w.writeFileData(data)
+	startBlock, blockSizes, fragIdx, fragOff, err := w.writeFileDataStreamed(f, info.Size())
 	if err != nil {
 		return 0, err
 	}
@@ -674,7 +724,7 @@ func (w *Writer) buildFileInode(path string, info fs.FileInfo) (uint32, error) {
 	binary.Write(&buf, binary.LittleEndian, startBlock)
 	binary.Write(&buf, binary.LittleEndian, fragIdx)
 	binary.Write(&buf, binary.LittleEndian, fragOff)
-	binary.Write(&buf, binary.LittleEndian, uint32(len(data)))
+	binary.Write(&buf, binary.LittleEndian, uint32(info.Size()))
 	for _, bs := range blockSizes {
 		binary.Write(&buf, binary.LittleEndian, bs)
 	}
