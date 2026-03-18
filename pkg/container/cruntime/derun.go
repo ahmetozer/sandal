@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/console"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/resources"
 	"github.com/vishvananda/netlink"
@@ -33,6 +34,9 @@ func CleanupResources(c *config.Config) {
 		// Clean up proc files
 		resources.CleanupProcFiles(c.RootfsDir)
 	}
+
+	// Clean up console directory (FIFOs, socket, log files)
+	os.RemoveAll(console.Dir(c.Name))
 
 	if !c.NS.Get("net").IsHost {
 		ifaces, err := net.ToLinks(&(c.Net))

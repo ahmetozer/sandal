@@ -10,7 +10,6 @@ import (
 
 var (
 	// Main folder for all container related files
-	IsDaemon bool
 
 	BinLoc string
 
@@ -26,6 +25,9 @@ var (
 	BaseRootfsDir         string
 
 	DaemonSocket string
+
+	// IsDaemon is true when the current process is running under the sandal daemon.
+	IsDaemon bool
 
 	DefaultHostNet string
 
@@ -74,6 +76,8 @@ func init() {
 
 		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
 
+		IsDaemon = os.Getenv("SANDAL_DAEMON_PID") != ""
+
 		home, _ := os.UserHomeDir()
 		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(home, ".sandal-vm", "bin", "sandal"))
 
@@ -82,9 +86,5 @@ func init() {
 		Get = getCurrents
 	}
 	Get = getMain
-
-	if len(os.Args) > 1 {
-		IsDaemon = os.Args[1] == "daemon"
-	}
 
 }

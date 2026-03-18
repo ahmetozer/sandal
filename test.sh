@@ -120,7 +120,8 @@ cleanup() {
     # Kill any test containers
     for name in test-basic test-background test-readonly test-volumes test-network \
                 test-memory test-cpu test-env test-user test-namespace test-tmpfs \
-                test-multi-lower test-workdir test-exec test-kill-cleanup test-rerun; do
+                test-multi-lower test-workdir test-exec test-kill-cleanup test-rerun \
+                test-console; do
         $SANDAL_BIN kill "$name" 2>/dev/null || true
         $SANDAL_BIN rm "$name" 2>/dev/null || true
     done
@@ -757,7 +758,163 @@ test_kill_rerun_no_race() {
 }
 
 # ============================================================================
-# TEST SECTION 9: Clear and Cleanup Tests (renumbered)
+# TEST SECTION 9: Console and Attach Tests
+# ============================================================================
+
+test_console_fifo_stdout() {
+    log_test "Background container stdout captured to console file"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "echo console-test-output; sleep 60" 2>&1 || true
+    sleep 1
+
+    console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
+
+    # Verify console files exist
+    if [ ! -f "$console_dir/stdout" ]; then
+        log_fail "Console stdout file not created"
+        $SANDAL_BIN kill test-console 2>/dev/null || true
+        return
+    fi
+
+    if [ ! -p "$console_dir/stdin" ]; then
+        log_fail "Console stdin FIFO not created"
+        $SANDAL_BIN kill test-console 2>/dev/null || true
+        return
+    fi
+
+    # Verify stdout captured the output
+    if grep -q "console-test-output" "$console_dir/stdout"; then
+        log_pass "Background container stdout captured to console file"
+    else
+        log_fail "Console stdout missing expected output"
+    fi
+
+    $SANDAL_BIN kill test-console 2>/dev/null || true
+}
+
+test_console_fifo_live_tail() {
+    log_test "Console stdout can be tailed in real time"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "i=0; while true; do echo tick-\$i; i=\$((i+1)); sleep 1; done" 2>&1 || true
+    sleep 2
+
+    console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
+
+    # Tail for 3 seconds and check we get live lines
+    output=$(timeout 3 tail -f "$console_dir/stdout" 2>&1) || true
+
+    if echo "$output" | grep -q "tick-"; then
+        log_pass "Console stdout can be tailed in real time"
+    else
+        log_fail "Console tail produced no output"
+    fi
+
+    $SANDAL_BIN kill test-console 2>/dev/null || true
+}
+
+test_console_fifo_stdin() {
+    log_test "Console stdin FIFO delivers input to container"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start container that reads from stdin and writes to stdout
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "read line; echo got-\$line; sleep 60" 2>&1 || true
+    sleep 1
+
+    console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
+
+    # Write to stdin FIFO
+    echo "hello-fifo" > "$console_dir/stdin"
+    sleep 1
+
+    # Check stdout for the response
+    if grep -q "got-hello-fifo" "$console_dir/stdout"; then
+        log_pass "Console stdin FIFO delivers input to container"
+    else
+        log_fail "Console stdin: container did not receive input"
+    fi
+
+    $SANDAL_BIN kill test-console 2>/dev/null || true
+}
+
+test_console_mode_file() {
+    log_test "Console mode file indicates correct mode"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    sleep 1
+
+    console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
+    mode=$(cat "$console_dir/mode" 2>/dev/null)
+
+    if [ "$mode" = "fifo" ]; then
+        log_pass "Console mode file indicates correct mode"
+    else
+        log_fail "Console mode: expected 'fifo', got '$mode'"
+    fi
+
+    $SANDAL_BIN kill test-console 2>/dev/null || true
+}
+
+test_console_cleanup_on_kill() {
+    log_test "Console directory cleaned up after kill"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    sleep 1
+
+    console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
+
+    # Verify console dir exists while running
+    if [ ! -d "$console_dir" ]; then
+        log_fail "Console cleanup: directory not found while running"
+        return
+    fi
+
+    $SANDAL_BIN kill test-console 2>&1 || true
+    sleep 1
+
+    # Verify console dir removed after kill
+    if [ -d "$console_dir" ]; then
+        log_fail "Console cleanup: directory still exists after kill"
+    else
+        log_pass "Console directory cleaned up after kill"
+    fi
+}
+
+test_attach_error_not_running() {
+    log_test "Attach to non-running container shows error"
+
+    if $SANDAL_BIN attach nonexistent-container 2>&1 | grep -qi "not found\|not running"; then
+        log_pass "Attach to non-running container shows error"
+    else
+        log_fail "Attach did not show expected error"
+    fi
+}
+
+# ============================================================================
+# TEST SECTION 10: Clear and Cleanup Tests (renumbered)
 # ============================================================================
 
 test_clear_unused() {
@@ -772,7 +929,7 @@ test_clear_unused() {
 }
 
 # ============================================================================
-# TEST SECTION 10: Error Handling Tests
+# TEST SECTION 11: Error Handling Tests
 # ============================================================================
 
 test_run_without_args() {
@@ -829,7 +986,7 @@ test_duplicate_container_name() {
 }
 
 # ============================================================================
-# TEST SECTION 11: Go Unit Tests
+# TEST SECTION 12: Go Unit Tests
 # ============================================================================
 
 test_go_unit_tests() {
@@ -910,18 +1067,27 @@ main() {
     test_kill_rerun_no_race
 
     echo ""
-    echo "=== Section 9: Cleanup Tests ==="
+    echo "=== Section 9: Console and Attach Tests ==="
+    test_console_fifo_stdout
+    test_console_fifo_live_tail
+    test_console_fifo_stdin
+    test_console_mode_file
+    test_console_cleanup_on_kill
+    test_attach_error_not_running
+
+    echo ""
+    echo "=== Section 10: Cleanup Tests ==="
     test_clear_unused
 
     echo ""
-    echo "=== Section 10: Error Handling Tests ==="
+    echo "=== Section 11: Error Handling Tests ==="
     test_run_without_args
     test_run_nonexistent_image
     test_kill_nonexistent_container
     test_duplicate_container_name
 
     echo ""
-    echo "=== Section 11: Go Unit Tests ==="
+    echo "=== Section 12: Go Unit Tests ==="
     test_go_unit_tests
 
     # Summary

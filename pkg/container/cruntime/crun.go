@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/console"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -41,7 +42,7 @@ func crun(c *config.Config) (int, error) {
 	var err error
 
 	// To start proccess by daemon
-	if os.Getenv("SANDAL_DAEMON_PID") == "" && c.Background && controller.GetControllerType() == controller.ControllerTypeServer {
+	if !env.IsDaemon && c.Background && controller.GetControllerType() == controller.ControllerTypeServer {
 		slog.Debug("Start", slog.Any("c.Background", c.Background), slog.Any("controller-type", controller.GetControllerType()))
 		return 0, nil
 	}
@@ -49,16 +50,17 @@ func crun(c *config.Config) (int, error) {
 
 	// PTY master/slave for interactive VM containers; nil otherwise
 	var ptmx, ptySlave *os.File
+	var consoleCleanup func()
 
 	if !c.Background {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+	} else if env.IsDaemon && c.TTY {
+		console.SetupSocketConsole(c.Name, cmd, &ptmx, &ptySlave, &consoleCleanup, allocPTY, setPTYSize)
 	} else {
-		if env.Get("SANDAL_CRUN_STD", "false") == "true" {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-		}
+		// Daemonless or no TTY: use FIFO/files for console
+		console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup)
 	}
 
 	cmd.Env = childEnv(c)
@@ -236,16 +238,15 @@ func crun(c *config.Config) (int, error) {
 
 	if c.Background {
 		go func() {
-			_, err := cmd.Process.Wait()
-			if err != nil {
-				slog.Error("background container", "container", c.Name, "err", err)
-				return
+			cmd.Process.Wait()
+			// Clean up console resources when the container exits
+			if consoleCleanup != nil {
+				consoleCleanup()
+			}
+			if ptmx != nil {
+				ptmx.Close()
 			}
 		}()
-		// err = AttachContainerToPID(c, os.Getpid())
-		// if err != nil {
-		// 	slog.Debug("AttachContainerToPID", slog.Any("error", err))
-		// }
 		return 0, nil
 	}
 
