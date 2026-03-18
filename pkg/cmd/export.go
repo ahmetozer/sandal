@@ -14,12 +14,29 @@ import (
 func Export(args []string) error {
 	flags := flag.NewFlagSet("export", flag.ExitOnError)
 	var help bool
+	var fromDir string
 
 	flags.BoolVar(&help, "help", false, "show this help message")
+	flags.StringVar(&fromDir, "from", "", "create squashfs from a custom directory instead of a container")
 	flags.Parse(args)
 
+	if fromDir != "" {
+		if help || len(flags.Args()) < 1 {
+			fmt.Printf("Usage: %s export -from DIR OUTPUT.sqfs\n\nExport a custom directory as a squashfs image.\n\nOPTIONS:\n", os.Args[0])
+			flags.PrintDefaults()
+			return nil
+		}
+		outputPath := flags.Args()[0]
+
+		if _, err := os.Stat(fromDir); err != nil {
+			return fmt.Errorf("source directory not found: %w", err)
+		}
+
+		return createSquashfs(fromDir, outputPath)
+	}
+
 	if help || len(flags.Args()) < 2 {
-		fmt.Printf("Usage: %s export CONTAINER OUTPUT.sqfs\n\nExport the full container filesystem as a squashfs image.\n\nOPTIONS:\n", os.Args[0])
+		fmt.Printf("Usage: %s export CONTAINER OUTPUT.sqfs\n       %s export -from DIR OUTPUT.sqfs\n\nExport a container or custom directory as a squashfs image.\n\nOPTIONS:\n", os.Args[0], os.Args[0])
 		flags.PrintDefaults()
 		return nil
 	}
@@ -38,6 +55,10 @@ func Export(args []string) error {
 		return fmt.Errorf("rootfs directory not found (is the container running?): %w", err)
 	}
 
+	return createSquashfs(rootfsDir, outputPath)
+}
+
+func createSquashfs(sourceDir, outputPath string) error {
 	outFile, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("creating output file: %w", err)
@@ -50,7 +71,7 @@ func Export(args []string) error {
 		return fmt.Errorf("creating squashfs writer: %w", err)
 	}
 
-	if err := w.CreateFromDir(rootfsDir); err != nil {
+	if err := w.CreateFromDir(sourceDir); err != nil {
 		os.Remove(outputPath)
 		return fmt.Errorf("creating squashfs image: %w", err)
 	}
