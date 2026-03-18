@@ -11,6 +11,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
+	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"golang.org/x/sys/unix"
 )
 
@@ -63,6 +64,20 @@ func mountRootfs(c *config.Config) error {
 			}
 
 		}
+	}
+
+	if snapshotFile := snapshot.Resolve(c); snapshotFile != "" && len(c.Lower) > 0 {
+		img, err := diskimage.Mount(snapshotFile)
+		if c.ImmutableImages.Contains(img) {
+			c.ImmutableImages.ReplaceWith(img)
+		} else {
+			c.ImmutableImages = append(c.ImmutableImages, img)
+		}
+		if err != nil {
+			return fmt.Errorf("mounting snapshot: %s", err)
+		}
+		LowerDirs = append(LowerDirs, img.MountDir)
+		slog.Debug("MountRootfs", slog.String("snapshot", snapshotFile), slog.String("mountDir", img.MountDir))
 	}
 
 	if len(LowerDirs) > 0 {

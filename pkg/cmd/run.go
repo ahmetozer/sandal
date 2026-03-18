@@ -93,6 +93,8 @@ func Run(args []string) error {
 	f.Var(&c.RunPreExec, "rci", "run command before init")
 	capabilities.ParseFlagSet(f, &c.Capabilities)
 
+	f.StringVar(&c.Snapshot, "snapshot", "", "snapshot output path for container changes")
+
 	// Resource limits
 	f.StringVar(&c.MemoryLimit, "memory", "", "memory limit (e.g., 512M, 1G)")
 	f.StringVar(&c.CPULimit, "cpu", "", "number of CPUs (e.g., 0.5, 2)")

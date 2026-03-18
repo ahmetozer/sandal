@@ -327,6 +327,31 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
+### `-snapshot string`
+
+:   snapshot output path for container changes (squashfs image).
+  When set, `sandal snapshot` will write the image to this path instead of the default location.
+  On subsequent runs, if the snapshot file exists it is automatically mounted as the lowest-priority lower layer in the overlay, so previously saved changes are available inside the container.
+
+  Example usage:
+  ```bash
+  # Run with a named snapshot location
+  sandal run -lw / -name test --rm -- bash
+  # Save changes while running
+  sandal snapshot test
+  # Run stateless container with snapshot
+  sandal run -lw / -name test --rm -- bash
+  # Re-run — previous snapshot
+  # if snapshot is presented for this container at default path,
+  # and -snapshot file is not presented container will be use defualt path snapshot 
+  # with sandal snapshot command new snapshot is presented at new path
+  sandal run -snapshot /data/mycontainer.sqfs -lw / -name test -- bash
+  ```
+
+  Without `-snapshot`, the default path is `SANDAL_SNAPSHOT_DIR/<name>.sqfs` (`/var/lib/sandal/snapshot/<name>.sqfs`).
+
+---
+
 ### `-ro bool`
 
 :   read only rootfs

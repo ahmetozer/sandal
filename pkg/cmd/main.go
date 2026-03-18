@@ -57,6 +57,10 @@ func Main() {
 			executeSubCommand(Clear)
 		case "exec":
 			executeSubCommand(ExecOnContainer)
+		case "snapshot":
+			executeSubCommand(Snapshot)
+		case "export":
+			executeSubCommand(Export)
 		case "vm":
 			executeSubCommand(VM)
 		case "help":
@@ -103,6 +107,8 @@ func subCommandsHelp() {
 	daemon - Start sandal daemon
 	clear - Clear unused containers
 	exec - Execute a command in a container
+	snapshot - Snapshot container changes as a squashfs image
+	export - Export full container filesystem as a squashfs image
 	vm - Manage virtual machines (macOS only)
 	help - Show help, default and current environment variables` + "\n")
 

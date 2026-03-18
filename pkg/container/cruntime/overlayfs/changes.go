@@ -31,6 +31,21 @@ func Tmpdir(c *config.Config) string {
 	return path.Join(env.RunDir, "tmpfs", "changes", c.Name)
 }
 
+// GetChangeDir returns the change directory paths for a container without
+// creating directories or mounting filesystems.
+func GetChangeDir(c *config.Config) ChangesDir {
+	dir := ChangesDir{
+		work:  path.Join(c.ChangeDir, "work"),
+		upper: path.Join(c.ChangeDir, "upper"),
+	}
+	if c.TmpSize != 0 {
+		tmpdir := Tmpdir(c)
+		dir.work = path.Join(tmpdir, "work")
+		dir.upper = path.Join(tmpdir, "upper")
+	}
+	return dir
+}
+
 func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 	var errs error
 	dir := ChangesDir{
