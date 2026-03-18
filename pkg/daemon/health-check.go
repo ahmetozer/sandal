@@ -50,12 +50,6 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 }
 
 func contRecover(cont *config.Config) {
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		slog.Debug("recover", slog.Any("err", r))
-	// 	}
-	// }()
-
 	if cont.Status == "stop" {
 		return
 	}
@@ -71,15 +65,32 @@ func contRecover(cont *config.Config) {
 		return
 	}
 
-	if len(cont.HostArgs) < 2 {
-		slog.Error("daemon", slog.String("error", "unkown arg size"), slog.String("name", cont.Name), slog.String("args", strings.Join(cont.HostArgs, " ")))
+	// Re-read the latest config from the controller. Between the health-check
+	// detecting a dead PID and reaching this point, the user may have run
+	// "sandal kill; sandal run -name X ..." which updates the config with new
+	// parameters. Using the fresh config ensures we start with the right args.
+	latest, err := controller.GetContainer(cont.Name)
+	if err != nil {
+		slog.Error("recover", slog.String("cont", cont.Name), slog.Any("error", err))
 		return
 	}
 
-	err = cruntime.Run(cont)
+	// If the container is already running (started by another path),
+	// skip recovery to avoid duplicate instances.
+	if isRunning, _ := cruntime.IsPidRunning(latest.ContPid); isRunning {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
+		return
+	}
+
+	if len(latest.HostArgs) < 2 {
+		slog.Error("daemon", slog.String("error", "unkown arg size"), slog.String("name", latest.Name), slog.String("args", strings.Join(latest.HostArgs, " ")))
+		return
+	}
+
+	err = cruntime.Run(latest)
 	if err != nil {
 		slog.Error("recover", slog.Any("error", err))
 	}
-	slog.Info("recover", slog.String("cont", cont.Name))
+	slog.Info("recover", slog.String("cont", latest.Name))
 
 }

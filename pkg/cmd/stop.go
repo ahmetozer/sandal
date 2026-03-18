@@ -41,7 +41,10 @@ func Stop(args []string) error {
 
 	err = cruntime.Kill(cont, signal, timeout)
 	if err != nil {
-		return err
+		// Graceful signal timed out, escalate to SIGKILL
+		if err2 := cruntime.Kill(cont, 9, 5); err2 != nil {
+			return fmt.Errorf("stop: SIGTERM timed out and SIGKILL failed: %w", err2)
+		}
 	}
 
 	cont.Status = "stop"
