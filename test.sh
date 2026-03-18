@@ -327,13 +327,13 @@ test_stop_container() {
         return
     fi
 
-    # Start a container
-    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 300 2>&1 || true
+    # Start a container with a SIGTERM-responsive process
+    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
     sleep 1
 
-    # Stop it
-    if $SANDAL_BIN stop test-background 2>&1; then
-        sleep 2
+    # Stop it (SIGTERM with short timeout to keep test fast)
+    if $SANDAL_BIN stop -timeout=5 test-background 2>&1; then
+        sleep 1
         log_pass "Container stopped successfully"
     else
         log_fail "Stop command failed"
@@ -720,7 +720,7 @@ test_kill_rerun_no_race() {
     sleep 1
 
     # Get old PID
-    old_pid=$($SANDAL_BIN inspect test-rerun 2>&1 | grep -o '"ContPid":[0-9]*' | grep -o '[0-9]*')
+    old_pid=$($SANDAL_BIN inspect test-rerun 2>&1 | grep -o '"ContPid": *[0-9]*' | grep -o '[0-9]*')
 
     # Kill and immediately re-run with different volume (simulates user's workflow)
     $SANDAL_BIN kill test-rerun 2>&1 || true
@@ -730,7 +730,7 @@ test_kill_rerun_no_race() {
     sleep 1
 
     # Get new PID
-    new_pid=$($SANDAL_BIN inspect test-rerun 2>&1 | grep -o '"ContPid":[0-9]*' | grep -o '[0-9]*')
+    new_pid=$($SANDAL_BIN inspect test-rerun 2>&1 | grep -o '"ContPid": *[0-9]*' | grep -o '[0-9]*')
 
     # Verify: new PID should be different from old
     if [ -z "$new_pid" ] || [ "$new_pid" = "0" ]; then
