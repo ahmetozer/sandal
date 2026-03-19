@@ -29,8 +29,12 @@ func SetupSocketConsole(
 	cmd.Stdin = slave
 	cmd.Stdout = slave
 	cmd.Stderr = slave
+	var cloneflags uintptr
+	if cmd.SysProcAttr != nil {
+		cloneflags = cmd.SysProcAttr.Cloneflags
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: cmd.SysProcAttr.Cloneflags,
+		Cloneflags: cloneflags,
 		Setsid:     true,
 		Setctty:    true,
 		Ctty:       0,

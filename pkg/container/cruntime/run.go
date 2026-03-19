@@ -7,9 +7,16 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 func Run(c *config.Config) error {
+
+	// When a background container is delegated to the daemon, skip local
+	// cleanup and rootfs setup — the daemon will handle the full lifecycle.
+	if c.Background && !env.IsDaemon && controller.GetControllerType() == controller.ControllerTypeServer {
+		return nil
+	}
 
 	DeRunContainer(c)
 

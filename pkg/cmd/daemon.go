@@ -4,12 +4,14 @@ package cmd
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/daemon"
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 func Daemon(args []string) error {
@@ -30,6 +32,10 @@ func Daemon(args []string) error {
 	if install {
 		return daemon.InstallServices()
 	}
+
+	// Mark this process as the daemon so child containers can detect it.
+	os.Setenv("SANDAL_DAEMON_PID", fmt.Sprintf("%d", os.Getpid()))
+	env.IsDaemon = true
 
 	if _, err := os.Stat("/etc/init.d/sandal"); err != nil {
 		slog.Info("daemon", slog.String("message", `You can enable sandal daemon at startup with 'sandal daemon -install' command.`+

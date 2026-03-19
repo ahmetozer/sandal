@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/console"
@@ -65,6 +67,12 @@ func Attach(args []string) error {
 		if rawErr == nil {
 			defer restoreTerminal(os.Stdin, oldTermios)
 		}
+
+		// Ignore signals so Ctrl+C is forwarded to the container via PTY
+		// rather than killing the attach process.
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		defer signal.Stop(sigCh)
 
 		fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+P, Ctrl+Q to detach)\r\n", containerName)
 		err = console.AttachSocket(containerName, os.Stdin, os.Stdout, done)
