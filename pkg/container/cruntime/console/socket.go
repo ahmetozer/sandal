@@ -57,33 +57,19 @@ func StartSocket(name string, ptmx *os.File) (func(), error) {
 	return cleanup, nil
 }
 
-// serveConsole accepts one client at a time and relays I/O between
-// the client socket and the PTY master.
+// serveConsole runs a single PTY reader goroutine and accepts one client at a
+// time. The PTY reader writes to whichever client is currently connected
+// (mutex-protected). This avoids blocking Accept on a previous client's
+// cleanup and prevents multiple goroutines from racing on ptmx.Read.
 func serveConsole(listener net.Listener, ptmx *os.File, name string) {
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			// Listener closed (container exiting)
-			return
-		}
-		slog.Debug("console", "action", "client attached", "container", name)
-		handleClient(conn, ptmx)
-		slog.Debug("console", "action", "client detached", "container", name)
-	}
-}
+	var (
+		mu      sync.Mutex
+		curConn net.Conn
+	)
 
-// handleClient relays between a single client connection and the PTY master.
-// Client→PTY: reads framed messages (data or resize).
-// PTY→Client: reads raw bytes from master, sends as data frames.
-func handleClient(conn net.Conn, ptmx *os.File) {
-	defer conn.Close()
-
-	var wg sync.WaitGroup
-
-	// PTY master → client (data frames)
-	wg.Add(1)
+	// Permanent goroutine: PTY master → current client (data frames).
+	// Runs for the lifetime of the container.
 	go func() {
-		defer wg.Done()
 		buf := make([]byte, 4096)
 		for {
 			n, err := ptmx.Read(buf)
@@ -92,51 +78,81 @@ func handleClient(conn net.Conn, ptmx *os.File) {
 				frame[0] = frameData
 				binary.BigEndian.PutUint16(frame[1:3], uint16(n))
 				copy(frame[3:], buf[:n])
-				if _, werr := conn.Write(frame); werr != nil {
-					return
+
+				mu.Lock()
+				if curConn != nil {
+					if _, werr := curConn.Write(frame); werr != nil {
+						curConn = nil
+					}
 				}
+				mu.Unlock()
 			}
 			if err != nil {
-				return // PTY closed (container exited) or error
+				return // PTY closed (container exited)
 			}
 		}
 	}()
 
-	// Client → PTY master (framed: data or resize)
-	func() {
-		header := make([]byte, 3) // type(1) + len(2)
-		for {
-			if _, err := io.ReadFull(conn, header); err != nil {
-				return // client disconnected
-			}
-			frameType := header[0]
-			frameLen := binary.BigEndian.Uint16(header[1:3])
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			// Listener closed (container exiting)
+			return
+		}
 
-			payload := make([]byte, frameLen)
-			if _, err := io.ReadFull(conn, payload); err != nil {
-				return
-			}
+		// Disconnect previous client if still lingering
+		mu.Lock()
+		if curConn != nil {
+			curConn.Close()
+		}
+		curConn = conn
+		mu.Unlock()
 
-			switch frameType {
-			case frameData:
-				ptmx.Write(payload)
-			case frameResize:
-				if len(payload) == 4 {
-					rows := binary.BigEndian.Uint16(payload[0:2])
-					cols := binary.BigEndian.Uint16(payload[2:4])
-					ws := unix.Winsize{Row: rows, Col: cols}
-					unix.IoctlSetWinsize(int(ptmx.Fd()), unix.TIOCSWINSZ, &ws)
-				}
+		slog.Debug("console", "action", "client attached", "container", name)
+
+		// Client → PTY master (blocks until client disconnects)
+		handleClientInput(conn, ptmx)
+
+		// Client disconnected — clear current connection
+		mu.Lock()
+		if curConn == conn {
+			curConn = nil
+		}
+		mu.Unlock()
+		conn.Close()
+
+		slog.Debug("console", "action", "client detached", "container", name)
+	}
+}
+
+// handleClientInput reads framed messages from the client and writes to the PTY master.
+// Returns when the client disconnects.
+func handleClientInput(conn net.Conn, ptmx *os.File) {
+	header := make([]byte, 3) // type(1) + len(2)
+	for {
+		if _, err := io.ReadFull(conn, header); err != nil {
+			return // client disconnected
+		}
+		frameType := header[0]
+		frameLen := binary.BigEndian.Uint16(header[1:3])
+
+		payload := make([]byte, frameLen)
+		if _, err := io.ReadFull(conn, payload); err != nil {
+			return
+		}
+
+		switch frameType {
+		case frameData:
+			ptmx.Write(payload)
+		case frameResize:
+			if len(payload) == 4 {
+				rows := binary.BigEndian.Uint16(payload[0:2])
+				cols := binary.BigEndian.Uint16(payload[2:4])
+				ws := unix.Winsize{Row: rows, Col: cols}
+				unix.IoctlSetWinsize(int(ptmx.Fd()), unix.TIOCSWINSZ, &ws)
 			}
 		}
-	}()
-
-	// Client disconnected — close connection so the PTY→client goroutine's
-	// conn.Write fails and it exits. Without this, wg.Wait blocks until the
-	// container produces output, preventing new clients from attaching.
-	conn.Close()
-
-	wg.Wait()
+	}
 }
 
 // AttachSocket connects to a console socket and relays I/O with the host terminal.

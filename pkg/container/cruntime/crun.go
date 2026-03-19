@@ -197,9 +197,10 @@ func crun(c *config.Config) (int, error) {
 		return 0, err
 	}
 
-	// Start PTY relay after the child is running
+	// Start PTY relay for interactive (foreground) containers only.
+	// Background containers with socket console have their own PTY reader.
 	var stopRelay func()
-	if ptmx != nil {
+	if ptmx != nil && !c.Background {
 		stopRelay = startPTYRelay(ptmx, os.Stdin, os.Stdout)
 	}
 
