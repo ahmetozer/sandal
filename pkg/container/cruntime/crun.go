@@ -90,23 +90,22 @@ func crun(c *config.Config) (int, error) {
 	// Get clone flags for namespaces
 	cloneFlags := c.NS.Cloneflags()
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: cloneFlags,
+	// Preserve Setsid/Setctty/Ctty if already configured by SetupSocketConsole.
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
+	cmd.SysProcAttr.Cloneflags = cloneFlags
 
 	if c.NS.Get("user").IsUserDefined && !c.NS.Get("pid").IsHost {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: cloneFlags,
-			UidMappings: []syscall.SysProcIDMap{
-				{ContainerID: 0, HostID: 0, Size: procSize},
-			},
-			GidMappings: []syscall.SysProcIDMap{
-				{ContainerID: 0, HostID: 0, Size: procSize},
-			},
-			// Only set process group for background containers
-			// Interactive containers need to stay in the same process group to receive terminal signals
-			Setpgid: c.Background,
+		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
+			{ContainerID: 0, HostID: 0, Size: procSize},
 		}
+		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
+			{ContainerID: 0, HostID: 0, Size: procSize},
+		}
+		// Only set process group for background containers
+		// Interactive containers need to stay in the same process group to receive terminal signals
+		cmd.SysProcAttr.Setpgid = c.Background
 	}
 
 	// !Switching custom namespace while container create not supported.

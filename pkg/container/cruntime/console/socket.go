@@ -14,6 +14,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// safeClose returns a function that closes ch exactly once.
+func safeClose(ch chan struct{}) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() { close(ch) })
+	}
+}
+
 // Frame types for the console socket protocol.
 const (
 	frameData   byte = 0
@@ -123,6 +131,11 @@ func handleClient(conn net.Conn, ptmx *os.File) {
 		}
 	}()
 
+	// Client disconnected — close connection so the PTY→client goroutine's
+	// conn.Write fails and it exits. Without this, wg.Wait blocks until the
+	// container produces output, preventing new clients from attaching.
+	conn.Close()
+
 	wg.Wait()
 }
 
@@ -137,19 +150,20 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 	defer conn.Close()
 
 	detach := make(chan struct{})
+	closeDetach := safeClose(detach)
 
 	// Socket → host stdout (read data frames)
 	go func() {
 		header := make([]byte, 3)
 		for {
 			if _, err := io.ReadFull(conn, header); err != nil {
-				close(detach)
+				closeDetach()
 				return
 			}
 			frameLen := binary.BigEndian.Uint16(header[1:3])
 			payload := make([]byte, frameLen)
 			if _, err := io.ReadFull(conn, payload); err != nil {
-				close(detach)
+				closeDetach()
 				return
 			}
 			if header[0] == frameData {
@@ -169,7 +183,7 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 				// Detect Ctrl+P, Ctrl+Q sequence for detach
 				for i, b := range data {
 					if prevCtrlP && b == 0x11 { // Ctrl+Q
-						close(detach)
+						closeDetach()
 						return
 					}
 					prevCtrlP = (b == 0x10) // Ctrl+P
