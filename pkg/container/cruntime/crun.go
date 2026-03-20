@@ -166,10 +166,22 @@ func crun(c *config.Config) (int, error) {
 	for cmd.Process == nil {
 		time.Sleep(time.Millisecond)
 		if time.Now().After(started.Add(time.Second)) {
+			if ptySlave != nil {
+				ptySlave.Close()
+			}
+			if ptmx != nil {
+				ptmx.Close()
+			}
+			if restoreTerminal != nil {
+				restoreTerminal()
+			}
+			if consoleCleanup != nil {
+				consoleCleanup()
+			}
 			if cmdErr != nil {
 				return 1, fmt.Errorf("unable to start child process: %w", cmdErr)
 			}
-			return 1, fmt.Errorf("unable to allocate proccess under a second")
+			return 1, fmt.Errorf("unable to allocate process under a second")
 		}
 	}
 
