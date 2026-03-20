@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -17,7 +18,10 @@ import (
 func Server() {
 	mux := http.NewServeMux()
 	server := http.Server{
-		Handler: mux,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
 	}
 
 	_, err := os.Stat(env.DaemonSocket)
