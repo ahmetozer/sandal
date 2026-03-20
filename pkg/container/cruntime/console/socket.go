@@ -180,6 +180,12 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 	rows, cols := getTerminalSize(int(hostStdin.Fd()))
 	SendResize(conn, rows, cols)
 
+	// Enable mouse tracking on the host terminal. The container program
+	// (htop, etc.) sent these sequences at startup, but they were discarded
+	// because no client was connected at the time.
+	hostStdout.Write([]byte("\x1b[?1000h\x1b[?1002h\x1b[?1006h"))
+	defer hostStdout.Write([]byte("\x1b[?1006l\x1b[?1002l\x1b[?1000l"))
+
 	// Forward SIGWINCH (terminal resize) to the container
 	sigWinch := make(chan os.Signal, 1)
 	signal.Notify(sigWinch, syscall.SIGWINCH)
@@ -222,20 +228,38 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 
 	// Host stdin → socket (data frames + detach detection)
 	go func() {
+		stdinFd := int(hostStdin.Fd())
 		buf := make([]byte, 4096)
 		var prevCtrlP bool
 		for {
 			n, err := hostStdin.Read(buf)
 			if n > 0 {
+				// Coalesce escape sequences: if first byte is ESC, poll briefly
+				// for remaining bytes so they arrive in a single PTY write.
+				// Without this, arrow keys/mouse get split and misinterpreted.
+				if buf[0] == 0x1B && n < len(buf) {
+					pfd := []unix.PollFd{{Fd: int32(stdinFd), Events: unix.POLLIN}}
+					for n < len(buf) {
+						ready, _ := unix.Poll(pfd, 5) // 5ms timeout
+						if ready <= 0 {
+							break
+						}
+						nn, _ := unix.Read(stdinFd, buf[n:])
+						if nn <= 0 {
+							break
+						}
+						n += nn
+					}
+				}
+
 				data := buf[:n]
 				// Detect Ctrl+P, Ctrl+Q sequence for detach
-				for i, b := range data {
+				for _, b := range data {
 					if prevCtrlP && b == 0x11 { // Ctrl+Q
 						closeDetach()
 						return
 					}
 					prevCtrlP = (b == 0x10) // Ctrl+P
-					_ = i
 				}
 
 				frame := make([]byte, 1+2+n)
