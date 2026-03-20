@@ -4,7 +4,6 @@ package cruntime
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -35,29 +34,29 @@ func Exec(c []string, chroot string, user string) (exitCode int, err error) {
 		if chroot != "" {
 			mainRoot, err = os.Open("/")
 			if err != nil {
-				log.Fatalf("unable to open /: %s", err)
+				return 1, fmt.Errorf("unable to open /: %w", err)
 			}
 			err = unix.Chroot(chroot)
 			if err != nil {
 				mainRoot.Close()
-				log.Fatalf("unable to chroot %s: %s", chroot, err)
+				return 1, fmt.Errorf("unable to chroot %s: %w", chroot, err)
 			}
 		}
 
 		execPath, err := exec.LookPath(c[0])
 		if err != nil {
-			log.Fatalf("unable to find %s: %s path=\"%s\"", c[0], err, os.Getenv("PATH"))
+			return 1, fmt.Errorf("unable to find %s: %w path=%q", c[0], err, os.Getenv("PATH"))
 		}
 
 		// exit chroot
 		if chroot != "" {
 			err = mainRoot.Chdir()
 			if err != nil {
-				log.Fatalf("unable return main root /: %s", err)
+				return 1, fmt.Errorf("unable to return to main root /: %w", err)
 			}
 			err = unix.Chroot(".")
 			if err != nil {
-				log.Fatalf("unable to exit chroot: %s", err)
+				return 1, fmt.Errorf("unable to exit chroot: %w", err)
 			}
 		}
 		slog.Debug("Exec", slog.String("exec", execPath), slog.String("args", strings.Join(c[1:], ",")))

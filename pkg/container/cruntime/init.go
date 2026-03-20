@@ -122,7 +122,9 @@ func ContainerInitProc() {
 		// for tasks like device setup or filesystem preparation. The config file is
 		// protected by root-only daemon socket permissions (0600).
 		runCommands(c.RunPrePivot, "/.old_root/", "")
-		purgeOldRoot(c)
+		if err := purgeOldRoot(c); err != nil {
+			return err
+		}
 		runCommands(c.RunPreExec, "", "")
 
 		if len(c.ContArgs) == 0 {

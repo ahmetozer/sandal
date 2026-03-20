@@ -4,7 +4,6 @@ package daemon
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,8 @@ import (
 func (d DaemonConfig) loadByEvent() {
 	watcher, err := inotify.New(env.BaseStateDir)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("loadByEvent", slog.String("action", "inotify init"), slog.Any("error", err))
+		return
 	}
 
 	go func() {

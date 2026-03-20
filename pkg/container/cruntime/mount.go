@@ -4,7 +4,6 @@ package cruntime
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"path"
@@ -173,16 +172,17 @@ func childSysMounts(c *config.Config) error {
 
 }
 
-func purgeOldRoot(c *config.Config) {
+func purgeOldRoot(c *config.Config) error {
 	mount("", "/.old_root", "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err := unix.Unmount("/.old_root", unix.MNT_DETACH); err != nil {
-		log.Fatalf("unable to unmount /.old_root %s", err)
+		return fmt.Errorf("unable to unmount /.old_root: %w", err)
 	}
 	os.Remove("/.old_root")
 
 	if c.ReadOnly {
 		mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
 	}
+	return nil
 }
 
 func mount(source, target, fstype string, flags uintptr, data string) error {
