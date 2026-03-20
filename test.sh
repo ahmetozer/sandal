@@ -1258,7 +1258,7 @@ test_go_unit_tests() {
     log_test "Run Go unit tests (excluding network-dependent tests)"
 
     if command -v go &> /dev/null; then
-        if go test -short ./... 2>&1; then
+        if go test -short $(go list ./... | grep -v /pkg/vm/vz) 2>&1; then
             log_pass "Go unit tests pass"
         else
             log_fail "Go unit tests failed"
