@@ -286,14 +286,19 @@ func downloadLayers(ctx context.Context, client *registry.Client, repo string, d
 
 	// Download and decompress each layer to a temp file to avoid
 	// holding all uncompressed data in RAM simultaneously.
+	// Limit concurrency to avoid memory pressure from many parallel
+	// HTTP connections + decompression buffers on constrained devices.
 	tmpFiles := make([]*os.File, len(fsLayers))
 	errs := make([]error, len(fsLayers))
+	sem := make(chan struct{}, 3)
 
 	var wg sync.WaitGroup
 	for i, l := range fsLayers {
 		wg.Add(1)
 		go func(i int, l registry.Descriptor) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			slog.Debug("downloadLayers", slog.Int("layer", i+1), slog.Int("total", len(fsLayers)), slog.String("digest", l.Digest[:19]), slog.Int64("sizeBytes", l.Size))
 
 			rc, err := client.GetBlob(ctx, repo, l.Digest)
