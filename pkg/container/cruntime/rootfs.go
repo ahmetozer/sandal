@@ -3,6 +3,7 @@
 package cruntime
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
+	"github.com/ahmetozer/sandal/pkg/env"
+	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"golang.org/x/sys/unix"
 )
 
@@ -43,6 +46,25 @@ func mountRootfs(c *config.Config) error {
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
 
 			if err != nil {
+				// Path doesn't exist on disk — check if it's a container image reference.
+				if squash.IsImageReference(path) {
+					slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", path))
+					sqfsPath, pullErr := squash.Pull(context.Background(), path, env.BaseImageDir)
+					if pullErr != nil {
+						return fmt.Errorf("pulling image %s: %s", path, pullErr)
+					}
+					img, mountErr := diskimage.Mount(sqfsPath)
+					if c.ImmutableImages.Contains(img) {
+						c.ImmutableImages.ReplaceWith(img)
+					} else {
+						c.ImmutableImages = append(c.ImmutableImages, img)
+					}
+					if mountErr != nil {
+						return fmt.Errorf("mounting pulled image: %s", mountErr)
+					}
+					LowerDirs = append(LowerDirs, img.MountDir)
+					continue
+				}
 				return fmt.Errorf("path %s is not exist: %s", path, err)
 			}
 			if fileStat.IsDir() {

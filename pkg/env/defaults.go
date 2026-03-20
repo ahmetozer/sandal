@@ -81,7 +81,7 @@ func init() {
 		home, _ := os.UserHomeDir()
 		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(home, ".sandal-vm", "bin", "sandal"))
 
-		Get("SANDAL_LOG_LEVEL", "info")
+		Get("SANDAL_LOG_LEVEL", "warn")
 
 		Get = getCurrents
 	}

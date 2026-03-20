@@ -102,9 +102,11 @@ Allocation configuration of /etc/hosts file.
 
 ### `-lw value`
 
-: Lower directory of the root file system  
-  Lower directories are attach folders or images to container to access but changes are saved under `-chdir`.  
+: Lower directory of the root file system
+  Lower directories are attach folders or images to container to access but changes are saved under `-chdir`.
   This flag can usable multiple times to attach multiple images and directories to container.
+
+  In addition to local paths and image files, `-lw` accepts **container image references** from OCI registries. When the value is not a local path, sandal automatically pulls the image, flattens its layers into a squashfs image, and caches it under `SANDAL_IMAGE_DIR` for future use.
 
 ??? info "More"
 
@@ -119,12 +121,20 @@ Allocation configuration of /etc/hosts file.
     sandal run -lw /my/img/debian.sqfs -lw /my/image/config.sqfs -- bash
     # Mounting .img file # (2)
     sandal run -tmp 1000 -lw /my/img/2024-11-19-raspios-bookworm-arm64-lite.img:part=2 \
-    -lw /my/image/config.sqfs --rm -- bash 
+    -lw /my/image/config.sqfs --rm -- bash
+    # Container image from registry # (3)
+    sandal run -lw public.ecr.aws/docker/library/busybox:latest -tmp 10 --rm -- sh
+    # Docker Hub short name
+    sandal run -lw alpine:latest -tmp 10 --rm -- sh
+    # Multiple sources: registry image + local config overlay
+    sandal run -lw ghcr.io/home-assistant/home-assistant:latest \
+    -lw /my/image/config.sqfs -tmp 100 --rm -name homeassistant -- bash
     ```
 
-    1. You can create SquashFS files with `sandal convert`.
+    1. You can create SquashFS files with `sandal export`.
     2. Image files consist of multiple partition, you have to specificly define partition information in commandline.
       You can find image details with `sandal image info file.img`
+    3. Container images are pulled from the registry, layers are flattened and converted to squashfs. The result is cached so subsequent runs use the cached image without re-downloading.
 
     :   #### How Lower Directories Works ?
 
@@ -139,10 +149,10 @@ Allocation configuration of /etc/hosts file.
     E4{Exist at chdir ?} -- Yes | Read from --> C1[(ChangeDir)]
     E4 -- No | TRY --> E3
 
-    E3{Exist at lw3 ?} -- Yes | Read from --> LW3[(lower3)] 
+    E3{Exist at lw3 ?} -- Yes | Read from --> LW3[(lower3)]
     E3 -- No | TRY --> E2
 
-    E2{Exist at lw2 ?} -- Yes | Read from --> LW2[(lower2)] 
+    E2{Exist at lw2 ?} -- Yes | Read from --> LW2[(lower2)]
     E2 -- No | TRY --> E1
 
     E1{Exist at lw3 ?} -- Yes | Read from --> LW1[(lower1)]

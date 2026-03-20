@@ -25,9 +25,9 @@ func setLogLoggerLevel() {
 		level = slog.LevelDebug
 		AddSource = true
 		KernelLogLevel = "7"
-	case "", "info":
+	case "info":
 		level = slog.LevelInfo
-	case "warn":
+	case "", "warn":
 		level = slog.LevelWarn
 		KernelLogLevel = "2"
 	case "error":
@@ -35,7 +35,7 @@ func setLogLoggerLevel() {
 		KernelLogLevel = "0"
 	default:
 		slog.Warn("SetLogLoggerLevel", slog.String("error", "unknown log level"), slog.String("level", os.Getenv("SANDAL_LOG_LEVEL")), slog.String("env", "SANDAL_LOG_LEVEL"), slog.Any("logLevels", []string{"info", "debug", "warn", "error"}))
-		level = slog.LevelInfo
+		level = slog.LevelWarn
 	}
 
 	slog.SetDefault(

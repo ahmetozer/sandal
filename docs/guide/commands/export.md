@@ -61,3 +61,33 @@ alpine.sqfs
 ```
 
 This is useful for packaging a pre-built root filesystem or any arbitrary directory tree into a squashfs image that can later be used as a container lower layer.
+
+### From a Container Image
+
+Use `-image` to pull a container image from a registry, flatten its layers, and export it as a squashfs image:
+
+```bash
+sandal export -image public.ecr.aws/docker/library/busybox:latest -o busybox.sqfs
+busybox.sqfs
+```
+
+Use `-targz` to export as a gzip-compressed tar instead of squashfs:
+
+```bash
+sandal export -image public.ecr.aws/docker/library/busybox:latest -targz -o busybox.tar.gz
+busybox.tar.gz
+```
+
+## Flags (Image Export)
+
+### `-image string`
+
+Container image reference to pull from a registry.
+
+### `-targz`
+
+Export as tar.gz instead of squashfs (only with `-image`).
+
+### `-o string`
+
+Output file path (required with `-image`, optional otherwise).
