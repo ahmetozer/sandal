@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -155,6 +157,15 @@ func handleClientInput(conn net.Conn, ptmx *os.File) {
 	}
 }
 
+// getTerminalSize returns the current terminal dimensions.
+func getTerminalSize(fd int) (rows, cols uint16) {
+	ws, err := unix.IoctlGetWinsize(fd, unix.TIOCGWINSZ)
+	if err != nil {
+		return 24, 80 // fallback
+	}
+	return ws.Row, ws.Col
+}
+
 // AttachSocket connects to a console socket and relays I/O with the host terminal.
 // Sends host stdin as data frames, receives PTY output as data frames.
 // Supports Ctrl+P,Ctrl+Q to detach without killing the container.
@@ -165,8 +176,29 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 	}
 	defer conn.Close()
 
+	// Send initial terminal size
+	rows, cols := getTerminalSize(int(hostStdin.Fd()))
+	SendResize(conn, rows, cols)
+
+	// Forward SIGWINCH (terminal resize) to the container
+	sigWinch := make(chan os.Signal, 1)
+	signal.Notify(sigWinch, syscall.SIGWINCH)
+	defer signal.Stop(sigWinch)
+
 	detach := make(chan struct{})
 	closeDetach := safeClose(detach)
+
+	go func() {
+		for {
+			select {
+			case <-detach:
+				return
+			case <-sigWinch:
+				r, c := getTerminalSize(int(hostStdin.Fd()))
+				SendResize(conn, r, c)
+			}
+		}
+	}()
 
 	// Socket → host stdout (read data frames)
 	go func() {

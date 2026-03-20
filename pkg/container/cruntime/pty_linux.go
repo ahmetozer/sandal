@@ -40,22 +40,9 @@ func allocPTY() (master, slave *os.File, err error) {
 		return nil, nil, fmt.Errorf("open %s: %w", slavePath, err)
 	}
 
-	// Configure the slave PTY for sane defaults:
-	// - Keep OPOST and ONLCR so \n is translated to \r\n on output
-	// - Disable ECHO so escape sequence responses don't appear as garbage
-	// - Keep ISIG so Ctrl+C generates SIGINT for the container process
-	// - Keep ICANON off so input is byte-at-a-time (shells handle editing)
-	if termios, err := unix.IoctlGetTermios(int(slave.Fd()), unix.TCGETS); err == nil {
-		termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
-		termios.Oflag |= unix.OPOST | unix.ONLCR
-		termios.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.IEXTEN
-		termios.Lflag |= unix.ISIG
-		termios.Cflag &^= unix.CSIZE | unix.PARENB
-		termios.Cflag |= unix.CS8
-		termios.Cc[unix.VMIN] = 1
-		termios.Cc[unix.VTIME] = 0
-		unix.IoctlSetTermios(int(slave.Fd()), unix.TCSETS, termios)
-	}
+	// Use kernel default termios for the slave PTY. The defaults provide
+	// sane settings (ECHO, ICANON, ISIG, ICRNL, OPOST, ONLCR all enabled).
+	// Programs like bash, htop, etc. configure the terminal themselves.
 
 	return master, slave, nil
 }
