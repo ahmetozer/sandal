@@ -12,21 +12,43 @@ import (
 )
 
 func Rm(args []string) error {
-	if len(args) < 1 {
+	flags := flag.NewFlagSet("rm", flag.ExitOnError)
+	var (
+		help bool
+		all  bool
+	)
+	flags.BoolVar(&help, "help", false, "show this help message")
+	flags.BoolVar(&all, "all", false, "remove all stopped containers")
+	flags.Parse(args)
+
+	if help {
+		flags.Usage()
+		return nil
+	}
+
+	conts, err := controller.Containers()
+	if err != nil {
+		return fmt.Errorf("unable to list containers: %w", err)
+	}
+
+	names := flags.Args()
+
+	if all {
+		for _, c := range conts {
+			isRunning, _ := cruntime.IsPidRunning(c.ContPid)
+			if !isRunning {
+				names = append(names, c.Name)
+			}
+		}
+	}
+
+	if len(names) < 1 {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	flags := flag.NewFlagSet("clear", flag.ExitOnError)
-	var (
-		help bool
-	)
-	flags.BoolVar(&help, "help", false, "show this help message")
-	flags.Parse(args)
-
-	conts, _ := controller.Containers()
 	var errs []error
 RequestedContainers:
-	for _, name := range args {
+	for _, name := range names {
 		for _, c := range conts {
 			if c.Name == name {
 				isRunning, err := cruntime.IsPidRunning(c.ContPid)
@@ -36,6 +58,7 @@ RequestedContainers:
 				}
 				if isRunning {
 					errs = append(errs, fmt.Errorf("container %s is running, please stop it first", c.Name))
+					continue RequestedContainers
 				}
 
 				c.Remove = true
