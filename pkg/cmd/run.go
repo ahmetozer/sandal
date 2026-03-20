@@ -65,8 +65,8 @@ func Run(args []string) error {
 
 	f.BoolVar(&c.Startup, "startup", false, "run container at startup by sandal daemon")
 
-	f.BoolVar(&c.EnvAll, "env-all", false, "send all enviroment variables to container")
-	f.Var(&c.PassEnv, "env-pass", "pass only requested enviroment variables to container")
+	f.BoolVar(&c.EnvAll, "env-all", false, "send all environment variables to container")
+	f.Var(&c.PassEnv, "env-pass", "pass only requested environment variables to container")
 	f.StringVar(&c.Dir, "dir", "", "working directory")
 
 	networkInterfacesCmd := wrapper.StringFlags{}

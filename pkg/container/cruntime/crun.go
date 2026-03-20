@@ -316,7 +316,7 @@ func childEnv(c *config.Config) []string {
 		}
 		variable := os.Getenv(env)
 		if variable == "" {
-			slog.Info("enviroment variable not found", "variable", env)
+			slog.Info("environment variable not found", "variable", env)
 		} else {
 			envVars = append(envVars, fmt.Sprintf("%s=%s", env, variable))
 		}

@@ -128,7 +128,7 @@ func ContainerInitProc() {
 		runCommands(c.RunPreExec, "", "")
 
 		if len(c.ContArgs) == 0 {
-			return fmt.Errorf("no container arg providen, malformed container file")
+			return fmt.Errorf("no container arg provided, malformed container file")
 		}
 		execPath, err := exec.LookPath(c.ContArgs[0])
 		slog.Debug("Exec", "c.Exec", c.ContArgs[0], "execPath", execPath, slog.Any("args", c.ContArgs[1:]))
