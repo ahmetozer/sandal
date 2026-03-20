@@ -17,8 +17,8 @@ func SetContainer(c *config.Config) error {
 CONTROLLER:
 	slog.Debug("SetContainer", slog.Any("currentConrollerType", currentConrollerType))
 
-	if c.Name == "" {
-		return fmt.Errorf("no name set for request")
+	if err := config.ValidateName(c.Name); err != nil {
+		return err
 	}
 
 	switch currentConrollerType {

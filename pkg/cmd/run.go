@@ -103,6 +103,10 @@ func Run(args []string) error {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
 
+	if err := config.ValidateName(c.Name); err != nil {
+		return err
+	}
+
 	conts, err := controller.Containers()
 	if err != nil {
 		return fmt.Errorf("unable to get other container informations %s", err)
