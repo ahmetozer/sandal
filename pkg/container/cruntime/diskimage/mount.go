@@ -25,7 +25,7 @@ func Mount(path string) (ImmutableImage, error) {
 	args := strings.Split(path, ":")
 	switch len(args) {
 	case 0:
-		return image, fmt.Errorf("no file name providen")
+		return image, fmt.Errorf("no file name provided")
 	case 1:
 		image.File = args[0]
 	default:

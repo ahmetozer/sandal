@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/console"
@@ -156,21 +155,20 @@ func crun(c *config.Config) (int, error) {
 		}
 	}
 
-	var cmdErr error
-	go func() {
-		cmdErr = cmd.Run()
-	}()
-
-	// Process information will filled during execution
-	started := time.Now()
-	for cmd.Process == nil {
-		time.Sleep(time.Millisecond)
-		if time.Now().After(started.Add(time.Second)) {
-			if cmdErr != nil {
-				return 1, fmt.Errorf("unable to start child process: %w", cmdErr)
-			}
-			return 1, fmt.Errorf("unable to allocate proccess under a second")
+	if err := cmd.Start(); err != nil {
+		if ptySlave != nil {
+			ptySlave.Close()
 		}
+		if ptmx != nil {
+			ptmx.Close()
+		}
+		if restoreTerminal != nil {
+			restoreTerminal()
+		}
+		if consoleCleanup != nil {
+			consoleCleanup()
+		}
+		return 1, fmt.Errorf("unable to start child process: %w", err)
 	}
 
 	c.ContPid = cmd.Process.Pid
@@ -318,7 +316,7 @@ func childEnv(c *config.Config) []string {
 		}
 		variable := os.Getenv(env)
 		if variable == "" {
-			slog.Info("enviroment variable not found", "variable", env)
+			slog.Info("environment variable not found", "variable", env)
 		} else {
 			envVars = append(envVars, fmt.Sprintf("%s=%s", env, variable))
 		}

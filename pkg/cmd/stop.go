@@ -15,12 +15,14 @@ func Stop(args []string) error {
 	flags := flag.NewFlagSet("stop", flag.ExitOnError)
 	var (
 		help    bool
+		all     bool
 		signal  int
 		timeout int
 	)
 	flags.BoolVar(&help, "help", false, "show this help message")
+	flags.BoolVar(&all, "all", false, "stop all running containers")
 	flags.IntVar(&signal, "signal", 15, "default term signal")
-	flags.IntVar(&timeout, "timeout", 30, "timeout to wait proccess")
+	flags.IntVar(&timeout, "timeout", 30, "timeout to wait process")
 
 	flags.Parse(args)
 
@@ -29,12 +31,37 @@ func Stop(args []string) error {
 		return nil
 	}
 
-	leftArgs := flags.Args()
-	if len(leftArgs) < 1 {
+	names := flags.Args()
+
+	if all {
+		conts, err := controller.Containers()
+		if err != nil {
+			return fmt.Errorf("unable to list containers: %w", err)
+		}
+		for _, cont := range conts {
+			isRunning, _ := cruntime.IsPidRunning(cont.ContPid)
+			if isRunning {
+				names = append(names, cont.Name)
+			}
+		}
+	}
+
+	if len(names) < 1 {
 		return fmt.Errorf("no container name is provided")
 	}
 
-	cont, err := controller.GetContainer(leftArgs[0])
+	var lastErr error
+	for _, name := range names {
+		if err := stopContainer(name, signal, timeout); err != nil {
+			fmt.Printf("stop %s: %s\n", name, err)
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+func stopContainer(name string, signal, timeout int) error {
+	cont, err := controller.GetContainer(name)
 	if err != nil {
 		return err
 	}
@@ -43,7 +70,7 @@ func Stop(args []string) error {
 	if err != nil {
 		// Graceful signal timed out, escalate to SIGKILL
 		if err2 := cruntime.Kill(cont, 9, 5); err2 != nil {
-			return fmt.Errorf("stop: SIGTERM timed out and SIGKILL failed: %w", err2)
+			return fmt.Errorf("SIGTERM timed out and SIGKILL failed: %w", err2)
 		}
 	}
 

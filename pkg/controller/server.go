@@ -9,15 +9,20 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"golang.org/x/sys/unix"
 )
 
 func Server() {
 	mux := http.NewServeMux()
 	server := http.Server{
-		Handler: mux,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
 	}
 
 	_, err := os.Stat(env.DaemonSocket)
@@ -34,7 +39,7 @@ func Server() {
 		}
 	case os.IsNotExist(err):
 		socketDir := filepath.Dir(env.DaemonSocket)
-		err = os.MkdirAll(socketDir, 0o600)
+		err = os.MkdirAll(socketDir, 0o700)
 		if err != nil {
 			slog.Error("Server", slog.String("action", "create socket dir"), slog.String("socket dir", socketDir), slog.Any("error", err))
 			os.Exit(1)
@@ -82,9 +87,20 @@ func Server() {
 		mux.ServeHTTP(w, r)
 	})
 
+	// Set umask to restrict socket file permissions before Listen creates it.
+	// net.Listen("unix", ...) creates the socket file inheriting the process
+	// umask — without this, the socket could be world-accessible.
+	oldMask := unix.Umask(0o177)
 	unixListener, err := net.Listen("unix", env.DaemonSocket)
+	unix.Umask(oldMask)
 	if err != nil {
 		panic(err)
+	}
+
+	// Explicitly set socket to root-only as defense-in-depth,
+	// in case umask was not effective (e.g. filesystem ignoring it).
+	if err := os.Chmod(env.DaemonSocket, 0o600); err != nil {
+		slog.Warn("Server", slog.String("action", "chmod socket"), slog.Any("error", err))
 	}
 
 	slog.Info("Server", slog.String("socket", unixListener.Addr().String()))

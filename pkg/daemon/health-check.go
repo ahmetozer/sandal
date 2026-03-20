@@ -55,13 +55,23 @@ func contRecover(cont *config.Config) {
 	}
 	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
 
+	// Clean up stale resources (console sockets, mounts, cgroups) left
+	// behind by a crashed daemon (e.g. kill -9). The old process is dead
+	// so these resources are orphaned.
+	cruntime.CleanupResources(cont)
+
 	err := cruntime.Kill(cont, 15, 10)
 	if err != nil {
 		cruntime.Kill(cont, 9, 0)
 	}
 
-	if !(cont.Status == "stop" || cont.Status == "killed") {
-		slog.Debug("daemon", slog.Any("status", cont.Status), slog.String("cont", cont.Name))
+	// After a daemon crash (kill -9), the config status on disk is still
+	// "running" because it was never updated. Since the health check
+	// already confirmed the PID is dead, treat any non-"stop" status
+	// as recoverable.
+	isAlive, _ := cruntime.IsPidRunning(cont.ContPid)
+	if isAlive {
+		slog.Debug("daemon", slog.Any("status", cont.Status), slog.String("cont", cont.Name), slog.String("msg", "process still alive, skipping recovery"))
 		return
 	}
 

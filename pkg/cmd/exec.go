@@ -30,11 +30,11 @@ func ExecOnContainer(args []string) error {
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
-	f.BoolVar(&EnvAll, "env-all", false, "send all enviroment variables to container")
+	f.BoolVar(&EnvAll, "env-all", false, "send all environment variables to container")
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.StringVar(&User, "user", "", "work user")
 
-	f.Var(&PassEnv, "env-pass", "pass only requested enviroment variables to container")
+	f.Var(&PassEnv, "env-pass", "pass only requested environment variables to container")
 
 	// Allocate variable locations
 	NS := namespace.ParseFlagSet(f)

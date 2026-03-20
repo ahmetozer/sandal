@@ -86,7 +86,7 @@ func switchUser(user User) error {
 
 	if user.User.HomeDir != "" {
 		// error excepted because if home dir is not availbe
-		// expected behivor keep at /
+		// expected behavior keep at /
 		os.Chdir(user.User.HomeDir)
 	}
 

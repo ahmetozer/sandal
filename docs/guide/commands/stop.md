@@ -6,20 +6,34 @@ Stop or send custom signal to your container, system will not try to restart you
 sandal stop klipper
 ```
 
+You can stop multiple containers at once:
+
+```bash
+sandal stop klipper homeassistant zigbee2mqtt
+```
+
 ## Flags
+
+### `-all`
+
+Stop all running containers.
+
+```bash
+sandal stop -all
+```
 
 ### `-signal int`
 
 Define custom signal for kill request.
 
 ```bash
-sandal stop -signal 3 homeasistant
+sandal stop -signal 3 homeassistant
 ```
 
 ### `-timeout string`
 
-Kill commands wait to proccess complate and you can define time out for this command to give up.
+Kill commands wait for the process to complete and you can define a timeout for this command to give up.
 
 ```bash
-sandal stop -signal 2 -timeout 10 homeasistant
+sandal stop -signal 2 -timeout 10 homeassistant
 ```
