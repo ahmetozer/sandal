@@ -50,6 +50,15 @@ load_debug_environment() {
         echo -e "${BLUE}[INFO]${NC} SANDAL_LIB_DIR=$SANDAL_LIB_DIR"
         echo -e "${BLUE}[INFO]${NC} SANDAL_RUN_DIR=$SANDAL_RUN_DIR"
     fi
+
+    # Auto-detect loop device prefix if /devtmpfs/loop-control exists
+    if [ -e "/devtmpfs/loop-control" ]; then
+        export LOOP_DEVICE_PREFIX="/devtmpfs/loop"
+        echo -e "${BLUE}[INFO]${NC} LOOP_DEVICE_PREFIX=$LOOP_DEVICE_PREFIX"
+    else
+        export LOOP_DEVICE_PREFIX=""
+    fi
+
 }
 
 build_sandal() {
@@ -113,6 +122,38 @@ prepare_test_image() {
     return 1
 }
 
+# Daemon mode support
+SANDAL_DAEMON_PID=""
+USE_DAEMON="${USE_DAEMON:-false}"
+
+start_daemon() {
+    if [ "$USE_DAEMON" != "true" ]; then
+        return
+    fi
+    echo -e "${BLUE}[INFO]${NC} Starting sandal daemon..."
+    $SANDAL_BIN daemon &
+    SANDAL_DAEMON_PID=$!
+    # Wait for daemon socket to become available
+    for i in $(seq 1 30); do
+        if $SANDAL_BIN ps >/dev/null 2>&1; then
+            echo -e "${GREEN}[INFO]${NC} Daemon started (pid=$SANDAL_DAEMON_PID)"
+            return 0
+        fi
+        sleep 0.2
+    done
+    echo -e "${RED}[ERROR]${NC} Daemon failed to start"
+    return 1
+}
+
+stop_daemon() {
+    if [ -n "$SANDAL_DAEMON_PID" ]; then
+        echo -e "${BLUE}[CLEANUP]${NC} Stopping sandal daemon (pid=$SANDAL_DAEMON_PID)..."
+        kill "$SANDAL_DAEMON_PID" 2>/dev/null || true
+        wait "$SANDAL_DAEMON_PID" 2>/dev/null || true
+        SANDAL_DAEMON_PID=""
+    fi
+}
+
 # Cleanup function
 cleanup() {
     echo -e "\n${BLUE}[CLEANUP]${NC} Cleaning up test containers and directories..."
@@ -121,10 +162,13 @@ cleanup() {
     for name in test-basic test-background test-readonly test-volumes test-network \
                 test-memory test-cpu test-env test-user test-namespace test-tmpfs \
                 test-multi-lower test-workdir test-exec test-kill-cleanup test-rerun \
-                test-console; do
+                test-console test-image-run test-multi-stop-1 test-multi-stop-2 \
+                test-multi-kill-1 test-multi-kill-2; do
         $SANDAL_BIN kill "$name" 2>/dev/null || true
         $SANDAL_BIN rm "$name" 2>/dev/null || true
     done
+
+    stop_daemon
 
     # Remove test directories
     rm -rf "$TEST_DIR" 2>/dev/null || true
@@ -265,7 +309,7 @@ test_run_basic_container() {
     fi
 
     # Run container that executes a command and exits
-    if $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -rm -- /bin/echo "hello sandal" 2>&1 | grep -q "hello sandal"; then
+    if $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -rm -tmp 10 -- /bin/echo "hello sandal" 2>&1 | grep -q "hello sandal"; then
         log_pass "Basic container run works"
     else
         log_fail "Basic container run failed"
@@ -281,7 +325,7 @@ test_run_background_container() {
     fi
 
     # Start background container
-    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1
+    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1
 
     sleep 1
 
@@ -303,7 +347,7 @@ test_kill_container() {
     fi
 
     # Start a container
-    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 300 2>&1 || true
+    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 300 2>&1 || true
     sleep 1
 
     # Kill it
@@ -329,7 +373,7 @@ test_stop_container() {
     fi
 
     # Start a container with a SIGTERM-responsive process
-    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
+    $SANDAL_BIN run -name="test-background" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
     sleep 1
 
     # Stop it (SIGTERM with short timeout to keep test fast)
@@ -352,7 +396,7 @@ test_rm_container() {
     fi
 
     # Run and stop a container
-    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 5 2>&1 || true
+    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 5 2>&1 || true
     sleep 1
     $SANDAL_BIN kill test-basic 2>/dev/null || true
     sleep 1
@@ -374,7 +418,7 @@ test_inspect_container() {
     fi
 
     # Start a container
-    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1 || true
     sleep 1
 
     # Inspect it
@@ -396,7 +440,7 @@ test_cmd_container() {
     fi
 
     # Start a container
-    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1 || true
     sleep 1
 
     # Get command
@@ -444,7 +488,7 @@ test_volume_mount() {
     echo "volume-test-content" > "$TEST_DIR/vol/testfile"
 
     # Run container with volume
-    output=$($SANDAL_BIN run -name="test-volumes" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol:/mnt" -rm -- /bin/cat /mnt/testfile 2>&1)
+    output=$($SANDAL_BIN run -name="test-volumes" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol:/mnt" -rm -tmp 10 -- /bin/cat /mnt/testfile 2>&1)
 
     if echo "$output" | grep -q "volume-test-content"; then
         log_pass "Volume mount works"
@@ -462,7 +506,7 @@ test_working_directory() {
     fi
 
     # Run container with working directory
-    output=$($SANDAL_BIN run -name="test-workdir" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -dir="/tmp" -rm -- /bin/pwd 2>&1)
+    output=$($SANDAL_BIN run -name="test-workdir" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -dir="/tmp" -rm -tmp 10 -- /bin/pwd 2>&1)
 
     if echo "$output" | grep -q "/tmp"; then
         log_pass "Working directory set correctly"
@@ -499,7 +543,7 @@ test_environment_all() {
 
     # Set test env var and run container with env-all
     export SANDAL_TEST_VAR="test-value-12345"
-    output=$($SANDAL_BIN run -name="test-env" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -env-all -rm -- /bin/sh -c 'echo $SANDAL_TEST_VAR' 2>&1)
+    output=$($SANDAL_BIN run -name="test-env" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -env-all -rm -tmp 10 -- /bin/sh -c 'echo $SANDAL_TEST_VAR' 2>&1)
 
     if echo "$output" | grep -q "test-value-12345"; then
         log_pass "Environment variables passed"
@@ -517,7 +561,7 @@ test_environment_selective() {
     fi
 
     export SANDAL_PASS_TEST="passed-value"
-    output=$($SANDAL_BIN run -name="test-env" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -env-pass="SANDAL_PASS_TEST" -rm -- /bin/sh -c 'echo $SANDAL_PASS_TEST' 2>&1)
+    output=$($SANDAL_BIN run -name="test-env" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -env-pass="SANDAL_PASS_TEST" -rm -tmp 10 -- /bin/sh -c 'echo $SANDAL_PASS_TEST' 2>&1)
 
     if echo "$output" | grep -q "passed-value"; then
         log_pass "Selective env pass works"
@@ -539,7 +583,7 @@ test_memory_limit() {
     fi
 
     # Run container with memory limit
-    $SANDAL_BIN run -name="test-memory" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -memory="128M" -d -- /bin/sleep 30 2>&1 || true
+    $SANDAL_BIN run -name="test-memory" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -memory="128M" -d -tmp 10 -- /bin/sleep 30 2>&1 || true
     sleep 1
 
     # Check if container is running (limit applied)
@@ -561,7 +605,7 @@ test_cpu_limit() {
     fi
 
     # Run container with CPU limit
-    $SANDAL_BIN run -name="test-cpu" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -cpu="0.5" -d -- /bin/sleep 30 2>&1 || true
+    $SANDAL_BIN run -name="test-cpu" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -cpu="0.5" -d -tmp 10 -- /bin/sleep 30 2>&1 || true
     sleep 1
 
     # Check if container is running
@@ -587,7 +631,7 @@ test_host_network() {
     fi
 
     # Run container with host network
-    output=$($SANDAL_BIN run -name="test-network" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS --ns-net="host" -rm -- /bin/hostname 2>&1)
+    output=$($SANDAL_BIN run -name="test-network" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS --ns-net="host" -rm -tmp 10 -- /bin/hostname 2>&1)
 
     # Container should see host's hostname
     host_hostname=$(hostname)
@@ -607,7 +651,7 @@ test_isolated_pid_namespace() {
     fi
 
     # In isolated PID namespace, PID 1 should be visible
-    output=$($SANDAL_BIN run -name="test-namespace" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -rm -- /bin/sh -c "cat /proc/1/comm" 2>&1)
+    output=$($SANDAL_BIN run -name="test-namespace" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -rm -tmp 10 -- /bin/sh -c "cat /proc/1/comm" 2>&1)
 
     # The command itself or init should be PID 1
     if [ -n "$output" ]; then
@@ -634,7 +678,7 @@ test_multiple_lower_dirs() {
     echo "extra-content" > "$TEST_DIR/lower/extra/extra-file"
 
     # Run container with multiple lower dirs
-    output=$($SANDAL_BIN run -name="test-multi-lower" -lw="$TEST_IMAGE" -lw="$TEST_DIR/lower" $NESTED_RUN_ARGS -rm -- /bin/ls /extra 2>&1) || true
+    output=$($SANDAL_BIN run -name="test-multi-lower" -lw="$TEST_IMAGE" -lw="$TEST_DIR/lower" $NESTED_RUN_ARGS -rm -tmp 10 -- /bin/ls /extra 2>&1) || true
 
     if echo "$output" | grep -q "extra-file"; then
         log_pass "Multiple lower directories work"
@@ -656,7 +700,7 @@ test_exec_in_container() {
     fi
 
     # Start a background container
-    $SANDAL_BIN run -name="test-exec" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 120 2>&1 || true
+    $SANDAL_BIN run -name="test-exec" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 120 2>&1 || true
     sleep 2
 
     # Execute command in container
@@ -684,11 +728,11 @@ test_kill_cleans_mounts() {
     fi
 
     # Start background container
-    $SANDAL_BIN run -name="test-kill-cleanup" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 120 2>&1 || true
+    $SANDAL_BIN run -name="test-kill-cleanup" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 120 2>&1 || true
     sleep 1
 
     # Verify mounts exist while running
-    if ! mount | grep -q "test-kill-cleanup"; then
+    if ! mount | grep "test-kill-cleanup"; then
         log_fail "Kill cleanup: container mounts not found while running"
         $SANDAL_BIN kill test-kill-cleanup 2>/dev/null || true
         return
@@ -699,7 +743,7 @@ test_kill_cleans_mounts() {
     sleep 1
 
     # Verify mounts are cleaned up
-    if mount | grep -q "test-kill-cleanup"; then
+    if mount | grep "test-kill-cleanup"; then
         log_fail "Kill cleanup: mounts still present after kill"
     else
         log_pass "Kill cleans up mounts"
@@ -717,7 +761,7 @@ test_kill_rerun_no_race() {
     # Start background container with a marker volume
     mkdir -p "$TEST_DIR/vol-old"
     echo "old-config" > "$TEST_DIR/vol-old/marker"
-    $SANDAL_BIN run -name="test-rerun" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol-old:/marker" -d -- /bin/sleep 120 2>&1 || true
+    $SANDAL_BIN run -name="test-rerun" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol-old:/marker" -d -tmp 10 -- /bin/sleep 120 2>&1 || true
     sleep 1
 
     # Get old PID
@@ -727,7 +771,7 @@ test_kill_rerun_no_race() {
     $SANDAL_BIN kill test-rerun 2>&1 || true
     mkdir -p "$TEST_DIR/vol-new"
     echo "new-config" > "$TEST_DIR/vol-new/marker"
-    $SANDAL_BIN run -name="test-rerun" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol-new:/marker" -d -- /bin/sleep 120 2>&1 || true
+    $SANDAL_BIN run -name="test-rerun" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -v="$TEST_DIR/vol-new:/marker" -d -tmp 10 -- /bin/sleep 120 2>&1 || true
     sleep 1
 
     # Get new PID
@@ -769,7 +813,7 @@ test_console_fifo_stdout() {
         return
     fi
 
-    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "echo console-test-output; sleep 60" 2>&1 || true
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "echo console-test-output; sleep 60" 2>&1 || true
     sleep 1
 
     console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
@@ -805,7 +849,7 @@ test_console_fifo_live_tail() {
         return
     fi
 
-    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "i=0; while true; do echo tick-\$i; i=\$((i+1)); sleep 1; done" 2>&1 || true
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "i=0; while true; do echo tick-\$i; i=\$((i+1)); sleep 1; done" 2>&1 || true
     sleep 2
 
     console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
@@ -831,7 +875,7 @@ test_console_fifo_stdin() {
     fi
 
     # Start container that reads from stdin and writes to stdout
-    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sh -c "read line; echo got-\$line; sleep 60" 2>&1 || true
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "read line; echo got-\$line; sleep 60" 2>&1 || true
     sleep 1
 
     console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
@@ -858,7 +902,7 @@ test_console_mode_file() {
         return
     fi
 
-    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1 || true
     sleep 1
 
     console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
@@ -881,7 +925,7 @@ test_console_cleanup_on_kill() {
         return
     fi
 
-    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    $SANDAL_BIN run -name="test-console" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1 || true
     sleep 1
 
     console_dir="${SANDAL_RUN_DIR:-/var/run/sandal}/console/test-console"
@@ -945,7 +989,7 @@ test_run_without_args() {
 test_run_nonexistent_image() {
     log_test "Run with non-existent image fails"
 
-    if ! $SANDAL_BIN run -name="test-fail" -lw="/nonexistent/image.sqfs" -- /bin/true 2>&1; then
+    if ! $SANDAL_BIN run -name="test-fail" -lw="/nonexistent/image.sqfs" -tmp 10 -- /bin/true 2>&1; then
         log_pass "Non-existent image fails as expected"
     else
         log_fail "Non-existent image should fail"
@@ -972,11 +1016,11 @@ test_duplicate_container_name() {
     fi
 
     # Start first container
-    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 || true
+    $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1 || true
     sleep 1
 
     # Try to start another with same name
-    if ! $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -- /bin/sleep 60 2>&1 | grep -q "already running"; then
+    if ! $SANDAL_BIN run -name="test-basic" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 60 2>&1 | grep -q "already running"; then
         log_pass "Duplicate name rejected"
     else
         log_pass "Duplicate name handled"
@@ -986,7 +1030,228 @@ test_duplicate_container_name() {
 }
 
 # ============================================================================
-# TEST SECTION 12: Go Unit Tests
+# TEST SECTION 12: Image Management Tests
+# ============================================================================
+
+test_export_image_squashfs() {
+    log_test "Export container image as squashfs"
+
+    output_file="$TEST_DIR/busybox-export.sqfs"
+    if $SANDAL_BIN export -image="busybox:latest" -o="$output_file" 2>&1; then
+        if [ -f "$output_file" ] && [ -s "$output_file" ]; then
+            log_pass "Export image as squashfs works"
+        else
+            log_fail "Export image squashfs: output file empty or missing"
+        fi
+    else
+        log_fail "Export image as squashfs failed"
+    fi
+}
+
+test_export_image_targz() {
+    log_test "Export container image as tar.gz"
+
+    output_file="$TEST_DIR/busybox-export.tar.gz"
+    if $SANDAL_BIN export -image="busybox:latest" -targz -o="$output_file" 2>&1; then
+        if [ -f "$output_file" ] && [ -s "$output_file" ]; then
+            # Verify it's a valid gzip file
+            if gzip -t "$output_file" 2>/dev/null; then
+                log_pass "Export image as tar.gz works"
+            else
+                log_fail "Export image tar.gz: not a valid gzip file"
+            fi
+        else
+            log_fail "Export image tar.gz: output file empty or missing"
+        fi
+    else
+        log_fail "Export image as tar.gz failed"
+    fi
+}
+
+test_export_image_missing_output() {
+    log_test "Export image without -o flag shows usage"
+
+    output=$($SANDAL_BIN export -image="busybox:latest" 2>&1)
+    if echo "$output" | grep -qi "usage\|Usage"; then
+        log_pass "Export image without -o shows usage"
+    else
+        log_fail "Export image without -o should show usage"
+    fi
+}
+
+test_run_with_image_reference() {
+    log_test "Run container with image reference as -lw"
+
+    output=$($SANDAL_BIN run -name="test-image-run" -lw="busybox:latest" -tmp=10 -rm -- /bin/echo "image-run-ok" 2>&1)
+
+    if echo "$output" | grep -q "image-run-ok"; then
+        log_pass "Run with image reference works"
+    else
+        log_fail "Run with image reference failed: $output"
+    fi
+}
+
+test_run_with_image_cache_hit() {
+    log_test "Run with cached image (no re-download)"
+
+    # First run should have cached the image from previous test
+    output=$($SANDAL_BIN run -name="test-image-run" -lw="busybox:latest" -tmp=10 -rm -- /bin/echo "cached-run-ok" 2>&1)
+
+    if echo "$output" | grep -q "cached-run-ok"; then
+        log_pass "Run with cached image works"
+    else
+        log_fail "Run with cached image failed: $output"
+    fi
+}
+
+test_run_with_exported_squashfs() {
+    log_test "Run container with previously exported squashfs"
+
+    export_file="$TEST_DIR/busybox-export.sqfs"
+    if [ ! -f "$export_file" ]; then
+        log_skip "Exported squashfs not available (previous test may have failed)"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-image-run" -lw="$export_file" -tmp=10 -rm -- /bin/echo "sqfs-run-ok" 2>&1)
+
+    if echo "$output" | grep -q "sqfs-run-ok"; then
+        log_pass "Run with exported squashfs works"
+    else
+        log_fail "Run with exported squashfs failed: $output"
+    fi
+}
+
+# ============================================================================
+# TEST SECTION 13: Multi-Container Stop/Kill/Rm Tests
+# ============================================================================
+
+test_stop_multiple_containers() {
+    log_test "Stop multiple containers at once"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start two containers
+    $SANDAL_BIN run -name="test-multi-stop-1" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
+    $SANDAL_BIN run -name="test-multi-stop-2" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
+    sleep 1
+
+    # Stop both at once
+    $SANDAL_BIN stop -timeout=5 test-multi-stop-1 test-multi-stop-2 2>&1 || true
+    sleep 1
+    # Verify neither is in running state
+    running=$($SANDAL_BIN ps 2>&1)
+    if echo "$running" | grep -E "test-multi-stop-[12].*running"; then
+        log_fail "Multi-stop: containers still running"
+    else
+        log_pass "Stop multiple containers works"
+    fi
+
+    $SANDAL_BIN kill test-multi-stop-1 test-multi-stop-2 2>/dev/null || true
+}
+
+test_kill_multiple_containers() {
+    log_test "Kill multiple containers at once"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start two containers
+    $SANDAL_BIN run -name="test-multi-kill-1" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 120 2>&1 || true
+    $SANDAL_BIN run -name="test-multi-kill-2" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 120 2>&1 || true
+    sleep 1
+
+    # Kill both at once
+    $SANDAL_BIN kill test-multi-kill-1 test-multi-kill-2 2>&1 || true
+    sleep 1
+    running=$($SANDAL_BIN ps 2>&1)
+    if echo "$running" | grep -E "test-multi-kill-[12].*running"; then
+        log_fail "Multi-kill: containers still running"
+    else
+        log_pass "Kill multiple containers works"
+    fi
+}
+
+test_rm_multiple_containers() {
+    log_test "Remove multiple containers at once"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Create two stopped containers
+    $SANDAL_BIN run -name="test-multi-kill-1" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 5 2>&1 || true
+    $SANDAL_BIN run -name="test-multi-kill-2" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 5 2>&1 || true
+    sleep 1
+    $SANDAL_BIN kill test-multi-kill-1 test-multi-kill-2 2>/dev/null || true
+    sleep 1
+
+    # Remove both at once
+    if $SANDAL_BIN rm test-multi-kill-1 test-multi-kill-2 2>&1; then
+        log_pass "Remove multiple containers works"
+    else
+        log_fail "Multi-rm command failed"
+    fi
+}
+
+test_stop_all_containers() {
+    log_test "Stop all containers with -all flag"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start two containers
+    $SANDAL_BIN run -name="test-multi-stop-1" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
+    $SANDAL_BIN run -name="test-multi-stop-2" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sh -c "trap 'exit 0' TERM; while true; do sleep 1; done" 2>&1 || true
+    sleep 1
+
+    # Stop all
+    $SANDAL_BIN stop -all -timeout=5 2>&1 || true
+    sleep 1
+    running=$($SANDAL_BIN ps 2>&1)
+    if echo "$running" | grep -E "test-multi-stop.*running"; then
+        log_fail "Stop -all: containers still running"
+    else
+        log_pass "Stop -all works"
+    fi
+
+    $SANDAL_BIN kill test-multi-stop-1 test-multi-stop-2 2>/dev/null || true
+}
+
+test_kill_all_containers() {
+    log_test "Kill all containers with -all flag"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Start two containers
+    $SANDAL_BIN run -name="test-multi-kill-1" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 120 2>&1 || true
+    $SANDAL_BIN run -name="test-multi-kill-2" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -- /bin/sleep 120 2>&1 || true
+    sleep 1
+
+    # Kill all
+    $SANDAL_BIN kill -all 2>&1 || true
+    sleep 1
+    running=$($SANDAL_BIN ps 2>&1)
+    if echo "$running" | grep -E "test-multi-kill.*running"; then
+        log_fail "Kill -all: containers still running"
+    else
+        log_pass "Kill -all works"
+    fi
+}
+
+# ============================================================================
+# TEST SECTION 14: Go Unit Tests
 # ============================================================================
 
 test_go_unit_tests() {
@@ -1010,10 +1275,19 @@ test_go_unit_tests() {
 main() {
     echo "=============================================="
     echo "       Sandal Container Runtime Tests        "
+    if [ "$USE_DAEMON" = "true" ]; then
+    echo "              (daemon mode)                  "
+    else
+    echo "            (daemonless mode)                "
+    fi
     echo "=============================================="
     echo ""
 
     check_prerequisites
+
+    if ! start_daemon; then
+        exit 1
+    fi
 
     echo ""
     echo "=== Section 1: Basic CLI Tests ==="
@@ -1087,7 +1361,24 @@ main() {
     test_duplicate_container_name
 
     echo ""
-    echo "=== Section 12: Go Unit Tests ==="
+    echo "=== Section 12: Image Management Tests ==="
+    test_export_image_squashfs
+    test_export_image_targz
+    test_export_image_missing_output
+    test_run_with_image_reference
+    test_run_with_image_cache_hit
+    test_run_with_exported_squashfs
+
+    echo ""
+    echo "=== Section 13: Multi-Container Stop/Kill/Rm Tests ==="
+    test_stop_multiple_containers
+    test_kill_multiple_containers
+    test_rm_multiple_containers
+    test_stop_all_containers
+    test_kill_all_containers
+
+    echo ""
+    echo "=== Section 14: Go Unit Tests ==="
     test_go_unit_tests
 
     # Summary

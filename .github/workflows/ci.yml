@@ -1,8 +1,8 @@
 on: [pull_request]
 name: CI
 jobs:
-  test:
-    name: Build Test
+  build:
+    name: Build
     strategy:
       matrix:
         go-version: [1.26.x]
@@ -17,6 +17,29 @@ jobs:
         uses: actions/checkout@v3
       - name: Build
         run: go build -v -o /dev/null .
+
+  integration-test:
+    name: Integration Test (${{ matrix.daemon-mode }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: [1.26.x]
+        daemon-mode: [daemon, daemonless]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Run integration tests
+        run: |
+          if [ "${{ matrix.daemon-mode }}" = "daemon" ]; then
+            export USE_DAEMON=true
+          fi
+          sudo -E bash ./test.sh
 
   mkdocs:
     runs-on: ubuntu-latest

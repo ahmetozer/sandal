@@ -26,7 +26,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 		OS:           "linux",
 		Architecture: runtime.GOARCH,
 	}
-	//!FEAT This needs to support other arch like aarch64 and x64 x86
+	// 32-bit ARM needs a variant; arm64 and amd64 have no variant in the OCI spec.
 	if runtime.GOARCH == "arm" {
 		platform.Variant = "v7"
 	}

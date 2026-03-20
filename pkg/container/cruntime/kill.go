@@ -70,6 +70,7 @@ func Kill(c *config.Config, signal int, second int) error {
 	}
 
 	c.Status = "killed"
+	c.ContPid = 0
 	CleanupResources(c)
 	controller.SetContainer(c)
 
