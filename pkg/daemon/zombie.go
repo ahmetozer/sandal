@@ -10,27 +10,55 @@ import (
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
+// checkZombie sends SIGTERM then SIGKILL to any startup containers still
+// running during daemon shutdown. It gives processes up to 10 seconds to
+// exit gracefully before force-killing, and gives up after 30 seconds to
+// avoid blocking shutdown indefinitely (e.g. uninterruptible sleep).
 func checkZombie() {
+	const (
+		gracePeriod  = 10 * time.Second
+		maxWait      = 30 * time.Second
+		pollInterval = 3 * time.Second
+	)
 
-	expiry := time.Now().Add(time.Second * 10)
+	start := time.Now()
+	deadline := start.Add(maxWait)
+	graceExpiry := start.Add(gracePeriod)
+	termSent := false
 
-	for {
-		zombieDetected := false
-		conts, _ := controller.Containers()
+	for time.Now().Before(deadline) {
+		conts, err := controller.Containers()
+		if err != nil {
+			slog.Warn("checkZombie", slog.String("action", "list containers"), slog.Any("error", err))
+			time.Sleep(time.Second)
+			continue
+		}
+
+		alive := false
 		for _, cont := range conts {
 			isRunning, err := cruntime.IsPidRunning(cont.ContPid)
-			if cont.Startup && isRunning && err == nil {
-				slog.Warn("checkZombie", slog.String("cont", cont.Name), slog.Any("pid", cont.ContPid))
-				zombieDetected = true
-				if time.Now().After(expiry) {
-					cruntime.Kill(cont, 9, 0)
-				}
+			if !cont.Startup || !isRunning || err != nil {
+				continue
+			}
+			alive = true
+
+			if !termSent {
+				slog.Info("checkZombie", slog.String("action", "SIGTERM"), slog.String("cont", cont.Name), slog.Int("pid", cont.ContPid))
+				cruntime.Kill(cont, 15, 0)
+			} else if time.Now().After(graceExpiry) {
+				slog.Warn("checkZombie", slog.String("action", "SIGKILL"), slog.String("cont", cont.Name), slog.Int("pid", cont.ContPid))
+				cruntime.Kill(cont, 9, 0)
 			}
 		}
-		if !zombieDetected {
+
+		if !alive {
+			slog.Debug("checkZombie", slog.String("status", "all containers stopped"))
 			return
 		}
-		time.Sleep(time.Second * 3)
+
+		termSent = true
+		time.Sleep(pollInterval)
 	}
 
+	slog.Warn("checkZombie", slog.String("status", "deadline reached, some containers may still be running"))
 }
