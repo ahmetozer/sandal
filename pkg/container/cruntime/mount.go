@@ -114,7 +114,7 @@ func childSysMounts(c *config.Config) error {
 
 	}
 	if c.Devtmpfs != "" {
-		mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
+		err = mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
 		if err != nil {
 			return err
 		}
@@ -241,20 +241,47 @@ func mountVolumes(c *config.Config) error {
 
 		m := strings.Split(v, ":")
 		switch len(m) {
-		//only path forwarded, destionation and mount iptions will generated
+		//only path forwarded, destination and mount options will be generated
 		case 1:
 			m = append(m, m[0], "")
-		// destionation path is provided but options are not provided
+		// destination path is provided but options are not provided
 		case 2:
 			m = append(m, "")
 		case 3:
-		default: // Including lenght zero 0
+		default: // Including length zero 0
 			return fmt.Errorf("unexpected mount configuration '%s'", v)
 		}
 
 		src := vmResolvePath(m[0])
 
-		err := mount(src, path.Join(c.RootfsDir, m[1]), "", unix.MS_BIND, m[2])
+		// Validate source is an absolute path
+		if !filepath.IsAbs(src) {
+			return fmt.Errorf("volume source must be an absolute path, got %q", src)
+		}
+
+		// Validate destination doesn't escape rootfs via ".." components
+		dest := m[1]
+		cleanDest := filepath.Clean(dest)
+		if strings.HasPrefix(cleanDest, "..") || strings.Contains(cleanDest, "/../") {
+			return fmt.Errorf("volume destination %q escapes container rootfs", dest)
+		}
+
+		target := filepath.Join(c.RootfsDir, cleanDest)
+
+		// Ensure the resolved target is strictly within the rootfs directory
+		absRootfs, err := filepath.Abs(c.RootfsDir)
+		if err != nil {
+			return fmt.Errorf("unable to resolve rootfs path: %w", err)
+		}
+		absTarget, err := filepath.Abs(target)
+		if err != nil {
+			return fmt.Errorf("unable to resolve volume target path: %w", err)
+		}
+		if absTarget != absRootfs && !strings.HasPrefix(absTarget, absRootfs+"/") {
+			return fmt.Errorf("volume destination %q resolves outside container rootfs", dest)
+		}
+
+		err = mount(src, target, "", unix.MS_BIND, m[2])
 		if err != nil {
 			return err
 		}
