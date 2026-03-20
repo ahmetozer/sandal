@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/cruntime/console"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"golang.org/x/sys/unix"
 )
 
 type containerLog struct {
@@ -41,7 +43,7 @@ func crun(c *config.Config) (int, error) {
 	var err error
 
 	// To start proccess by daemon
-	if os.Getenv("SANDAL_DAEMON_PID") == "" && c.Background && controller.GetControllerType() == controller.ControllerTypeServer {
+	if !env.IsDaemon && c.Background && controller.GetControllerType() == controller.ControllerTypeServer {
 		slog.Debug("Start", slog.Any("c.Background", c.Background), slog.Any("controller-type", controller.GetControllerType()))
 		return 0, nil
 	}
@@ -49,16 +51,19 @@ func crun(c *config.Config) (int, error) {
 
 	// PTY master/slave for interactive VM containers; nil otherwise
 	var ptmx, ptySlave *os.File
+	var consoleCleanup func()
 
 	if !c.Background {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+	} else if c.TTY && env.IsDaemon {
+		// Background + daemon + TTY: PTY-based console served over Unix socket.
+		// Requires daemon because the socket listener and PTY master must outlive the CLI.
+		console.SetupSocketConsole(c.Name, cmd, &ptmx, &ptySlave, &consoleCleanup, allocPTY, setPTYSize)
 	} else {
-		if env.Get("SANDAL_CRUN_STD", "false") == "true" {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-		}
+		// Daemonless background or no TTY: FIFO/file-based console
+		console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup)
 	}
 
 	cmd.Env = childEnv(c)
@@ -88,22 +93,24 @@ func crun(c *config.Config) (int, error) {
 	// Get clone flags for namespaces
 	cloneFlags := c.NS.Cloneflags()
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: cloneFlags,
+	// Preserve Setsid/Setctty/Ctty if already configured by SetupSocketConsole.
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
+	cmd.SysProcAttr.Cloneflags = cloneFlags
 
 	if c.NS.Get("user").IsUserDefined && !c.NS.Get("pid").IsHost {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: cloneFlags,
-			UidMappings: []syscall.SysProcIDMap{
-				{ContainerID: 0, HostID: 0, Size: procSize},
-			},
-			GidMappings: []syscall.SysProcIDMap{
-				{ContainerID: 0, HostID: 0, Size: procSize},
-			},
-			// Only set process group for background containers
-			// Interactive containers need to stay in the same process group to receive terminal signals
-			Setpgid: c.Background,
+		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
+			{ContainerID: 0, HostID: 0, Size: procSize},
+		}
+		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
+			{ContainerID: 0, HostID: 0, Size: procSize},
+		}
+		// Only set process group for background containers without Setsid.
+		// Setsid already creates a new session (and process group), so Setpgid
+		// is redundant and conflicts (kernel returns EINVAL if both are set).
+		if !cmd.SysProcAttr.Setsid {
+			cmd.SysProcAttr.Setpgid = c.Background
 		}
 	}
 
@@ -117,10 +124,16 @@ func crun(c *config.Config) (int, error) {
 
 	// Allocate a PTY for interactive containers when -t is passed
 	// so the shell gets a real terminal (isatty=true, job control works).
+	var restoreTerminal func()
 	if !c.Background && c.TTY {
 		master, slave, ptyErr := allocPTY()
 		if ptyErr == nil {
-			setPTYSize(master, 24, 80)
+			// Set PTY size from the host terminal
+			if ws, wsErr := unix.IoctlGetWinsize(int(os.Stdin.Fd()), unix.TIOCGWINSZ); wsErr == nil {
+				setPTYSize(master, ws.Row, ws.Col)
+			} else {
+				setPTYSize(master, 24, 80)
+			}
 			cmd.Stdin = slave
 			cmd.Stdout = slave
 			cmd.Stderr = slave
@@ -129,6 +142,15 @@ func crun(c *config.Config) (int, error) {
 			cmd.SysProcAttr.Ctty = 0 // fd 0 = stdin = slave after dup2
 			ptmx = master
 			ptySlave = slave
+
+			// Put host terminal in raw mode so keystrokes are forwarded
+			// immediately (needed for programs like htop, vim, etc.)
+			if oldTermios, rawErr := ioctlGetTermios(os.Stdin); rawErr == nil {
+				setRawMode(os.Stdin, oldTermios)
+				restoreTerminal = func() {
+					unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, oldTermios)
+				}
+			}
 		} else {
 			slog.Warn("PTY allocation failed, falling back to serial console", "error", ptyErr)
 		}
@@ -196,9 +218,10 @@ func crun(c *config.Config) (int, error) {
 		return 0, err
 	}
 
-	// Start PTY relay after the child is running
+	// Start PTY relay for interactive (foreground) containers only.
+	// Background containers with socket console have their own PTY reader.
 	var stopRelay func()
-	if ptmx != nil {
+	if ptmx != nil && !c.Background {
 		stopRelay = startPTYRelay(ptmx, os.Stdin, os.Stdout)
 	}
 
@@ -217,6 +240,14 @@ func crun(c *config.Config) (int, error) {
 			defer signal.Stop(sigChan)
 
 			for sig := range sigChan {
+				// Forward SIGWINCH to the PTY (resize), not to the process
+				if sig == syscall.SIGWINCH && ptmx != nil {
+					if ws, wsErr := unix.IoctlGetWinsize(int(os.Stdin.Fd()), unix.TIOCGWINSZ); wsErr == nil {
+						setPTYSize(ptmx, ws.Row, ws.Col)
+					}
+					continue
+				}
+
 				if cmd.Process != nil {
 					// Convert termination signals to SIGKILL for PID 1 in namespace
 					signalToSend := sig
@@ -236,22 +267,26 @@ func crun(c *config.Config) (int, error) {
 
 	if c.Background {
 		go func() {
-			_, err := cmd.Process.Wait()
-			if err != nil {
-				slog.Error("background container", "container", c.Name, "err", err)
-				return
+			cmd.Process.Wait()
+			// Clean up console resources when the container exits
+			if consoleCleanup != nil {
+				consoleCleanup()
+			}
+			if ptmx != nil {
+				ptmx.Close()
 			}
 		}()
-		// err = AttachContainerToPID(c, os.Getpid())
-		// if err != nil {
-		// 	slog.Debug("AttachContainerToPID", slog.Any("error", err))
-		// }
 		return 0, nil
 	}
 
 	sig, err := cmd.Process.Wait()
 	if err != nil && err.Error() == "waitid: no child processes" {
 		err = nil
+	}
+
+	// Restore host terminal before any further output
+	if restoreTerminal != nil {
+		restoreTerminal()
 	}
 
 	// Clean up PTY relay after child exits
@@ -296,8 +331,36 @@ func childEnv(c *config.Config) []string {
 		envVars = append(envVars, fmt.Sprintf("PATH=%s", hostPath))
 	}
 
+	// Always pass TERM when TTY is enabled so terminal programs
+	// (htop, vim, etc.) know the terminal capabilities (arrow keys, mouse, colors).
+	if c.TTY {
+		term := os.Getenv("TERM")
+		if term == "" {
+			term = "xterm-256color"
+		}
+		envVars = append(envVars, "TERM="+term)
+	}
+
 	envVars = appendSandalVariables(envVars, c)
 	return envVars
+}
+
+// ioctlGetTermios gets the current terminal settings.
+func ioctlGetTermios(f *os.File) (*unix.Termios, error) {
+	return unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
+}
+
+// setRawMode puts the terminal into raw mode for PTY relay.
+func setRawMode(f *os.File, oldTermios *unix.Termios) {
+	raw := *oldTermios
+	raw.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
+	raw.Oflag &^= unix.OPOST
+	raw.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+	raw.Cflag &^= unix.CSIZE | unix.PARENB
+	raw.Cflag |= unix.CS8
+	raw.Cc[unix.VMIN] = 1
+	raw.Cc[unix.VTIME] = 0
+	unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, &raw)
 }
 
 func appendSandalVariables(s []string, c *config.Config) []string {

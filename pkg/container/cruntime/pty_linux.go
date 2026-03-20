@@ -40,20 +40,9 @@ func allocPTY() (master, slave *os.File, err error) {
 		return nil, nil, fmt.Errorf("open %s: %w", slavePath, err)
 	}
 
-	// Set raw mode on the slave so the PTY driver does not echo input
-	// or do line buffering. The shell's line editor handles echo itself.
-	// Without this, escape sequence responses (e.g. cursor position
-	// reports) get echoed and appear as garbage like ^[[30;5R.
-	if termios, err := unix.IoctlGetTermios(int(slave.Fd()), unix.TCGETS); err == nil {
-		termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
-		termios.Oflag &^= unix.OPOST
-		termios.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
-		termios.Cflag &^= unix.CSIZE | unix.PARENB
-		termios.Cflag |= unix.CS8
-		termios.Cc[unix.VMIN] = 1
-		termios.Cc[unix.VTIME] = 0
-		unix.IoctlSetTermios(int(slave.Fd()), unix.TCSETS, termios)
-	}
+	// Use kernel default termios for the slave PTY. The defaults provide
+	// sane settings (ECHO, ICANON, ISIG, ICRNL, OPOST, ONLCR all enabled).
+	// Programs like bash, htop, etc. configure the terminal themselves.
 
 	return master, slave, nil
 }

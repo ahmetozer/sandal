@@ -37,6 +37,9 @@ func SendSig(pid, sig int) error {
 var ErrPidExistenceControl = fmt.Errorf("unable to find proccess")
 
 func IsPidRunning(pid int) (bool, error) {
+	if pid <= 0 {
+		return false, nil
+	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		if !os.IsNotExist(err) {
