@@ -3,6 +3,7 @@
 package console
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -55,15 +56,15 @@ func SetupFIFOConsole(
 	name string,
 	cmd *exec.Cmd,
 	consoleCleanup *func(),
-) {
+) error {
 	stdin, stdout, stderr, cleanup, fifoErr := SetupFIFO(name)
 	if fifoErr != nil {
-		slog.Warn("console FIFO setup failed", "error", fifoErr)
-		return
+		return fmt.Errorf("console FIFO setup: %w", fifoErr)
 	}
 
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	*consoleCleanup = cleanup
+	return nil
 }

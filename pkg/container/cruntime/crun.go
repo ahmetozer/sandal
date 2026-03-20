@@ -41,8 +41,9 @@ func crun(c *config.Config) (int, error) {
 	c.Status = ContainerStatusCreating
 	var err error
 
-	// To start proccess by daemon
-	if !env.IsDaemon && c.Background && controller.GetControllerType() == controller.ControllerTypeServer {
+	// Only delegate to daemon when the container has Startup flag set.
+	// Regular background (-d) containers are started directly by the CLI.
+	if !env.IsDaemon && c.Background && c.Startup && controller.GetControllerType() == controller.ControllerTypeServer {
 		slog.Debug("Start", slog.Any("c.Background", c.Background), slog.Any("controller-type", controller.GetControllerType()))
 		return 0, nil
 	}
@@ -62,7 +63,9 @@ func crun(c *config.Config) (int, error) {
 		console.SetupSocketConsole(c.Name, cmd, &ptmx, &ptySlave, &consoleCleanup, allocPTY, setPTYSize)
 	} else {
 		// Daemonless background or no TTY: FIFO/file-based console
-		console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup)
+		if err := console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup); err != nil {
+			return 1, fmt.Errorf("console setup: %w", err)
+		}
 	}
 
 	cmd.Env = childEnv(c)

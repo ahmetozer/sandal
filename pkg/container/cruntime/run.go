@@ -12,9 +12,11 @@ import (
 
 func Run(c *config.Config) error {
 
-	// When a background container is delegated to the daemon, skip local
+	// When a startup container is delegated to the daemon, skip local
 	// cleanup and rootfs setup — the daemon will handle the full lifecycle.
-	if c.Background && !env.IsDaemon && controller.GetControllerType() == controller.ControllerTypeServer {
+	// Only startup containers are daemon-managed; regular background (-d)
+	// containers are run directly by the CLI process.
+	if c.Background && c.Startup && !env.IsDaemon && controller.GetControllerType() == controller.ControllerTypeServer {
 		return nil
 	}
 
