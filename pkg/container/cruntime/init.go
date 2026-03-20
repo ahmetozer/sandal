@@ -29,8 +29,12 @@ func ContainerInitProc() {
 			c   *config.Config
 		)
 
+		// The config is already written to disk by cmd/run.go before crun()
+		// spawns this child process, so the retry loop is just a safety margin
+		// for slow filesystems — not a race condition. The later SetContainer
+		// in crun.go only updates runtime fields (PID, status) that the child
+		// does not depend on.
 		// Wait until main proccess resumes
-
 		for retry := 1; retry < 10; retry++ {
 			c, err = controller.GetContainer(os.Getenv("SANDAL_CHILD"))
 			if err == nil {
@@ -112,7 +116,11 @@ func ContainerInitProc() {
 		if err != nil {
 			return err
 		}
-		// do not execute pre commands as defined user
+		// Pre-pivot and pre-exec commands intentionally run as root before user
+		// switching. This is by design: they are specified by the container operator
+		// (not the container image) via -rcp/-rci flags and require root privileges
+		// for tasks like device setup or filesystem preparation. The config file is
+		// protected by root-only daemon socket permissions (0600).
 		runCommands(c.RunPrePivot, "/.old_root/", "")
 		purgeOldRoot(c)
 		runCommands(c.RunPreExec, "", "")

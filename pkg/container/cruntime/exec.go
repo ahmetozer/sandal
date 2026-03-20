@@ -88,7 +88,11 @@ func Exec(c []string, chroot string, user string) (exitCode int, err error) {
 		cmd.SysProcAttr.Chroot = chroot
 	}
 
-	err = cmd.Run()
+	if err = cmd.Start(); err != nil {
+		return 1, fmt.Errorf("unable to start %s: %w", c[0], err)
+	}
+
+	err = cmd.Wait()
 
 	if err != nil && err.Error() == "waitid: no child processes" {
 		err = nil
@@ -102,7 +106,5 @@ func Exec(c []string, chroot string, user string) (exitCode int, err error) {
 		slog.Debug("execCommands", "command", c[0], "rootfs", rootfs, "error", err.Error())
 	}
 
-	sig, _ := cmd.Process.Wait()
-
-	return sig.ExitCode(), err
+	return cmd.ProcessState.ExitCode(), err
 }
