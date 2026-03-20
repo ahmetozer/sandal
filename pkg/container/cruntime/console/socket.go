@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -180,11 +181,14 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 	rows, cols := getTerminalSize(int(hostStdin.Fd()))
 	SendResize(conn, rows, cols)
 
-	// Enable mouse tracking on the host terminal. The container program
-	// (htop, etc.) sent these sequences at startup, but they were discarded
-	// because no client was connected at the time.
-	hostStdout.Write([]byte("\x1b[?1000h\x1b[?1002h\x1b[?1006h"))
-	defer hostStdout.Write([]byte("\x1b[?1006l\x1b[?1002l\x1b[?1000l"))
+	// Re-send terminal modes that the container program (htop, etc.) sent
+	// during initialization but were discarded because no client was connected.
+	//
+	// smkx: Enable application cursor mode (DECCKM) so arrow keys send
+	// ESC O x sequences matching the xterm-256color terminfo definitions.
+	// Mouse: Enable X11, cell-motion, and SGR extended mouse tracking.
+	hostStdout.Write([]byte("\x1b[?1h\x1b=" + "\x1b[?1000h\x1b[?1002h\x1b[?1006h"))
+	defer hostStdout.Write([]byte("\x1b[?1006l\x1b[?1002l\x1b[?1000l" + "\x1b[?1l\x1b>"))
 
 	// Forward SIGWINCH (terminal resize) to the container
 	sigWinch := make(chan os.Signal, 1)
@@ -226,51 +230,63 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 		}
 	}()
 
-	// Host stdin → socket (data frames + detach detection)
+	// Reader goroutine: reads from host stdin and sends to channel
+	stdinCh := make(chan []byte, 32)
 	go func() {
-		stdinFd := int(hostStdin.Fd())
 		buf := make([]byte, 4096)
-		var prevCtrlP bool
 		for {
 			n, err := hostStdin.Read(buf)
 			if n > 0 {
-				// Coalesce escape sequences: if first byte is ESC, poll briefly
-				// for remaining bytes so they arrive in a single PTY write.
-				// Without this, arrow keys/mouse get split and misinterpreted.
-				if buf[0] == 0x1B && n < len(buf) {
-					pfd := []unix.PollFd{{Fd: int32(stdinFd), Events: unix.POLLIN}}
-					for n < len(buf) {
-						ready, _ := unix.Poll(pfd, 5) // 5ms timeout
-						if ready <= 0 {
-							break
-						}
-						nn, _ := unix.Read(stdinFd, buf[n:])
-						if nn <= 0 {
-							break
-						}
-						n += nn
-					}
-				}
-
-				data := buf[:n]
-				// Detect Ctrl+P, Ctrl+Q sequence for detach
-				for _, b := range data {
-					if prevCtrlP && b == 0x11 { // Ctrl+Q
-						closeDetach()
-						return
-					}
-					prevCtrlP = (b == 0x10) // Ctrl+P
-				}
-
-				frame := make([]byte, 1+2+n)
-				frame[0] = frameData
-				binary.BigEndian.PutUint16(frame[1:3], uint16(n))
-				copy(frame[3:], data)
-				if _, werr := conn.Write(frame); werr != nil {
-					return
-				}
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				stdinCh <- data
 			}
 			if err != nil {
+				close(stdinCh)
+				return
+			}
+		}
+	}()
+
+	// Host stdin → socket (data frames + detach detection)
+	go func() {
+		var prevCtrlP bool
+		for data := range stdinCh {
+			// Coalesce escape sequences: if first byte is ESC, wait briefly
+			// for remaining bytes so they arrive in a single PTY write.
+			// Without this, arrow keys get split (ESC + [B) and programs
+			// like htop interpret ESC as the Escape key.
+			if data[0] == 0x1B {
+				time.Sleep(10 * time.Millisecond)
+				// Drain all bytes that arrived during the sleep
+				for {
+					select {
+					case more, ok := <-stdinCh:
+						if !ok {
+							goto sendFrame
+						}
+						data = append(data, more...)
+					default:
+						goto sendFrame
+					}
+				}
+			}
+		sendFrame:
+
+			// Detect Ctrl+P, Ctrl+Q sequence for detach
+			for _, b := range data {
+				if prevCtrlP && b == 0x11 { // Ctrl+Q
+					closeDetach()
+					return
+				}
+				prevCtrlP = (b == 0x10) // Ctrl+P
+			}
+
+			frame := make([]byte, 1+2+len(data))
+			frame[0] = frameData
+			binary.BigEndian.PutUint16(frame[1:3], uint16(len(data)))
+			copy(frame[3:], data)
+			if _, werr := conn.Write(frame); werr != nil {
 				return
 			}
 		}

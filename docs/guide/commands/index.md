@@ -364,6 +364,29 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
+### `-t bool`
+
+:   allocate a pseudo-TTY for the container.
+  Required for terminal programs like `htop`, `vim`, `iptraf-ng`, or any program that needs `isatty()` to return true.
+
+  In **foreground** mode (`-t` without `-d`), the host terminal is set to raw mode and connected directly to the container's PTY. Arrow keys, Ctrl+C, and terminal resize work automatically.
+
+  In **background** mode (`-t -d` with daemon running), the PTY is served over a Unix socket. Use `sandal attach` to connect. Supports mouse, arrow keys, function keys, and terminal resize.
+
+  ```bash
+  # Interactive foreground with PTY
+  sandal run -lw / -tmp 10 --rm -t -- bash
+  # Background with PTY (requires daemon)
+  sandal daemon &
+  sandal run -lw / -tmp 10 --rm -t -d --startup -name my-htop -- htop
+  sandal attach my-htop
+  ```
+
+  !!! warning
+      Using `-t -d` without the daemon results in FIFO mode (no PTY). Terminal programs will not display correctly. A warning is logged in this case.
+
+---
+
 ### `-tmp uint`
 
 :   allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled.  
