@@ -14,11 +14,16 @@ type Config struct {
 	No   int
 	Path string
 	Info *LoopInfo64
+	RW   bool // Open image file read-write instead of read-only
 }
 
 func (lc Config) Attach(imagePath string) error {
 
-	file, err := os.OpenFile(imagePath, os.O_RDONLY, 0)
+	openFlags := os.O_RDONLY
+	if lc.RW {
+		openFlags = os.O_RDWR
+	}
+	file, err := os.OpenFile(imagePath, openFlags, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open image file: %v", err)
 	}

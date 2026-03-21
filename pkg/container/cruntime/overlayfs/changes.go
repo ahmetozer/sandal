@@ -53,6 +53,7 @@ func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 		upper: path.Join(c.ChangeDir, "upper"),
 	}
 	// if temp size is set, create a tmpfs and allocate changes under tmpfs
+	isVm, _ := env.IsVM()
 	if c.TmpSize != 0 {
 		tmpdir := Tmpdir(c)
 
@@ -68,6 +69,17 @@ func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 		if err != nil {
 			return dir, fmt.Errorf("tmpfs: %s", err)
 		}
+
+	} else if isVm {
+		// VM mode: VirtioFS doesn't support overlayfs kernel operations.
+		// Use a loop-mounted ext4 disk image for the change dir instead.
+		mount, err := prepareVMChangeDir(c.ChangeDir)
+		if err != nil {
+			return dir, fmt.Errorf("vm change dir: %w", err)
+		}
+		RegisterVMChangeMount(c.ChangeDir, mount)
+		slog.Debug("PrepareChangeDir", slog.String("vmImage", mount.ImagePath),
+			slog.String("loopDev", mount.LoopDev.Path))
 	}
 	slog.Debug("PrepareChangeDir", slog.Any("dir", dir))
 

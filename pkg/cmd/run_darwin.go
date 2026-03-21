@@ -136,9 +136,6 @@ func Run(args []string) error {
 	if len(mountEntries) > 0 {
 		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
 	}
-	// Overlay upper/work dirs must be on a local filesystem, not VirtioFS.
-	// Default change dir to tmpfs-backed /var/run/sandal/changedir inside the VM.
-	cmdLineParts = append(cmdLineParts, "SANDAL_CHANGE_DIR=/var/run/sandal/changedir")
 	// Pass resolved sandal env vars to the VM
 	for _, e := range env.GetDefaults() {
 		if val := os.Getenv(e.Name); val != "" {

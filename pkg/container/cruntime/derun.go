@@ -67,6 +67,7 @@ func DeRunContainer(c *config.Config) {
 
 		removeAll(c.RootfsDir)
 		removeAll(c.ChangeDir)
+		removeAll(c.ChangeDir + ".img") // VM disk image for change dir
 		removeAll(c.ConfigFileLoc())
 	}
 

@@ -40,7 +40,7 @@ func VMInit() error {
 	// Load kernel modules before switch_root (modules live in the base initrd).
 	for _, mod := range []string{
 		// Filesystems
-		"fuse", "virtiofs", "overlay", "loop", "squashfs",
+		"fuse", "virtiofs", "overlay", "loop", "squashfs", "ext4",
 		// Networking
 		"veth", "bridge", "tun", "af_packet",
 		// Netfilter / NAT
