@@ -3,13 +3,16 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
+	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
@@ -23,7 +26,7 @@ func Run(args []string) error {
 	// If specified, load that config as a base template; otherwise use defaults.
 	vmFlag, cleanArgs := extractFlag(args, "vm", "")
 
-	// Scan args for -lw and -v values to determine VirtioFS shares.
+	// Scan args for -v values to determine VirtioFS shares.
 	// The args themselves are NOT modified.
 	hostPaths := scanMountPaths(cleanArgs)
 
@@ -62,6 +65,13 @@ func Run(args []string) error {
 		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", env.VMBinPath, env.VMBinPath)
 	}
 
+	// Pre-pull OCI images on the host and convert to squashfs.
+	// Rewrite -lw args from OCI refs to sqfs paths so the VM uses cached images.
+	home, _ := os.UserHomeDir()
+	sandalLibDir := filepath.Join(home, ".sandal", "lib")
+	imageDir := filepath.Join(sandalLibDir, "image")
+	cleanArgs = pullOCIImages(cleanArgs, imageDir)
+
 	// Build VirtioFS mounts from collected host paths.
 	// Each unique host directory gets a VirtioFS share.
 	// Mount mapping is passed as SANDAL_VM_MOUNTS=tag=hostpath,tag=hostpath
@@ -93,6 +103,19 @@ func Run(args []string) error {
 			HostPath: shareDir,
 		})
 		mountEntries = append(mountEntries, fmt.Sprintf("%s=%s", tag, shareDir))
+	}
+
+	// Always share ~/.sandal/lib/ so OCI images are cached on the host.
+	// Inside the VM this is mounted at /var/lib/sandal.
+	os.MkdirAll(sandalLibDir, 0755)
+	if !seen[sandalLibDir] {
+		seen[sandalLibDir] = true
+		tag := "sandal-lib"
+		vmMounts = append(vmMounts, vz.MountConfig{
+			Tag:      tag,
+			HostPath: sandalLibDir,
+		})
+		mountEntries = append(mountEntries, fmt.Sprintf("%s=%s=%s", tag, sandalLibDir, "/var/lib/sandal"))
 	}
 
 	cfg.Mounts = append(cfg.Mounts, vmMounts...)
@@ -200,15 +223,47 @@ func extractFlag(args []string, name string, defaultVal string) (string, []strin
 	return val, clean
 }
 
-// scanMountPaths scans args for -lw and -v flag values and returns the host paths
-// that need VirtioFS shares. Does not modify args.
+// scanMountPaths scans args for -v flag values and returns the host paths
+// that need VirtioFS shares. -lw is excluded because it contains OCI image
+// references that are pulled inside the VM, not host directories.
+// Does not modify args.
+// pullOCIImages scans args for -lw values that look like OCI image references,
+// pulls them on the host, converts to squashfs, and rewrites the args to use
+// the local sqfs path. Returns the modified args.
+func pullOCIImages(args []string, imageDir string) []string {
+	result := make([]string, len(args))
+	copy(result, args)
+
+	for i := 0; i < len(result); i++ {
+		if result[i] == "--" {
+			break
+		}
+		if result[i] == "-lw" && i+1 < len(result) {
+			i++
+			ref := result[i]
+			if !squash.IsImageReference(ref) {
+				continue
+			}
+			slog.Info("pull", slog.String("action", "pulling-on-host"), slog.String("image", ref))
+			sqfsPath, err := squash.Pull(context.Background(), ref, imageDir)
+			if err != nil {
+				slog.Error("pull", slog.String("image", ref), slog.Any("error", err))
+				continue
+			}
+			slog.Info("pull", slog.String("action", "cached"), slog.String("image", ref), slog.String("path", sqfsPath))
+			result[i] = sqfsPath
+		}
+	}
+	return result
+}
+
 func scanMountPaths(args []string) []string {
 	var paths []string
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--" {
 			break
 		}
-		if (args[i] == "-lw" || args[i] == "-v") && i+1 < len(args) {
+		if args[i] == "-v" && i+1 < len(args) {
 			i++
 			hostPath := args[i]
 			// For -v, extract host path from host:container format

@@ -82,6 +82,67 @@ func ParseMemory(input string) (int64, error) {
 	return result, nil
 }
 
+// ParseSize parses human-readable size strings into bytes.
+// Supports: raw bytes, or suffixes like 128m, 128mb, 1g, 1gb, 512k, 512kb (case-insensitive, binary units).
+func ParseSize(input string) (int64, error) {
+	if input == "" {
+		return 0, fmt.Errorf("empty size")
+	}
+
+	input = strings.TrimSpace(input)
+
+	// Raw number = bytes
+	if val, err := strconv.ParseInt(input, 10, 64); err == nil {
+		if val < 0 {
+			return 0, fmt.Errorf("size cannot be negative")
+		}
+		return val, nil
+	}
+
+	lower := strings.ToLower(input)
+	var multiplier int64
+	var numStr string
+
+	switch {
+	case strings.HasSuffix(lower, "tb"):
+		multiplier = 1024 * 1024 * 1024 * 1024
+		numStr = input[:len(input)-2]
+	case strings.HasSuffix(lower, "gb"):
+		multiplier = 1024 * 1024 * 1024
+		numStr = input[:len(input)-2]
+	case strings.HasSuffix(lower, "mb"):
+		multiplier = 1024 * 1024
+		numStr = input[:len(input)-2]
+	case strings.HasSuffix(lower, "kb"):
+		multiplier = 1024
+		numStr = input[:len(input)-2]
+	case strings.HasSuffix(lower, "t"):
+		multiplier = 1024 * 1024 * 1024 * 1024
+		numStr = input[:len(input)-1]
+	case strings.HasSuffix(lower, "g"):
+		multiplier = 1024 * 1024 * 1024
+		numStr = input[:len(input)-1]
+	case strings.HasSuffix(lower, "m"):
+		multiplier = 1024 * 1024
+		numStr = input[:len(input)-1]
+	case strings.HasSuffix(lower, "k"):
+		multiplier = 1024
+		numStr = input[:len(input)-1]
+	default:
+		return 0, fmt.Errorf("invalid size format %q: use format like 128m, 1g, 512mb, or bytes", input)
+	}
+
+	val, err := strconv.ParseFloat(strings.TrimSpace(numStr), 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size value %q: %w", input, err)
+	}
+	if val < 0 {
+		return 0, fmt.Errorf("size cannot be negative")
+	}
+
+	return int64(val * float64(multiplier)), nil
+}
+
 // ParseCPU parses CPU strings like "0.5", "2"
 // Returns quota (microseconds) and period (microseconds) for cgroup cpu.max
 func ParseCPU(input string) (quota int64, period int64, error error) {

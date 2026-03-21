@@ -163,7 +163,9 @@ cleanup() {
                 test-memory test-cpu test-env test-user test-namespace test-tmpfs \
                 test-multi-lower test-workdir test-exec test-kill-cleanup test-rerun \
                 test-console test-image-run test-multi-stop-1 test-multi-stop-2 \
-                test-multi-kill-1 test-multi-kill-2; do
+                test-multi-kill-1 test-multi-kill-2 \
+                test-chdir-img test-chdir-csize test-chdir-1g \
+                test-chdir-folder test-chdir-auto test-chdir-warn; do
         $SANDAL_BIN kill "$name" 2>/dev/null || true
         $SANDAL_BIN rm "$name" 2>/dev/null || true
     done
@@ -1251,7 +1253,113 @@ test_kill_all_containers() {
 }
 
 # ============================================================================
-# TEST SECTION 14: Go Unit Tests
+# TEST SECTION 15: Change Dir Type Tests
+# ============================================================================
+
+test_chdir_type_image() {
+    log_test "Container with image-backed change dir"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-chdir-img" -lw="$TEST_IMAGE" -chdir-type=image -rm -- /bin/sh -c "echo imgtest > /imgfile && cat /imgfile" 2>&1)
+
+    if echo "$output" | grep -q "imgtest"; then
+        log_pass "Image-backed change dir works"
+    else
+        log_fail "Image-backed change dir failed: $output"
+    fi
+}
+
+test_chdir_type_image_custom_size() {
+    log_test "Container with custom-sized image change dir (-csize 256m)"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-chdir-csize" -lw="$TEST_IMAGE" -chdir-type=image -csize=256m -rm -- /bin/df -h / 2>&1)
+
+    if echo "$output" | grep -qE "overlay.*2[0-9][0-9]"; then
+        log_pass "Custom-sized image change dir works (256m)"
+    else
+        log_fail "Custom-sized image change dir failed: $output"
+    fi
+}
+
+test_chdir_type_image_size_units() {
+    log_test "Container with -csize using GB unit (-csize 1g)"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-chdir-1g" -lw="$TEST_IMAGE" -chdir-type=image -csize=1g -rm -- /bin/df -h / 2>&1)
+
+    if echo "$output" | grep -qE "overlay"; then
+        log_pass "Image change dir with 1g size works"
+    else
+        log_fail "Image change dir with 1g size failed: $output"
+    fi
+}
+
+test_chdir_type_folder() {
+    log_test "Container with folder-backed change dir"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-chdir-folder" -lw="$TEST_IMAGE" -chdir-type=folder -rm -- /bin/sh -c "echo foldertest > /folderfile && cat /folderfile" 2>&1)
+
+    if echo "$output" | grep -q "foldertest"; then
+        log_pass "Folder-backed change dir works"
+    else
+        log_fail "Folder-backed change dir failed: $output"
+    fi
+}
+
+test_chdir_type_auto() {
+    log_test "Container with auto change dir type"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-chdir-auto" -lw="$TEST_IMAGE" -chdir-type=auto -rm -- /bin/sh -c "echo autotest > /autofile && cat /autofile" 2>&1)
+
+    if echo "$output" | grep -q "autotest"; then
+        log_pass "Auto change dir type works"
+    else
+        log_fail "Auto change dir type failed: $output"
+    fi
+}
+
+test_chdir_csize_warns_on_folder() {
+    log_test "Warning when -csize set with folder change dir type"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    output=$($SANDAL_BIN run -name="test-chdir-warn" -lw="$TEST_IMAGE" -chdir-type=folder -csize=256m -rm -- /bin/true 2>&1)
+
+    if echo "$output" | grep -qi "csize.*ignored\|ignored.*csize"; then
+        log_pass "Warning logged when -csize used with folder type"
+    else
+        log_fail "No warning when -csize used with folder type: $output"
+    fi
+}
+
+# ============================================================================
+# TEST SECTION 16: Go Unit Tests
 # ============================================================================
 
 test_go_unit_tests() {
@@ -1378,7 +1486,16 @@ main() {
     test_kill_all_containers
 
     echo ""
-    echo "=== Section 14: Go Unit Tests ==="
+    echo "=== Section 15: Change Dir Type Tests ==="
+    test_chdir_type_image
+    test_chdir_type_image_custom_size
+    test_chdir_type_image_size_units
+    test_chdir_type_folder
+    test_chdir_type_auto
+    test_chdir_csize_warns_on_folder
+
+    echo ""
+    echo "=== Section 16: Go Unit Tests ==="
     test_go_unit_tests
 
     # Summary

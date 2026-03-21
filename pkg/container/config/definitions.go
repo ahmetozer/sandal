@@ -24,7 +24,9 @@ type Config struct {
 	Created int64
 	HostPid int
 	ContPid int
-	TmpSize uint
+	TmpSize       uint
+	ChangeDirSize string // Change dir disk image size (e.g. "128m", "1g", default "128m")
+	ChangeDirType string // "auto", "folder", "image"
 
 	ChangeDir string
 	RootfsDir string
