@@ -397,9 +397,45 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
+### `-chdir-type string`
+
+:   Change dir backing type (default `auto`).
+  Controls how the overlayfs upper/work directory is backed:
+
+    - **`auto`** — Automatically selects the best option. Uses `folder` on native Linux with a supported filesystem (ext4, xfs, btrfs). Falls back to `image` when running inside a VM (VirtioFS), on nested overlayfs, or on unsupported filesystems.
+    - **`folder`** — Uses the change dir directly on disk. Requires the underlying filesystem to support overlayfs upper (ext4, xfs, btrfs with d_type).
+    - **`image`** — Creates a sparse ext4 disk image, loop-mounts it, and uses it as the change dir. Works everywhere, including VirtioFS, nested overlayfs, and unsupported filesystems.
+
+```bash
+# Force image mode on native Linux
+sandal run -lw alpine -chdir-type image -- ash
+# Force folder mode (only on supported filesystems)
+sandal run -lw alpine -chdir-type folder -- ash
+```
+
+---
+
+### `-csize string`
+
+:   Change dir disk image size (default `128m`).
+  Accepts human-readable sizes: `128m`, `128mb`, `1g`, `1gb`, `512k`, `512kb` (case-insensitive, binary units).
+  Raw bytes are also accepted as plain numbers.
+  Only applies when `-chdir-type` is `image` (or `auto` resolves to `image`). The image is created as a sparse file, so it only consumes actual disk space as data is written.
+  A warning is logged if `-csize` is set while the change dir type resolves to `folder`.
+
+```bash
+# 512MB change dir image
+sandal run -lw alpine -csize 512m -- ash
+# 2GB change dir image
+sandal run -lw alpine -chdir-type image -csize 2g -- ash
+```
+
+---
+
 ### `-tmp uint`
 
-:   allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled.  
+:   allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled.
+  Overrides `-chdir-type` — when set, a tmpfs is always used regardless of the change dir type.
 Benefical for:
 :   - Provisioning ephemeral environments
     - Able to execute sandal under sandal or docker with tmpfs to prevent overlayFs in overlayFs limitations

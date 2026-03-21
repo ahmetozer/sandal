@@ -140,12 +140,12 @@ func UmountRootfs(c *config.Config) []error {
 		}
 	}
 
-	// VM mode: unmount the ext4 loop mount and detach loop device
-	if mount := overlayfs.GetVMChangeMount(c.ChangeDir); mount != nil {
+	// Image mode: unmount the ext4 loop mount and detach loop device
+	if mount := overlayfs.GetImageChangeMount(c.ChangeDir); mount != nil {
 		if cleanupErr := mount.Cleanup(); cleanupErr != nil {
-			errs = append(errs, fmt.Errorf("vm change dir cleanup: %w", cleanupErr))
+			errs = append(errs, fmt.Errorf("image change dir cleanup: %w", cleanupErr))
 		}
-		overlayfs.UnregisterVMChangeMount(c.ChangeDir)
+		overlayfs.UnregisterImageChangeMount(c.ChangeDir)
 	}
 
 	if c.TmpSize != 0 {

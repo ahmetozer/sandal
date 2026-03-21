@@ -231,7 +231,15 @@ sandal vm kill -name alpine
 
 #### `-name string`
 
-:   VM name (required).
+:   VM name (required unless `-all` is used).
+
+#### `-all bool`
+
+:   Kill all running VMs.
+
+```bash
+sandal vm kill -all
+```
 
 #### `-force bool`
 
@@ -239,6 +247,8 @@ sandal vm kill -name alpine
 
 ```bash
 sandal vm kill -force -name alpine
+# Force kill all VMs
+sandal vm kill -force -all
 ```
 
 ---

@@ -46,40 +46,84 @@ func GetChangeDir(c *config.Config) ChangesDir {
 	return dir
 }
 
+// resolveChangeDirType determines whether to use "folder" or "image" mode.
+// "auto" picks "folder" when overlayfs is supported on the change dir's
+// parent filesystem, otherwise falls back to "image".
+func resolveChangeDirType(c *config.Config) string {
+	typ := c.ChangeDirType
+	if typ == "" {
+		typ = "auto"
+	}
+	if typ != "auto" {
+		return typ
+	}
+
+	// auto: probe the parent directory
+	parent := path.Dir(c.ChangeDir)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		slog.Debug("resolveChangeDirType", slog.String("fallback", "image"), slog.Any("error", err))
+		return "image"
+	}
+
+	// Check if parent is already on overlayfs (nested overlayfs unsupported)
+	if isOvl, _ := IsOverlayFS(parent); isOvl {
+		return "image"
+	}
+
+	// Try creating work dir — overlayfs requires rename_whiteout support.
+	// A quick test: create and remove a test directory.
+	testDir := path.Join(parent, ".sandal-probe")
+	if err := os.MkdirAll(testDir, 0755); err != nil {
+		return "image"
+	}
+	os.Remove(testDir)
+
+	// If we're in a VM, VirtioFS doesn't support overlayfs upper
+	if isVm, _ := env.IsVM(); isVm {
+		return "image"
+	}
+
+	return "folder"
+}
+
 func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 	var errs error
 	dir := ChangesDir{
 		work:  path.Join(c.ChangeDir, "work"),
 		upper: path.Join(c.ChangeDir, "upper"),
 	}
-	// if temp size is set, create a tmpfs and allocate changes under tmpfs
-	isVm, _ := env.IsVM()
+
+	// tmpfs overrides everything
 	if c.TmpSize != 0 {
 		tmpdir := Tmpdir(c)
 
 		dir.work = path.Join(tmpdir, "work")
 		dir.upper = path.Join(tmpdir, "upper")
 
-		sizeBytes := uint64(c.TmpSize * 1024 * 1024) // 1MB
+		sizeBytes := uint64(c.TmpSize * 1024 * 1024)
 		if err := os.MkdirAll(tmpdir, 0o0755); err != nil {
 			return dir, fmt.Errorf("creating %s directory: %s", tmpdir, err)
 		}
-		// Mount the tmpfs
 		err := unix.Mount("tmpfs", tmpdir, "tmpfs", uintptr(0), fmt.Sprintf("size=%d", sizeBytes))
 		if err != nil {
 			return dir, fmt.Errorf("tmpfs: %s", err)
 		}
+	} else {
+		cdType := resolveChangeDirType(c)
+		slog.Debug("PrepareChangeDir", slog.String("changeDirType", cdType))
 
-	} else if isVm {
-		// VM mode: VirtioFS doesn't support overlayfs kernel operations.
-		// Use a loop-mounted ext4 disk image for the change dir instead.
-		mount, err := prepareVMChangeDir(c.ChangeDir)
-		if err != nil {
-			return dir, fmt.Errorf("vm change dir: %w", err)
+		if cdType == "image" {
+			mount, err := prepareImageChangeDir(c.ChangeDir, c.ChangeDirSize)
+			if err != nil {
+				return dir, fmt.Errorf("change dir image: %w", err)
+			}
+			RegisterImageChangeMount(c.ChangeDir, mount)
+			slog.Debug("PrepareChangeDir", slog.String("image", mount.ImagePath),
+				slog.String("loopDev", mount.LoopDev.Path))
+		} else if c.ChangeDirSize != "" {
+			slog.Warn("PrepareChangeDir", slog.String("msg", "-csize is ignored when change dir type is folder"))
 		}
-		RegisterVMChangeMount(c.ChangeDir, mount)
-		slog.Debug("PrepareChangeDir", slog.String("vmImage", mount.ImagePath),
-			slog.String("loopDev", mount.LoopDev.Path))
+		// "folder" mode: use change dir directly, no extra setup needed
 	}
 	slog.Debug("PrepareChangeDir", slog.Any("dir", dir))
 

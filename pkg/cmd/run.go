@@ -73,6 +73,8 @@ func Run(args []string) error {
 	f.Var(&networkInterfacesCmd, "net", "configure network interfaces")
 
 	f.UintVar(&c.TmpSize, "tmp", 0, "allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled")
+	f.StringVar(&c.ChangeDirSize, "csize", "", "change dir disk image size, e.g. 128m, 1g (default 128m)")
+	f.StringVar(&c.ChangeDirType, "chdir-type", "auto", "change dir type: auto, folder, image")
 
 	f.StringVar(&c.Resolv, "resolv", "cp", "cp (copy), cp-n (copy if not exist), image (use image), 1.1.1.1;2606:4700:4700::1111 (provide nameservers)")
 	f.StringVar(&c.Hosts, "hosts", "cp", "cp (copy), cp-n (copy if not exist), image(use image)")
