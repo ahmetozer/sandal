@@ -103,19 +103,24 @@ func VMInit() error {
 		return nil
 	}
 
+	// Mount spec format: tag=hostpath or tag=hostpath=guestpath
+	// Without guestpath, the share is mounted at /mnt/<hostpath>.
 	for _, entry := range strings.Split(mountSpec, ",") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
 		}
-		parts := strings.SplitN(entry, "=", 2)
-		if len(parts) != 2 {
+		parts := strings.SplitN(entry, "=", 3)
+		if len(parts) < 2 {
 			fmt.Fprintf(os.Stderr, "Warning: invalid mount spec %q\n", entry)
 			continue
 		}
 		tag := parts[0]
 		hostPath := parts[1]
 		mountPoint := "/mnt" + hostPath
+		if len(parts) == 3 && parts[2] != "" {
+			mountPoint = parts[2]
+		}
 		os.MkdirAll(mountPoint, 0755)
 		if err := unix.Mount(tag, mountPoint, "virtiofs", 0, ""); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to mount virtiofs %s at %s: %v\n", tag, mountPoint, err)
@@ -126,7 +131,7 @@ func VMInit() error {
 }
 
 // vmResolvePath translates a host path to its VirtioFS mount location inside the VM.
-// Only paths that fall under a SANDAL_VM_MOUNTS entry are translated (prefixed with /mnt).
+// Mount spec format: tag=hostpath or tag=hostpath=guestpath.
 // Paths that don't match any VirtioFS share are returned unchanged.
 func vmResolvePath(hostPath string) string {
 	if strings.HasPrefix(hostPath, "/mnt/") {
@@ -139,14 +144,19 @@ func vmResolvePath(hostPath string) string {
 	}
 
 	for _, entry := range strings.Split(mountSpec, ",") {
-		parts := strings.SplitN(strings.TrimSpace(entry), "=", 2)
-		if len(parts) != 2 {
+		parts := strings.SplitN(strings.TrimSpace(entry), "=", 3)
+		if len(parts) < 2 {
 			continue
 		}
 		shareDir := parts[1]
+		guestBase := "/mnt" + shareDir
+		if len(parts) == 3 && parts[2] != "" {
+			guestBase = parts[2]
+		}
 		// Check if hostPath is under this VirtioFS share
 		if hostPath == shareDir || strings.HasPrefix(hostPath, shareDir+"/") {
-			return "/mnt" + hostPath
+			rel := hostPath[len(shareDir):]
+			return guestBase + rel
 		}
 	}
 
