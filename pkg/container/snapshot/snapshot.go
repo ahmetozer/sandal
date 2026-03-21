@@ -81,6 +81,18 @@ func Create(c *config.Config, filePath string, filter FilterOptions) (string, er
 		sourceDir = mergedDir
 	}
 
+	// Merge sub-mount upper dirs into the source so that changes to
+	// paths on separate partitions (e.g. /root) are included.
+	subUppers := overlayfs.GetSubMountUpperDirs(c.ChangeDir)
+	if len(subUppers) > 0 {
+		mergedDir, cleanup, err := mergeSubMountUppers(sourceDir, subUppers)
+		if err != nil {
+			return "", fmt.Errorf("merging sub-mount uppers: %w", err)
+		}
+		defer cleanup()
+		sourceDir = mergedDir
+	}
+
 	// Write to a temp file first, then rename. This avoids corrupting
 	// the previous snapshot which may be mounted for the merge overlay.
 	tmpFile, err := os.CreateTemp(path.Dir(filePath), ".snapshot-*.sqfs.tmp")
@@ -120,6 +132,51 @@ func Create(c *config.Config, filePath string, filter FilterOptions) (string, er
 	}
 
 	return filePath, nil
+}
+
+// mergeSubMountUppers creates a temporary directory that combines the main
+// source dir with all sub-mount upper directories at their correct relative
+// paths. It bind-mounts the source, then overlays each sub-mount upper on top.
+func mergeSubMountUppers(sourceDir string, subUppers []overlayfs.SubMountUpperDir) (string, func(), error) {
+	tmpBase := path.Join(env.RunDir, "snapshot-submount-merge")
+	mergedDir := path.Join(tmpBase, "merged")
+	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
+		return "", nil, fmt.Errorf("creating merge dir: %w", err)
+	}
+
+	// Bind-mount the source as the base.
+	if err := unix.Mount(sourceDir, mergedDir, "", unix.MS_BIND|unix.MS_REC, ""); err != nil {
+		os.Remove(mergedDir)
+		return "", nil, fmt.Errorf("bind-mount source: %w", err)
+	}
+
+	var overlayMounts []string
+
+	for _, su := range subUppers {
+		target := path.Join(mergedDir, su.RelPath)
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			continue
+		}
+
+		// Read-only overlay: sub-mount upper (higher priority) over existing target content.
+		opts := fmt.Sprintf("lowerdir=%s:%s", su.UpperDir, target)
+		if err := unix.Mount("overlay", target, "overlay", unix.MS_RDONLY, opts); err != nil {
+			// If overlay fails (e.g. empty dirs), just skip.
+			continue
+		}
+		overlayMounts = append(overlayMounts, target)
+	}
+
+	cleanup := func() {
+		for i := len(overlayMounts) - 1; i >= 0; i-- {
+			unix.Unmount(overlayMounts[i], unix.MNT_DETACH)
+		}
+		unix.Unmount(mergedDir, unix.MNT_DETACH)
+		os.Remove(mergedDir)
+		os.Remove(tmpBase)
+	}
+
+	return mergedDir, cleanup, nil
 }
 
 // mergeWithPrevious mounts the previous snapshot and the current upper dir
