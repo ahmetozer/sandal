@@ -30,6 +30,8 @@ func mountRootfs(c *config.Config) error {
 	}
 
 	var LowerDirs []string
+	var hostDirs []string // track directory lowerdirs for sub-mount discovery
+
 	if len(c.Lower) == 0 {
 		if len(c.Volumes) == 0 {
 			return fmt.Errorf("no lower dir or volume is provided")
@@ -69,6 +71,7 @@ func mountRootfs(c *config.Config) error {
 			}
 			if fileStat.IsDir() {
 				LowerDirs = append(LowerDirs, path)
+				hostDirs = append(hostDirs, path)
 			} else {
 				// Detect file type
 				img, err := diskimage.Mount(path)
@@ -118,6 +121,15 @@ func mountRootfs(c *config.Config) error {
 			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name), slog.Any("error", err))
 			return fmt.Errorf("overlay: %s", err)
 		}
+
+		// Mount mini-overlays for sub-mounts (e.g. /root on a separate
+		// partition when -lw / is used). Each gets its own upper/work
+		// dirs under the main change dir for COW behavior.
+		if len(hostDirs) > 0 {
+			if err := mountSubMountOverlays(c, hostDirs, c.ChangeDir); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 
@@ -126,6 +138,11 @@ func mountRootfs(c *config.Config) error {
 func UmountRootfs(c *config.Config) []error {
 	errs := []error{}
 	var err error
+
+	// Unmount sub-mount mini-overlays before the main overlay.
+	if subErrs := unmountSubMountOverlays(c.Name); subErrs != nil {
+		errs = append(errs, subErrs...)
+	}
 
 	err = unix.Unmount(c.RootfsDir, 0)
 	if err != nil {
