@@ -65,6 +65,8 @@ func Main() {
 			executeSubCommand(Attach)
 		case "vm":
 			executeSubCommand(VM)
+		case "completion":
+			executeSubCommand(Completion)
 		case "help":
 			subCommandsHelp()
 			envs()
@@ -113,6 +115,7 @@ func subCommandsHelp() {
 	export - Export full container filesystem as a squashfs image
 	attach - Attach to a running background container's console
 	vm - Manage virtual machines (macOS only)
+	completion - Generate shell completion scripts (bash, zsh)
 	help - Show help, default and current environment variables` + "\n")
 
 	fmt.Printf("\nVersion: %s\n", BuildVersion)
