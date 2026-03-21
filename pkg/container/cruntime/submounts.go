@@ -23,29 +23,23 @@ type subMount struct {
 	RelPath string
 }
 
-// virtualFSTypes lists filesystem types that should be skipped when
-// discovering sub-mounts.
-var virtualFSTypes = map[string]bool{
-	"proc":        true,
-	"sysfs":       true,
-	"devtmpfs":    true,
-	"devpts":      true,
-	"tmpfs":       true,
-	"cgroup":      true,
-	"cgroup2":     true,
-	"securityfs":  true,
-	"pstore":      true,
-	"debugfs":     true,
-	"tracefs":     true,
-	"configfs":    true,
-	"fusectl":     true,
-	"mqueue":      true,
-	"hugetlbfs":   true,
-	"binfmt_misc": true,
-	"autofs":      true,
-	"efivarfs":    true,
-	"bpf":         true,
-	"overlay":     true,
+// supportedFSTypes lists real filesystem types that should be included
+// when discovering sub-mounts.
+var supportedFSTypes = map[string]bool{
+	"ext2":  true,
+	"ext3":  true,
+	"ext4":  true,
+	"xfs":   true,
+	"btrfs": true,
+	"zfs":   true,
+	"f2fs":  true,
+	"ntfs":  true,
+	"vfat":  true,
+	"exfat": true,
+	"hfs":   true,
+	"hfsplus": true,
+	"apfs":  true,
+	"bcachefs": true,
 }
 
 // findSubMounts parses /proc/self/mountinfo and returns all real filesystem
@@ -74,7 +68,7 @@ func findSubMounts(lowerDir string) ([]subMount, error) {
 			continue
 		}
 
-		if virtualFSTypes[fsType] {
+		if !supportedFSTypes[fsType] {
 			continue
 		}
 
