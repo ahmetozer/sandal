@@ -482,21 +482,53 @@ func vmStop(args []string) error {
 
 func vmKill(args []string) error {
 	fs := flag.NewFlagSet("vm kill", flag.ExitOnError)
-	name := fs.String("name", "", "VM name (required)")
+	name := fs.String("name", "", "VM name")
+	all := fs.Bool("all", false, "Kill all running VMs")
 	force := fs.Bool("force", false, "Skip SIGTERM, send SIGKILL immediately")
 	fs.Parse(args)
 
-	if *name == "" {
-		slog.Error("vmKill", slog.String("error", "-name is required"))
-		fs.Usage()
-		return fmt.Errorf("-name is required")
+	var names []string
+	if *all {
+		listed, err := vz.ListVMs()
+		if err != nil {
+			return err
+		}
+		for _, n := range listed {
+			if _, alive := vz.ReadPid(n); alive {
+				names = append(names, n)
+			}
+		}
+		if len(names) == 0 {
+			fmt.Println("No running VMs to kill.")
+			return nil
+		}
+	} else {
+		if *name == "" {
+			fmt.Fprintln(os.Stderr, "Usage: sandal vm kill -name <name> | -all")
+			return fmt.Errorf("-name or -all is required")
+		}
+		names = []string{*name}
 	}
 
-	pid, alive := vz.ReadPid(*name)
+	var errs []error
+	for _, n := range names {
+		if err := killOneVM(n, *force); err != nil {
+			slog.Error("vmKill", slog.String("name", n), slog.Any("error", err))
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to kill %d VM(s)", len(errs))
+	}
+	return nil
+}
+
+func killOneVM(name string, force bool) error {
+	pid, alive := vz.ReadPid(name)
 	if !alive {
-		vz.RemovePidFile(*name)
+		vz.RemovePidFile(name)
 		exec.Command("stty", "sane").Run()
-		return fmt.Errorf("VM '%s' is not running", *name)
+		return fmt.Errorf("VM '%s' is not running", name)
 	}
 
 	proc, err := os.FindProcess(pid)
@@ -504,15 +536,15 @@ func vmKill(args []string) error {
 		return err
 	}
 
-	if !*force {
-		slog.Info("vmKill", slog.String("name", *name), slog.Int("pid", pid), slog.String("signal", "SIGTERM"))
+	if !force {
+		slog.Info("vmKill", slog.String("name", name), slog.Int("pid", pid), slog.String("signal", "SIGTERM"))
 		if err := proc.Signal(syscall.SIGTERM); err != nil {
 			slog.Error("vmKill", slog.String("action", "SIGTERM"), slog.Any("error", err))
 		} else {
 			for i := 0; i < 30; i++ {
 				if err := proc.Signal(syscall.Signal(0)); err != nil {
-					vz.RemovePidFile(*name)
-					slog.Info("vmKill", slog.String("name", *name), slog.String("status", "stopped gracefully"))
+					vz.RemovePidFile(name)
+					slog.Info("vmKill", slog.String("name", name), slog.String("status", "stopped gracefully"))
 					exec.Command("stty", "sane").Run()
 					return nil
 				}
@@ -525,8 +557,8 @@ func vmKill(args []string) error {
 	if err := proc.Signal(syscall.SIGKILL); err != nil {
 		return fmt.Errorf("sending SIGKILL to pid %d: %w", pid, err)
 	}
-	vz.RemovePidFile(*name)
-	slog.Info("vmKill", slog.String("name", *name), slog.Int("pid", pid), slog.String("signal", "SIGKILL"))
+	vz.RemovePidFile(name)
+	slog.Info("vmKill", slog.String("name", name), slog.Int("pid", pid), slog.String("signal", "SIGKILL"))
 	exec.Command("stty", "sane").Run()
 	return nil
 }
