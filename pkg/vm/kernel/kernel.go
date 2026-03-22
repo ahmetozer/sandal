@@ -5,17 +5,35 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/lib/apk"
 )
 
 const (
-	apkBaseURL  = "https://dl-cdn.alpinelinux.org/alpine/edge/main/aarch64"
-	pkgName     = "linux-virt"
-	kernelEntry = "boot/vmlinuz-virt"
-	modulesDir  = "lib/modules/"
+	pkgName    = "linux-virt"
+	modulesDir = "lib/modules/"
 )
+
+func alpineArch() string {
+	switch runtime.GOARCH {
+	case "arm64":
+		return "aarch64"
+	case "amd64":
+		return "x86_64"
+	default:
+		return runtime.GOARCH
+	}
+}
+
+func apkBaseURL() string {
+	return "https://dl-cdn.alpinelinux.org/alpine/edge/main/" + alpineArch()
+}
+
+func kernelEntry() string {
+	return "boot/vmlinuz-virt"
+}
 
 var cachedVersion string
 
@@ -49,7 +67,7 @@ func EnsureKernel() (string, error) {
 		return "", fmt.Errorf("creating cache dir: %w", err)
 	}
 
-	apkURL := fmt.Sprintf("%s/%s-%s.apk", apkBaseURL, pkgName, version)
+	apkURL := fmt.Sprintf("%s/%s-%s.apk", apkBaseURL(), pkgName, version)
 	if err := downloadAndExtractAPK(apkURL, dir, version); err != nil {
 		os.Remove(kernelPath)
 		return "", fmt.Errorf("downloading kernel: %w", err)
@@ -99,7 +117,7 @@ func downloadAndExtractAPK(url, cacheDir, version string) error {
 
 	err := apk.Download(url, func(e apk.Entry) error {
 		// Extract kernel
-		if e.Name == kernelEntry {
+		if e.Name == kernelEntry() {
 			raw, err := decompressZBoot(e.Data)
 			if err != nil {
 				return fmt.Errorf("decompressing kernel: %w", err)
@@ -126,7 +144,7 @@ func downloadAndExtractAPK(url, cacheDir, version string) error {
 	}
 
 	if !foundKernel {
-		return fmt.Errorf("kernel entry %s not found in APK", kernelEntry)
+		return fmt.Errorf("kernel entry %s not found in APK", kernelEntry())
 	}
 
 	// Build initramfs from collected modules
@@ -148,7 +166,7 @@ func latestVersion() (string, error) {
 		return cachedVersion, nil
 	}
 
-	v, err := apk.LatestVersion(apkBaseURL, pkgName)
+	v, err := apk.LatestVersion(apkBaseURL(), pkgName)
 	if err != nil {
 		return "", err
 	}
