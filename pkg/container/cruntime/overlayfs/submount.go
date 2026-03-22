@@ -3,9 +3,9 @@
 package overlayfs
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // SubMountUpperDir represents a sub-mount's upper directory and its relative
@@ -19,7 +19,7 @@ type SubMountUpperDir struct {
 
 // GetSubMountUpperDirs returns all sub-mount upper directories for a container's
 // change dir. These are the directories where COW writes for sub-mounted paths
-// are stored (at changeDir/submount-upper/<safeName>/upper/).
+// are stored (at changeDir/submount-upper/<hex-encoded-relPath>/upper/).
 func GetSubMountUpperDirs(changeDir string) []SubMountUpperDir {
 	base := filepath.Join(changeDir, "submount-upper")
 	entries, err := os.ReadDir(base)
@@ -36,10 +36,13 @@ func GetSubMountUpperDirs(changeDir string) []SubMountUpperDir {
 		if _, err := os.Stat(upper); err != nil {
 			continue
 		}
-		// Reverse the safeName encoding: underscores back to slashes.
-		relPath := strings.ReplaceAll(e.Name(), "_", "/")
+		// Decode hex-encoded relPath.
+		relPath, err := hex.DecodeString(e.Name())
+		if err != nil {
+			continue
+		}
 		dirs = append(dirs, SubMountUpperDir{
-			RelPath:  relPath,
+			RelPath:  string(relPath),
 			UpperDir: upper,
 		})
 	}

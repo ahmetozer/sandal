@@ -138,7 +138,10 @@ func Create(c *config.Config, filePath string, filter FilterOptions) (string, er
 // source dir with all sub-mount upper directories at their correct relative
 // paths. It bind-mounts the source, then overlays each sub-mount upper on top.
 func mergeSubMountUppers(sourceDir string, subUppers []overlayfs.SubMountUpperDir) (string, func(), error) {
-	tmpBase := path.Join(env.RunDir, "snapshot-submount-merge")
+	tmpBase, err := os.MkdirTemp(env.RunDir, "snapshot-submount-merge-")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp dir: %w", err)
+	}
 	mergedDir := path.Join(tmpBase, "merged")
 	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
 		return "", nil, fmt.Errorf("creating merge dir: %w", err)

@@ -4,14 +4,17 @@ package cruntime
 
 import (
 	"bufio"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
 )
 
@@ -26,25 +29,41 @@ type subMount struct {
 // supportedFSTypes lists real filesystem types that should be included
 // when discovering sub-mounts.
 var supportedFSTypes = map[string]bool{
-	"ext2":  true,
-	"ext3":  true,
-	"ext4":  true,
-	"xfs":   true,
-	"btrfs": true,
-	"zfs":   true,
-	"f2fs":  true,
-	"ntfs":  true,
-	"vfat":  true,
-	"exfat": true,
-	"hfs":   true,
+	"ext2":    true,
+	"ext3":    true,
+	"ext4":    true,
+	"xfs":     true,
+	"btrfs":   true,
+	"zfs":     true,
+	"f2fs":    true,
+	"ntfs":    true,
+	"vfat":    true,
+	"exfat":   true,
+	"hfs":     true,
 	"hfsplus": true,
-	"apfs":  true,
+	"apfs":    true,
 	"bcachefs": true,
+}
+
+// encodeRelPath encodes a relative path into a safe directory name using hex
+// encoding. This is bijective — no two different paths produce the same name.
+func encodeRelPath(relPath string) string {
+	return hex.EncodeToString([]byte(relPath))
+}
+
+// decodeRelPath reverses encodeRelPath.
+func decodeRelPath(encoded string) (string, error) {
+	b, err := hex.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 // findSubMounts parses /proc/self/mountinfo and returns all real filesystem
 // mounts that are children of lowerDir. Results are sorted by path depth
-// (shallowest first).
+// (shallowest first). Paths under sandal's own runtime/state directories are
+// excluded to avoid circular mounts.
 func findSubMounts(lowerDir string) ([]subMount, error) {
 	lowerDir = filepath.Clean(lowerDir)
 
@@ -57,6 +76,12 @@ func findSubMounts(lowerDir string) ([]subMount, error) {
 	prefix := lowerDir
 	if prefix != "/" {
 		prefix += "/"
+	}
+
+	// Paths to exclude — sandal's own directories to avoid circular mounts.
+	excludePrefixes := []string{
+		env.RunDir + "/",
+		env.LibDir + "/",
 	}
 
 	var mounts []subMount
@@ -76,6 +101,19 @@ func findSubMounts(lowerDir string) ([]subMount, error) {
 			continue
 		}
 		if !strings.HasPrefix(mountPoint, prefix) {
+			continue
+		}
+
+		// Skip sandal's own runtime and state directories.
+		skip := false
+		for _, ep := range excludePrefixes {
+			if strings.HasPrefix(mountPoint, ep) || mountPoint+"/" == ep {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			slog.Debug("findSubMounts: skipping sandal path", slog.String("mount", mountPoint))
 			continue
 		}
 
@@ -128,6 +166,11 @@ func mountSubMountOverlays(c *config.Config, hostDirs []string, changeBase strin
 		}
 	}
 
+	absRootfs, err := filepath.Abs(c.RootfsDir)
+	if err != nil {
+		return fmt.Errorf("resolving rootfs path: %w", err)
+	}
+
 	for _, dir := range hostDirs {
 		subs, err := findSubMounts(dir)
 		if err != nil {
@@ -142,8 +185,17 @@ func mountSubMountOverlays(c *config.Config, hostDirs []string, changeBase strin
 				continue
 			}
 
+			// Validate target is strictly within rootfs.
+			target := filepath.Join(c.RootfsDir, sm.RelPath)
+			absTarget, err := filepath.Abs(target)
+			if err != nil || (absTarget != absRootfs && !strings.HasPrefix(absTarget, absRootfs+"/")) {
+				slog.Warn("mountSubMountOverlays: target escapes rootfs", slog.String("rel", sm.RelPath), slog.String("target", target))
+				continue
+			}
+
 			// Create upper/work dirs for this sub-mount's mini-overlay.
-			safeName := strings.ReplaceAll(sm.RelPath, "/", "_")
+			// Use hex-encoded relPath for a bijective, filesystem-safe name.
+			safeName := encodeRelPath(sm.RelPath)
 			upper := filepath.Join(changeBase, "submount-upper", safeName, "upper")
 			work := filepath.Join(changeBase, "submount-upper", safeName, "work")
 			if err := os.MkdirAll(upper, 0o755); err != nil {
@@ -155,7 +207,6 @@ func mountSubMountOverlays(c *config.Config, hostDirs []string, changeBase strin
 				continue
 			}
 
-			target := filepath.Join(c.RootfsDir, sm.RelPath)
 			if err := os.MkdirAll(target, 0o755); err != nil {
 				slog.Warn("mountSubMountOverlays: mkdir target failed", slog.String("target", target), slog.Any("error", err))
 				continue
@@ -168,18 +219,29 @@ func mountSubMountOverlays(c *config.Config, hostDirs []string, changeBase strin
 			}
 
 			slog.Debug("mountSubMountOverlays: mounted", slog.String("src", sm.HostPath), slog.String("target", target))
+			subMountMu.Lock()
 			subMountRegistry[c.Name] = append(subMountRegistry[c.Name], target)
+			subMountMu.Unlock()
 		}
 	}
 	return nil
 }
 
 // subMountRegistry tracks mini-overlay mount paths per container for cleanup.
-var subMountRegistry = map[string][]string{}
+var (
+	subMountRegistry = map[string][]string{}
+	subMountMu       sync.Mutex
+)
 
 // unmountSubMountOverlays unmounts all mini-overlays for a container in reverse order.
 func unmountSubMountOverlays(name string) []error {
+	subMountMu.Lock()
 	targets, ok := subMountRegistry[name]
+	if ok {
+		delete(subMountRegistry, name)
+	}
+	subMountMu.Unlock()
+
 	if !ok {
 		return nil
 	}
@@ -191,7 +253,6 @@ func unmountSubMountOverlays(name string) []error {
 			}
 		}
 	}
-	delete(subMountRegistry, name)
 	return errs
 }
 
