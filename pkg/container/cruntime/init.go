@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -146,7 +147,11 @@ func ContainerInitProc() {
 			environ = []string{"HOME=" + user.User.HomeDir}
 		}
 
-		environ = append(environ, os.Environ()...)
+		for _, e := range os.Environ() {
+			if !strings.HasPrefix(e, "SANDAL_") {
+				environ = append(environ, e)
+			}
+		}
 
 		// Set system capabilities before switching user
 		// This must be done while still running as root
