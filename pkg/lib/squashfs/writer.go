@@ -291,8 +291,11 @@ type metadataCache struct {
 	headers []uint16 // metadata header per block
 }
 
-// compressMetadataBlocks compresses all 8KB metadata chunks and caches the results.
-func (w *Writer) compressMetadataBlocks(raw []byte) (*metadataCache, error) {
+// compressMetadataBlocks splits raw metadata into 8KB chunks and compresses each one.
+// When fixedSize is true, blocks are stored uncompressed so that byte offsets
+// are deterministic regardless of content.  This avoids a circular dependency
+// when inode and directory tables reference each other's compressed positions.
+func (w *Writer) compressMetadataBlocks(raw []byte, fixedSize bool) (*metadataCache, error) {
 	mc := &metadataCache{}
 	pos := int64(0)
 	for i := 0; i < len(raw); i += metadataBlockSize {
@@ -302,6 +305,16 @@ func (w *Writer) compressMetadataBlocks(raw []byte) (*metadataCache, error) {
 			end = len(raw)
 		}
 		chunk := raw[i:end]
+
+		if fixedSize {
+			stored := make([]byte, len(chunk))
+			copy(stored, chunk)
+			mc.blocks = append(mc.blocks, stored)
+			mc.headers = append(mc.headers, uint16(len(chunk))|metadataUncompBit)
+			pos += 2 + int64(len(chunk))
+			continue
+		}
+
 		compressed, err := w.compress(chunk)
 		if err != nil {
 			return nil, err
@@ -311,7 +324,6 @@ func (w *Writer) compressMetadataBlocks(raw []byte) (*metadataCache, error) {
 			mc.headers = append(mc.headers, uint16(len(compressed)))
 			pos += 2 + int64(len(compressed))
 		} else {
-			// Store a copy of the raw chunk since caller may mutate raw
 			stored := make([]byte, len(chunk))
 			copy(stored, chunk)
 			mc.blocks = append(mc.blocks, stored)
@@ -393,63 +405,49 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 	dirData := w.dirRaw.Bytes()
 
 	// Phase 2: Resolve the circular dependency between inode and directory
-	// table positions.  Directory entries contain byte offsets into the
-	// inode table, and directory inodes contain byte offsets into the
-	// directory table.  Both sets of offsets depend on the compressed
-	// sizes of metadata blocks, which change when the offsets embedded
-	// in them change.
+	// table positions.  Directory entries store byte offsets into the
+	// inode table, and directory inodes store byte offsets into the
+	// directory table.
 	//
-	// To break the cycle we iterate: compress inode table → patch dir
-	// entries → compress dir table → patch dir inodes → repeat.  The
-	// loop terminates when patching dir inodes produces no changes,
-	// meaning the inode table compression is stable and all references
-	// are consistent.
+	// Both tables are stored uncompressed so that block byte offsets
+	// are deterministic (block N starts at N*(8192+2)) regardless of
+	// the values embedded in them.  This lets us patch cross-references
+	// in a single pass without any convergence loop.
 	inodeTableStart := w.dataPos
 
-	var inodeCache, dirCache *metadataCache
 	var err2 error
 
-	// Seed: write block_offset values (constant, depends only on
-	// dirRaw layout which is fixed).
+	// With fixed-size (uncompressed) blocks, offsets are content-independent,
+	// so one pass is sufficient: compute inode offsets → patch dir entries →
+	// compute dir offsets → patch dir inodes → recompute inode offsets (unchanged).
+	inodeCache, err2 := w.compressMetadataBlocks(inodeData, true)
+	if err2 != nil {
+		return fmt.Errorf("computing inode block offsets: %w", err2)
+	}
+
+	// Patch dir entry "start" fields with inode block offsets.
+	for _, fix := range w.dirEntryFixups {
+		rawPos := w.inodePos[fix.firstInodeNum]
+		blockIdx := rawPos / metadataBlockSize
+		binary.LittleEndian.PutUint32(dirData[fix.dirRawOffset:], uint32(inodeCache.offsets[blockIdx]))
+	}
+
+	dirCache, err2 := w.compressMetadataBlocks(dirData, true)
+	if err2 != nil {
+		return fmt.Errorf("computing dir block offsets: %w", err2)
+	}
+
+	// Patch dir inode block_index and block_offset with dir block offsets.
 	for _, fix := range w.dirInodeFixups {
+		blockIdx := fix.dirRawPos / metadataBlockSize
+		binary.LittleEndian.PutUint32(inodeData[fix.inodeRawOffset:], uint32(dirCache.offsets[blockIdx]))
 		binary.LittleEndian.PutUint16(inodeData[fix.inodeRawOffset+10:], uint16(fix.dirRawPos%metadataBlockSize))
 	}
 
-	for iter := 0; iter < 100; iter++ {
-		inodeCache, err2 = w.compressMetadataBlocks(inodeData)
-		if err2 != nil {
-			return fmt.Errorf("computing inode block offsets: %w", err2)
-		}
-
-		// Patch dir entry "start" fields with inode block offsets.
-		for _, fix := range w.dirEntryFixups {
-			rawPos := w.inodePos[fix.firstInodeNum]
-			blockIdx := rawPos / metadataBlockSize
-			binary.LittleEndian.PutUint32(dirData[fix.dirRawOffset:], uint32(inodeCache.offsets[blockIdx]))
-		}
-
-		dirCache, err2 = w.compressMetadataBlocks(dirData)
-		if err2 != nil {
-			return fmt.Errorf("computing dir block offsets: %w", err2)
-		}
-
-		// Patch dir inode block_index with dir block offsets.
-		changed := false
-		for _, fix := range w.dirInodeFixups {
-			blockIdx := fix.dirRawPos / metadataBlockSize
-			val := uint32(dirCache.offsets[blockIdx])
-			old := binary.LittleEndian.Uint32(inodeData[fix.inodeRawOffset:])
-			if old != val {
-				binary.LittleEndian.PutUint32(inodeData[fix.inodeRawOffset:], val)
-				changed = true
-			}
-		}
-
-		if !changed {
-			// Inode data is stable → the inode table compression and
-			// all dir entry references are now consistent.
-			break
-		}
+	// Re-split the patched inode data (offsets unchanged since blocks are fixed-size).
+	inodeCache, err2 = w.compressMetadataBlocks(inodeData, true)
+	if err2 != nil {
+		return fmt.Errorf("finalising inode table: %w", err2)
 	}
 
 	rootInodeNum := w.nextInode - 1
