@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -16,7 +17,11 @@ import (
 )
 
 func defaultConsole() string {
-	return "console=ttyS0"
+	// ARM64 uses PL011 (ttyAMA0), x86_64 uses 16550 (ttyS0)
+	if runtime.GOARCH == "arm64" {
+		return "console=ttyAMA0 earlycon=pl011,mmio,0x09000000"
+	}
+	return "console=ttyS0 earlycon=uart,io,0x3f8"
 }
 
 // bootVM boots the VM using KVM.

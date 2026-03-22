@@ -214,14 +214,16 @@ func buildDTB(boot bootConfig, dtbAddr uint64) []byte {
 	// Timer
 	fdt.beginNode("timer")
 	fdt.propString("compatible", "arm,armv8-timer")
-	fdt.propU32("always-on", 1)
+	fdt.propEmpty("always-on")
 	// Interrupts: secure phys, non-secure phys, virt, hyp phys
+	// Type=1 (PPI), IRQ numbers, flags=0xf08 (active-low, level-triggered, all CPUs)
 	fdt.propU32Array("interrupts", []uint32{
-		1, 13, 0xf04,
-		1, 14, 0xf04,
-		1, 11, 0xf04,
-		1, 10, 0xf04,
+		1, 13, 0xf08,
+		1, 14, 0xf08,
+		1, 11, 0xf08,
+		1, 10, 0xf08,
 	})
+	fdt.propU32("interrupt-parent", 1) // phandle of GIC
 	fdt.endNode()
 
 	// Interrupt controller (GIC v2 minimal)

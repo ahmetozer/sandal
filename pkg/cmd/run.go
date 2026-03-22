@@ -37,6 +37,11 @@ func Run(args []string) error {
 		return fmt.Errorf("no command option provided")
 	}
 
+	// Check if -vm flag is present — if so, boot a KVM VM with sandal as init
+	if !cruntime.IsVMInit() && hasFlag(args, "vm") {
+		return runInKVM(args)
+	}
+
 	c := config.NewContainer()
 	var (
 		help      bool
@@ -53,7 +58,7 @@ func Run(args []string) error {
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
 	var vmFlag string
-	f.StringVar(&vmFlag, "vm", "", "VM name (macOS only, ignored on Linux)")
+	f.StringVar(&vmFlag, "vm", "", "Run inside a KVM virtual machine")
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
