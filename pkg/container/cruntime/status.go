@@ -5,6 +5,7 @@ package cruntime
 import (
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -52,6 +53,15 @@ func IsPidRunning(pid int) (bool, error) {
 	}
 	err = process.Signal(syscall.Signal(0))
 	if err == nil {
+		// Process exists, but check if it's a zombie — zombies
+		// accept signals but are already dead (waiting to be reaped).
+		if data, rerr := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid)); rerr == nil {
+			for _, line := range strings.SplitN(string(data), "\n", 5) {
+				if strings.HasPrefix(line, "State:") && strings.Contains(line, "zombie") {
+					return false, nil
+				}
+			}
+		}
 		return true, nil
 	}
 	if err == os.ErrProcessDone {
