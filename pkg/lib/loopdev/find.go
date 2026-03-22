@@ -42,5 +42,15 @@ func FindFreeLoopDevice() (Config, error) {
 
 	c.No = int(dev)
 	c.Path = LOOP_DEVICE_PREFIX + strconv.Itoa(c.No)
+
+	// Create the loop device node if it doesn't exist (e.g. inside containers
+	// where devtmpfs doesn't auto-populate).
+	if _, err := os.Stat(c.Path); os.IsNotExist(err) {
+		// Loop devices are block devices with major 7
+		if err := unix.Mknod(c.Path, unix.S_IFBLK|0660, int(unix.Mkdev(7, uint32(c.No)))); err != nil {
+			return c, fmt.Errorf("could not create loop device node %s: %v", c.Path, err)
+		}
+	}
+
 	return c, nil
 }
