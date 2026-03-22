@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -146,7 +148,26 @@ func ContainerInitProc() {
 			environ = []string{"HOME=" + user.User.HomeDir}
 		}
 
-		environ = append(environ, os.Environ()...)
+		// Pass host environment but strip sandal's own internal
+		// variables (SANDAL_CHILD, SANDAL_LIB_DIR, etc.) so they
+		// don't leak into the container and interfere with nested
+		// sandal invocations.  User-defined variables that happen
+		// to start with SANDAL_ are preserved.
+		internalVars := map[string]struct{}{
+			"SANDAL_CHILD": {},
+			"SANDAL_VM":    {},
+			"SANDAL_VM_MOUNTS": {},
+			"SANDAL_VM_ARGS":   {},
+		}
+		for _, d := range env.GetDefaults() {
+			internalVars[d.Name] = struct{}{}
+		}
+		for _, e := range os.Environ() {
+			name, _, _ := strings.Cut(e, "=")
+			if _, internal := internalVars[name]; !internal {
+				environ = append(environ, e)
+			}
+		}
 
 		// Set system capabilities before switching user
 		// This must be done while still running as root
