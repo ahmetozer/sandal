@@ -25,12 +25,13 @@ const (
 )
 
 type bootConfig struct {
-	kernelAddr  uint64
-	initrdAddr  uint64
-	initrdSize  uint64
-	memSize     uint64
-	commandLine string
-	numCPUs     uint
+	kernelAddr    uint64
+	initrdAddr    uint64
+	initrdSize    uint64
+	memSize       uint64
+	commandLine   string
+	numCPUs       uint
+	virtioDevices []*virtioMMIODev
 }
 
 // x86_64 segment descriptor

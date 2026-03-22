@@ -59,11 +59,12 @@ type VM struct {
 	stdinReader  *os.File // UART reads from here
 	stdoutWriter *os.File // UART writes here
 
-	state     VMState
-	mu        sync.Mutex
-	stopCh    chan struct{}
-	stoppedCh chan error
-	uart      *uart
+	state      VMState
+	mu         sync.Mutex
+	stopCh     chan struct{}
+	stoppedCh  chan error
+	uart       *uart
+	virtioDevs []*virtioMMIODev
 }
 
 func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
@@ -190,14 +191,28 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		vcpuRun[i] = run
 	}
 
+	// Create VirtioFS devices for each mount
+	var virtioDevs []*virtioMMIODev
+	for i, mount := range cfg.Mounts {
+		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
+		// Each virtio-mmio device gets its own MMIO region and SPI IRQ
+		// Base addresses start at 0x0a000000, each 0x200 apart
+		// IRQs start at SPI 16 (GIC IRQ 48)
+		baseAddr := uint64(0x0a000000) + uint64(i)*virtioMMIORegionSize
+		irqNum := uint32(48 + i) // SPI 16+i = GIC IRQ 48+i
+		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
+		virtioDevs = append(virtioDevs, vDev)
+	}
+
 	// Initialize vCPU registers (architecture-specific)
 	bootParams := bootConfig{
-		kernelAddr:  guestMemBase + kernelLoadOffset,
-		initrdAddr:  guestMemBase + initrdAddr,
-		initrdSize:  initrdSize,
-		memSize:     cfg.MemoryBytes,
-		commandLine: cfg.CommandLine,
-		numCPUs:     cfg.CPUCount,
+		kernelAddr:    guestMemBase + kernelLoadOffset,
+		initrdAddr:    guestMemBase + initrdAddr,
+		initrdSize:    initrdSize,
+		memSize:       cfg.MemoryBytes,
+		commandLine:   cfg.CommandLine,
+		numCPUs:       cfg.CPUCount,
+		virtioDevices: virtioDevs,
 	}
 
 	if err := initVCPUs(int(vmFd), vcpuFds, mem, bootParams); err != nil {
@@ -227,6 +242,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		stopCh:       make(chan struct{}),
 		stoppedCh:    make(chan error, 1),
 		uart:         u,
+		virtioDevs:   virtioDevs,
 	}, nil
 }
 
@@ -324,6 +340,14 @@ func (vm *VM) handleExitIO(run []byte) {
 func (vm *VM) handleExitMMIO(run []byte) {
 	exitMMIO := (*kvmRunExitMMIO)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 
+	// Try virtio devices first
+	for _, vdev := range vm.virtioDevs {
+		if vdev.HandleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:]) {
+			return
+		}
+	}
+
+	// Fall back to UART
 	vm.uart.handleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:])
 }
 

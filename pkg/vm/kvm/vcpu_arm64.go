@@ -33,12 +33,13 @@ type kvmOneReg struct {
 }
 
 type bootConfig struct {
-	kernelAddr  uint64
-	initrdAddr  uint64
-	initrdSize  uint64
-	memSize     uint64
-	commandLine string
-	numCPUs     uint
+	kernelAddr    uint64
+	initrdAddr    uint64
+	initrdSize    uint64
+	memSize       uint64
+	commandLine   string
+	numCPUs       uint
+	virtioDevices []*virtioMMIODev
 }
 
 func setupVM(vmFd int) error {
@@ -238,6 +239,18 @@ func buildDTB(boot bootConfig, dtbAddr uint64) []byte {
 	fdt.propRegU64(pl011Base, pl011Size)
 	fdt.propU32Array("interrupts", []uint32{0, 1, 4})
 	fdt.endNode()
+
+	// Virtio-MMIO devices
+	for i, vdev := range boot.virtioDevices {
+		nodeName := fmt.Sprintf("virtio_mmio@%x", vdev.baseAddr)
+		fdt.beginNode(nodeName)
+		fdt.propString("compatible", "virtio,mmio")
+		fdt.propRegU64(vdev.baseAddr, virtioMMIORegionSize)
+		// SPI interrupt: type=0 (SPI), number=16+i, flags=edge-triggered
+		fdt.propU32Array("interrupts", []uint32{0, uint32(16 + i), 1})
+		fdt.propEmpty("dma-coherent")
+		fdt.endNode()
+	}
 
 	fdt.endNode() // end root
 
