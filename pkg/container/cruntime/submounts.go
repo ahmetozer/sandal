@@ -227,6 +227,68 @@ func mountSubMountOverlays(c *config.Config, hostDirs []string, changeBase strin
 	return nil
 }
 
+// mountTargetedLowerOverlays mounts lower directories at custom container paths
+// as mini-overlays with COW behavior. Each targeted lower gets its own
+// upper/work dirs under the main change dir.
+func mountTargetedLowerOverlays(c *config.Config, targeted []lowerArg, changeBase string) error {
+	absRootfs, err := filepath.Abs(c.RootfsDir)
+	if err != nil {
+		return fmt.Errorf("resolving rootfs path: %w", err)
+	}
+
+	for _, la := range targeted {
+		rel := strings.TrimPrefix(la.Target, "/")
+		if rel == "" {
+			continue
+		}
+
+		// Validate target is strictly within rootfs.
+		target := filepath.Join(c.RootfsDir, rel)
+		absTarget, err := filepath.Abs(target)
+		if err != nil || (absTarget != absRootfs && !strings.HasPrefix(absTarget, absRootfs+"/")) {
+			slog.Warn("mountTargetedLowerOverlays: target escapes rootfs", slog.String("target", la.Target))
+			continue
+		}
+
+		// Create upper/work dirs for this targeted lower's mini-overlay.
+		safeName := encodeRelPath(rel)
+		upper := filepath.Join(changeBase, "submount-upper", safeName, "upper")
+		work := filepath.Join(changeBase, "submount-upper", safeName, "work")
+		if err := os.MkdirAll(upper, 0o755); err != nil {
+			slog.Warn("mountTargetedLowerOverlays: mkdir upper failed", slog.String("path", upper), slog.Any("error", err))
+			continue
+		}
+		if err := os.MkdirAll(work, 0o755); err != nil {
+			slog.Warn("mountTargetedLowerOverlays: mkdir work failed", slog.String("path", work), slog.Any("error", err))
+			continue
+		}
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			slog.Warn("mountTargetedLowerOverlays: mkdir target failed", slog.String("target", target), slog.Any("error", err))
+			continue
+		}
+
+		opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", la.Source, upper, work)
+		if err := unix.Mount("overlay", target, "overlay", 0, opts); err != nil {
+			slog.Warn("mountTargetedLowerOverlays: overlay mount failed", slog.String("target", target), slog.String("opts", opts), slog.Any("error", err))
+			continue
+		}
+
+		slog.Debug("mountTargetedLowerOverlays: mounted", slog.String("src", la.Source), slog.String("target", target))
+		subMountMu.Lock()
+		subMountRegistry[c.Name] = append(subMountRegistry[c.Name], target)
+		subMountMu.Unlock()
+
+		// If sub-mount discovery is enabled, find and mount sub-mounts
+		// under this targeted lower as well.
+		if la.SubMounts {
+			if err := mountSubMountOverlays(c, []string{la.Source}, changeBase); err != nil {
+				slog.Warn("mountTargetedLowerOverlays: sub-mount discovery failed", slog.String("source", la.Source), slog.Any("error", err))
+			}
+		}
+	}
+	return nil
+}
+
 // subMountRegistry tracks mini-overlay mount paths per container for cleanup.
 var (
 	subMountRegistry = map[string][]string{}
