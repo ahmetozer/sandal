@@ -42,5 +42,14 @@ func FindFreeLoopDevice() (Config, error) {
 
 	c.No = int(dev)
 	c.Path = LOOP_DEVICE_PREFIX + strconv.Itoa(c.No)
+
+	// Create the loop device node if it doesn't exist (e.g. when /dev
+	// is a plain tmpfs without devtmpfs auto-population).
+	if _, err := os.Stat(c.Path); os.IsNotExist(err) {
+		if mkErr := unix.Mknod(c.Path, unix.S_IFBLK|0o660, int(unix.Mkdev(7, uint32(c.No)))); mkErr != nil {
+			return c, fmt.Errorf("could not create loop device node %s: %v", c.Path, mkErr)
+		}
+	}
+
 	return c, nil
 }
