@@ -392,31 +392,40 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 	inodeData := w.inodeRaw.Bytes()
 	dirData := w.dirRaw.Bytes()
 
-	// Phase 2: Resolve circular dependency between inode and dir table positions.
-	// Strategy: iterate patch→compress→check until offsets stabilize.
-	// Compression results are cached so the final write reuses them (no re-compression).
+	// Phase 2: Resolve the circular dependency between inode and directory
+	// table positions.  Directory entries contain byte offsets into the
+	// inode table, and directory inodes contain byte offsets into the
+	// directory table.  Both sets of offsets depend on the compressed
+	// sizes of metadata blocks, which change when the offsets embedded
+	// in them change.
+	//
+	// To break the cycle we iterate: compress inode table → patch dir
+	// entries → compress dir table → patch dir inodes → repeat.  The
+	// loop terminates when patching dir inodes produces no changes,
+	// meaning the inode table compression is stable and all references
+	// are consistent.
 	inodeTableStart := w.dataPos
 
 	var inodeCache, dirCache *metadataCache
+	var err2 error
 
-	for iter := 0; iter < 20; iter++ {
-		var err2 error
+	// Seed: write block_offset values (constant, depends only on
+	// dirRaw layout which is fixed).
+	for _, fix := range w.dirInodeFixups {
+		binary.LittleEndian.PutUint16(inodeData[fix.inodeRawOffset+10:], uint16(fix.dirRawPos%metadataBlockSize))
+	}
+
+	for iter := 0; iter < 100; iter++ {
 		inodeCache, err2 = w.compressMetadataBlocks(inodeData)
 		if err2 != nil {
 			return fmt.Errorf("computing inode block offsets: %w", err2)
 		}
 
-		// Patch dir entry "start" fields with inode block offsets
-		changed := false
+		// Patch dir entry "start" fields with inode block offsets.
 		for _, fix := range w.dirEntryFixups {
 			rawPos := w.inodePos[fix.firstInodeNum]
 			blockIdx := rawPos / metadataBlockSize
-			val := uint32(inodeCache.offsets[blockIdx])
-			old := binary.LittleEndian.Uint32(dirData[fix.dirRawOffset:])
-			if old != val {
-				binary.LittleEndian.PutUint32(dirData[fix.dirRawOffset:], val)
-				changed = true
-			}
+			binary.LittleEndian.PutUint32(dirData[fix.dirRawOffset:], uint32(inodeCache.offsets[blockIdx]))
 		}
 
 		dirCache, err2 = w.compressMetadataBlocks(dirData)
@@ -424,7 +433,8 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 			return fmt.Errorf("computing dir block offsets: %w", err2)
 		}
 
-		// Patch dir inode block_index/block_offset with dir block offsets
+		// Patch dir inode block_index with dir block offsets.
+		changed := false
 		for _, fix := range w.dirInodeFixups {
 			blockIdx := fix.dirRawPos / metadataBlockSize
 			val := uint32(dirCache.offsets[blockIdx])
@@ -433,26 +443,19 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 				binary.LittleEndian.PutUint32(inodeData[fix.inodeRawOffset:], val)
 				changed = true
 			}
-			binary.LittleEndian.PutUint16(inodeData[fix.inodeRawOffset+10:], uint16(fix.dirRawPos%metadataBlockSize))
 		}
 
-		if !changed && iter > 0 {
+		if !changed {
+			// Inode data is stable → the inode table compression and
+			// all dir entry references are now consistent.
 			break
 		}
-	}
-
-	// Final compression pass: inode data may have been patched in the last dir fixup round
-	var err2 error
-	inodeCache, err2 = w.compressMetadataBlocks(inodeData)
-	if err2 != nil {
-		return fmt.Errorf("computing final inode offsets: %w", err2)
 	}
 
 	rootInodeNum := w.nextInode - 1
 	rootRawPos := w.inodePos[rootInodeNum]
 	rootRef := inodeRef(rootRawPos, inodeCache.offsets)
 
-	// Write cached compressed blocks directly — no re-compression
 	if _, err := w.writeMetadataCached(inodeCache); err != nil {
 		return fmt.Errorf("writing inode table: %w", err)
 	}
