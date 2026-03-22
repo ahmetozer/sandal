@@ -102,9 +102,10 @@ Allocation configuration of /etc/hosts file.
 
 ### `-lw value`
 
-: Lower directory of the root file system
+: Lower directory of the root file system (default destination: `/`)
   Lower directories are attach folders or images to container to access but changes are saved under `-chdir`.
   This flag can usable multiple times to attach multiple images and directories to container.
+  By default, lower directories are mounted at the root (`/`) of the container. Use `source:/container/path` syntax to mount at a custom path.
 
   In addition to local paths and image files, `-lw` accepts **container image references** from OCI registries. When the value is not a local path, sandal automatically pulls the image, flattens its layers into a squashfs image, and caches it under `SANDAL_IMAGE_DIR` for future use.
 
@@ -129,12 +130,45 @@ Allocation configuration of /etc/hosts file.
     # Multiple sources: registry image + local config overlay
     sandal run -lw ghcr.io/home-assistant/home-assistant:latest \
     -lw /my/image/config.sqfs -tmp 100 --rm -name homeassistant -- bash
+    # Mount a host directory at a custom container path # (4)
+    sandal run -lw / -lw /root:/mnt/myroot --rm -- ls /mnt/myroot/
+    # Mount an OCI image at a custom container path
+    sandal run -lw alpine:latest -lw nginx:latest:/opt/nginx --rm -- ls /opt/nginx/
+    # Enable sub-mount discovery with :=sub # (5)
+    sandal run -lw /:=sub --ns-net host --env-all --rm -- ls /root/
     ```
 
     1. You can create SquashFS files with `sandal export`.
     2. Image files consist of multiple partition, you have to specificly define partition information in commandline.
       You can find image details with `sandal image info file.img`
     3. Container images are pulled from the registry, layers are flattened and converted to squashfs. The result is cached so subsequent runs use the cached image without re-downloading.
+    4. Use `source:/container/path` to mount a lower directory at a specific path inside the container as a mini-overlay with full COW behavior. The separator is `:/` (colon followed by slash).
+    5. Append `:=sub` to opt-in to automatic sub-mount discovery. Without `:=sub`, sub-mounts are not included.
+
+    :   #### Custom Mount Targets
+
+    :     By default, lower directories are merged at the root (`/`) of the container overlay. You can mount a lower directory at a **custom container path** using `source:/target` syntax:
+
+          ```bash
+          -lw /host/path:/container/path
+          -lw myimage.sqfs:/opt/data
+          -lw nginx:latest:/opt/nginx
+          ```
+
+          Each targeted lower is mounted as a mini-overlay with its own upper/work directories, providing full copy-on-write behavior.
+
+    :   #### Sub-Mount Discovery (`:=sub`)
+
+    :     When a host directory contains sub-mounts on separate filesystems (e.g. `/root` on a separate ext4 partition under `/`), these are **not** included by default — overlayfs does not cross mount boundaries.
+
+          Append `:=sub` to opt-in to automatic sub-mount discovery:
+
+          ```bash
+          sandal run -lw /:=sub -- bash     # / with all sub-mounts
+          sandal run -lw /:/custom:=sub -- bash  # / at /custom with sub-mounts
+          ```
+
+          Paths already covered by `-v` (volume) are skipped to avoid conflicts.
 
     :   #### How Lower Directories Works ?
 

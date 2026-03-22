@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -17,6 +18,89 @@ import (
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"golang.org/x/sys/unix"
 )
+
+// lowerArg holds the parsed components of a -lw flag value.
+type lowerArg struct {
+	Source    string // host path, image ref, or disk.img:part=2
+	Target    string // container mount path ("/" for root-level)
+	SubMounts bool   // opt-in to sub-mount discovery via :=sub
+}
+
+// parseLowerArg parses a -lw flag value into its components.
+//
+// Syntax examples:
+//
+//	/                     → Source="/",            Target="/",          SubMounts=false
+//	/:=sub                → Source="/",            Target="/",          SubMounts=true
+//	alpine:latest         → Source="alpine:latest",Target="/",          SubMounts=false
+//	nginx:latest:/opt     → Source="nginx:latest", Target="/opt",       SubMounts=false
+//	/root:/mnt/myroot     → Source="/root",        Target="/mnt/myroot",SubMounts=false
+//	/root:/mnt/myroot:=sub→ Source="/root",        Target="/mnt/myroot",SubMounts=true
+//	disk.img:part=2       → Source="disk.img:part=2",Target="/",        SubMounts=false
+// resolveLowerSource resolves a -lw source path to a mountable directory.
+// It handles host directories, disk images, and OCI image references.
+// resolveLowerSource resolves a -lw source to a mountable directory.
+// basePath is the path used for stat (disk options stripped).
+// fullSource is the original source string passed to diskimage.Mount (may include :part=2).
+func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, error) {
+	fileStat, err := os.Stat(basePath)
+	if err != nil {
+		// Path doesn't exist on disk — check if it's a container image reference.
+		if squash.IsImageReference(fullSource) {
+			slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", fullSource))
+			sqfsPath, pullErr := squash.Pull(context.Background(), fullSource, env.BaseImageDir)
+			if pullErr != nil {
+				return "", fmt.Errorf("pulling image %s: %s", fullSource, pullErr)
+			}
+			img, mountErr := diskimage.Mount(sqfsPath)
+			if c.ImmutableImages.Contains(img) {
+				c.ImmutableImages.ReplaceWith(img)
+			} else {
+				c.ImmutableImages = append(c.ImmutableImages, img)
+			}
+			if mountErr != nil {
+				return "", fmt.Errorf("mounting pulled image: %s", mountErr)
+			}
+			return img.MountDir, nil
+		}
+		return "", fmt.Errorf("path %s is not exist: %s", basePath, err)
+	}
+	if fileStat.IsDir() {
+		return basePath, nil
+	}
+	// Detect file type (squashfs, ext4 image, etc.)
+	img, err := diskimage.Mount(fullSource)
+	if c.ImmutableImages.Contains(img) {
+		c.ImmutableImages.ReplaceWith(img)
+	} else {
+		c.ImmutableImages = append(c.ImmutableImages, img)
+	}
+	if err != nil {
+		slog.Debug("MountRootfs", slog.Any("img", img))
+		return "", fmt.Errorf("mounting file: %s", err)
+	}
+	return img.MountDir, nil
+}
+
+func parseLowerArg(argv string) lowerArg {
+	la := lowerArg{Target: "/"}
+
+	// 1. Check for :=sub suffix.
+	if strings.HasSuffix(argv, ":=sub") {
+		la.SubMounts = true
+		argv = strings.TrimSuffix(argv, ":=sub")
+	}
+
+	// 2. Find last occurrence of :/ to split source and target.
+	if idx := strings.LastIndex(argv, ":/"); idx > 0 {
+		la.Source = argv[:idx]
+		la.Target = filepath.Clean(argv[idx+1:])
+	} else {
+		la.Source = argv
+	}
+
+	return la
+}
 
 func mountRootfs(c *config.Config) error {
 	changeDir, err := overlayfs.PrepareChangeDir(c)
@@ -30,61 +114,44 @@ func mountRootfs(c *config.Config) error {
 	}
 
 	var LowerDirs []string
+	var hostDirs []string      // track directory lowerdirs for sub-mount discovery (:=sub)
+	var targetedLowers []lowerArg // lowers with a custom container target path
+
 	if len(c.Lower) == 0 {
 		if len(c.Volumes) == 0 {
 			return fmt.Errorf("no lower dir or volume is provided")
 		}
 	} else {
-		// check folder is exist
 		for _, argv := range c.Lower {
-			path := ""
-			if p := strings.Split(argv, ":"); len(p) > 0 {
-				path = p[0]
-			}
-			path = vmResolvePath(path)
-			fileStat, err := os.Stat(path)
-			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("path", path))
+			la := parseLowerArg(argv)
+			source := la.Source
 
+			// Resolve the base path (strip disk options like :part=2) for stat/vm resolution.
+			basePath := source
+			if p := strings.Split(source, ":"); len(p) > 0 {
+				basePath = p[0]
+			}
+			basePath = vmResolvePath(basePath)
+			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("source", source), slog.String("basePath", basePath), slog.String("target", la.Target), slog.Bool("subMounts", la.SubMounts))
+
+			// Resolve the source to a mountable directory.
+			// Pass full source (with disk options) so diskimage.Mount can parse them.
+			resolvedDir, err := resolveLowerSource(c, basePath, source)
 			if err != nil {
-				// Path doesn't exist on disk — check if it's a container image reference.
-				if squash.IsImageReference(path) {
-					slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", path))
-					sqfsPath, pullErr := squash.Pull(context.Background(), path, env.BaseImageDir)
-					if pullErr != nil {
-						return fmt.Errorf("pulling image %s: %s", path, pullErr)
-					}
-					img, mountErr := diskimage.Mount(sqfsPath)
-					if c.ImmutableImages.Contains(img) {
-						c.ImmutableImages.ReplaceWith(img)
-					} else {
-						c.ImmutableImages = append(c.ImmutableImages, img)
-					}
-					if mountErr != nil {
-						return fmt.Errorf("mounting pulled image: %s", mountErr)
-					}
-					LowerDirs = append(LowerDirs, img.MountDir)
-					continue
-				}
-				return fmt.Errorf("path %s is not exist: %s", path, err)
-			}
-			if fileStat.IsDir() {
-				LowerDirs = append(LowerDirs, path)
-			} else {
-				// Detect file type
-				img, err := diskimage.Mount(path)
-				if c.ImmutableImages.Contains(img) {
-					c.ImmutableImages.ReplaceWith(img)
-				} else {
-					c.ImmutableImages = append(c.ImmutableImages, img)
-				}
-				if err != nil {
-					slog.Debug("MountRootfs", slog.Any("img", img))
-					return fmt.Errorf("mounting file: %s", err)
-				}
-				// this will last item of c.LowerDirs and lowest priority
-				LowerDirs = append(LowerDirs, img.MountDir)
+				return err
 			}
 
+			if la.Target == "/" {
+				// Root-level: add to overlayfs lowerdir list.
+				LowerDirs = append(LowerDirs, resolvedDir)
+				if la.SubMounts {
+					hostDirs = append(hostDirs, resolvedDir)
+				}
+			} else {
+				// Custom target: mount as mini-overlay after main overlay.
+				la.Source = resolvedDir
+				targetedLowers = append(targetedLowers, la)
+			}
 		}
 	}
 
@@ -118,7 +185,24 @@ func mountRootfs(c *config.Config) error {
 			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name), slog.Any("error", err))
 			return fmt.Errorf("overlay: %s", err)
 		}
+
+		// Mount mini-overlays for sub-mounts (e.g. /root on a separate
+		// partition when -lw /:=sub is used). Each gets its own upper/work
+		// dirs under the main change dir for COW behavior.
+		if len(hostDirs) > 0 {
+			if err := mountSubMountOverlays(c, hostDirs, c.ChangeDir); err != nil {
+				return err
+			}
+		}
 	}
+
+	// Mount targeted lowers at custom container paths as mini-overlays.
+	if len(targetedLowers) > 0 {
+		if err := mountTargetedLowerOverlays(c, targetedLowers, c.ChangeDir); err != nil {
+			return err
+		}
+	}
+
 	return nil
 
 }
@@ -126,6 +210,11 @@ func mountRootfs(c *config.Config) error {
 func UmountRootfs(c *config.Config) []error {
 	errs := []error{}
 	var err error
+
+	// Unmount sub-mount mini-overlays before the main overlay.
+	if subErrs := unmountSubMountOverlays(c.Name); subErrs != nil {
+		errs = append(errs, subErrs...)
+	}
 
 	err = unix.Unmount(c.RootfsDir, 0)
 	if err != nil {

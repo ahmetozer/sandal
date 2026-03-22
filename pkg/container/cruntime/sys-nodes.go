@@ -36,6 +36,22 @@ func childSysNodes(Devtmpfs string) error {
 	newOsNode("/dev/tty0", 0620, 4, 0)
 	newOsNode("/dev/ptmx", 0666, 5, 2)
 	newOsNode("/dev/net/tun", 0666, 10, 200)
+	newOsNode("/dev/loop-control", 0660, 10, 237)
+	newOsNode("/dev/fuse", 0666, 10, 229)
+
+	// Standard symlinks expected by shells and programs.
+	for _, link := range [][2]string{
+		{"/dev/fd", "/proc/self/fd"},
+		{"/dev/stdin", "/proc/self/fd/0"},
+		{"/dev/stdout", "/proc/self/fd/1"},
+		{"/dev/stderr", "/proc/self/fd/2"},
+	} {
+		if _, statErr := os.Lstat(link[0]); errors.Is(statErr, os.ErrNotExist) {
+			if linkErr := os.Symlink(link[1], link[0]); linkErr != nil {
+				slog.Warn("symlink creation failed", slog.String("link", link[0]), slog.Any("error", linkErr))
+			}
+		}
+	}
 
 	return err
 
