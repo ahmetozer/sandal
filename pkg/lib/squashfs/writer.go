@@ -67,8 +67,11 @@ type Writer struct {
 	fragBuf   bytes.Buffer
 
 	// Reusable compression state
-	compBuf bytes.Buffer  // reusable output buffer for compress()
-	compW   *zlib.Writer  // reusable zlib writer
+	compBuf bytes.Buffer // reusable output buffer for compress()
+	compW   *zlib.Writer // reusable zlib writer
+
+	// Reusable file-read buffer (blockSize bytes), avoids per-file allocation.
+	fileBuf []byte
 
 	// Optional path filter: receives path relative to rootPath (e.g. "/etc/motd").
 	// Returns true to include the entry, false to skip it.
@@ -144,6 +147,7 @@ func NewWriter(out io.WriteSeeker, opts ...WriterOption) (*Writer, error) {
 		return nil, err
 	}
 	w.compW = zw
+	w.fileBuf = make([]byte, w.blockSize)
 	return w, nil
 }
 
@@ -163,32 +167,27 @@ func (w *Writer) lookupID(id uint32) uint16 {
 	return idx
 }
 
-func (w *Writer) compress(data []byte) ([]byte, error) {
+// compressTo compresses data into w.compBuf.  The result is only valid
+// until the next call to compressTo.
+func (w *Writer) compressTo(data []byte) error {
 	w.compBuf.Reset()
 	w.compW.Reset(&w.compBuf)
 	if _, err := w.compW.Write(data); err != nil {
-		return nil, err
+		return err
 	}
-	if err := w.compW.Close(); err != nil {
-		return nil, err
-	}
-	// Return a copy since compBuf is reused
-	out := make([]byte, w.compBuf.Len())
-	copy(out, w.compBuf.Bytes())
-	return out, nil
+	return w.compW.Close()
 }
 
 // writeDataBlock compresses and writes a data block to disk.
 func (w *Writer) writeDataBlock(data []byte) (uint32, error) {
-	compressed, err := w.compress(data)
-	if err != nil {
+	if err := w.compressTo(data); err != nil {
 		return 0, err
 	}
 	var toWrite []byte
 	var size uint32
-	if len(compressed) < len(data) {
-		toWrite = compressed
-		size = uint32(len(compressed))
+	if w.compBuf.Len() < len(data) {
+		toWrite = w.compBuf.Bytes()
+		size = uint32(w.compBuf.Len())
 	} else {
 		toWrite = data
 		size = uint32(len(data)) | uint32(dataUncompBit)
@@ -219,15 +218,14 @@ func (w *Writer) flushFragBlock() error {
 	data := w.fragBuf.Bytes()
 	startPos := uint64(w.dataPos)
 
-	compressed, err := w.compress(data)
-	if err != nil {
+	if err := w.compressTo(data); err != nil {
 		return err
 	}
 	var toWrite []byte
 	var size uint32
-	if len(compressed) < len(data) {
-		toWrite = compressed
-		size = uint32(len(compressed))
+	if w.compBuf.Len() < len(data) {
+		toWrite = w.compBuf.Bytes()
+		size = uint32(w.compBuf.Len())
 	} else {
 		toWrite = data
 		size = uint32(len(data)) | uint32(dataUncompBit)
@@ -248,7 +246,7 @@ func (w *Writer) writeFileDataStreamed(f *os.File, fileSize int64) (uint32, []ui
 	fragOff := uint32(0)
 
 	bs := int(w.blockSize)
-	buf := make([]byte, bs)
+	buf := w.fileBuf[:bs]
 	r := bufio.NewReaderSize(f, bs)
 
 	remaining := fileSize
@@ -315,11 +313,12 @@ func (w *Writer) compressMetadataBlocks(raw []byte, fixedSize bool) (*metadataCa
 			continue
 		}
 
-		compressed, err := w.compress(chunk)
-		if err != nil {
+		if err := w.compressTo(chunk); err != nil {
 			return nil, err
 		}
-		if len(compressed) < len(chunk) {
+		if w.compBuf.Len() < len(chunk) {
+			compressed := make([]byte, w.compBuf.Len())
+			copy(compressed, w.compBuf.Bytes())
 			mc.blocks = append(mc.blocks, compressed)
 			mc.headers = append(mc.headers, uint16(len(compressed)))
 			pos += 2 + int64(len(compressed))
@@ -365,15 +364,14 @@ func (w *Writer) writeMetadataBlocksTracked(raw []byte) ([]int64, error) {
 			end = len(raw)
 		}
 		chunk := raw[i:end]
-		compressed, err := w.compress(chunk)
-		if err != nil {
+		if err := w.compressTo(chunk); err != nil {
 			return nil, err
 		}
 		var header uint16
 		var toWrite []byte
-		if len(compressed) < len(chunk) {
-			header = uint16(len(compressed))
-			toWrite = compressed
+		if w.compBuf.Len() < len(chunk) {
+			header = uint16(w.compBuf.Len())
+			toWrite = w.compBuf.Bytes()
 		} else {
 			header = uint16(len(chunk)) | metadataUncompBit
 			toWrite = chunk
