@@ -4,7 +4,6 @@ package kvm
 
 import (
 	"encoding/binary"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -1029,5 +1028,3 @@ func errnoToFuse(err error) int32 {
 	return fuseErrEIO
 }
 
-// Ensure fmt is used
-var _ = fmt.Sprintf

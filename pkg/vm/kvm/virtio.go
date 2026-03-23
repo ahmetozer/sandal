@@ -4,11 +4,8 @@ package kvm
 
 import (
 	"encoding/binary"
-	"fmt"
 	"sync"
 	"unsafe"
-
-	"golang.org/x/sys/unix"
 )
 
 // Virtio-MMIO transport implementation (virtio v2 / modern)
@@ -51,17 +48,13 @@ const (
 	virtioStatusDriver    = 2
 	virtioStatusFeatOK    = 8
 	virtioStatusDriverOK  = 4
-	virtioStatusFailed    = 128
-	virtioStatusNeedsReset = 64
 
 	// Virtio device IDs
 	virtioDevFS  = 26
 	virtioDevNet = 1
-	virtioDevBlk = 2
 
 	// Virtio feature bits
-	virtioFVersion1   = 32 // bit in feature word 1
-	virtioFAccessPlat = 33
+	virtioFVersion1 = 32 // bit in feature word 1
 
 	// Virtqueue sizes
 	virtqueueMaxSize = 256
@@ -288,8 +281,10 @@ func (v *virtioMMIODev) reset() {
 // injectIRQ sends an interrupt to the guest via KVM.
 func (v *virtioMMIODev) injectIRQ() {
 	v.interruptStat |= 1 // used buffer notification
+	// Encode SPI for ARM64 KVM_IRQ_LINE
+	spiIRQ := (uint32(kvmARMIRQTypeSPI) << kvmARMIRQTypeShift) | v.irqNum
 	irq := kvmIRQLevel{
-		IRQ:   v.irqNum,
+		IRQ:   spiIRQ,
 		Level: 1,
 	}
 	ioctlPtr(v.vmFd, kvmIRQLine, unsafe.Pointer(&irq))
@@ -443,8 +438,3 @@ func writeLE(data []byte, size uint32, val uint32) {
 	}
 }
 
-// Ensure fmt and unix are used
-var (
-	_ = fmt.Sprintf
-	_ = unix.EINTR
-)

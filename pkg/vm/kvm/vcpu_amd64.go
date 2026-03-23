@@ -6,8 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"unsafe"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -32,23 +30,6 @@ type bootConfig struct {
 	commandLine   string
 	numCPUs       uint
 	virtioDevices []*virtioMMIODev
-}
-
-// x86_64 segment descriptor
-type segmentDesc struct {
-	Base     uint64
-	Limit    uint32
-	Selector uint16
-	Type     uint8
-	Present  uint8
-	DPL      uint8
-	DB       uint8
-	S        uint8
-	L        uint8
-	G        uint8
-	Avl      uint8
-	Unusable uint8
-	Padding  uint8
 }
 
 // kvmRegs matches struct kvm_regs for x86_64
@@ -285,5 +266,3 @@ func setupLongMode(vcpuFd int, mem []byte, boot bootConfig) error {
 	return nil
 }
 
-// Ensure unix package is used
-var _ = unix.EINTR

@@ -15,7 +15,6 @@ const (
 	kvmGetAPIVersion       = 0xAE00
 	kvmCreateVM            = 0xAE01
 	kvmGetVCPUMmapSize     = 0xAE04
-	kvmCheckExtension      = 0xAE03
 	kvmCreateVCPU          = 0xAE41
 	kvmSetUserMemoryRegion = 0x4020AE46
 	kvmRun                 = 0xAE80
@@ -37,10 +36,6 @@ const (
 	kvmExitSystemEvent = 24
 	kvmExitInternalErr = 17
 
-	// KVM capabilities
-	kvmCapIRQChip       = 0
-	kvmCapUserMemory    = 3
-	kvmCapArmPSCIv0_2   = 102
 
 	// KVM VM type
 	kvmCreateIRQChip = 0xAE60
@@ -79,19 +74,6 @@ type kvmUserspaceMemoryRegion struct {
 	GuestPhysAddr uint64
 	MemorySize    uint64
 	UserspaceAddr uint64
-}
-
-// kvmRunData header matches the start of struct kvm_run
-type kvmRunData struct {
-	RequestInterruptWindow uint8
-	ImmediateExit          uint8
-	Padding1               [6]uint8
-	ExitReason             uint32
-	ReadyForInterruptInjection uint8
-	IfFlag                 uint8
-	Flags                  uint16
-	CR8                    uint64
-	APICBase               uint64
 }
 
 // kvmRunExitIO matches the io union member of kvm_run

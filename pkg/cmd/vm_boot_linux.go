@@ -17,7 +17,9 @@ import (
 )
 
 func defaultConsole() string {
-	// ARM64 uses PL011 (ttyAMA0), x86_64 uses 16550 (ttyS0)
+	// PL011 UART is the primary console on ARM64 (built-in driver, probes early).
+	// virtio-console would be better but virtio_mmio is a kernel module on Alpine,
+	// so it can't be ready before init starts.
 	if runtime.GOARCH == "arm64" {
 		return "console=ttyAMA0 earlycon=pl011,mmio,0x09000000"
 	}

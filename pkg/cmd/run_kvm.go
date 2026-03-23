@@ -3,15 +3,16 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/ahmetozer/sandal/pkg/env"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
-	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 // runInKVM boots a KVM VM with the current sandal binary as /init,
@@ -80,18 +81,20 @@ func runInKVM(args []string) error {
 		mountEntries = append(mountEntries, fmt.Sprintf("%s=%s=%s", tag, sandalLibDir, "/var/lib/sandal"))
 	}
 
-	// Pass original args as SANDAL_VM_ARGS via kernel command line
+	// Pass original args as SANDAL_VM_ARGS via kernel command line.
+	// Base64-encode the JSON because kernel cmdline parser treats " as quotes.
 	vmArgs := append([]string{"run"}, cleanArgs...)
 	argsJSON, err := json.Marshal(vmArgs)
 	if err != nil {
 		return fmt.Errorf("marshaling VM args: %w", err)
 	}
+	argsEncoded := base64.StdEncoding.EncodeToString(argsJSON)
 
 	// Build kernel command line
 	var cmdLineParts []string
 	cmdLineParts = append(cmdLineParts, defaultConsole(), "loglevel="+KernelLogLevel)
 	cmdLineParts = append(cmdLineParts, "SANDAL_VM=kvm")
-	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+string(argsJSON))
+	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+argsEncoded)
 	if len(mountEntries) > 0 {
 		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
 	}

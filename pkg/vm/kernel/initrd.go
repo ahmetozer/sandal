@@ -148,6 +148,7 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	gz := gzip.NewWriter(tmp)
 
 	// Include base initrd content (decompressed CPIO, trailer stripped)
+	// for kernel modules.
 	if baseInitrdPath != "" {
 		baseData, err := os.ReadFile(baseInitrdPath)
 		if err != nil {
@@ -166,9 +167,25 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 		}
 	}
 
-	// Append /init entry + final TRAILER
-	cpioData := newcCPIO("init", binData, 0100755)
-	if _, err := gz.Write(cpioData); err != nil {
+	// Write our init entries LAST — Linux initramfs uses unlink+create
+	// so last entry wins, overriding any /init from the base initrd.
+	var initCPIO bytes.Buffer
+	writeCPIODir(&initCPIO, "dev", 0xFFF0)
+	writeCPIOCharDev(&initCPIO, "dev/console", 020620, 5, 1, 0xFFF1)
+
+	if len(preinitBinary) > 0 {
+		// On KVM: use the preinit stub as /init which mounts /proc, /dev,
+		// sets up console fds, then execve's /sandal-init.
+		// Go's runtime needs /proc and valid fds to initialize properly.
+		writeCPIOFile(&initCPIO, "init", preinitBinary, 0100755, 0xFFF2)
+		writeCPIOFile(&initCPIO, "sandal-init", binData, 0100755, 0xFFF3)
+	} else {
+		// On macOS VZ: the hypervisor handles /dev setup, so Go binary
+		// can be /init directly.
+		writeCPIOFile(&initCPIO, "init", binData, 0100755, 0xFFF2)
+	}
+	writeCPIOFile(&initCPIO, "TRAILER!!!", nil, 0, 0)
+	if _, err := gz.Write(initCPIO.Bytes()); err != nil {
 		os.Remove(tmp.Name())
 		return "", err
 	}

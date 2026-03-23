@@ -3,7 +3,10 @@ ENTITLEMENTS := entitlements.plist
 CODESIGN_IDENTITY := -
 VERSION := $(shell git rev-parse --short HEAD)
 
-build:
+generate:
+	go generate ./pkg/vm/kernel/
+
+build: generate
 	go build -ldflags "-s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion=$(VERSION)" -o $(BINARY) .
 
 build-darwin:

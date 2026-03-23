@@ -3,6 +3,7 @@
 package cruntime
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -12,10 +13,91 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// IsVMInit returns true if sandal is running as PID 1 inside a VM
-// (indicated by SANDAL_VM_ARGS being set).
+// IsVMInit returns true if sandal is running as PID 1 inside a VM.
+// Detected by SANDAL_VM_ARGS env var, or by being PID 1 with /init as binary
+// (kernel cmdline params aren't always exported as env vars on initramfs).
 func IsVMInit() bool {
-	return os.Getpid() == 1 && os.Getenv("SANDAL_VM_ARGS") != ""
+	if os.Getpid() != 1 {
+		return false
+	}
+	if os.Getenv("SANDAL_VM_ARGS") != "" {
+		return true
+	}
+	// On KVM, kernel cmdline params aren't auto-exported as env vars
+	// for initramfs init. Parse /proc/cmdline to check and export them.
+	importKernelCmdlineEnv()
+	// Even if SANDAL_VM_ARGS is not set, if we're /init or /sandal-init at PID 1
+	// we're likely running as VM init
+	return os.Getenv("SANDAL_VM_ARGS") != "" ||
+		os.Args[0] == "/init" || os.Args[0] == "/sandal-init"
+}
+
+// importKernelCmdlineEnv reads /proc/cmdline and sets KEY=VALUE pairs
+// as environment variables. This is needed for KVM initramfs boot where
+// the kernel doesn't auto-export cmdline params to init's environment.
+func importKernelCmdlineEnv() {
+	// /proc may not be mounted yet when running as PID 1 in initramfs.
+	// Mount it and leave it mounted — VMInit() will use it later.
+	if _, err := os.Stat("/proc/cmdline"); err != nil {
+		os.MkdirAll("/proc", 0755)
+		unix.Mount("proc", "/proc", "proc", 0, "")
+	}
+	data, err := os.ReadFile("/proc/cmdline")
+	if err != nil {
+		return
+	}
+	cmdline := strings.TrimSpace(string(data))
+
+	// Parse space-separated tokens. Handle quoted values and
+	// SANDAL_VM_ARGS which contains JSON with potential spaces inside brackets.
+	for _, param := range parseCmdlineParams(cmdline) {
+		if idx := strings.IndexByte(param, '='); idx > 0 {
+			key := param[:idx]
+			val := param[idx+1:]
+			// SANDAL_VM_ARGS is base64-encoded to survive kernel cmdline parsing
+			if key == "SANDAL_VM_ARGS" {
+				if decoded, err := base64.StdEncoding.DecodeString(val); err == nil {
+					val = string(decoded)
+				}
+			}
+			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			}
+		}
+	}
+}
+
+// parseCmdlineParams splits a kernel command line into parameters,
+// respecting bracket-enclosed JSON values (e.g., SANDAL_VM_ARGS=[...]).
+func parseCmdlineParams(cmdline string) []string {
+	var params []string
+	var current strings.Builder
+	depth := 0 // bracket nesting depth
+
+	for i := 0; i < len(cmdline); i++ {
+		c := cmdline[i]
+		switch {
+		case c == '[':
+			depth++
+			current.WriteByte(c)
+		case c == ']':
+			if depth > 0 {
+				depth--
+			}
+			current.WriteByte(c)
+		case c == ' ' && depth == 0:
+			if current.Len() > 0 {
+				params = append(params, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(c)
+		}
+	}
+	if current.Len() > 0 {
+		params = append(params, current.String())
+	}
+	return params
 }
 
 // VMInit performs early system setup when sandal runs as PID 1 (init) inside a VM.
@@ -23,10 +105,21 @@ func IsVMInit() bool {
 // (so the container runtime can later pivot_root), loads virtiofs modules, and
 // mounts virtiofs shares.
 func VMInit() error {
-	// Mount essential filesystems on the initramfs
+	// Mount essential filesystems on the initramfs (may already be mounted by preinit)
 	os.MkdirAll("/proc", 0755)
-	if err := unix.Mount("proc", "/proc", "proc", 0, ""); err != nil {
-		return fmt.Errorf("mount /proc: %w", err)
+	unix.Mount("proc", "/proc", "proc", 0, "")
+
+	os.MkdirAll("/dev", 0755)
+	unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+
+	// Redirect stdio to the console device so init output is visible
+	if console, err := os.OpenFile("/dev/console", os.O_RDWR, 0); err == nil {
+		unix.Dup2(int(console.Fd()), 0)
+		unix.Dup2(int(console.Fd()), 1)
+		unix.Dup2(int(console.Fd()), 2)
+		if console.Fd() > 2 {
+			console.Close()
+		}
 	}
 
 	os.MkdirAll("/sys", 0755)
@@ -66,10 +159,15 @@ func VMInit() error {
 		return fmt.Errorf("mount tmpfs on /newroot: %w", err)
 	}
 
-	// Copy init binary to the new root
-	initData, err := os.ReadFile("/init")
+	// Copy init binary to the new root.
+	// The binary may be /sandal-init (KVM with preinit) or /init (VZ).
+	initSrc := "/init"
+	if _, err := os.Stat("/sandal-init"); err == nil {
+		initSrc = "/sandal-init"
+	}
+	initData, err := os.ReadFile(initSrc)
 	if err != nil {
-		return fmt.Errorf("reading /init: %w", err)
+		return fmt.Errorf("reading %s: %w", initSrc, err)
 	}
 	if err := os.WriteFile("/newroot/init", initData, 0755); err != nil {
 		return fmt.Errorf("writing /newroot/init: %w", err)

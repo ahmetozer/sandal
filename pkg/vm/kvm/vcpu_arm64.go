@@ -237,9 +237,22 @@ func buildDTB(boot bootConfig, dtbAddr uint64) []byte {
 
 	// PL011 UART
 	fdt.beginNode("pl011@9000000")
-	fdt.propString("compatible", "arm,pl011")
+	fdt.propStringList("compatible", []string{"arm,pl011", "arm,primecell"})
 	fdt.propRegU64(pl011Base, pl011Size)
 	fdt.propU32Array("interrupts", []uint32{0, 1, 4})
+	fdt.propU32("interrupt-parent", 1) // phandle of GIC
+	fdt.propStringList("clock-names", []string{"uartclk", "apb_pclk"})
+	// Dummy clock phandles — the virt kernel uses fixed clocks
+	fdt.propU32Array("clocks", []uint32{2, 2})
+	fdt.endNode()
+
+	// Fixed clock for UART (24MHz, typical)
+	fdt.beginNode("apb-pclk")
+	fdt.propString("compatible", "fixed-clock")
+	fdt.propU32("#clock-cells", 0)
+	fdt.propU32("clock-frequency", 24000000)
+	fdt.propString("clock-output-names", "clk24mhz")
+	fdt.propU32("phandle", 2)
 	fdt.endNode()
 
 	// Virtio-MMIO devices
@@ -248,8 +261,8 @@ func buildDTB(boot bootConfig, dtbAddr uint64) []byte {
 		fdt.beginNode(nodeName)
 		fdt.propString("compatible", "virtio,mmio")
 		fdt.propRegU64(vdev.baseAddr, virtioMMIORegionSize)
-		// SPI interrupt: type=0 (SPI), number=16+i, flags=edge-triggered
 		fdt.propU32Array("interrupts", []uint32{0, uint32(16 + i), 1})
+		fdt.propU32("interrupt-parent", 1) // phandle of GIC
 		fdt.propEmpty("dma-coherent")
 		fdt.endNode()
 	}

@@ -65,6 +65,9 @@ type VM struct {
 	stoppedCh  chan error
 	uart       *uart
 	virtioDevs []*virtioMMIODev
+	consoleDev *VirtioConsoleDevice
+	netDevs    []*VirtioNetDevice
+	tap        *tapDevice
 }
 
 func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
@@ -148,7 +151,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
-	u := newUART(stdinReader, stdoutWriter)
+	u := newUART(stdinReader, stdoutWriter, int(vmFd))
 
 	// Get vCPU mmap size
 	vcpuMmapSize, err := getVCPUMmapSize(kvmFd)
@@ -191,17 +194,51 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		vcpuRun[i] = run
 	}
 
-	// Create VirtioFS devices for each mount
+	// Create virtio devices
 	var virtioDevs []*virtioMMIODev
-	for i, mount := range cfg.Mounts {
+	var netDevs []*VirtioNetDevice
+	var consoleDev *VirtioConsoleDevice
+	devIdx := 0
+
+	// Virtio-console device — provides /dev/hvc0 as the initial console.
+	// This replaces PL011 for userspace I/O (PL011 earlycon still handles
+	// early kernel output before virtio probes).
+	{
+		consoleDev = NewVirtioConsoleDevice(stdinReader, stdoutWriter)
+		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+		irqNum := uint32(16 + devIdx)
+		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, consoleDev)
+		virtioDevs = append(virtioDevs, vDev)
+		devIdx++
+	}
+
+	// VirtioFS devices for each mount
+	for _, mount := range cfg.Mounts {
 		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
 		// Each virtio-mmio device gets its own MMIO region and SPI IRQ
 		// Base addresses start at 0x0a000000, each 0x200 apart
-		// IRQs start at SPI 16 (GIC IRQ 48)
-		baseAddr := uint64(0x0a000000) + uint64(i)*virtioMMIORegionSize
-		irqNum := uint32(48 + i) // SPI 16+i = GIC IRQ 48+i
+		// SPI numbers start at 16 (GIC IRQ = SPI + 32)
+		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+		irqNum := uint32(16 + devIdx)
 		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
 		virtioDevs = append(virtioDevs, vDev)
+		devIdx++
+	}
+
+	// Virtio-net device backed by TAP interface
+	tapName := fmt.Sprintf("sandal%d", os.Getpid()%10000)
+	tap, err := createTAP(tapName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create TAP device: %v (networking disabled)\n", err)
+	} else {
+		mac := [6]byte{0x52, 0x54, 0x00, byte(os.Getpid() >> 8), byte(os.Getpid()), 0x01}
+		netDev := NewVirtioNetDevice(tap, mac)
+		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+		irqNum := uint32(16 + devIdx)
+		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, netDev)
+		virtioDevs = append(virtioDevs, vDev)
+		netDevs = append(netDevs, netDev)
+		devIdx++
 	}
 
 	// Initialize vCPU registers (architecture-specific)
@@ -243,6 +280,9 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		stoppedCh:    make(chan error, 1),
 		uart:         u,
 		virtioDevs:   virtioDevs,
+		consoleDev:   consoleDev,
+		netDevs:      netDevs,
+		tap:          tap,
 	}, nil
 }
 
@@ -265,12 +305,26 @@ func (vm *VM) Start() error {
 		}(i)
 	}
 
+	// Start RX loops for virtio devices
+	for _, vd := range vm.virtioDevs {
+		switch dev := vd.device.(type) {
+		case *VirtioConsoleDevice:
+			dev.StartRX(vd)
+		case *VirtioNetDevice:
+			dev.StartRX(vd)
+		}
+	}
+
 	vm.mu.Lock()
 	vm.state = VMStateRunning
 	vm.mu.Unlock()
 
 	go func() {
 		wg.Wait()
+		// Stop net devices
+		for _, nd := range vm.netDevs {
+			nd.Stop()
+		}
 		vm.mu.Lock()
 		vm.state = VMStateStopped
 		vm.mu.Unlock()
@@ -398,6 +452,9 @@ func (vm *VM) Close() {
 	vm.stdinWriter.Close()
 	vm.stdoutReader.Close()
 	vm.stdoutWriter.Close()
+	if vm.tap != nil {
+		vm.tap.Close()
+	}
 }
 
 func alignUp(val, align uint64) uint64 {

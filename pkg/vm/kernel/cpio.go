@@ -64,6 +64,27 @@ func cpiopad(buf *bytes.Buffer) {
 	}
 }
 
+// writeCPIOCharDev writes a character device node in newc CPIO format.
+func writeCPIOCharDev(buf *bytes.Buffer, name string, mode uint32, major, minor uint32, ino uint32) {
+	nameWithNull := name + "\x00"
+	fmt.Fprintf(buf, "070701")
+	fmt.Fprintf(buf, "%08X", ino)               // ino
+	fmt.Fprintf(buf, "%08X", mode)               // mode (char device)
+	fmt.Fprintf(buf, "%08X", 0)                  // uid
+	fmt.Fprintf(buf, "%08X", 0)                  // gid
+	fmt.Fprintf(buf, "%08X", 1)                  // nlink
+	fmt.Fprintf(buf, "%08X", 0)                  // mtime
+	fmt.Fprintf(buf, "%08X", 0)                  // filesize
+	fmt.Fprintf(buf, "%08X", 0)                  // devmajor
+	fmt.Fprintf(buf, "%08X", 0)                  // devminor
+	fmt.Fprintf(buf, "%08X", major)              // rdevmajor
+	fmt.Fprintf(buf, "%08X", minor)              // rdevminor
+	fmt.Fprintf(buf, "%08X", len(nameWithNull))  // namesize
+	fmt.Fprintf(buf, "%08X", 0)                  // check
+	buf.WriteString(nameWithNull)
+	cpiopad(buf)
+}
+
 // newcCPIO builds a minimal newc-format CPIO archive containing a single file
 // and a trailer.
 func newcCPIO(name string, data []byte, mode uint32) []byte {

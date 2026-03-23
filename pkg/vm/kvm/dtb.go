@@ -98,6 +98,15 @@ func (f *fdtBuilder) propEmpty(name string) {
 	f.propRaw(name, nil)
 }
 
+func (f *fdtBuilder) propStringList(name string, vals []string) {
+	var data []byte
+	for _, v := range vals {
+		data = append(data, []byte(v)...)
+		data = append(data, 0)
+	}
+	f.propRaw(name, data)
+}
+
 func (f *fdtBuilder) propU32Array(name string, vals []uint32) {
 	data := make([]byte, len(vals)*4)
 	for i, v := range vals {
