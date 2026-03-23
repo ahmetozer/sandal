@@ -10,64 +10,87 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// KVM ioctl numbers from linux/kvm.h
+// ioctl numbers for KVM. Derived from linux/kvm.h using the standard
+// _IO/_IOW/_IOR/_IOWR encoding: dir(2)<<30 | size(14)<<16 | type(8)<<8 | nr(8).
 const (
-	kvmGetAPIVersion       = 0xAE00
-	kvmCreateVM            = 0xAE01
-	kvmGetVCPUMmapSize     = 0xAE04
-	kvmCreateVCPU          = 0xAE41
-	kvmSetUserMemoryRegion = 0x4020AE46
-	kvmRun                 = 0xAE80
-	kvmGetOneReg           = 0x4010AEAB
-	kvmSetOneReg           = 0x4010AEAC
-	kvmGetRegs             = 0x8090AE81
-	kvmSetRegs             = 0x4090AE82
-	kvmGetSregs            = 0x8138AE83
-	kvmSetSregs            = 0x4138AE84
+	// System ioctls (on /dev/kvm fd).
+	kvmGetAPIVersion   = 0xAE00     // _IO(0xAE, 0x00)
+	kvmCreateVM        = 0xAE01     // _IO(0xAE, 0x01)
+	kvmCheckExtension  = 0xAE03     // _IO(0xAE, 0x03)
+	kvmGetVCPUMmapSize = 0xAE04     // _IO(0xAE, 0x04)
 
-	// ARM64 specific
-	kvmArmPreferredTarget = 0x8020AEAF
-	kvmArmVCPUInit        = 0x4020AEAE
+	// VM ioctls.
+	kvmCreateVCPU          = 0xAE41     // _IO(0xAE, 0x41)
+	kvmSetUserMemoryRegion = 0x4020AE46 // _IOW(0xAE, 0x46, 32)
+	kvmCreateDevice        = 0xC00CAEE0 // _IOWR(0xAE, 0xe0, 12)
+	kvmArmPreferredTarget  = 0x8020AEAF // _IOR(0xAE, 0xaf, 32)
+	kvmIRQLine             = 0x4008AE61 // _IOW(0xAE, 0x61, 8)
+	kvmCreateIRQChip       = 0xAE60     // _IO(0xAE, 0x60)
+	kvmSetTSSAddr          = 0xAE47     // _IO(0xAE, 0x47)
 
-	// KVM exit reasons
+	// VCPU ioctls.
+	kvmRun         = 0xAE80     // _IO(0xAE, 0x80)
+	kvmArmVCPUInit = 0x4020AEAE // _IOW(0xAE, 0xae, 32)
+	kvmGetOneReg   = 0x4010AEAB // _IOW(0xAE, 0xab, 16)
+	kvmSetOneReg   = 0x4010AEAC // _IOW(0xAE, 0xac, 16)
+	kvmGetRegs     = 0x8090AE81 // x86 only
+	kvmSetRegs     = 0x4090AE82 // x86 only
+	kvmGetSregs    = 0x8138AE83 // x86 only
+	kvmSetSregs    = 0x4138AE84 // x86 only
+
+	// Device ioctls.
+	kvmSetDeviceAttr = 0x4018AEE1 // _IOW(0xAE, 0xe1, 24)
+
+	// KVM exit reasons.
 	kvmExitIO          = 2
 	kvmExitMMIO        = 6
+	kvmExitHLT         = 5
 	kvmExitShutdown    = 8
-	kvmExitSystemEvent = 24
+	kvmExitFailEntry   = 9
+	kvmExitIntr        = 10
 	kvmExitInternalErr = 17
+	kvmExitSystemEvent = 24
 
+	// System event types.
+	kvmSystemEventShutdown = 1
+	kvmSystemEventReset    = 2
+	kvmSystemEventCrash    = 3
 
-	// KVM VM type
-	kvmCreateIRQChip = 0xAE60
-	kvmSetTSSAddr    = 0xAE47
-
-	// KVM device management
-	kvmCreateDevice = 0xC00CAEE0 // _IOWR(KVMIO, 0xe0, struct kvm_create_device)
-
-	// KVM device types
-	kvmDevTypeARMVGICv2 = 5
-	kvmDevTypeARMVGICv3 = 7
-
-	// KVM device attributes for VGIC
-	kvmDevARMVGICGRPAddr     = 0
-	kvmDevARMVGICGRPCtrl     = 4
-	kvmVGICv2AddrTypeDist    = 0
-	kvmVGICv2AddrTypeCPU     = 1
-	kvmVGICv3AddrTypeDist    = 0
-	kvmVGICv3AddrTypeRedist  = 1
-	kvmDevARMVGICCtrlInit    = 0
-
-	kvmSetDeviceAttr = 0x4018AEE1 // _IOW(KVMIO, 0xe1, struct kvm_device_attr)
-
-	// IO direction
+	// IO direction.
 	kvmExitIOIn  = 0
 	kvmExitIOOut = 1
 
-	// API version
+	// API version.
 	kvmAPIVersion = 12
+
+	// KVM device types.
+	kvmDevTypeARMVGICv2 = 5
+	kvmDevTypeARMVGICv3 = 7
+
+	// KVM VGIC address types.
+	kvmVGICv3AddrTypeDist   = 2
+	kvmVGICv3AddrTypeRedist = 3
+	kvmVGICv2AddrTypeDist   = 0
+	kvmVGICv2AddrTypeCPU    = 1
+
+	// KVM device attribute groups.
+	kvmDevARMVGICGRPAddr  = 0
+	kvmDevARMVGICGRPNRIRQ = 3
+	kvmDevARMVGICGRPCtrl  = 4
+	kvmDevARMVGICCtrlInit = 0
+
+	// VCPU signal mask ioctl.
+	kvmSetSignalMask = 0x4004AE8B // _IOW(KVMIO, 0x8b, struct kvm_signal_mask)
+
+	// KVM capability constants.
+	kvmCapARMVMIPASize = 165
+
+	// ARM64 VCPU feature bits.
+	kvmArmVCPUPowerOff = 0
+	kvmArmVCPUPSCI02   = 2
 )
 
-// kvmUserspaceMemoryRegion corresponds to struct kvm_userspace_memory_region
+// kvmUserspaceMemoryRegion corresponds to struct kvm_userspace_memory_region (32 bytes).
 type kvmUserspaceMemoryRegion struct {
 	Slot          uint32
 	Flags         uint32
@@ -76,7 +99,7 @@ type kvmUserspaceMemoryRegion struct {
 	UserspaceAddr uint64
 }
 
-// kvmRunExitIO matches the io union member of kvm_run
+// kvmRunExitIO matches the io union member of kvm_run.
 type kvmRunExitIO struct {
 	Direction  uint8
 	Size       uint8
@@ -85,7 +108,7 @@ type kvmRunExitIO struct {
 	DataOffset uint64
 }
 
-// kvmRunExitMMIO matches the mmio union member of kvm_run
+// kvmRunExitMMIO matches the mmio union member of kvm_run.
 type kvmRunExitMMIO struct {
 	PhysAddr uint64
 	Data     [8]uint8
@@ -95,14 +118,14 @@ type kvmRunExitMMIO struct {
 
 const kvmRunExitUnionOffset = 32 // offset of the exit union in struct kvm_run
 
-// kvmCreateDeviceStruct corresponds to struct kvm_create_device
+// kvmCreateDeviceStruct corresponds to struct kvm_create_device (12 bytes).
 type kvmCreateDeviceStruct struct {
 	Type  uint32
 	Fd    uint32
 	Flags uint32
 }
 
-// kvmDeviceAttr corresponds to struct kvm_device_attr
+// kvmDeviceAttr corresponds to struct kvm_device_attr (24 bytes).
 type kvmDeviceAttr struct {
 	Flags uint32
 	Group uint32
@@ -110,10 +133,22 @@ type kvmDeviceAttr struct {
 	Addr  uint64
 }
 
+// kvmIRQLevel corresponds to struct kvm_irq_level (8 bytes).
+type kvmIRQLevel struct {
+	IRQ   uint32
+	Level uint32
+}
+
+// ARM64 KVM_IRQ_LINE encoding: type(24-27) | vcpu_index(16-23) | irq_number(0-15).
+// Type 0 = SPI, Type 1 = PPI.
+const (
+	kvmARMIRQTypeSPI   = 0
+	kvmARMIRQTypeShift = 24
+)
+
 // openKVM opens /dev/kvm (or /devtmpfs/kvm in container environments)
 // and verifies the API version.
 func openKVM() (int, error) {
-	// Try standard path first, then container path
 	paths := []string{"/dev/kvm", "/devtmpfs/kvm"}
 	var fd int
 	var err error
@@ -176,7 +211,6 @@ func allocateGuestMemory(size uint64) ([]byte, error) {
 }
 
 // loadFileIntoMemory loads a file into guest memory at the given offset.
-// Returns the number of bytes loaded.
 func loadFileIntoMemory(mem []byte, offset uint64, path string) (uint64, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -188,4 +222,37 @@ func loadFileIntoMemory(mem []byte, offset uint64, path string) (uint64, error) 
 	}
 	copy(mem[offset:], data)
 	return uint64(len(data)), nil
+}
+
+// setVCPUSignalMask configures KVM_SET_SIGNAL_MASK to block SIGURG (signal 23)
+// during KVM_RUN. Go's runtime sends SIGURG for goroutine preemption, which
+// interrupts KVM_RUN with EINTR every ~20μs. This prevents the vCPU from
+// sleeping in-kernel during WFI (Wait For Interrupt), causing 100% CPU when
+// the guest is idle.
+//
+// The signal mask tells KVM which signals to ALLOW during KVM_RUN.
+// We allow only SIGINT (2) and SIGTERM (15) — all others including SIGURG
+// are blocked. This matches QEMU's approach in kvm_init_cpu_signals().
+func setVCPUSignalMask(vcpuFd int) {
+	// struct kvm_signal_mask { __u32 len; __u8 sigset[]; }
+	// On ARM64, sigset is 8 bytes (64 signals). The sigset is a bitmask
+	// where bit N means signal N+1 is ALLOWED through during KVM_RUN.
+	const sigsetSize = 8
+
+	type kvmSignalMask struct {
+		Len    uint32
+		Sigset [sigsetSize]byte
+	}
+
+	mask := kvmSignalMask{Len: sigsetSize}
+	// Set bits for signals we want to ALLOW through:
+	// SIGINT=2: bit 1 (signal-1) in byte 0
+	mask.Sigset[(2-1)/8] |= 1 << ((2 - 1) % 8)
+	// SIGTERM=15: bit 6 in byte 1
+	mask.Sigset[(15-1)/8] |= 1 << ((15 - 1) % 8)
+	// SIGURG=23 is NOT set, so it will be blocked during KVM_RUN.
+
+	if _, err := ioctlPtr(vcpuFd, kvmSetSignalMask, unsafe.Pointer(&mask)); err != nil {
+		fmt.Fprintf(os.Stderr, "KVM_SET_SIGNAL_MASK: %v (idle CPU may be higher)\n", err)
+	}
 }

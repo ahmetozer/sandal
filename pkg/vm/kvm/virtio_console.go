@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"os"
 	"sync"
+	"time"
 )
 
 // VirtioConsoleDevice implements a virtio-console device.
@@ -119,6 +120,8 @@ func (d *VirtioConsoleDevice) rxLoop(dev *virtioMMIODev) {
 			case <-d.stopCh:
 				return
 			default:
+				// Avoid tight spin on persistent read errors.
+				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 		}

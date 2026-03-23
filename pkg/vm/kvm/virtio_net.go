@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 )
 
 // VirtioNetDevice implements a virtio-net device backed by a TAP interface.
@@ -115,6 +116,8 @@ func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 			case <-d.stopCh:
 				return
 			default:
+				// Avoid tight spin on persistent read errors.
+				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 		}

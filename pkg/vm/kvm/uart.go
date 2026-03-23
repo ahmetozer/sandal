@@ -8,12 +8,6 @@ import (
 	"unsafe"
 )
 
-// ARM64 KVM_IRQ_LINE encoding
-const (
-	kvmARMIRQTypeSPI = 1
-	kvmARMIRQTypeShift = 24
-)
-
 // UART emulates a serial port for VM console I/O.
 // On ARM64, it handles PL011 MMIO accesses with proper interrupt support.
 // On x86_64, it handles 16550 port I/O accesses.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 	"unsafe"
 
@@ -76,21 +77,21 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, err
 	}
 
-	// Create VM
+	// Create VM.
 	vmFd, err := ioctl(kvmFd, kvmCreateVM, 0)
 	if err != nil {
 		unix.Close(kvmFd)
 		return nil, fmt.Errorf("KVM_CREATE_VM: %w", err)
 	}
 
-	// Platform-specific VM setup (IRQ chip, etc.)
+	// Platform-specific VM setup (IRQ chip on x86, noop on ARM64).
 	if err := setupVM(int(vmFd)); err != nil {
 		unix.Close(int(vmFd))
 		unix.Close(kvmFd)
 		return nil, fmt.Errorf("VM setup: %w", err)
 	}
 
-	// Allocate guest memory
+	// Allocate guest memory with MAP_NORESERVE (allows overcommit).
 	mem, err := allocateGuestMemory(cfg.MemoryBytes)
 	if err != nil {
 		unix.Close(int(vmFd))
@@ -98,7 +99,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, err
 	}
 
-	// Map guest memory into VM
+	// Register guest memory with KVM.
 	region := kvmUserspaceMemoryRegion{
 		Slot:          0,
 		GuestPhysAddr: guestMemBase,
@@ -112,7 +113,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, fmt.Errorf("KVM_SET_USER_MEMORY_REGION: %w", err)
 	}
 
-	// Load kernel into guest memory
+	// Load kernel into guest memory.
 	kernelSize, err := loadFileIntoMemory(mem, kernelLoadOffset, cfg.KernelPath)
 	if err != nil {
 		unix.Munmap(mem)
@@ -121,11 +122,14 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, fmt.Errorf("loading kernel: %w", err)
 	}
 
-	// Load initrd if provided
+	// Load initrd if provided.
+	// Place initrd at 50MB offset (matching QEMU virt layout).
 	var initrdAddr, initrdSize uint64
 	if cfg.InitrdPath != "" {
-		// Place initrd after kernel with alignment
-		initrdAddr = alignUp(kernelLoadOffset+kernelSize, 0x1000)
+		initrdAddr = 50 * 1024 * 1024
+		if initrdAddr < kernelLoadOffset+kernelSize {
+			initrdAddr = alignUp(kernelLoadOffset+kernelSize, 0x1000)
+		}
 		initrdSize, err = loadFileIntoMemory(mem, initrdAddr, cfg.InitrdPath)
 		if err != nil {
 			unix.Munmap(mem)
@@ -135,7 +139,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		}
 	}
 
-	// Create serial console pipes
+	// Create serial console pipes.
 	stdinReader, stdinWriter, err := os.Pipe()
 	if err != nil {
 		unix.Munmap(mem)
@@ -153,7 +157,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 
 	u := newUART(stdinReader, stdoutWriter, int(vmFd))
 
-	// Get vCPU mmap size
+	// Get vCPU mmap size.
 	vcpuMmapSize, err := getVCPUMmapSize(kvmFd)
 	if err != nil {
 		unix.Munmap(mem)
@@ -162,13 +166,12 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, err
 	}
 
-	// Create vCPUs
+	// Create vCPUs.
 	vcpuFds := make([]int, cfg.CPUCount)
 	vcpuRun := make([][]byte, cfg.CPUCount)
 	for i := uint(0); i < cfg.CPUCount; i++ {
 		vcpuFd, err := ioctl(int(vmFd), kvmCreateVCPU, uintptr(i))
 		if err != nil {
-			// Cleanup already created vCPUs
 			for j := uint(0); j < i; j++ {
 				unix.Close(vcpuFds[j])
 			}
@@ -179,7 +182,6 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		}
 		vcpuFds[i] = int(vcpuFd)
 
-		// mmap the kvm_run struct for this vCPU
 		run, err := unix.Mmap(vcpuFds[i], 0, vcpuMmapSize,
 			unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 		if err != nil {
@@ -194,15 +196,13 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		vcpuRun[i] = run
 	}
 
-	// Create virtio devices
+	// Create virtio devices.
 	var virtioDevs []*virtioMMIODev
 	var netDevs []*VirtioNetDevice
 	var consoleDev *VirtioConsoleDevice
 	devIdx := 0
 
-	// Virtio-console device — provides /dev/hvc0 as the initial console.
-	// This replaces PL011 for userspace I/O (PL011 earlycon still handles
-	// early kernel output before virtio probes).
+	// Virtio-console device — provides /dev/hvc0.
 	{
 		consoleDev = NewVirtioConsoleDevice(stdinReader, stdoutWriter)
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
@@ -212,12 +212,9 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
-	// VirtioFS devices for each mount
+	// VirtioFS devices for each mount.
 	for _, mount := range cfg.Mounts {
 		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
-		// Each virtio-mmio device gets its own MMIO region and SPI IRQ
-		// Base addresses start at 0x0a000000, each 0x200 apart
-		// SPI numbers start at 16 (GIC IRQ = SPI + 32)
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 		irqNum := uint32(16 + devIdx)
 		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
@@ -225,7 +222,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
-	// Virtio-net device backed by TAP interface
+	// Virtio-net device backed by TAP interface.
 	tapName := fmt.Sprintf("sandal%d", os.Getpid()%10000)
 	tap, err := createTAP(tapName)
 	if err != nil {
@@ -241,7 +238,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
-	// Initialize vCPU registers (architecture-specific)
+	// Initialize vCPU registers (architecture-specific).
 	bootParams := bootConfig{
 		kernelAddr:    guestMemBase + kernelLoadOffset,
 		initrdAddr:    guestMemBase + initrdAddr,
@@ -305,7 +302,7 @@ func (vm *VM) Start() error {
 		}(i)
 	}
 
-	// Start RX loops for virtio devices
+	// Start RX loops for virtio devices.
 	for _, vd := range vm.virtioDevs {
 		switch dev := vd.device.(type) {
 		case *VirtioConsoleDevice:
@@ -321,7 +318,6 @@ func (vm *VM) Start() error {
 
 	go func() {
 		wg.Wait()
-		// Stop net devices
 		for _, nd := range vm.netDevs {
 			nd.Stop()
 		}
@@ -334,9 +330,24 @@ func (vm *VM) Start() error {
 	return nil
 }
 
+// runVCPU executes the KVM_RUN loop for a single vCPU.
+// Modeled after QEMU's kvm_cpu_exec() in accel/kvm/kvm-all.c.
 func (vm *VM) runVCPU(cpuID int) {
+	// Pin this goroutine to an OS thread so KVM_SET_SIGNAL_MASK applies
+	// consistently and the vCPU fd stays on the same thread.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	fd := vm.vcpuFds[cpuID]
 	run := vm.vcpuRun[cpuID]
+
+	// Block SIGURG (Go's goroutine preemption signal, #23) during KVM_RUN.
+	// Without this, Go's sysmon sends SIGURG every ~20μs to preempt goroutines,
+	// which interrupts KVM_RUN with EINTR. This prevents the vCPU from sleeping
+	// in-kernel during WFI, causing ~100% CPU per vCPU when the guest is idle.
+	// This matches QEMU's kvm_init_cpu_signals() approach.
+	setVCPUSignalMask(fd)
+
 	for {
 		select {
 		case <-vm.stopCh:
@@ -346,8 +357,7 @@ func (vm *VM) runVCPU(cpuID int) {
 
 		_, err := ioctl(fd, kvmRun, 0)
 		if err != nil {
-			// EINTR is normal when we send signals to stop
-			if err == unix.EINTR {
+			if err == unix.EINTR || err == unix.EAGAIN {
 				select {
 				case <-vm.stopCh:
 					return
@@ -355,30 +365,48 @@ func (vm *VM) runVCPU(cpuID int) {
 					continue
 				}
 			}
-			// EAGAIN can happen, retry
-			if err == unix.EAGAIN {
-				continue
-			}
 			fmt.Fprintf(os.Stderr, "KVM_RUN[%d]: %v\n", cpuID, err)
 			return
 		}
 
-		exitReason := *(*uint32)(unsafe.Pointer(&run[8])) // offset of exit_reason in kvm_run
+		exitReason := *(*uint32)(unsafe.Pointer(&run[8]))
 
 		switch exitReason {
 		case kvmExitIO:
 			vm.handleExitIO(run)
 		case kvmExitMMIO:
 			vm.handleExitMMIO(run)
+		case kvmExitHLT:
+			// Guest executed HLT. With in-kernel GIC and PSCI v0.2+,
+			// WFI is handled in-kernel. If HLT exits reach here, the
+			// guest is done.
+			return
 		case kvmExitShutdown:
 			return
 		case kvmExitSystemEvent:
+			evType := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
+			switch evType {
+			case kvmSystemEventShutdown:
+				return
+			case kvmSystemEventReset:
+				fmt.Fprintf(os.Stderr, "vCPU %d: guest requested reset\n", cpuID)
+				return
+			case kvmSystemEventCrash:
+				fmt.Fprintf(os.Stderr, "vCPU %d: guest crashed\n", cpuID)
+				return
+			}
+		case kvmExitFailEntry:
+			fmt.Fprintf(os.Stderr, "vCPU %d: fail entry\n", cpuID)
 			return
 		case kvmExitInternalErr:
-			fmt.Fprintf(os.Stderr, "KVM internal error on vCPU %d\n", cpuID)
+			suberror := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
+			fmt.Fprintf(os.Stderr, "vCPU %d: KVM internal error suberror=%d\n", cpuID, suberror)
 			return
+		case kvmExitIntr:
+			// Interrupted by signal, continue.
+			continue
 		default:
-			fmt.Fprintf(os.Stderr, "Unhandled KVM exit reason %d on vCPU %d\n", exitReason, cpuID)
+			fmt.Fprintf(os.Stderr, "vCPU %d: unhandled exit reason %d\n", cpuID, exitReason)
 			return
 		}
 	}
@@ -387,21 +415,20 @@ func (vm *VM) runVCPU(cpuID int) {
 func (vm *VM) handleExitIO(run []byte) {
 	exitIO := (*kvmRunExitIO)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 	dataPtr := unsafe.Pointer(&run[exitIO.DataOffset])
-
 	vm.uart.handleIO(exitIO.Direction, exitIO.Port, exitIO.Size, dataPtr)
 }
 
 func (vm *VM) handleExitMMIO(run []byte) {
 	exitMMIO := (*kvmRunExitMMIO)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 
-	// Try virtio devices first
+	// Try virtio devices first.
 	for _, vdev := range vm.virtioDevs {
 		if vdev.HandleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:]) {
 			return
 		}
 	}
 
-	// Fall back to UART
+	// Fall back to UART.
 	vm.uart.handleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:])
 }
 
@@ -434,9 +461,7 @@ func (vm *VM) WaitUntilStopped() error {
 // StartIORelay starts goroutines that relay between the VM serial console
 // and the provided reader/writer (typically os.Stdin and os.Stdout).
 func (vm *VM) StartIORelay(input io.Reader, output io.Writer) {
-	// Guest stdout -> host output
 	go io.Copy(output, vm.stdoutReader)
-	// Host input -> guest stdin
 	go io.Copy(vm.stdinWriter, input)
 }
 

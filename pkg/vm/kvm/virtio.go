@@ -63,15 +63,7 @@ const (
 	vringDescFNext  = 1
 	vringDescFWrite = 2
 
-	// KVM IRQ injection
-	kvmIRQLine = 0x4008AE61 // _IOW(KVMIO, 0x61, struct kvm_irq_level)
 )
-
-// kvmIRQLevel corresponds to struct kvm_irq_level
-type kvmIRQLevel struct {
-	IRQ   uint32
-	Level uint32
-}
 
 // virtqueue represents a single virtio virtqueue with split ring layout.
 type virtqueue struct {
