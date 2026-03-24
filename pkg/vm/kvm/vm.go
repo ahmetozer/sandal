@@ -68,6 +68,7 @@ type VM struct {
 	virtioDevs []*virtioMMIODev
 	consoleDev *VirtioConsoleDevice
 	netDevs    []*VirtioNetDevice
+	blkDevs    []*VirtioBlkDevice
 	tap        *tapDevice
 }
 
@@ -212,6 +213,35 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
+	// Virtio-blk devices for disk and ISO images.
+	var blkDevs []*VirtioBlkDevice
+	if cfg.DiskPath != "" {
+		blkDev, err := NewVirtioBlkDevice(cfg.DiskPath, false)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to open disk %s: %v\n", cfg.DiskPath, err)
+		} else {
+			baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+			irqNum := uint32(16 + devIdx)
+			vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, blkDev)
+			virtioDevs = append(virtioDevs, vDev)
+			blkDevs = append(blkDevs, blkDev)
+			devIdx++
+		}
+	}
+	if cfg.ISOPath != "" {
+		isoDev, err := NewVirtioBlkDevice(cfg.ISOPath, true)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to open ISO %s: %v\n", cfg.ISOPath, err)
+		} else {
+			baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+			irqNum := uint32(16 + devIdx)
+			vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, isoDev)
+			virtioDevs = append(virtioDevs, vDev)
+			blkDevs = append(blkDevs, isoDev)
+			devIdx++
+		}
+	}
+
 	// VirtioFS devices for each mount.
 	for _, mount := range cfg.Mounts {
 		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
@@ -228,6 +258,11 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to create TAP device: %v (networking disabled)\n", err)
 	} else {
+		// Attach TAP to the sandal0 bridge (same network as containers).
+		if err := tap.attachToBridge(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: bridge attachment failed: %v (networking may not work)\n", err)
+		}
+
 		mac := [6]byte{0x52, 0x54, 0x00, byte(os.Getpid() >> 8), byte(os.Getpid()), 0x01}
 		netDev := NewVirtioNetDevice(tap, mac)
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
@@ -279,6 +314,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		virtioDevs:   virtioDevs,
 		consoleDev:   consoleDev,
 		netDevs:      netDevs,
+		blkDevs:      blkDevs,
 		tap:          tap,
 	}, nil
 }
@@ -477,6 +513,9 @@ func (vm *VM) Close() {
 	vm.stdinWriter.Close()
 	vm.stdoutReader.Close()
 	vm.stdoutWriter.Close()
+	for _, blk := range vm.blkDevs {
+		blk.Close()
+	}
 	if vm.tap != nil {
 		vm.tap.Close()
 	}

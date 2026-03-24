@@ -4,12 +4,17 @@ package cruntime
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
+	"time"
 
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -54,8 +59,8 @@ func importKernelCmdlineEnv() {
 		if idx := strings.IndexByte(param, '='); idx > 0 {
 			key := param[:idx]
 			val := param[idx+1:]
-			// SANDAL_VM_ARGS is base64-encoded to survive kernel cmdline parsing
-			if key == "SANDAL_VM_ARGS" {
+			// SANDAL_VM_ARGS and SANDAL_VM_NET are base64-encoded to survive kernel cmdline parsing
+			if key == "SANDAL_VM_ARGS" || key == "SANDAL_VM_NET" {
 				if decoded, err := base64.StdEncoding.DecodeString(val); err == nil {
 					val = string(decoded)
 				}
@@ -225,6 +230,92 @@ func VMInit() error {
 		}
 	}
 
+	// Configure guest network from SANDAL_VM_NET (JSON-encoded Link from host).
+	// The host allocated an IP from the sandal0 bridge subnet and passed it here.
+	if netSpec := os.Getenv("SANDAL_VM_NET"); netSpec != "" {
+		if err := vmConfigureNetwork(netSpec); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: guest network setup failed: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+// vmConfigureNetwork configures the guest network interface from a JSON-encoded
+// sandalnet.Link. The host allocated an IP and gateway from the sandal0 bridge.
+func vmConfigureNetwork(netSpec string) error {
+	var link sandalnet.Link
+	if err := json.Unmarshal([]byte(netSpec), &link); err != nil {
+		return fmt.Errorf("parsing SANDAL_VM_NET: %w", err)
+	}
+
+	// Wait for the virtio-net interface to appear (loaded via virtio_net module).
+	// The interface may take a moment to register after modprobe.
+	var nLink netlink.Link
+	ifName := link.Name
+	if ifName == "" {
+		ifName = "eth0"
+	}
+	for i := 0; i < 50; i++ {
+		var err error
+		nLink, err = netlink.LinkByName(ifName)
+		if err == nil {
+			break
+		}
+		// Also try finding any virtio net interface
+		links, _ := netlink.LinkList()
+		for _, l := range links {
+			if l.Attrs().Name != "lo" && l.Type() == "device" {
+				nLink = l
+				ifName = l.Attrs().Name
+				break
+			}
+		}
+		if nLink != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if nLink == nil {
+		return fmt.Errorf("network interface %s not found", ifName)
+	}
+
+	// Assign IP addresses
+	for _, addr := range link.Addr {
+		nlAddr := &netlink.Addr{
+			IPNet: &net.IPNet{
+				IP:   addr.IP,
+				Mask: addr.IPNet.Mask,
+			},
+		}
+		if err := netlink.AddrAdd(nLink, nlAddr); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to add %s to %s: %v\n", addr.IP, ifName, err)
+		}
+	}
+
+	// Bring interface up
+	if err := netlink.LinkSetUp(nLink); err != nil {
+		return fmt.Errorf("bringing up %s: %w", ifName, err)
+	}
+
+	// Set default routes from gateway (same pattern as init.go)
+	gw4, gw6 := sandalnet.Links{link}.FindGateways()
+	if gw4.IP != nil {
+		netlink.RouteAdd(&netlink.Route{
+			LinkIndex: nLink.Attrs().Index,
+			Gw:        gw4.IP,
+			Dst:       gw4.IPNet,
+		})
+	}
+	if gw6.IP != nil {
+		netlink.RouteAdd(&netlink.Route{
+			LinkIndex: nLink.Attrs().Index,
+			Gw:        gw6.IP,
+			Dst:       gw6.IPNet,
+		})
+	}
+
+	fmt.Fprintf(os.Stderr, "Network: %s configured with %v\n", ifName, link.Addr)
 	return nil
 }
 

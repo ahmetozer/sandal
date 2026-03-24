@@ -6,10 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
@@ -90,11 +93,44 @@ func runInKVM(args []string) error {
 	}
 	argsEncoded := base64.StdEncoding.EncodeToString(argsJSON)
 
+	// Allocate a network configuration for the VM from the sandal0 bridge.
+	// This mirrors how containers get IPs via Link.defaults() in link.go.
+	var vmNetEncoded string
+	bridge, bridgeErr := sandalnet.CreateDefaultBridge()
+	if bridgeErr != nil && bridgeErr != os.ErrExist {
+		slog.Warn("runInKVM", slog.String("action", "create bridge"), slog.Any("error", bridgeErr))
+	}
+	if bridge != nil {
+		hostAddrs, err := sandalnet.GetAddrsByName(sandalnet.DefaultBridgeInterface)
+		if err == nil && len(hostAddrs) > 0 {
+			conts, _ := controller.Containers()
+			link := sandalnet.Link{Name: "eth0"}
+			for _, ha := range hostAddrs {
+				ip, err := sandalnet.IPRequest(&conts, ha.IPNet)
+				if err != nil {
+					slog.Warn("runInKVM", slog.String("action", "ip allocation"), slog.Any("error", err))
+					continue
+				}
+				link.Addr = append(link.Addr, sandalnet.Addr{IP: ip, IPNet: ha.IPNet})
+				link.Route = append(link.Route, ha)
+			}
+			if len(link.Addr) > 0 {
+				netJSON, err := json.Marshal(link)
+				if err == nil {
+					vmNetEncoded = base64.StdEncoding.EncodeToString(netJSON)
+				}
+			}
+		}
+	}
+
 	// Build kernel command line
 	var cmdLineParts []string
 	cmdLineParts = append(cmdLineParts, defaultConsole(), "loglevel="+KernelLogLevel)
 	cmdLineParts = append(cmdLineParts, "SANDAL_VM=kvm")
 	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+argsEncoded)
+	if vmNetEncoded != "" {
+		cmdLineParts = append(cmdLineParts, "SANDAL_VM_NET="+vmNetEncoded)
+	}
 	if len(mountEntries) > 0 {
 		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
 	}

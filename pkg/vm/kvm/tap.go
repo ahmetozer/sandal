@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 	"unsafe"
+
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -78,5 +81,33 @@ func (t *tapDevice) Fd() int {
 
 func (t *tapDevice) Close() error {
 	return t.file.Close()
+}
+
+// attachToBridge attaches the TAP device to the sandal0 bridge,
+// the same way container veth pairs are connected.
+func (t *tapDevice) attachToBridge() error {
+	// Ensure sandal0 bridge exists (idempotent — returns os.ErrExist if already created)
+	bridge, err := sandalnet.CreateDefaultBridge()
+	if err != nil && err != os.ErrExist {
+		return fmt.Errorf("creating bridge: %w", err)
+	}
+
+	// Get TAP link by name
+	tapLink, err := netlink.LinkByName(t.name)
+	if err != nil {
+		return fmt.Errorf("finding TAP %s: %w", t.name, err)
+	}
+
+	// Attach TAP to sandal0 bridge (same as veth host-side attachment)
+	if err := netlink.LinkSetMaster(tapLink, bridge); err != nil {
+		return fmt.Errorf("attaching %s to bridge: %w", t.name, err)
+	}
+
+	// Bring TAP interface up
+	if err := netlink.LinkSetUp(tapLink); err != nil {
+		return fmt.Errorf("bringing up %s: %w", t.name, err)
+	}
+
+	return nil
 }
 

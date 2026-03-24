@@ -11,7 +11,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 )
 
-func ipRequest(conts *[]*config.Config, x *net.IPNet) (ip net.IP, err error) {
+func IPRequest(conts *[]*config.Config, x *net.IPNet) (ip net.IP, err error) {
 	var IPnet net.IPNet
 	err = deepCopy(x, &IPnet)
 	if err != nil {

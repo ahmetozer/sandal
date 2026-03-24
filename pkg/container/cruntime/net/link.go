@@ -62,7 +62,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 			contAddrs := make(Addrs, 0)
 			if err == nil {
 				for i := range hostAddrs {
-					IP, err := ipRequest(conts, hostAddrs[i].IPNet)
+					IP, err := IPRequest(conts, hostAddrs[i].IPNet)
 					if err != nil {
 						slog.Warn("unable to allocate ip", "err", err)
 						continue
