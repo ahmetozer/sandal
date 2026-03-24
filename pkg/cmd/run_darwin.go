@@ -14,7 +14,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
-	"github.com/ahmetozer/sandal/pkg/vm/vz"
+	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 )
 
 func Run(args []string) error {
@@ -31,17 +31,17 @@ func Run(args []string) error {
 	hostPaths := scanMountPaths(cleanArgs)
 
 	// Build VM config: load from template if -vm was specified, otherwise use defaults
-	var cfg vz.VMConfig
+	var cfg vmconfig.VMConfig
 	if vmFlag != "" {
 		var err error
-		cfg, err = vz.LoadConfig(vmFlag)
+		cfg, err = vmconfig.LoadConfig(vmFlag)
 		if err != nil {
 			return fmt.Errorf("loading VM config '%s': %w", vmFlag, err)
 		}
 	} else {
-		cfg = vz.VMConfig{
-			CPUCount:    vz.DefaultCPUCount,
-			MemoryBytes: vz.DefaultMemoryMB * vz.MB,
+		cfg = vmconfig.VMConfig{
+			CPUCount:    vmconfig.DefaultCPUCount,
+			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
 		}
 	}
 
@@ -75,7 +75,7 @@ func Run(args []string) error {
 	// Build VirtioFS mounts from collected host paths.
 	// Each unique host directory gets a VirtioFS share.
 	// Mount mapping is passed as SANDAL_VM_MOUNTS=tag=hostpath,tag=hostpath
-	var vmMounts []vz.MountConfig
+	var vmMounts []vmconfig.MountConfig
 	var mountEntries []string
 	seen := make(map[string]bool)
 
@@ -98,7 +98,7 @@ func Run(args []string) error {
 		seen[shareDir] = true
 
 		tag := fmt.Sprintf("fs-%d", i)
-		vmMounts = append(vmMounts, vz.MountConfig{
+		vmMounts = append(vmMounts, vmconfig.MountConfig{
 			Tag:      tag,
 			HostPath: shareDir,
 		})
@@ -111,7 +111,7 @@ func Run(args []string) error {
 	if !seen[sandalLibDir] {
 		seen[sandalLibDir] = true
 		tag := "sandal-lib"
-		vmMounts = append(vmMounts, vz.MountConfig{
+		vmMounts = append(vmMounts, vmconfig.MountConfig{
 			Tag:      tag,
 			HostPath: sandalLibDir,
 		})
@@ -186,10 +186,10 @@ func Run(args []string) error {
 
 	// Each run gets an ephemeral VM that is cleaned up on exit.
 	vmName := fmt.Sprintf("run-%d", os.Getpid())
-	if err := vz.SaveConfig(vmName, cfg); err != nil {
+	if err := vmconfig.SaveConfig(vmName, cfg); err != nil {
 		return fmt.Errorf("saving ephemeral VM config: %w", err)
 	}
-	defer vz.DeleteVM(vmName)
+	defer vmconfig.DeleteVM(vmName)
 
 	return bootVM(vmName, cfg)
 }
