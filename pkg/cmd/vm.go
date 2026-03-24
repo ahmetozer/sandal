@@ -105,7 +105,7 @@ func vmCreate(args []string) error {
 	name := fs.String("name", "", "VM name (required)")
 	kernelFlag := fs.String("kernel", "", "Path to Linux kernel Image (auto-downloaded if empty)")
 	initrdFlag := fs.String("initrd", "", "Path to initrd (optional)")
-	cmdLine := fs.String("cmdline", defaultConsole(), "Kernel command line")
+	cmdLine := fs.String("cmdline", vmconfig.DefaultConsole(), "Kernel command line")
 	diskPath := fs.String("disk", "", "Path to disk image (optional)")
 	isoPath := fs.String("iso", "", "Path to ISO image (optional, mounted as read-only disk)")
 	var mounts repeatableFlag
@@ -182,7 +182,7 @@ func vmRun(args []string) error {
 	name := fs.String("name", "", "VM name (auto-generated if empty)")
 	kernelFlag := fs.String("kernel", "", "Path to Linux kernel Image (auto-downloaded if empty)")
 	initrdFlag := fs.String("initrd", "", "Path to initrd (auto-downloaded if empty)")
-	cmdLine := fs.String("cmdline", defaultConsole(), "Kernel command line")
+	cmdLine := fs.String("cmdline", vmconfig.DefaultConsole(), "Kernel command line")
 	diskPath := fs.String("disk", "", "Path to disk image (optional)")
 	isoPath := fs.String("iso", "", "Path to ISO image (optional)")
 	var mounts repeatableFlag
@@ -305,7 +305,7 @@ func startVM(name string, cfg vmconfig.VMConfig) error {
 		}
 	}
 
-	return bootVM(name, cfg)
+	return platformBoot(name, cfg)
 }
 
 func vmList() error {
