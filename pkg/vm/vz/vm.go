@@ -15,6 +15,8 @@ import (
 	"os"
 	"sync"
 	"unsafe"
+
+	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 )
 
 type VMState int
@@ -55,7 +57,7 @@ func (s VMState) String() string {
 
 type VM struct {
 	Name         string
-	Config       VMConfig
+	Config       vmconfig.VMConfig
 	vmHandle     unsafe.Pointer
 	mu           sync.Mutex
 	stdinWriter  *os.File // host writes here -> guest reads
@@ -102,7 +104,7 @@ func goVMDidStopWithError(errMsg *C.char) {
 	}
 }
 
-func NewVM(name string, cfg VMConfig) (*VM, error) {
+func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	var errOut *C.char
 
 	// Boot loader
