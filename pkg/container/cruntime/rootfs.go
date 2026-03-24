@@ -12,6 +12,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
+	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -131,7 +132,7 @@ func mountRootfs(c *config.Config) error {
 			if p := strings.Split(source, ":"); len(p) > 0 {
 				basePath = p[0]
 			}
-			basePath = vmResolvePath(basePath)
+			basePath = guest.ResolvePath(basePath)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("source", source), slog.String("basePath", basePath), slog.String("target", la.Target), slog.Bool("subMounts", la.SubMounts))
 
 			// Resolve the source to a mountable directory.

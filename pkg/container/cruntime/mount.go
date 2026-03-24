@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"golang.org/x/sys/unix"
 )
 
@@ -189,7 +190,7 @@ func mount(source, target, fstype string, flags uintptr, data string) error {
 
 	slog.Debug("mount", slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype))
 
-	source = vmResolvePath(source)
+	source = guest.ResolvePath(source)
 
 	// empty mount used for removing old root access from container
 	if source != "" && source[0:1] == "/" {
@@ -252,7 +253,7 @@ func mountVolumes(c *config.Config) error {
 			return fmt.Errorf("unexpected mount configuration '%s'", v)
 		}
 
-		src := vmResolvePath(m[0])
+		src := guest.ResolvePath(m[0])
 
 		// Validate source is an absolute path
 		if !filepath.IsAbs(src) {

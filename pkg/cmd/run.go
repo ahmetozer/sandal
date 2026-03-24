@@ -13,6 +13,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/capabilities"
+	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -38,7 +39,7 @@ func Run(args []string) error {
 	}
 
 	// Check if -vm flag is present — if so, boot a KVM VM with sandal as init
-	if !cruntime.IsVMInit() && hasFlag(args, "vm") {
+	if !guest.IsVMInit() && hasFlag(args, "vm") {
 		return runInKVM(args)
 	}
 

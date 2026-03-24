@@ -8,12 +8,13 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"golang.org/x/sys/unix"
 )
 
 func platformMain() {
-	if cruntime.IsVMInit() {
-		if err := cruntime.VMInit(); err != nil {
+	if guest.IsVMInit() {
+		if err := guest.VMInit(); err != nil {
 			fmt.Fprintf(os.Stderr, "VMInit error: %v\n", err)
 			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
 			os.Exit(1)
