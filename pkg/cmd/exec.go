@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime"
 	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
@@ -16,7 +17,7 @@ import (
 )
 
 func ExecOnContainer(args []string) error {
-	thisFlags, childArgs, splitFlagErr := SplitFlagsArgs(args)
+	thisFlags, childArgs, splitFlagErr := runCmd.SplitFlagsArgs(args)
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
