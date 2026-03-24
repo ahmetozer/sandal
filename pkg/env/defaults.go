@@ -43,10 +43,17 @@ func GetDefaults() []SandalSystemEnv {
 }
 
 func init() {
-	if len(os.Args) > 0 {
+	if os.Getpid() == 1 {
+		// Running as VM init (PID 1): /proc may not be fully ready,
+		// PATH is empty, and LookPath can block. Use argv[0] directly.
+		if len(os.Args) > 0 {
+			BinLoc = os.Args[0]
+		} else {
+			BinLoc = "/init"
+		}
+	} else if len(os.Args) > 0 {
 		ex, err := os.Executable()
 		if err != nil {
-			// /proc may not be mounted yet (e.g. sandal running as VM init PID 1)
 			BinLoc = os.Args[0]
 		} else {
 			BinLoc, err = exec.LookPath(ex)

@@ -173,6 +173,15 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	writeCPIODir(&initCPIO, "dev", 0xFFF0)
 	writeCPIOCharDev(&initCPIO, "dev/console", 020620, 5, 1, 0xFFF1)
 
+	// Go's net package probes /etc/nsswitch.conf at init time to decide
+	// whether to use cgo or pure-Go resolver. Without this file, the
+	// probe hangs at PID 1 in initramfs. Provide minimal /etc files so
+	// Go's runtime can initialize.
+	writeCPIODir(&initCPIO, "etc", 0xFFE0)
+	writeCPIOFile(&initCPIO, "etc/nsswitch.conf", []byte("hosts: files dns\n"), 0100644, 0xFFE1)
+	writeCPIOFile(&initCPIO, "etc/resolv.conf", []byte(""), 0100644, 0xFFE2)
+	writeCPIOFile(&initCPIO, "etc/hosts", []byte("127.0.0.1 localhost\n::1 localhost\n"), 0100644, 0xFFE3)
+
 	if len(preinitBinary) > 0 {
 		// On KVM: use the preinit stub as /init which mounts /proc, /dev,
 		// sets up console fds, then execve's /sandal-init.

@@ -212,6 +212,11 @@ func (u *uart) handleMMIO(addr uint64, length uint32, isWrite uint8, data []byte
 			return
 		case pl011IMSC:
 			u.intEnabled = val
+			// When TX interrupt is enabled and TX FIFO is empty, assert immediately.
+			// The PL011 driver relies on this to kick off the first TX.
+			if val&pl011IntTX != 0 {
+				u.intLevel |= pl011IntTX
+			}
 			u.updateIRQLocked()
 		case pl011ICR:
 			u.intLevel &^= val
