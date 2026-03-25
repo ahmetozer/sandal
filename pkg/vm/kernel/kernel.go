@@ -3,6 +3,7 @@ package kernel
 import (
 	"archive/tar"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -67,7 +68,7 @@ func EnsureKernel() (string, error) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "Downloading kernel %s-%s ...\n", pkgName, version)
+	slog.Info("downloading kernel", slog.String("package", pkgName), slog.String("version", version))
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("creating cache dir: %w", err)
@@ -79,7 +80,7 @@ func EnsureKernel() (string, error) {
 		return "", fmt.Errorf("downloading kernel: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Kernel cached at %s\n", kernelPath)
+	slog.Info("kernel cached", slog.String("path", kernelPath))
 	return kernelPath, nil
 }
 
@@ -152,7 +153,7 @@ func downloadAndExtractAPK(url, cacheDir, version string) error {
 
 	// Build initramfs from collected modules
 	if len(modules) > 0 {
-		fmt.Fprintf(os.Stderr, "Building modules initramfs (%d modules) ...\n", len(modules))
+		slog.Info("building modules initramfs", slog.Int("modules", len(modules)))
 		if err := buildModulesInitrd(initrdPath, modules); err != nil {
 			os.Remove(initrdPath)
 			return fmt.Errorf("building modules initrd: %w", err)

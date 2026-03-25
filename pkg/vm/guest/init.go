@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strings"
@@ -136,7 +137,11 @@ func VMInit() error {
 	unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
 
 	// Load kernel modules before switch_root (modules live in the base initrd).
+	// virtio_mmio must be loaded first — it creates the virtio bus devices
+	// that virtiofs, virtio_net, and virtio_blk bind to.
 	for _, mod := range []string{
+		// Virtio transport (must come before device drivers)
+		"virtio_mmio",
 		// Filesystems
 		"fuse", "virtiofs", "overlay", "loop", "squashfs", "ext4",
 		// Networking
@@ -153,7 +158,7 @@ func VMInit() error {
 		"virtio_net", "virtio_blk",
 	} {
 		if err := modprobe.Load(mod); err != nil {
-			fmt.Fprintf(os.Stderr, "modprobe %s: %v\n", mod, err)
+			slog.Warn("modprobe", slog.String("module", mod), slog.Any("err", err))
 		}
 	}
 
@@ -215,7 +220,7 @@ func VMInit() error {
 		}
 		parts := strings.SplitN(entry, "=", 3)
 		if len(parts) < 2 {
-			fmt.Fprintf(os.Stderr, "Warning: invalid mount spec %q\n", entry)
+			slog.Warn("invalid mount spec", slog.String("entry", entry))
 			continue
 		}
 		tag := parts[0]
@@ -225,8 +230,18 @@ func VMInit() error {
 			mountPoint = parts[2]
 		}
 		os.MkdirAll(mountPoint, 0755)
-		if err := unix.Mount(tag, mountPoint, "virtiofs", 0, ""); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to mount virtiofs %s at %s: %v\n", tag, mountPoint, err)
+		// Retry briefly — the virtiofs driver may still be probing the device
+		// after module load, especially when virtio_mmio is loaded as a module.
+		var mountErr error
+		for attempt := 0; attempt < 50; attempt++ {
+			mountErr = unix.Mount(tag, mountPoint, "virtiofs", 0, "")
+			if mountErr == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if mountErr != nil {
+			slog.Warn("failed to mount virtiofs", slog.String("tag", tag), slog.String("mountpoint", mountPoint), slog.Any("err", mountErr))
 		}
 	}
 
@@ -234,7 +249,7 @@ func VMInit() error {
 	// The host allocated an IP from the sandal0 bridge subnet and passed it here.
 	if netSpec := os.Getenv("SANDAL_VM_NET"); netSpec != "" {
 		if err := vmConfigureNetwork(netSpec); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: guest network setup failed: %v\n", err)
+			slog.Warn("guest network setup failed", slog.Any("err", err))
 		}
 	}
 
@@ -289,7 +304,7 @@ func vmConfigureNetwork(netSpec string) error {
 			},
 		}
 		if err := netlink.AddrAdd(nLink, nlAddr); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to add %s to %s: %v\n", addr.IP, ifName, err)
+			slog.Warn("failed to add address", slog.String("ip", addr.IP.String()), slog.String("iface", ifName), slog.Any("err", err))
 		}
 	}
 
@@ -315,6 +330,6 @@ func vmConfigureNetwork(netSpec string) error {
 		})
 	}
 
-	fmt.Fprintf(os.Stderr, "Network: %s configured with %v\n", ifName, link.Addr)
+	slog.Info("network configured", slog.String("iface", ifName), slog.Any("addr", link.Addr))
 	return nil
 }

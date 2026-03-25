@@ -4,8 +4,7 @@ package kvm
 
 import (
 	"encoding/binary"
-	"fmt"
-	"os"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -87,7 +86,7 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 	for _, buf := range readBufs {
 		n, err := d.tap.file.Write(buf)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "virtio-net: TAP write error: %v\n", err)
+			slog.Error("virtio-net TAP write error", slog.Any("err", err))
 			break
 		}
 		total += n

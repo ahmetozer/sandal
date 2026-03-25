@@ -4,6 +4,7 @@ package kvm
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"unsafe"
 
@@ -253,6 +254,6 @@ func setVCPUSignalMask(vcpuFd int) {
 	// SIGURG=23 is NOT set, so it will be blocked during KVM_RUN.
 
 	if _, err := ioctlPtr(vcpuFd, kvmSetSignalMask, unsafe.Pointer(&mask)); err != nil {
-		fmt.Fprintf(os.Stderr, "KVM_SET_SIGNAL_MASK: %v (idle CPU may be higher)\n", err)
+		slog.Warn("KVM_SET_SIGNAL_MASK, idle CPU may be higher", slog.Any("err", err))
 	}
 }

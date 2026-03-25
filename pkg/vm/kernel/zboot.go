@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
+	"log/slog"
 )
 
 // decompressZBoot checks if data is an EFI ZBOOT compressed kernel (magic "zimg"
@@ -27,7 +27,7 @@ func decompressZBoot(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ZBOOT payload extends beyond file (offset=%d size=%d filesize=%d)", payloadOffset, payloadSize, len(data))
 	}
 
-	fmt.Fprintf(os.Stderr, "Decompressing EFI ZBOOT kernel ...\n")
+	slog.Info("decompressing EFI ZBOOT kernel")
 
 	gr, err := gzip.NewReader(bytes.NewReader(data[payloadOffset : payloadOffset+payloadSize]))
 	if err != nil {

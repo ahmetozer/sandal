@@ -5,6 +5,7 @@ package kvm
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime"
 	"sync"
@@ -218,7 +219,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	if cfg.DiskPath != "" {
 		blkDev, err := NewVirtioBlkDevice(cfg.DiskPath, false)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to open disk %s: %v\n", cfg.DiskPath, err)
+			slog.Warn("failed to open disk", slog.String("path", cfg.DiskPath), slog.Any("err", err))
 		} else {
 			baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 			irqNum := uint32(16 + devIdx)
@@ -231,7 +232,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	if cfg.ISOPath != "" {
 		isoDev, err := NewVirtioBlkDevice(cfg.ISOPath, true)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to open ISO %s: %v\n", cfg.ISOPath, err)
+			slog.Warn("failed to open ISO", slog.String("path", cfg.ISOPath), slog.Any("err", err))
 		} else {
 			baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 			irqNum := uint32(16 + devIdx)
@@ -256,11 +257,11 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	tapName := fmt.Sprintf("sandal%d", os.Getpid()%10000)
 	tap, err := createTAP(tapName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to create TAP device: %v (networking disabled)\n", err)
+		slog.Warn("failed to create TAP device, networking disabled", slog.Any("err", err))
 	} else {
 		// Attach TAP to the sandal0 bridge (same network as containers).
 		if err := tap.attachToBridge(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: bridge attachment failed: %v (networking may not work)\n", err)
+			slog.Warn("bridge attachment failed, networking may not work", slog.Any("err", err))
 		}
 
 		mac := [6]byte{0x52, 0x54, 0x00, byte(os.Getpid() >> 8), byte(os.Getpid()), 0x01}
@@ -401,7 +402,7 @@ func (vm *VM) runVCPU(cpuID int) {
 					continue
 				}
 			}
-			fmt.Fprintf(os.Stderr, "KVM_RUN[%d]: %v\n", cpuID, err)
+			slog.Error("KVM_RUN", slog.Int("vcpu", cpuID), slog.Any("err", err))
 			return
 		}
 
@@ -425,24 +426,24 @@ func (vm *VM) runVCPU(cpuID int) {
 			case kvmSystemEventShutdown:
 				return
 			case kvmSystemEventReset:
-				fmt.Fprintf(os.Stderr, "vCPU %d: guest requested reset\n", cpuID)
+				slog.Warn("guest requested reset", slog.Int("vcpu", cpuID))
 				return
 			case kvmSystemEventCrash:
-				fmt.Fprintf(os.Stderr, "vCPU %d: guest crashed\n", cpuID)
+				slog.Error("guest crashed", slog.Int("vcpu", cpuID))
 				return
 			}
 		case kvmExitFailEntry:
-			fmt.Fprintf(os.Stderr, "vCPU %d: fail entry\n", cpuID)
+			slog.Error("vCPU fail entry", slog.Int("vcpu", cpuID))
 			return
 		case kvmExitInternalErr:
 			suberror := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
-			fmt.Fprintf(os.Stderr, "vCPU %d: KVM internal error suberror=%d\n", cpuID, suberror)
+			slog.Error("KVM internal error", slog.Int("vcpu", cpuID), slog.Int("suberror", int(suberror)))
 			return
 		case kvmExitIntr:
 			// Interrupted by signal, continue.
 			continue
 		default:
-			fmt.Fprintf(os.Stderr, "vCPU %d: unhandled exit reason %d\n", cpuID, exitReason)
+			slog.Error("unhandled exit reason", slog.Int("vcpu", cpuID), slog.Int("reason", int(exitReason)))
 			return
 		}
 	}
