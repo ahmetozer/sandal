@@ -4,6 +4,7 @@ package kvm
 
 import (
 	"encoding/binary"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -339,8 +340,22 @@ func (d *VirtioFSDevice) handleFuseRequest(readBufs, writeBufs [][]byte) uint32 
 		return 0
 	}
 
-	// First read buffer contains the FUSE in header
-	inData := readBufs[0]
+	// Concatenate read buffers — the guest splits the FUSE request header
+	// and body across separate descriptors.
+	var inData []byte
+	if len(readBufs) == 1 {
+		inData = readBufs[0]
+	} else {
+		total := 0
+		for _, rb := range readBufs {
+			total += len(rb)
+		}
+		inData = make([]byte, 0, total)
+		for _, rb := range readBufs {
+			inData = append(inData, rb...)
+		}
+	}
+
 	if len(inData) < int(unsafe.Sizeof(fuseInHeader{})) {
 		return 0
 	}
@@ -349,16 +364,45 @@ func (d *VirtioFSDevice) handleFuseRequest(readBufs, writeBufs [][]byte) uint32 
 	bodyOffset := unsafe.Sizeof(fuseInHeader{})
 	inBody := inData[bodyOffset:]
 
-	// Extra read buffers (e.g., write data after fuseWriteIn)
+	// For FUSE_WRITE, the write data may be in a separate descriptor
+	// beyond header+body. Extract it from the remaining inData.
+	writeInSize := int(unsafe.Sizeof(fuseWriteIn{}))
 	var extraRead []byte
-	if len(readBufs) > 1 {
-		extraRead = readBufs[1]
+	if hdr.Opcode == fuseWrite && len(inBody) > writeInSize {
+		extraRead = inBody[writeInSize:]
+		inBody = inBody[:writeInSize]
 	}
 
-	// First write buffer is where we put the response
-	outBuf := writeBufs[0]
+	// Concatenate all write buffers into a single response buffer.
+	// The guest may split the writable area across multiple descriptors
+	// (e.g., 16 bytes for the header + separate buffer for the payload).
+	var outBuf []byte
+	if len(writeBufs) == 1 {
+		outBuf = writeBufs[0]
+	} else {
+		total := 0
+		for _, wb := range writeBufs {
+			total += len(wb)
+		}
+		outBuf = make([]byte, total)
+	}
 
-	return d.dispatch(hdr, inBody, extraRead, outBuf)
+	n := d.dispatch(hdr, inBody, extraRead, outBuf)
+
+	// If we used a combined buffer, copy the response back to the
+	// individual guest writable descriptors.
+	if len(writeBufs) > 1 {
+		remaining := outBuf[:n]
+		for _, wb := range writeBufs {
+			copied := copy(wb, remaining)
+			remaining = remaining[copied:]
+			if len(remaining) == 0 {
+				break
+			}
+		}
+	}
+
+	return n
 }
 
 func (d *VirtioFSDevice) dispatch(hdr *fuseInHeader, inBody []byte, extraRead []byte, outBuf []byte) uint32 {
@@ -407,6 +451,7 @@ func (d *VirtioFSDevice) dispatch(hdr *fuseInHeader, inBody []byte, extraRead []
 	case fuseRename2:
 		return d.handleRename2(hdr, inBody, outBuf)
 	default:
+		slog.Warn("fuse-unhandled", slog.Int("op", int(hdr.Opcode)))
 		return d.replyError(hdr, outBuf, fuseErrNOSYS)
 	}
 }
@@ -513,6 +558,7 @@ func (d *VirtioFSDevice) handleLookup(hdr *fuseInHeader, inBody []byte, outBuf [
 
 	var stat syscall.Stat_t
 	if err := syscall.Lstat(childPath, &stat); err != nil {
+		slog.Debug("fuse lookup err", slog.String("path", childPath), slog.Any("err", err))
 		return d.replyError(hdr, outBuf, errnoToFuse(err))
 	}
 
@@ -621,6 +667,7 @@ func (d *VirtioFSDevice) handleOpen(hdr *fuseInHeader, inBody []byte, outBuf []b
 
 	f, err := os.OpenFile(path, flags, 0)
 	if err != nil {
+		slog.Debug("fuse open err", slog.String("path", path), slog.Int("flags", flags), slog.Any("err", err))
 		return d.replyError(hdr, outBuf, errnoToFuse(err))
 	}
 

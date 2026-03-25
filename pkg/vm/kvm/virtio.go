@@ -335,6 +335,8 @@ func (v *virtioMMIODev) injectIRQ() {
 	if v.irqEfd >= 0 {
 		buf := [8]byte{1, 0, 0, 0, 0, 0, 0, 0}
 		unix.Write(v.irqEfd, buf[:])
+	} else {
+		slog.Warn("injectIRQ: no eventfd", slog.Uint64("devID", uint64(v.device.DeviceID())))
 	}
 }
 
