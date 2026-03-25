@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
@@ -27,11 +27,10 @@ func runInKVM(args []string) error {
 	// Scan args for -v values to determine VirtioFS shares
 	hostPaths := scanMountPaths(cleanArgs)
 
-	// Pre-pull OCI images on the host and convert to squashfs
-	home, _ := os.UserHomeDir()
-	sandalLibDir := filepath.Join(home, ".sandal", "lib")
-	imageDir := filepath.Join(sandalLibDir, "image")
-	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir)
+	// Pre-pull OCI images on the host and convert to squashfs.
+	// Use env.LibDir / env.BaseImageDir so VM and non-VM runs share the same cache.
+	sandalLibDir := env.LibDir
+	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
 
 	// Build VM config with defaults
 	cfg := vmconfig.VMConfig{

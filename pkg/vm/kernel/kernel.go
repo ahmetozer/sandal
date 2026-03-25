@@ -45,16 +45,22 @@ func cacheDir() string {
 // EnsureKernel returns the path to a cached kernel image, downloading it if necessary.
 // Also extracts kernel modules from the same APK for use by EnsureInitrd.
 func EnsureKernel() (string, error) {
+	dir := cacheDir()
+
+	// Check if any cached kernel+initramfs pair exists before hitting the network.
+	if path, err := findCachedKernel(dir); err == nil {
+		return path, nil
+	}
+
 	version, err := latestVersion()
 	if err != nil {
 		return "", fmt.Errorf("fetching latest kernel version: %w", err)
 	}
 
-	dir := cacheDir()
 	kernelPath := filepath.Join(dir, fmt.Sprintf("vmlinuz-virt-%s", version))
 	initrdPath := filepath.Join(dir, fmt.Sprintf("initramfs-virt-%s", version))
 
-	// Only skip download if both kernel and initramfs are cached
+	// Check again with the resolved version (in case cache dir scan missed it)
 	if _, err := os.Stat(kernelPath); err == nil {
 		if _, err := os.Stat(initrdPath); err == nil {
 			return kernelPath, nil
@@ -80,29 +86,26 @@ func EnsureKernel() (string, error) {
 // EnsureInitrd returns the path to a cached initramfs containing kernel modules.
 // The modules are extracted from the same APK as the kernel, ensuring version match.
 func EnsureInitrd() (string, error) {
-	version, err := latestVersion()
-	if err != nil {
-		return "", fmt.Errorf("fetching latest kernel version: %w", err)
-	}
-
 	dir := cacheDir()
-	initrdPath := filepath.Join(dir, fmt.Sprintf("initramfs-virt-%s", version))
 
-	if _, err := os.Stat(initrdPath); err == nil {
-		return initrdPath, nil
+	// Return cached initramfs without hitting the network if a kernel+initrd pair exists.
+	if kernelPath, err := findCachedKernel(dir); err == nil {
+		version := strings.TrimPrefix(filepath.Base(kernelPath), "vmlinuz-virt-")
+		return filepath.Join(dir, "initramfs-virt-"+version), nil
 	}
 
-	// Ensure the kernel (and modules) have been downloaded first
+	// No cache — fall back to downloading.
 	if _, err := EnsureKernel(); err != nil {
 		return "", err
 	}
 
-	// Check again — EnsureKernel creates the initrd as a side effect
-	if _, err := os.Stat(initrdPath); err == nil {
-		return initrdPath, nil
+	// EnsureKernel creates the initrd as a side effect; find it now.
+	if kernelPath, err := findCachedKernel(dir); err == nil {
+		version := strings.TrimPrefix(filepath.Base(kernelPath), "vmlinuz-virt-")
+		return filepath.Join(dir, "initramfs-virt-"+version), nil
 	}
 
-	return "", fmt.Errorf("initramfs not found after kernel download: %s", initrdPath)
+	return "", fmt.Errorf("initramfs not found after kernel download")
 }
 
 // downloadAndExtractAPK downloads the kernel APK and extracts:
@@ -157,6 +160,24 @@ func downloadAndExtractAPK(url, cacheDir, version string) error {
 	}
 
 	return nil
+}
+
+// findCachedKernel looks for an existing vmlinuz-virt-* + initramfs-virt-* pair
+// in dir and returns the kernel path if found. This avoids a network round-trip
+// to resolve the latest version when a cached kernel already exists.
+func findCachedKernel(dir string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "vmlinuz-virt-*"))
+	if err != nil || len(matches) == 0 {
+		return "", fmt.Errorf("no cached kernel found")
+	}
+	// Use the most recent match (last in sorted glob output).
+	kernelPath := matches[len(matches)-1]
+	version := strings.TrimPrefix(filepath.Base(kernelPath), "vmlinuz-virt-")
+	initrdPath := filepath.Join(dir, fmt.Sprintf("initramfs-virt-%s", version))
+	if _, err := os.Stat(initrdPath); err != nil {
+		return "", fmt.Errorf("initramfs not cached for %s", version)
+	}
+	return kernelPath, nil
 }
 
 // latestVersion fetches APKINDEX and returns the version string for linux-virt.
