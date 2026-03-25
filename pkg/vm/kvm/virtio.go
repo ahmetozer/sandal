@@ -4,8 +4,12 @@ package kvm
 
 import (
 	"encoding/binary"
+	"log/slog"
 	"sync"
+	"sync/atomic"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // Virtio-MMIO transport implementation (virtio v2 / modern)
@@ -93,12 +97,30 @@ type virtioDevice interface {
 	Tag() string // for virtiofs tag, empty for other devices
 }
 
+// kvmIRQFD is the ioctl for KVM_IRQFD: _IOW(0xAE, 0x76, struct kvm_irqfd).
+// struct kvm_irqfd is 32 bytes on ARM64.
+const (
+	kvmIRQFD              = 0x4020AE76
+	kvmIRQFDFlagResample  = 1 << 1
+)
+
+// kvmIRQFDStruct corresponds to struct kvm_irqfd (32 bytes).
+type kvmIRQFDStruct struct {
+	FD         uint32
+	GSI        uint32
+	Flags      uint32
+	ResampleFD uint32
+	Pad        [16]byte
+}
+
 // virtioMMIODev represents a virtio device exposed via MMIO transport.
 type virtioMMIODev struct {
 	baseAddr uint64
 	irqNum   uint32
 	vmFd     int
 	mem      []byte // guest memory
+	irqEfd      int // eventfd for KVM_IRQFD-based interrupt injection
+	resampleEfd int // resample eventfd for level-triggered IRQ ack
 
 	device virtioDevice
 
@@ -109,18 +131,45 @@ type virtioMMIODev struct {
 	drvFeatures    uint64
 	queueSel       uint32
 	queues         [3]virtqueue // most devices need <= 3 queues
-	interruptStat  uint32
+	interruptStat  atomic.Uint32
 	configGen      uint32
 }
 
 func newVirtioMMIODev(baseAddr uint64, irqNum uint32, vmFd int, mem []byte, dev virtioDevice) *virtioMMIODev {
 	return &virtioMMIODev{
-		baseAddr: baseAddr,
-		irqNum:   irqNum,
-		vmFd:     vmFd,
-		mem:      mem,
-		device:   dev,
+		baseAddr:    baseAddr,
+		irqNum:      irqNum,
+		vmFd:        vmFd,
+		mem:         mem,
+		device:      dev,
+		irqEfd:      -1,
+		resampleEfd: -1,
 	}
+}
+
+// setupIRQFD registers an eventfd with KVM_IRQFD for interrupt injection.
+// Must be called after the in-kernel GIC has been created (initVCPUs).
+// Uses RESAMPLE mode so the IRQ stays asserted until the guest acks it,
+// avoiding races with the vGIC's level-triggered default for SPIs.
+func (v *virtioMMIODev) setupIRQFD() {
+	efd, err := unix.Eventfd(0, unix.EFD_CLOEXEC|unix.EFD_NONBLOCK)
+	if err != nil {
+		slog.Warn("eventfd creation failed, IRQ injection disabled", slog.Any("err", err))
+		return
+	}
+	// The GSI must match the routing table entry set up by setupGSIRouting.
+	// The vgic_irqfd_set_irq handler adds 32 (VGIC_NR_PRIVATE_IRQS)
+	// internally, so the GSI/pin is the SPI number, not the GIC IRQ number.
+	irqfd := kvmIRQFDStruct{
+		FD:  uint32(efd),
+		GSI: v.irqNum,
+	}
+	if _, err := ioctlPtr(v.vmFd, kvmIRQFD, unsafe.Pointer(&irqfd)); err != nil {
+		slog.Warn("KVM_IRQFD failed, IRQ injection disabled", slog.Uint64("irqNum", uint64(v.irqNum)), slog.Any("err", err))
+		unix.Close(efd)
+		return
+	}
+	v.irqEfd = efd
 }
 
 // HandleMMIO processes a virtio-MMIO register access.
@@ -174,7 +223,7 @@ func (v *virtioMMIODev) readReg(offset uint32, size uint32) uint32 {
 		}
 		return 0
 	case virtioMMIOInterruptStat:
-		return v.interruptStat
+		return v.interruptStat.Load()
 	case virtioMMIOStatus:
 		return v.status
 	case virtioMMIOConfigGen:
@@ -213,7 +262,12 @@ func (v *virtioMMIODev) writeReg(offset uint32, val uint32) {
 		// Guest is notifying us that there are buffers available
 		go v.device.HandleQueue(int(val), v)
 	case virtioMMIOInterruptAck:
-		v.interruptStat &^= val
+		for {
+			old := v.interruptStat.Load()
+			if v.interruptStat.CompareAndSwap(old, old&^val) {
+				break
+			}
+		}
 	case virtioMMIOStatus:
 		v.status = val
 		if val == 0 {
@@ -264,25 +318,24 @@ func (v *virtioMMIODev) reset() {
 	v.drvFeatSel = 0
 	v.drvFeatures = 0
 	v.queueSel = 0
-	v.interruptStat = 0
+	v.interruptStat.Store(0)
 	for i := range v.queues {
 		v.queues[i] = virtqueue{}
 	}
 }
 
-// injectIRQ sends an interrupt to the guest via KVM.
+// injectIRQ sends an interrupt to the guest via eventfd+KVM_IRQFD.
 func (v *virtioMMIODev) injectIRQ() {
-	v.interruptStat |= 1 // used buffer notification
-	// Encode SPI for ARM64 KVM_IRQ_LINE
-	spiIRQ := (uint32(kvmARMIRQTypeSPI) << kvmARMIRQTypeShift) | v.irqNum
-	irq := kvmIRQLevel{
-		IRQ:   spiIRQ,
-		Level: 1,
+	for {
+		old := v.interruptStat.Load()
+		if v.interruptStat.CompareAndSwap(old, old|1) {
+			break
+		}
 	}
-	ioctlPtr(v.vmFd, kvmIRQLine, unsafe.Pointer(&irq))
-	// De-assert immediately (edge trigger behavior)
-	irq.Level = 0
-	ioctlPtr(v.vmFd, kvmIRQLine, unsafe.Pointer(&irq))
+	if v.irqEfd >= 0 {
+		buf := [8]byte{1, 0, 0, 0, 0, 0, 0, 0}
+		unix.Write(v.irqEfd, buf[:])
+	}
 }
 
 // ProcessAvailRing processes all available descriptors in a queue.

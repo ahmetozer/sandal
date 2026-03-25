@@ -79,84 +79,87 @@ func setupVM(vmFd int) error {
 // gicVersion tracks which GIC was created.
 var gicVersion int // 2 or 3
 
-func createGIC(vmFd int) error {
+// gicDevFd holds the GIC device fd for direct interrupt injection.
+var gicDevFd int = -1
+
+func createGIC(vmFd int) (int, error) {
 	// Try GICv3 first.
-	if err := createGICv3(vmFd); err == nil {
+	if fd, err := createGICv3(vmFd); err == nil {
 		gicVersion = 3
-		return nil
+		return fd, nil
 	}
 	// Fallback to GICv2.
-	if err := createGICv2(vmFd); err == nil {
+	if fd, err := createGICv2(vmFd); err == nil {
 		gicVersion = 2
-		return nil
+		return fd, nil
 	}
-	return fmt.Errorf("failed to create GICv3 or GICv2")
+	return -1, fmt.Errorf("failed to create GICv3 or GICv2")
 }
 
-func createGICv3(vmFd int) error {
+func createGICv3(vmFd int) (int, error) {
 	dev := kvmCreateDeviceStruct{Type: kvmDevTypeARMVGICv3}
 	if _, err := ioctlPtr(vmFd, kvmCreateDevice, unsafe.Pointer(&dev)); err != nil {
-		return err
+		return -1, err
 	}
 	gicFd := int(dev.Fd)
 
 	distAddr := uint64(gicDistBase)
 	if err := setDeviceAttr(gicFd, kvmDevARMVGICGRPAddr, kvmVGICv3AddrTypeDist, &distAddr); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("set GICv3 dist addr: %w", err)
+		return -1, fmt.Errorf("set GICv3 dist addr: %w", err)
 	}
 
 	redistAddr := uint64(gicRedistBase)
 	if err := setDeviceAttr(gicFd, kvmDevARMVGICGRPAddr, kvmVGICv3AddrTypeRedist, &redistAddr); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("set GICv3 redist addr: %w", err)
+		return -1, fmt.Errorf("set GICv3 redist addr: %w", err)
 	}
 
 	nrIRQs := uint32(96)
 	if err := setDeviceAttr(gicFd, kvmDevARMVGICGRPNRIRQ, 0, &nrIRQs); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("set GICv3 nr irqs: %w", err)
+		return -1, fmt.Errorf("set GICv3 nr irqs: %w", err)
 	}
 
 	if err := setDeviceAttrNoVal(gicFd, kvmDevARMVGICGRPCtrl, kvmDevARMVGICCtrlInit); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("init GICv3: %w", err)
+		return -1, fmt.Errorf("init GICv3: %w", err)
 	}
 
-	return nil
+	return gicFd, nil
 }
 
-func createGICv2(vmFd int) error {
+func createGICv2(vmFd int) (int, error) {
 	dev := kvmCreateDeviceStruct{Type: kvmDevTypeARMVGICv2}
 	if _, err := ioctlPtr(vmFd, kvmCreateDevice, unsafe.Pointer(&dev)); err != nil {
-		return err
+		return -1, err
 	}
 	gicFd := int(dev.Fd)
 
 	distAddr := uint64(gicDistBase)
 	if err := setDeviceAttr(gicFd, kvmDevARMVGICGRPAddr, kvmVGICv2AddrTypeDist, &distAddr); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("set GICv2 dist addr: %w", err)
+		return -1, fmt.Errorf("set GICv2 dist addr: %w", err)
 	}
 
 	cpuAddr := uint64(gicCPUBase)
 	if err := setDeviceAttr(gicFd, kvmDevARMVGICGRPAddr, kvmVGICv2AddrTypeCPU, &cpuAddr); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("set GICv2 cpu addr: %w", err)
+		return -1, fmt.Errorf("set GICv2 cpu addr: %w", err)
 	}
 
 	nrIRQs := uint32(96)
 	if err := setDeviceAttr(gicFd, kvmDevARMVGICGRPNRIRQ, 0, &nrIRQs); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("set GICv2 nr irqs: %w", err)
+		return -1, fmt.Errorf("set GICv2 nr irqs: %w", err)
 	}
 
 	if err := setDeviceAttrNoVal(gicFd, kvmDevARMVGICGRPCtrl, kvmDevARMVGICCtrlInit); err != nil {
 		unix.Close(gicFd)
-		return fmt.Errorf("init GICv2: %w", err)
+		return -1, fmt.Errorf("init GICv2: %w", err)
 	}
 
-	return nil
+	return gicFd, nil
 }
 
 func setDeviceAttr(devFd int, group uint32, attr uint64, valPtr interface{}) error {
@@ -219,9 +222,11 @@ func initVCPUs(vmFd int, vcpuFds []int, mem []byte, boot bootConfig) error {
 	}
 
 	// Create in-kernel GIC (must be after vCPU creation).
-	if err := createGIC(vmFd); err != nil {
+	gicFd, err := createGIC(vmFd)
+	if err != nil {
 		return fmt.Errorf("creating GIC: %w", err)
 	}
+	gicDevFd = gicFd
 
 	// Detect CPU compatible string for DTB.
 	cpuCompat := detectCPUCompat(vmFd)

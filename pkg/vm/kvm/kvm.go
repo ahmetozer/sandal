@@ -26,6 +26,7 @@ const (
 	kvmCreateDevice        = 0xC00CAEE0 // _IOWR(0xAE, 0xe0, 12)
 	kvmArmPreferredTarget  = 0x8020AEAF // _IOR(0xAE, 0xaf, 32)
 	kvmIRQLine             = 0x4008AE61 // _IOW(0xAE, 0x61, 8)
+	kvmSetGSIRouting       = 0x4008AE6A // _IOW(0xAE, 0x6A, 8) - header size only; data is variable
 	kvmCreateIRQChip       = 0xAE60     // _IO(0xAE, 0x60)
 	kvmSetTSSAddr          = 0xAE47     // _IO(0xAE, 0x47)
 

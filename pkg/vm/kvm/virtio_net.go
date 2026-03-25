@@ -80,18 +80,33 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 		return 0
 	}
 
-	// First buffer contains virtio_net_hdr, rest is the packet data.
-	// With IFF_VNET_HDR on the TAP, we pass the header + packet together.
-	var total int
-	for _, buf := range readBufs {
-		n, err := d.tap.file.Write(buf)
+	// With IFF_VNET_HDR on the TAP, each write must contain the complete
+	// virtio_net_hdr followed by the Ethernet frame as a single write.
+	// The guest typically splits these across separate descriptors (header
+	// in one, packet data in the next), so we must concatenate them.
+	if len(readBufs) == 1 {
+		n, err := d.tap.file.Write(readBufs[0])
 		if err != nil {
 			slog.Error("virtio-net TAP write error", slog.Any("err", err))
-			break
+			return 0
 		}
-		total += n
+		return uint32(n)
 	}
-	return uint32(total)
+
+	var total int
+	for _, buf := range readBufs {
+		total += len(buf)
+	}
+	pkt := make([]byte, 0, total)
+	for _, buf := range readBufs {
+		pkt = append(pkt, buf...)
+	}
+	n, err := d.tap.file.Write(pkt)
+	if err != nil {
+		slog.Error("virtio-net TAP write error", slog.Any("err", err))
+		return 0
+	}
+	return uint32(n)
 }
 
 // StartRX begins reading packets from the TAP device and injecting them

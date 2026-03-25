@@ -3,6 +3,7 @@
 package kvm
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
@@ -296,6 +297,20 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		return nil, fmt.Errorf("init vCPUs: %w", err)
 	}
 
+	// Set up GSI routing so KVM_IRQFD can deliver interrupts.
+	// On ARM64, the generic kvm_irq_map_gsi uses kvm->irq_routing which
+	// is NULL until KVM_SET_GSI_ROUTING is called. Without routing,
+	// IRQFD eventfd writes are silently dropped.
+	if err := setupGSIRouting(int(vmFd), virtioDevs); err != nil {
+		slog.Warn("GSI routing setup failed", slog.Any("err", err))
+	}
+
+	// Register eventfd-based IRQ injection for each virtio device.
+	// Must happen after initVCPUs (creates GIC) and GSI routing setup.
+	for _, vdev := range virtioDevs {
+		vdev.setupIRQFD()
+	}
+
 	return &VM{
 		Name:         name,
 		Config:       cfg,
@@ -524,4 +539,44 @@ func (vm *VM) Close() {
 
 func alignUp(val, align uint64) uint64 {
 	return (val + align - 1) &^ (align - 1)
+}
+
+// setupGSIRouting configures KVM_SET_GSI_ROUTING so that IRQFD-triggered
+// interrupts are routed to the in-kernel vGIC. On ARM64, the generic
+// kvm_irq_map_gsi uses kvm->irq_routing (populated by this ioctl).
+// Without it, eventfd writes from IRQFD are silently dropped.
+func setupGSIRouting(vmFd int, devs []*virtioMMIODev) error {
+	// Build routing entries for each device's SPI.
+	// GSI = irqNum + 32 (SPI number → GIC IRQ number).
+	type routingEntry struct {
+		GSI     uint32
+		Type    uint32 // KVM_IRQ_ROUTING_IRQCHIP = 1
+		Flags   uint32
+		Pad     uint32
+		Irqchip uint32 // irqchip index (0 = GIC)
+		Pin     uint32 // GIC interrupt ID = GSI
+		UnionPad [24]byte // remaining union padding (total union = 32 bytes)
+	}
+
+	n := len(devs)
+	// struct kvm_irq_routing: nr(4) + flags(4) + entries[]
+	const entrySize = 48 // sizeof(struct kvm_irq_routing_entry)
+	buf := make([]byte, 8+n*entrySize)
+	binary.LittleEndian.PutUint32(buf[0:4], uint32(n))
+	binary.LittleEndian.PutUint32(buf[4:8], 0) // flags
+
+	for i, dev := range devs {
+		// The vgic_irqfd_set_irq handler adds VGIC_NR_PRIVATE_IRQS (32) to
+		// the pin internally, so both GSI and pin should be the SPI number
+		// (not the full GIC IRQ number). See vgic-irqfd.c:22.
+		spiNum := dev.irqNum // SPI number (matches DTB interrupt cell)
+		off := 8 + i*entrySize
+		binary.LittleEndian.PutUint32(buf[off+0:off+4], spiNum)  // gsi = SPI number
+		binary.LittleEndian.PutUint32(buf[off+4:off+8], 1)       // type = KVM_IRQ_ROUTING_IRQCHIP
+		binary.LittleEndian.PutUint32(buf[off+16:off+20], 0)     // irqchip = 0 (GIC)
+		binary.LittleEndian.PutUint32(buf[off+20:off+24], spiNum) // pin = SPI number
+	}
+
+	_, err := ioctlPtr(vmFd, kvmSetGSIRouting, unsafe.Pointer(&buf[0]))
+	return err
 }
