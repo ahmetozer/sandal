@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
 )
@@ -29,19 +30,19 @@ type subMount struct {
 // supportedFSTypes lists real filesystem types that should be included
 // when discovering sub-mounts.
 var supportedFSTypes = map[string]bool{
-	"ext2":    true,
-	"ext3":    true,
-	"ext4":    true,
-	"xfs":     true,
-	"btrfs":   true,
-	"zfs":     true,
-	"f2fs":    true,
-	"ntfs":    true,
-	"vfat":    true,
-	"exfat":   true,
-	"hfs":     true,
-	"hfsplus": true,
-	"apfs":    true,
+	"ext2":     true,
+	"ext3":     true,
+	"ext4":     true,
+	"xfs":      true,
+	"btrfs":    true,
+	"zfs":      true,
+	"f2fs":     true,
+	"ntfs":     true,
+	"vfat":     true,
+	"exfat":    true,
+	"hfs":      true,
+	"hfsplus":  true,
+	"apfs":     true,
 	"bcachefs": true,
 }
 
@@ -213,7 +214,7 @@ func mountSubMountOverlays(c *config.Config, hostDirs []string, changeBase strin
 			}
 
 			opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", sm.HostPath, upper, work)
-			if err := unix.Mount("overlay", target, "overlay", 0, opts); err != nil {
+			if err := cmount.Mount("overlay", target, "overlay", 0, opts); err != nil {
 				slog.Warn("mountSubMountOverlays: overlay mount failed", slog.String("target", target), slog.String("opts", opts), slog.Any("error", err))
 				continue
 			}
@@ -268,7 +269,7 @@ func mountTargetedLowerOverlays(c *config.Config, targeted []lowerArg, changeBas
 		}
 
 		opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", la.Source, upper, work)
-		if err := unix.Mount("overlay", target, "overlay", 0, opts); err != nil {
+		if err := cmount.Mount("overlay", target, "overlay", 0, opts); err != nil {
 			slog.Warn("mountTargetedLowerOverlays: overlay mount failed", slog.String("target", target), slog.String("opts", opts), slog.Any("error", err))
 			continue
 		}

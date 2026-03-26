@@ -10,8 +10,8 @@ import (
 	"path"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
-	"golang.org/x/sys/unix"
 )
 
 type ChangesDir struct {
@@ -104,7 +104,7 @@ func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 		if err := os.MkdirAll(tmpdir, 0o0755); err != nil {
 			return dir, fmt.Errorf("creating %s directory: %s", tmpdir, err)
 		}
-		err := unix.Mount("tmpfs", tmpdir, "tmpfs", uintptr(0), fmt.Sprintf("size=%d", sizeBytes))
+		err := cmount.Mount("tmpfs", tmpdir, "tmpfs", uintptr(0), fmt.Sprintf("size=%d", sizeBytes))
 		if err != nil {
 			return dir, fmt.Errorf("tmpfs: %s", err)
 		}

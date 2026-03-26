@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"golang.org/x/sys/unix"
 )
 
@@ -65,7 +66,7 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 	}
 	defer os.RemoveAll(tmpfsDir)
 
-	if err := unix.Mount("tmpfs", tmpfsDir, "tmpfs", 0, "size=64k"); err != nil {
+	if err := cmount.Mount("tmpfs", tmpfsDir, "tmpfs", 0, "size=64k"); err != nil {
 		return fmt.Errorf("tmpfs mount: %w", err)
 	}
 	defer unix.Unmount(tmpfsDir, 0)
@@ -90,7 +91,7 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 		strings.Join(lowerParts, ":"), upperDir, workDir)
 
 	slog.Debug("mergeWithOverlayfs", slog.String("action", "mounting"), slog.Int("layers", len(layerDirs)))
-	if err := unix.Mount("overlay", mountDir, "overlay", 0, opts); err != nil {
+	if err := cmount.Mount("overlay", mountDir, "overlay", 0, opts); err != nil {
 		return fmt.Errorf("overlayfs mount: %w", err)
 	}
 	defer unix.Unmount(mountDir, 0)

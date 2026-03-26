@@ -21,6 +21,7 @@ var (
 
 	BaseChangeDir         string
 	BaseSnapshotDir       string
+	BaseKernelDir         string
 	BaseImmutableImageDir string
 	BaseRootfsDir         string
 
@@ -75,6 +76,7 @@ func init() {
 		BaseStateDir = Get("SANDAL_STATE_DIR", path.Join(LibDir, "state"))
 		BaseChangeDir = Get("SANDAL_CHANGE_DIR", path.Join(LibDir, "changedir"))
 		BaseSnapshotDir = Get("SANDAL_SNAPSHOT_DIR", path.Join(LibDir, "snapshot"))
+		BaseKernelDir = Get("SANDAL_KERNEL_DIR", path.Join(LibDir, "kernel"))
 
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseImmutableImageDir = Get("SANDAL_IMMUTABLEIMAGEDIR", path.Join(RunDir, "immutable"))

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
 	"github.com/vishvananda/netlink"
@@ -46,7 +47,7 @@ func importKernelCmdlineEnv() {
 	// Mount it and leave it mounted — VMInit() will use it later.
 	if _, err := os.Stat("/proc/cmdline"); err != nil {
 		os.MkdirAll("/proc", 0755)
-		unix.Mount("proc", "/proc", "proc", 0, "")
+		cmount.Mount("proc", "/proc", "proc", 0, "")
 	}
 	data, err := os.ReadFile("/proc/cmdline")
 	if err != nil {
@@ -113,10 +114,10 @@ func parseCmdlineParams(cmdline string) []string {
 func VMInit() error {
 	// Mount essential filesystems on the initramfs (may already be mounted by preinit)
 	os.MkdirAll("/proc", 0755)
-	unix.Mount("proc", "/proc", "proc", 0, "")
+	cmount.Mount("proc", "/proc", "proc", 0, "")
 
 	os.MkdirAll("/dev", 0755)
-	unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+	cmount.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
 
 	// Redirect stdio to the console device so init output is visible
 	if console, err := os.OpenFile("/dev/console", os.O_RDWR, 0); err == nil {
@@ -129,12 +130,12 @@ func VMInit() error {
 	}
 
 	os.MkdirAll("/sys", 0755)
-	if err := unix.Mount("sysfs", "/sys", "sysfs", 0, ""); err != nil {
+	if err := cmount.Mount("sysfs", "/sys", "sysfs", 0, ""); err != nil {
 		return fmt.Errorf("mount /sys: %w", err)
 	}
 
 	os.MkdirAll("/dev", 0755)
-	unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+	cmount.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
 
 	// Load kernel modules before switch_root (modules live in the base initrd).
 	// virtio_mmio must be loaded first — it creates the virtio bus devices
@@ -165,7 +166,7 @@ func VMInit() error {
 	// The kernel's initramfs root (rootfs) doesn't support pivot_root.
 	// Use switch_root approach: mount tmpfs, chroot into it.
 	os.MkdirAll("/newroot", 0755)
-	if err := unix.Mount("tmpfs", "/newroot", "tmpfs", 0, ""); err != nil {
+	if err := cmount.Mount("tmpfs", "/newroot", "tmpfs", 0, ""); err != nil {
 		return fmt.Errorf("mount tmpfs on /newroot: %w", err)
 	}
 
@@ -189,11 +190,11 @@ func VMInit() error {
 	}
 
 	// Mount proc/sys/dev/devpts in the new root
-	unix.Mount("proc", "/newroot/proc", "proc", 0, "")
-	unix.Mount("sysfs", "/newroot/sys", "sysfs", 0, "")
-	unix.Mount("devtmpfs", "/newroot/dev", "devtmpfs", 0, "")
+	cmount.Mount("proc", "/newroot/proc", "proc", 0, "")
+	cmount.Mount("sysfs", "/newroot/sys", "sysfs", 0, "")
+	cmount.Mount("devtmpfs", "/newroot/dev", "devtmpfs", 0, "")
 	os.MkdirAll("/newroot/dev/pts", 0755)
-	unix.Mount("devpts", "/newroot/dev/pts", "devpts", 0, "gid=5,mode=620,ptmxmode=666")
+	cmount.Mount("devpts", "/newroot/dev/pts", "devpts", 0, "gid=5,mode=620,ptmxmode=666")
 
 	// Chroot into the new tmpfs root (rootfs doesn't support pivot_root)
 	if err := unix.Chroot("/newroot"); err != nil {
@@ -234,7 +235,7 @@ func VMInit() error {
 		// after module load, especially when virtio_mmio is loaded as a module.
 		var mountErr error
 		for attempt := 0; attempt < 50; attempt++ {
-			mountErr = unix.Mount(tag, mountPoint, "virtiofs", 0, "")
+			mountErr = cmount.Mount(tag, mountPoint, "virtiofs", 0, "")
 			if mountErr == nil {
 				break
 			}

@@ -9,7 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/ahmetozer/sandal/pkg/lib/apk"
+	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/alpine"
 )
 
 const (
@@ -39,8 +40,7 @@ func kernelEntry() string {
 var cachedVersion string
 
 func cacheDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".sandal-vm", "kernel")
+	return env.BaseKernelDir
 }
 
 // EnsureKernel returns the path to a cached kernel image, downloading it if necessary.
@@ -119,7 +119,7 @@ func downloadAndExtractAPK(url, cacheDir, version string) error {
 	var modules []moduleFile
 	foundKernel := false
 
-	err := apk.Download(url, func(e apk.Entry) error {
+	err := alpine.Download(url, func(e alpine.Entry) error {
 		// Extract kernel
 		if e.Name == kernelEntry() {
 			raw, err := decompressZBoot(e.Data)
@@ -188,7 +188,7 @@ func latestVersion() (string, error) {
 		return cachedVersion, nil
 	}
 
-	v, err := apk.LatestVersion(apkBaseURL(), pkgName)
+	v, err := alpine.LatestVersion(apkBaseURL(), pkgName)
 	if err != nil {
 		return "", err
 	}
