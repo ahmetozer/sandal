@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"

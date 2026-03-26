@@ -7,7 +7,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -35,7 +36,7 @@ func Rm(args []string) error {
 
 	if all {
 		for _, c := range conts {
-			isRunning, _ := cruntime.IsPidRunning(c.ContPid)
+			isRunning, _ := crt.IsPidRunning(c.ContPid)
 			if !isRunning {
 				names = append(names, c.Name)
 			}
@@ -51,7 +52,7 @@ RequestedContainers:
 	for _, name := range names {
 		for _, c := range conts {
 			if c.Name == name {
-				isRunning, err := cruntime.IsPidRunning(c.ContPid)
+				isRunning, err := crt.IsPidRunning(c.ContPid)
 
 				if err != nil {
 					errs = append(errs, fmt.Errorf("unable to check existence of '%s' container: %v", c.Name, err))
@@ -62,7 +63,7 @@ RequestedContainers:
 				}
 
 				c.Remove = true
-				cruntime.DeRunContainer(c)
+				host.DeRunContainer(c)
 				continue RequestedContainers
 			}
 		}

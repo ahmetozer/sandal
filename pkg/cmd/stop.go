@@ -6,7 +6,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -39,7 +40,7 @@ func Stop(args []string) error {
 			return fmt.Errorf("unable to list containers: %w", err)
 		}
 		for _, cont := range conts {
-			isRunning, _ := cruntime.IsPidRunning(cont.ContPid)
+			isRunning, _ := crt.IsPidRunning(cont.ContPid)
 			if isRunning {
 				names = append(names, cont.Name)
 			}
@@ -66,10 +67,10 @@ func stopContainer(name string, signal, timeout int) error {
 		return err
 	}
 
-	err = cruntime.Kill(cont, signal, timeout)
+	err = host.Kill(cont, signal, timeout)
 	if err != nil {
 		// Graceful signal timed out, escalate to SIGKILL
-		if err2 := cruntime.Kill(cont, 9, 5); err2 != nil {
+		if err2 := host.Kill(cont, 9, 5); err2 != nil {
 			return fmt.Errorf("SIGTERM timed out and SIGKILL failed: %w", err2)
 		}
 	}

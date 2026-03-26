@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/vm/guest"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"

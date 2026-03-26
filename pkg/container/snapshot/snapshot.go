@@ -8,8 +8,8 @@ import (
 	"path"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/diskimage"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/overlayfs"
+	"github.com/ahmetozer/sandal/pkg/container/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 	"golang.org/x/sys/unix"

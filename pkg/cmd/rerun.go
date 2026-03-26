@@ -8,7 +8,7 @@ import (
 	"os"
 
 	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -26,7 +26,7 @@ func Rerun(args []string) error {
 		return err
 	}
 
-	err = cruntime.Kill(c, 9, 5)
+	err = host.Kill(c, 9, 5)
 	if err != nil {
 		return err
 	}

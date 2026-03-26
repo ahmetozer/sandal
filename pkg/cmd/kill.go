@@ -6,7 +6,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -39,7 +40,7 @@ func Kill(args []string) error {
 			return fmt.Errorf("unable to list containers: %w", err)
 		}
 		for _, cont := range conts {
-			isRunning, _ := cruntime.IsPidRunning(cont.ContPid)
+			isRunning, _ := crt.IsPidRunning(cont.ContPid)
 			if isRunning {
 				names = append(names, cont.Name)
 			}
@@ -52,7 +53,7 @@ func Kill(args []string) error {
 
 	var lastErr error
 	for _, name := range names {
-		if err := cruntime.KillByName(name, signal, timeout); err != nil {
+		if err := host.KillByName(name, signal, timeout); err != nil {
 			fmt.Printf("kill %s: %s\n", name, err)
 			lastErr = err
 		}

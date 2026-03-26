@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
 	"github.com/vishvananda/netlink"

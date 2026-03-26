@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"os"
 
-	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"

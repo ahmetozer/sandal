@@ -9,12 +9,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ahmetozer/sandal/pkg/container/capabilities"
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/capabilities"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/namespace"
+	"github.com/ahmetozer/sandal/pkg/container/net"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
@@ -118,7 +119,7 @@ func runContainer(args []string) error {
 		return splitErr
 	}
 
-	oldContStatus, err := cruntime.IsContainerRuning(c.Name)
+	oldContStatus, err := crt.IsContainerRunning(c.Name)
 	if err != nil {
 		return err
 	}
@@ -150,5 +151,5 @@ func runContainer(args []string) error {
 		return err
 	}
 
-	return cruntime.Run(&c)
+	return host.Run(&c)
 }

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -57,7 +57,7 @@ func (dc DaemonConfig) Start() error {
 		for _, cont := range conts {
 			// Do not kill containers, which is executed before daemon
 			if cont.HostPid == DaemonPid {
-				cruntime.DeRunContainer(cont)
+				host.DeRunContainer(cont)
 			}
 		}
 	}

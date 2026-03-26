@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -31,7 +32,7 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 			for c := range conts {
 				cont := (conts)[c]
 
-				isRunning, err := cruntime.IsPidRunning(cont.ContPid)
+				isRunning, err := crt.IsPidRunning(cont.ContPid)
 				if err != nil {
 					slog.Warn("unable to get container status", "cont", cont.Name, "err", err.Error())
 				}
@@ -58,18 +59,18 @@ func contRecover(cont *config.Config) {
 	// Clean up stale resources (console sockets, mounts, cgroups) left
 	// behind by a crashed daemon (e.g. kill -9). The old process is dead
 	// so these resources are orphaned.
-	cruntime.CleanupResources(cont)
+	host.CleanupResources(cont)
 
-	err := cruntime.Kill(cont, 15, 10)
+	err := host.Kill(cont, 15, 10)
 	if err != nil {
-		cruntime.Kill(cont, 9, 0)
+		host.Kill(cont, 9, 0)
 	}
 
 	// After a daemon crash (kill -9), the config status on disk is still
 	// "running" because it was never updated. Since the health check
 	// already confirmed the PID is dead, treat any non-"stop" status
 	// as recoverable.
-	isAlive, _ := cruntime.IsPidRunning(cont.ContPid)
+	isAlive, _ := crt.IsPidRunning(cont.ContPid)
 	if isAlive {
 		slog.Debug("daemon", slog.Any("status", cont.Status), slog.String("cont", cont.Name), slog.String("msg", "process still alive, skipping recovery"))
 		return
@@ -87,7 +88,7 @@ func contRecover(cont *config.Config) {
 
 	// If the container is already running (started by another path),
 	// skip recovery to avoid duplicate instances.
-	if isRunning, _ := cruntime.IsPidRunning(latest.ContPid); isRunning {
+	if isRunning, _ := crt.IsPidRunning(latest.ContPid); isRunning {
 		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
 		return
 	}
@@ -97,7 +98,7 @@ func contRecover(cont *config.Config) {
 		return
 	}
 
-	err = cruntime.Run(latest)
+	err = host.Run(latest)
 	if err != nil {
 		slog.Error("recover", slog.Any("error", err))
 	}

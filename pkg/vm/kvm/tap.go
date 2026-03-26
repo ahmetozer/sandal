@@ -7,7 +7,7 @@ import (
 	"os"
 	"unsafe"
 
-	sandalnet "github.com/ahmetozer/sandal/pkg/container/cruntime/net"
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/vishvananda/netlink"
 )
 

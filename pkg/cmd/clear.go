@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -39,7 +40,7 @@ func Clear(args []string) error {
 				continue
 			}
 		}
-		isRunning, err := cruntime.IsPidRunning(c.ContPid)
+		isRunning, err := crt.IsPidRunning(c.ContPid)
 
 		if err != nil {
 			slog.Error("unable to get container status", "container", c.Name, "err", err)
@@ -51,7 +52,7 @@ func Clear(args []string) error {
 		if deleteAll {
 			c.Remove = true
 		}
-		cruntime.DeRunContainer(c)
+		host.DeRunContainer(c)
 	}
 	return nil
 }

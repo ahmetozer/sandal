@@ -10,8 +10,8 @@ import (
 
 	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/namespace"
+	"github.com/ahmetozer/sandal/pkg/container/namespace"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
@@ -99,7 +99,7 @@ func ExecOnContainer(args []string) error {
 	if User == "" {
 		User = c.User
 	}
-	exitCode, err = cruntime.Exec(childArgs, "", User)
+	exitCode, err = crt.Exec(childArgs, "", User)
 	if err != nil && strings.Contains(err.Error(), "exit status") {
 		err = nil
 	}
