@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -56,13 +56,13 @@ func Ps(args []string) error {
 }
 
 func printVerified(c *config.Config, t *tabwriter.Writer) {
-	if c.Status == cruntime.ContainerStatusRunning {
-		isRunning, err := cruntime.IsPidRunning(c.ContPid)
+	if c.Status == crt.ContainerStatusRunning {
+		isRunning, err := crt.IsPidRunning(c.ContPid)
 		if err != nil {
 			slog.Warn("unable to get container status,", "error", err.Error())
 		}
 		if !isRunning {
-			c.Status = cruntime.ContainerStatusHang
+			c.Status = crt.ContainerStatusHang
 		}
 	}
 	printDry(c, t)

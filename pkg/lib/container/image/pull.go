@@ -286,3 +286,33 @@ func removeDirectoryContents(dir string) error {
 	}
 	return nil
 }
+
+// PullFromArgs scans command args for -lw values that look like OCI image references,
+// pulls them on the host, converts to squashfs, and rewrites the args to use
+// the local sqfs path. Returns the modified args.
+func PullFromArgs(args []string, imageDir string) []string {
+	result := make([]string, len(args))
+	copy(result, args)
+
+	for i := 0; i < len(result); i++ {
+		if result[i] == "--" {
+			break
+		}
+		if result[i] == "-lw" && i+1 < len(result) {
+			i++
+			ref := result[i]
+			if !IsImageReference(ref) {
+				continue
+			}
+			slog.Info("pull", slog.String("action", "pulling-on-host"), slog.String("image", ref))
+			sqfsPath, err := Pull(context.Background(), ref, imageDir)
+			if err != nil {
+				slog.Error("pull", slog.String("image", ref), slog.Any("error", err))
+				continue
+			}
+			slog.Info("pull", slog.String("action", "cached"), slog.String("image", ref), slog.String("path", sqfsPath))
+			result[i] = sqfsPath
+		}
+	}
+	return result
+}

@@ -6,7 +6,6 @@ import "fmt"
 
 var errUnsupported = fmt.Errorf("container commands are only available on Linux")
 
-func Run(args []string) error             { return errUnsupported }
 func Ps(args []string) error              { return errUnsupported }
 func Kill(args []string) error            { return errUnsupported }
 func Stop(args []string) error            { return errUnsupported }

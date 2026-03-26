@@ -29,3 +29,9 @@ site/
 !.github
 *.sq
 *.sqfs
+
+# Generated preinit binaries (built via go generate)
+pkg/vm/kernel/preinit_arm64.bin
+
+# Superpowers design docs
+docs/superpowers/

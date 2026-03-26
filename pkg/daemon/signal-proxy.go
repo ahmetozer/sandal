@@ -9,7 +9,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -23,9 +24,9 @@ func signalProxy(daemonKillRequested chan<- bool, wg *sync.WaitGroup) {
 		conts, _ := controller.Containers()
 		for _, cont := range conts {
 			// oldContPid := cont.ContPid
-			isRunning, err := cruntime.IsPidRunning(cont.ContPid)
+			isRunning, err := crt.IsPidRunning(cont.ContPid)
 			if cont.Startup && isRunning && err == nil {
-				cruntime.Kill(cont, int(sig.(syscall.Signal)), 0)
+				host.Kill(cont, int(sig.(syscall.Signal)), 0)
 			}
 		}
 		// syscall.Kill(os.Getpid(), sig.(syscall.Signal))

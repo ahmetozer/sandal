@@ -7,7 +7,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
+	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -25,7 +26,7 @@ func Rerun(args []string) error {
 		return err
 	}
 
-	err = cruntime.Kill(c, 9, 5)
+	err = host.Kill(c, 9, 5)
 	if err != nil {
 		return err
 	}
@@ -35,6 +36,6 @@ func Rerun(args []string) error {
 	}
 
 	slog.Debug("Rerun", slog.String("message", "re-executing command"), slog.Any("args", c.HostArgs[2:]))
-	return Run(c.HostArgs[2:])
+	return runCmd.Run(c.HostArgs[2:])
 
 }

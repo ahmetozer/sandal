@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime/console"
+	"github.com/ahmetozer/sandal/pkg/container/console"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
@@ -36,7 +36,7 @@ func Attach(args []string) error {
 	}
 
 	// Verify container is running
-	running, _ := cruntime.IsPidRunning(c.ContPid)
+	running, _ := crt.IsPidRunning(c.ContPid)
 	if !running {
 		return fmt.Errorf("container %q is not running", containerName)
 	}
@@ -52,7 +52,7 @@ func Attach(args []string) error {
 	done := make(chan struct{})
 	go func() {
 		for {
-			if running, _ := cruntime.IsPidRunning(c.ContPid); !running {
+			if running, _ := crt.IsPidRunning(c.ContPid); !running {
 				close(done)
 				return
 			}

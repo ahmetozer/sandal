@@ -7,18 +7,23 @@ import (
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	containerguest "github.com/ahmetozer/sandal/pkg/container/guest"
+	"github.com/ahmetozer/sandal/pkg/vm/guest"
+	"golang.org/x/sys/unix"
 )
 
 func platformMain() {
-	if cruntime.IsVMInit() {
-		if err := cruntime.VMInit(); err != nil {
+	if guest.IsVMInit() {
+		if err := guest.VMInit(); err != nil {
 			fmt.Fprintf(os.Stderr, "VMInit error: %v\n", err)
+			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
+			os.Exit(1)
 		}
-		// PID 1 must not exit; power off the VM before os.Exit
 		cmd.Main()
-	} else if cruntime.IsChild() {
-		cruntime.ContainerInitProc()
+		// PID 1 must never return — power off the VM
+		unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
+	} else if containerguest.IsChild() {
+		containerguest.ContainerInitProc()
 	} else {
 		cmd.Main()
 	}

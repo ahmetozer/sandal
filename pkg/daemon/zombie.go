@@ -6,7 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/container/cruntime"
+	"github.com/ahmetozer/sandal/pkg/container/host"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
 
@@ -36,7 +37,7 @@ func checkZombie() {
 
 		alive := false
 		for _, cont := range conts {
-			isRunning, err := cruntime.IsPidRunning(cont.ContPid)
+			isRunning, err := crt.IsPidRunning(cont.ContPid)
 			if !cont.Startup || !isRunning || err != nil {
 				continue
 			}
@@ -44,10 +45,10 @@ func checkZombie() {
 
 			if !termSent {
 				slog.Info("checkZombie", slog.String("action", "SIGTERM"), slog.String("cont", cont.Name), slog.Int("pid", cont.ContPid))
-				cruntime.Kill(cont, 15, 0)
+				host.Kill(cont, 15, 0)
 			} else if time.Now().After(graceExpiry) {
 				slog.Warn("checkZombie", slog.String("action", "SIGKILL"), slog.String("cont", cont.Name), slog.Int("pid", cont.ContPid))
-				cruntime.Kill(cont, 9, 0)
+				host.Kill(cont, 9, 0)
 			}
 		}
 
