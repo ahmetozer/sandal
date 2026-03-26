@@ -1,4 +1,4 @@
-package apk
+package alpine
 
 import (
 	"archive/tar"
@@ -71,15 +71,13 @@ func Download(url string, fn func(Entry) error) error {
 		reader = &progressReader{r: resp.Body, total: resp.ContentLength}
 	}
 
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return fmt.Errorf("reading response: %w", err)
-	}
-	if resp.ContentLength > 0 {
-		fmt.Fprintf(os.Stderr, "\n")
-	}
-
-	br := &byteReader{data: body}
+	// Wrap in bufio.Reader so gzip won't over-read past stream boundaries.
+	// This allows streaming multiple concatenated gzip streams without
+	// buffering the entire response in memory.
+	// Wrap in bufio.Reader (implements io.ByteReader) so gzip uses it
+	// directly without creating its own internal bufio that could over-read
+	// past gzip stream boundaries.
+	br := bufio.NewReader(reader)
 	for {
 		gr, err := gzip.NewReader(br)
 		if err != nil {
@@ -88,6 +86,9 @@ func Download(url string, fn func(Entry) error) error {
 			}
 			return fmt.Errorf("gzip reader: %w", err)
 		}
+		// Disable multistream so gzip stops at the end of each stream
+		// instead of transparently starting the next one.
+		gr.Multistream(false)
 
 		tr := tar.NewReader(gr)
 		for {
@@ -114,7 +115,15 @@ func Download(url string, fn func(Entry) error) error {
 				return err
 			}
 		}
+		// Drain any remaining decompressed data (e.g. tar padding) so
+		// the underlying bufio.Reader is positioned at the start of
+		// the next gzip stream.
+		io.Copy(io.Discard, gr)
 		gr.Close()
+	}
+
+	if resp.ContentLength > 0 {
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 
 	return nil
@@ -162,18 +171,3 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// byteReader implements io.Reader over a byte slice, allowing gzip to
-// consume only what it needs and leave the rest for the next gzip stream.
-type byteReader struct {
-	data []byte
-	pos  int
-}
-
-func (b *byteReader) Read(p []byte) (int, error) {
-	if b.pos >= len(b.data) {
-		return 0, io.EOF
-	}
-	n := copy(p, b.data[b.pos:])
-	b.pos += n
-	return n, nil
-}
