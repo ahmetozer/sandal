@@ -4,6 +4,7 @@ package kvm
 
 import (
 	"encoding/binary"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -450,8 +451,16 @@ func (d *VirtioFSDevice) dispatch(hdr *fuseInHeader, inBody []byte, extraRead []
 		return d.replyOK(hdr, outBuf)
 	case fuseRename2:
 		return d.handleRename2(hdr, inBody, outBuf)
+	case fuseReadlink:
+		return d.handleReadlink(hdr, outBuf)
+	case fuseLseek:
+		return d.replyError(hdr, outBuf, fuseErrNOSYS)
 	default:
-		slog.Warn("fuse-unhandled", slog.Int("op", int(hdr.Opcode)))
+		// FUSE_POLL (40), FUSE_GETXATTR (22), FUSE_LISTXATTR (23),
+		// FUSE_SETXATTR (21), FUSE_REMOVEXATTR (24), and
+		// FUSE_COPY_FILE_RANGE (43) are expected unimplemented ops.
+		// Return ENOSYS so the kernel falls back gracefully.
+		slog.Debug("fuse-unhandled", slog.Int("op", int(hdr.Opcode)))
 		return d.replyError(hdr, outBuf, fuseErrNOSYS)
 	}
 }
@@ -614,7 +623,7 @@ func (d *VirtioFSDevice) handleSetattr(hdr *fuseInHeader, inBody []byte, outBuf 
 	}
 	in := (*fuseSetAttrIn)(unsafe.Pointer(&inBody[0]))
 
-	if in.Valid&(1<<2) != 0 { // FATTR_SIZE
+	if in.Valid&(1<<3) != 0 { // FATTR_SIZE
 		if err := os.Truncate(path, int64(in.Size)); err != nil {
 			return d.replyError(hdr, outBuf, errnoToFuse(err))
 		}
@@ -624,13 +633,13 @@ func (d *VirtioFSDevice) handleSetattr(hdr *fuseInHeader, inBody []byte, outBuf 
 			return d.replyError(hdr, outBuf, errnoToFuse(err))
 		}
 	}
-	if in.Valid&(1<<3) != 0 || in.Valid&(1<<4) != 0 { // FATTR_UID, FATTR_GID
+	if in.Valid&(1<<1) != 0 || in.Valid&(1<<2) != 0 { // FATTR_UID, FATTR_GID
 		uid := int(in.UID)
 		gid := int(in.GID)
-		if in.Valid&(1<<3) == 0 {
+		if in.Valid&(1<<1) == 0 {
 			uid = -1
 		}
-		if in.Valid&(1<<4) == 0 {
+		if in.Valid&(1<<2) == 0 {
 			gid = -1
 		}
 		syscall.Lchown(path, uid, gid)
@@ -1026,6 +1035,27 @@ func (d *VirtioFSDevice) handleStatfs(hdr *fuseInHeader, outBuf []byte) uint32 {
 	return uint32(outHdrSize + outPayload)
 }
 
+func (d *VirtioFSDevice) handleReadlink(hdr *fuseInHeader, outBuf []byte) uint32 {
+	path, ok := d.nodePath(hdr.NodeID)
+	if !ok {
+		return d.replyError(hdr, outBuf, fuseErrNOENT)
+	}
+
+	target, err := os.Readlink(path)
+	if err != nil {
+		return d.replyError(hdr, outBuf, errnoToFuse(err))
+	}
+
+	outHdrSize := int(unsafe.Sizeof(fuseOutHeader{}))
+	payload := []byte(target)
+	if outHdrSize+len(payload) > len(outBuf) {
+		return d.replyError(hdr, outBuf, fuseErrINVAL)
+	}
+	d.replyHeader(outBuf, hdr.Unique, 0, len(payload))
+	copy(outBuf[outHdrSize:], payload)
+	return uint32(outHdrSize + len(payload))
+}
+
 // Helper functions
 
 func fillAttr(attr *fuseAttr, stat *syscall.Stat_t) {
@@ -1060,8 +1090,9 @@ func dtType(mode uint32) uint32 {
 }
 
 func errnoToFuse(err error) int32 {
-	if e, ok := err.(syscall.Errno); ok {
-		return -int32(e)
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return -int32(errno)
 	}
 	if os.IsNotExist(err) {
 		return fuseErrNOENT

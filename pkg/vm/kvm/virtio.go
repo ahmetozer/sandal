@@ -71,7 +71,8 @@ const (
 
 // virtqueue represents a single virtio virtqueue with split ring layout.
 type virtqueue struct {
-	num       uint32 // queue size (number of descriptors)
+	mu        sync.Mutex // serializes ProcessAvailRing for this queue
+	num       uint32     // queue size (number of descriptors)
 	ready     bool
 	descAddr  uint64 // guest physical address of descriptor table
 	drvAddr   uint64 // guest physical address of available ring (driver area)
@@ -349,6 +350,15 @@ func (v *virtioMMIODev) ProcessAvailRing(queueIdx int, handler func(readBufs, wr
 		return
 	}
 	q := &v.queues[queueIdx]
+
+	// Serialize access: HandleQueue is dispatched via goroutine on each
+	// guest notification, so multiple goroutines can enter here for the
+	// same queue concurrently.  Without this lock, concurrent goroutines
+	// read the same lastAvail, double-process descriptors, and corrupt
+	// the used ring — causing FUSE I/O errors inside the guest.
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	if !q.ready || q.num == 0 {
 		return
 	}
