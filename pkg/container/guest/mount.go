@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
-	cruntime "github.com/ahmetozer/sandal/pkg/container/runtime"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"golang.org/x/sys/unix"
 )
 
@@ -21,12 +21,12 @@ const (
 
 func childSysMounts(c *config.Config) error {
 
-	err := mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
+	err := cmount.Mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err != nil {
 		slog.Error("base private mount failed")
 		return err
 	}
-	err = mount(path.Join(c.RootfsDir), path.Join(c.RootfsDir), "", unix.MS_BIND|unix.MS_REC, "")
+	err = cmount.Mount(path.Join(c.RootfsDir), path.Join(c.RootfsDir), "", unix.MS_BIND|unix.MS_REC, "")
 	if err != nil {
 		slog.Error("base private mount failed")
 		return err
@@ -49,13 +49,13 @@ func childSysMounts(c *config.Config) error {
 		return err
 	}
 
-	err = mount("tmpfs", sandalChildWorkdir, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "size=65536k,mode=755")
+	err = cmount.Mount("tmpfs", sandalChildWorkdir, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "size=65536k,mode=755")
 	if err != nil {
 		slog.Error("mounting tmpfs failed")
 		return err
 	}
 
-	err = mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
+	err = cmount.Mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err != nil {
 		slog.Error("privating filesystem failed")
 		return err
@@ -76,7 +76,7 @@ func childSysMounts(c *config.Config) error {
 		return err
 	}
 
-	err = mount("proc", "/proc", "proc", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "")
+	err = cmount.Mount("proc", "/proc", "proc", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "")
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func childSysMounts(c *config.Config) error {
 	if c.MemoryLimit != "" {
 		meminfoPath := "/.sandal-proc/meminfo"
 		if _, err := os.Stat(meminfoPath); err == nil {
-			err = mount(meminfoPath, "/proc/meminfo", "", unix.MS_BIND, "")
+			err = cmount.Mount(meminfoPath, "/proc/meminfo", "", unix.MS_BIND, "")
 			if err != nil {
 				slog.Warn("failed to mount custom meminfo", "error", err)
 			} else {
@@ -97,7 +97,7 @@ func childSysMounts(c *config.Config) error {
 	if c.CPULimit != "" {
 		cpuinfoPath := "/.sandal-proc/cpuinfo"
 		if _, err := os.Stat(cpuinfoPath); err == nil {
-			err = mount(cpuinfoPath, "/proc/cpuinfo", "", unix.MS_BIND, "")
+			err = cmount.Mount(cpuinfoPath, "/proc/cpuinfo", "", unix.MS_BIND, "")
 			if err != nil {
 				slog.Warn("failed to mount custom cpuinfo", "error", err)
 			} else {
@@ -107,14 +107,14 @@ func childSysMounts(c *config.Config) error {
 	}
 
 	if c.Devtmpfs != "/dev" {
-		err = mount("tmpfs", "/dev", "tmpfs", unix.MS_RELATIME, "size=65536k,mode=755")
+		err = cmount.Mount("tmpfs", "/dev", "tmpfs", unix.MS_RELATIME, "size=65536k,mode=755")
 		if err != nil {
 			return err
 		}
 
 	}
 	if c.Devtmpfs != "" {
-		err = mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
+		err = cmount.Mount("tmpfs", c.Devtmpfs, "devtmpfs", unix.MS_NOSUID, "size=65536k,mode=755")
 		if err != nil {
 			return err
 		}
@@ -123,7 +123,7 @@ func childSysMounts(c *config.Config) error {
 	_, err = os.Stat("/tmp")
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
+			err = cmount.Mount("tmpfs", "/tmp", "tmpfs", unix.MS_NOSUID, "size=65536k,mode=1777")
 			if err != nil {
 				return err
 			}
@@ -134,32 +134,32 @@ func childSysMounts(c *config.Config) error {
 		return err
 	}
 
-	err = mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
+	err = cmount.Mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
 	if err != nil {
 		return err
 	}
 
 	if !c.NS.Get("cgroup").IsHost {
-		err = mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
+		err = cmount.Mount("cgroup2", "/sys/fs/cgroup", "cgroup2", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "nsdelegate,memory_recursiveprot")
 		if err != nil {
 			return err
 		}
 
 	}
 
-	err = mount("devpts", "/dev/pts", "devpts", unix.MS_NOSUID|unix.MS_NOEXEC|unix.MS_RELATIME, "gid=5,mode=620,ptmxmode=666")
+	err = cmount.Mount("devpts", "/dev/pts", "devpts", unix.MS_NOSUID|unix.MS_NOEXEC|unix.MS_RELATIME, "gid=5,mode=620,ptmxmode=666")
 	if err != nil {
 		return err
 	}
 
-	err = mount("shm", "/dev/shm", "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "size=64000k")
+	err = cmount.Mount("shm", "/dev/shm", "tmpfs", unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_RELATIME, "size=64000k")
 	if err != nil {
 		return err
 	}
 
 	// mount as private then unmount to remove access to old root
 
-	err = mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
+	err = cmount.Mount("", sandalChildWorkdir, "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err != nil {
 		return err
 	}
@@ -174,68 +174,18 @@ func childSysMounts(c *config.Config) error {
 }
 
 func purgeOldRoot(c *config.Config) error {
-	mount("", "/.old_root", "", unix.MS_PRIVATE|unix.MS_REC, "")
+	cmount.Mount("", "/.old_root", "", unix.MS_PRIVATE|unix.MS_REC, "")
 	if err := unix.Unmount("/.old_root", unix.MNT_DETACH); err != nil {
 		return fmt.Errorf("unable to unmount /.old_root: %w", err)
 	}
 	os.Remove("/.old_root")
 
 	if c.ReadOnly {
-		mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
+		cmount.Mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
 	}
 	return nil
 }
 
-func mount(source, target, fstype string, flags uintptr, data string) error {
-
-	slog.Debug("mount", slog.String("source", source), slog.String("target", target), slog.String("fstype", fstype))
-
-	source = cruntime.ResolvePath(source)
-
-	// empty mount used for removing old root access from container
-	if source != "" && source[0:1] == "/" {
-		retried := false
-	CHECK_FOLDER:
-		_, err := os.Stat(filepath.Dir(source))
-		if os.IsNotExist(err) {
-			if !retried {
-				os.MkdirAll(filepath.Dir(source), 0o0600)
-				retried = true
-				goto CHECK_FOLDER
-			}
-			return fmt.Errorf("path %s does not exist and unable to created", filepath.Dir(source))
-		}
-
-		if err != nil {
-			return err
-		}
-
-		fileInfo, err := os.Stat(source)
-		if os.IsNotExist(err) {
-			return fmt.Errorf("path does not exist %s", filepath.Dir(source))
-		}
-		if err != nil {
-			return err
-		}
-
-		if !fileInfo.IsDir() {
-			os.MkdirAll(filepath.Dir(target), 0o0600)
-			err = Touch(target)
-			if err != nil {
-				return fmt.Errorf("unable to touch, %v", err)
-			}
-		} else {
-			os.MkdirAll(target, 0o0600)
-		}
-	} else {
-		os.MkdirAll(target, 0o0600)
-	}
-
-	if err := unix.Mount(source, target, fstype, flags, data); err != nil {
-		return err
-	}
-	return nil
-}
 
 func mountVolumes(c *config.Config) error {
 	for _, v := range c.Volumes {
@@ -253,7 +203,7 @@ func mountVolumes(c *config.Config) error {
 			return fmt.Errorf("unexpected mount configuration '%s'", v)
 		}
 
-		src := cruntime.ResolvePath(m[0])
+		src := cmount.ResolvePath(m[0])
 
 		// Validate source is an absolute path
 		if !filepath.IsAbs(src) {
@@ -282,7 +232,7 @@ func mountVolumes(c *config.Config) error {
 			return fmt.Errorf("volume destination %q resolves outside container rootfs", dest)
 		}
 
-		err = mount(src, target, "", unix.MS_BIND, m[2])
+		err = cmount.Mount(src, target, "", unix.MS_BIND, m[2])
 		if err != nil {
 			return err
 		}
@@ -290,25 +240,3 @@ func mountVolumes(c *config.Config) error {
 	return nil
 }
 
-func Touch(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		createTry := false
-
-	CREATE_FILE:
-		file, err := os.Create(path)
-		if os.IsNotExist(err) {
-			os.MkdirAll(filepath.Dir(path), 0o0600)
-			if !createTry {
-				createTry = true
-				goto CREATE_FILE
-			}
-		} else if err != nil {
-			return err
-		}
-		file.Close()
-		return nil
-	} else if err != nil {
-		return err
-	}
-	return nil
-}

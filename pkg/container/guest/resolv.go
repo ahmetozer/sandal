@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 )
 
 func read(file string) *[]byte {
@@ -64,7 +65,7 @@ func createResolv(c *config.Config, d *[]byte) error {
 	if err := os.WriteFile(path.Join(sandalChildWorkdir, "/etc/resolv.conf"), *d, 0644); err != nil {
 		return fmt.Errorf("unable to write /etc/resolv.conf: %s", err)
 	}
-	err = mount(path.Join(sandalChildWorkdir, "/etc/resolv.conf"), "/etc/resolv.conf", "tmpfs", syscall.MS_BIND, "ro")
+	err = cmount.Mount(path.Join(sandalChildWorkdir, "/etc/resolv.conf"), "/etc/resolv.conf", "tmpfs", syscall.MS_BIND, "ro")
 	if err != nil {
 		slog.Error("unable to bind /etc/resolv.conf")
 	}
@@ -107,6 +108,6 @@ func createHosts(c *config.Config, d *[]byte) error {
 		return err
 	}
 
-	err = mount(path.Join(sandalChildWorkdir, "/etc/hosts"), "/etc/hosts", "tmpfs", syscall.MS_BIND, "ro")
+	err = cmount.Mount(path.Join(sandalChildWorkdir, "/etc/hosts"), "/etc/hosts", "tmpfs", syscall.MS_BIND, "ro")
 	return err
 }

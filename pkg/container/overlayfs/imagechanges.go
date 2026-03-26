@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/container/resources"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	detectfs "github.com/ahmetozer/sandal/pkg/lib/detectFs"
 	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 	"github.com/ahmetozer/sandal/pkg/lib/mkfs"
@@ -98,7 +99,7 @@ func prepareImageChangeDir(changeDir string, sizeStr string) (*ImageChangeMount,
 		lc.Detach()
 		return nil, fmt.Errorf("creating mount point: %w", err)
 	}
-	if err := unix.Mount(lc.Path, changeDir, "ext4", 0, ""); err != nil {
+	if err := cmount.Mount(lc.Path, changeDir, "ext4", 0, ""); err != nil {
 		lc.Detach()
 		return nil, fmt.Errorf("mounting ext4 at %s: %w", changeDir, err)
 	}

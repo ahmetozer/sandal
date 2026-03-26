@@ -13,7 +13,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
-	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
@@ -130,7 +130,7 @@ func mountRootfs(c *config.Config) error {
 			if p := strings.Split(source, ":"); len(p) > 0 {
 				basePath = p[0]
 			}
-			basePath = crt.ResolvePath(basePath)
+			basePath = cmount.ResolvePath(basePath)
 			slog.Debug("MountRootfs", slog.String("pathType", "lower"), slog.String("source", source), slog.String("basePath", basePath), slog.String("target", la.Target), slog.Bool("subMounts", la.SubMounts))
 
 			// Resolve the source to a mountable directory.
@@ -178,7 +178,7 @@ func mountRootfs(c *config.Config) error {
 		}
 
 		options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(LowerDirs, ":"), changeDir.GetUpper(), changeDir.GetWork())
-		err = unix.Mount("overlay", c.RootfsDir, "overlay", 0, options)
+		err = cmount.Mount("overlay", c.RootfsDir, "overlay", 0, options)
 		slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir), slog.Any("options", options))
 		if err != nil {
 			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name), slog.Any("error", err))

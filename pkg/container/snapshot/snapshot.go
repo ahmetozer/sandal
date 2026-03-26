@@ -10,6 +10,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 	"golang.org/x/sys/unix"
@@ -148,7 +149,7 @@ func mergeSubMountUppers(sourceDir string, subUppers []overlayfs.SubMountUpperDi
 	}
 
 	// Bind-mount the source as the base.
-	if err := unix.Mount(sourceDir, mergedDir, "", unix.MS_BIND|unix.MS_REC, ""); err != nil {
+	if err := cmount.Mount(sourceDir, mergedDir, "", unix.MS_BIND|unix.MS_REC, ""); err != nil {
 		os.Remove(mergedDir)
 		return "", nil, fmt.Errorf("bind-mount source: %w", err)
 	}
@@ -163,7 +164,7 @@ func mergeSubMountUppers(sourceDir string, subUppers []overlayfs.SubMountUpperDi
 
 		// Read-only overlay: sub-mount upper (higher priority) over existing target content.
 		opts := fmt.Sprintf("lowerdir=%s:%s", su.UpperDir, target)
-		if err := unix.Mount("overlay", target, "overlay", unix.MS_RDONLY, opts); err != nil {
+		if err := cmount.Mount("overlay", target, "overlay", unix.MS_RDONLY, opts); err != nil {
 			// If overlay fails (e.g. empty dirs), just skip.
 			continue
 		}
@@ -201,7 +202,7 @@ func mergeWithPrevious(prevSnapshotFile, upperDir string) (string, func(), error
 
 	// Read-only overlay: upperDir (higher priority) over previous snapshot (lower priority)
 	options := fmt.Sprintf("lowerdir=%s:%s", upperDir, img.MountDir)
-	if err := unix.Mount("overlay", mergedDir, "overlay", unix.MS_RDONLY, options); err != nil {
+	if err := cmount.Mount("overlay", mergedDir, "overlay", unix.MS_RDONLY, options); err != nil {
 		diskimage.Umount(&img)
 		return "", nil, fmt.Errorf("mounting merge overlay: %w", err)
 	}

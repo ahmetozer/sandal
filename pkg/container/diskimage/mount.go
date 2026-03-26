@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	detectfs "github.com/ahmetozer/sandal/pkg/lib/detectFs"
 	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
@@ -81,7 +82,7 @@ func (c *ImmutableImage) unixMount() (err error) {
 	if err != nil {
 		return err
 	}
-	err = unix.Mount(c.LoopConfig.Path, c.MountDir, fsType, unix.MS_RDONLY, "")
+	err = cmount.Mount(c.LoopConfig.Path, c.MountDir, fsType, unix.MS_RDONLY, "")
 
 	slog.Debug("diskMount", slog.Any("err", err), slog.String("mount-dir", c.MountDir),
 		slog.String("loop-path", c.LoopConfig.Path), slog.String("autoFsType", fsType))
