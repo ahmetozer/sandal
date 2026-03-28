@@ -206,8 +206,29 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	devIdx := 0
 
 	// Virtio-console device — provides /dev/hvc0.
+	// Uses its own pipe pair so it doesn't compete with the PL011 UART
+	// for host stdin bytes. On Linux ARM64, the console is ttyAMA0 (UART),
+	// so hvc0 is secondary and shouldn't steal input from the UART.
 	{
-		consoleDev = NewVirtioConsoleDevice(stdinReader, stdoutWriter)
+		consoleInR, consoleInW, err := os.Pipe()
+		if err != nil {
+			unix.Munmap(mem)
+			unix.Close(int(vmFd))
+			unix.Close(kvmFd)
+			return nil, fmt.Errorf("console stdin pipe: %w", err)
+		}
+		consoleOutR, consoleOutW, err := os.Pipe()
+		if err != nil {
+			unix.Munmap(mem)
+			unix.Close(int(vmFd))
+			unix.Close(kvmFd)
+			return nil, fmt.Errorf("console stdout pipe: %w", err)
+		}
+		// Close write end of console input — nothing feeds hvc0 input.
+		consoleInW.Close()
+		// Close read end of console output — hvc0 output is discarded.
+		consoleOutR.Close()
+		consoleDev = NewVirtioConsoleDevice(consoleInR, consoleOutW)
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 		irqNum := uint32(16 + devIdx)
 		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, consoleDev)

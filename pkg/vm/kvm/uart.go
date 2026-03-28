@@ -107,9 +107,10 @@ func (u *uart) updateIRQLocked() {
 		if shouldAssert {
 			level = 1
 		}
-		// Encode SPI 1 for ARM64 KVM_IRQ_LINE
+		// Encode SPI 1 for ARM64 KVM_IRQ_LINE.
+		// irq_number must be the full GIC INTID: 32 (private IRQs) + SPI index.
 		irq := kvmIRQLevel{
-			IRQ:   (kvmARMIRQTypeSPI << kvmARMIRQTypeShift) | 1, // SPI #1
+			IRQ:   (kvmARMIRQTypeSPI << kvmARMIRQTypeShift) | (32 + 1), // SPI #1 = INTID 33
 			Level: level,
 		}
 		ioctlPtr(u.vmFd, kvmIRQLine, unsafe.Pointer(&irq))

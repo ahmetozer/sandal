@@ -142,9 +142,10 @@ type kvmIRQLevel struct {
 }
 
 // ARM64 KVM_IRQ_LINE encoding: type(24-27) | vcpu_index(16-23) | irq_number(0-15).
-// Type 0 = SPI, Type 1 = PPI.
+// Type 0 = CPU, Type 1 = SPI, Type 2 = PPI.
+// For SPI, irq_number is the full GIC INTID (>= 32), not the SPI index.
 const (
-	kvmARMIRQTypeSPI   = 0
+	kvmARMIRQTypeSPI   = 1
 	kvmARMIRQTypeShift = 24
 )
 
