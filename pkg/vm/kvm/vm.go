@@ -52,8 +52,9 @@ type VM struct {
 
 	kvmFd   int
 	vmFd    int
-	vcpuFds []int
-	vcpuRun [][]byte // mmap'd kvm_run regions per vCPU
+	vcpuFds  []int
+	vcpuRun  [][]byte // mmap'd kvm_run regions per vCPU
+	vcpuTids []int    // OS thread IDs for signal-based wakeup
 
 	memory []byte // guest physical RAM
 
@@ -171,6 +172,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 
 	// Create vCPUs.
 	vcpuFds := make([]int, cfg.CPUCount)
+	vcpuTids := make([]int, cfg.CPUCount)
 	vcpuRun := make([][]byte, cfg.CPUCount)
 	for i := uint(0); i < cfg.CPUCount; i++ {
 		vcpuFd, err := ioctl(int(vmFd), kvmCreateVCPU, uintptr(i))
@@ -338,6 +340,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		kvmFd:        kvmFd,
 		vmFd:         int(vmFd),
 		vcpuFds:      vcpuFds,
+		vcpuTids:     vcpuTids,
 		vcpuRun:      vcpuRun,
 		memory:       mem,
 		stdinWriter:  stdinWriter,
@@ -411,6 +414,9 @@ func (vm *VM) runVCPU(cpuID int) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	// Record OS thread ID so Stop() can send a signal to interrupt KVM_RUN.
+	vm.vcpuTids[cpuID] = unix.Gettid()
+
 	fd := vm.vcpuFds[cpuID]
 	run := vm.vcpuRun[cpuID]
 
@@ -456,19 +462,24 @@ func (vm *VM) runVCPU(cpuID int) {
 			// Guest executed HLT. With in-kernel GIC and PSCI v0.2+,
 			// WFI is handled in-kernel. If HLT exits reach here, the
 			// guest is done.
+			vm.Stop()
 			return
 		case kvmExitShutdown:
+			vm.Stop()
 			return
 		case kvmExitSystemEvent:
 			evType := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 			switch evType {
 			case kvmSystemEventShutdown:
+				vm.Stop()
 				return
 			case kvmSystemEventReset:
 				slog.Warn("guest requested reset", slog.Int("vcpu", cpuID))
+				vm.Stop()
 				return
 			case kvmSystemEventCrash:
 				slog.Error("guest crashed", slog.Int("vcpu", cpuID))
+				vm.Stop()
 				return
 			}
 		case kvmExitFailEntry:
@@ -517,9 +528,17 @@ func (vm *VM) Stop() error {
 	}
 	vm.state = VMStateStopping
 	close(vm.stopCh)
-	// Force vCPU threads out of KVM_RUN by closing their fds.
-	// KVM_RUN returns immediately with EBADF, the loop sees stopCh
-	// closed and exits. Mark fds as -1 so Close() skips them.
+	// Wake vCPU threads that may be blocked in KVM_RUN (including
+	// in-kernel sleep from PSCI CPU_OFF). Closing fds alone doesn't
+	// reliably interrupt a blocked ioctl; a signal is needed.
+	// SIGURG is allowed through the vCPU signal mask, so it causes
+	// KVM_RUN to return with EINTR. The loop then sees stopCh closed.
+	pid := os.Getpid()
+	for _, tid := range vm.vcpuTids {
+		if tid > 0 {
+			unix.Tgkill(pid, tid, unix.SIGURG)
+		}
+	}
 	for i, fd := range vm.vcpuFds {
 		if fd >= 0 {
 			unix.Close(fd)
