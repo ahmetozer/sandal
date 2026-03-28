@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
 	containerguest "github.com/ahmetozer/sandal/pkg/container/guest"
@@ -13,17 +14,22 @@ import (
 )
 
 func platformMain() {
-	if guest.IsVMInit() {
+	// IsChild must be checked before IsVMInit: container child processes
+	// in PID namespaces also see PID 1 and can read SANDAL_VM_ARGS from
+	// /proc/cmdline, which would incorrectly trigger the VMInit path.
+	if containerguest.IsChild() {
+		containerguest.ContainerInitProc()
+	} else if guest.IsVMInit() {
 		if err := guest.VMInit(); err != nil {
 			fmt.Fprintf(os.Stderr, "VMInit error: %v\n", err)
 			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
 			os.Exit(1)
 		}
 		cmd.Main()
-		// PID 1 must never return — power off the VM
+		// Let the PL011 tty drain buffered output before powering off.
+		// The interrupt-driven TX needs CPU time to transmit remaining bytes.
+		time.Sleep(50 * time.Millisecond)
 		unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
-	} else if containerguest.IsChild() {
-		containerguest.ContainerInitProc()
 	} else {
 		cmd.Main()
 	}

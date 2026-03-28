@@ -409,11 +409,14 @@ func (vm *VM) runVCPU(cpuID int) {
 
 		_, err := ioctl(fd, kvmRun, 0)
 		if err != nil {
-			if err == unix.EINTR || err == unix.EAGAIN {
+			if err == unix.EINTR || err == unix.EAGAIN || err == unix.EBADF {
 				select {
 				case <-vm.stopCh:
 					return
 				default:
+					if err == unix.EBADF {
+						return // fd was closed by Stop()
+					}
 					continue
 				}
 			}
@@ -493,6 +496,15 @@ func (vm *VM) Stop() error {
 	}
 	vm.state = VMStateStopping
 	close(vm.stopCh)
+	// Force vCPU threads out of KVM_RUN by closing their fds.
+	// KVM_RUN returns immediately with EBADF, the loop sees stopCh
+	// closed and exits. Mark fds as -1 so Close() skips them.
+	for i, fd := range vm.vcpuFds {
+		if fd >= 0 {
+			unix.Close(fd)
+			vm.vcpuFds[i] = -1
+		}
+	}
 	return nil
 }
 
@@ -520,7 +532,10 @@ func (vm *VM) StartIORelay(input io.Reader, output io.Writer) {
 func (vm *VM) Close() {
 	for i := range vm.vcpuFds {
 		unix.Munmap(vm.vcpuRun[i])
-		unix.Close(vm.vcpuFds[i])
+		if vm.vcpuFds[i] >= 0 {
+			unix.Close(vm.vcpuFds[i])
+			vm.vcpuFds[i] = -1
+		}
 	}
 	unix.Munmap(vm.memory)
 	unix.Close(vm.vmFd)

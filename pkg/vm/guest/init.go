@@ -164,7 +164,6 @@ func VMInit() error {
 	}
 
 	// The kernel's initramfs root (rootfs) doesn't support pivot_root.
-	// Use switch_root approach: mount tmpfs, chroot into it.
 	os.MkdirAll("/newroot", 0755)
 	if err := cmount.Mount("tmpfs", "/newroot", "tmpfs", 0, ""); err != nil {
 		return fmt.Errorf("mount tmpfs on /newroot: %w", err)
