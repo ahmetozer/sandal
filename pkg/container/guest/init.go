@@ -58,6 +58,7 @@ func ContainerInitProc() {
 			return fmt.Errorf("no executable is provided")
 		}
 
+
 		if err := unix.Sethostname([]byte(c.Name)); err != nil {
 			return fmt.Errorf("unable to set hostname %s", err)
 		}
@@ -66,6 +67,7 @@ func ContainerInitProc() {
 		if err == nil {
 			netlink.LinkSetUp(k)
 		}
+
 
 		if !c.NS.Get("net").IsHost {
 
@@ -116,6 +118,7 @@ func ContainerInitProc() {
 			}
 		}
 
+
 		err = childSysMounts(c)
 		if err != nil {
 			return err
@@ -134,6 +137,7 @@ func ContainerInitProc() {
 			return err
 		}
 		cruntime.RunCommands(c.RunPreExec, "", "")
+
 
 		if len(c.ContArgs) == 0 {
 			return fmt.Errorf("no container arg provided, malformed container file")

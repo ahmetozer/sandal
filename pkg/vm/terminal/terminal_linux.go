@@ -40,8 +40,9 @@ func SetRaw() (restore func(), err error) {
 	// Input flags: disable IGNBRK, BRKINT, PARMRK, ISTRIP, INLCR, IGNCR, ICRNL, IXON
 	raw.Iflag &^= syscall.IGNBRK | syscall.BRKINT | syscall.PARMRK | syscall.ISTRIP |
 		syscall.INLCR | syscall.IGNCR | syscall.ICRNL | syscall.IXON
-	// Output flags: disable OPOST
-	raw.Oflag &^= syscall.OPOST
+	// Keep OPOST enabled so the terminal translates \n to \r\n for all
+	// output (kernel boot messages via UART and host-side slog lines).
+	// raw.Oflag &^= syscall.OPOST
 	// Local flags: disable ECHO, ECHONL, ICANON, ISIG, IEXTEN
 	raw.Lflag &^= syscall.ECHO | syscall.ECHONL | syscall.ICANON | syscall.ISIG | syscall.IEXTEN
 	// Control flags: disable CSIZE, PARENB; set CS8

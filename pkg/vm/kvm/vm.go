@@ -52,8 +52,9 @@ type VM struct {
 
 	kvmFd   int
 	vmFd    int
-	vcpuFds []int
-	vcpuRun [][]byte // mmap'd kvm_run regions per vCPU
+	vcpuFds  []int
+	vcpuRun  [][]byte // mmap'd kvm_run regions per vCPU
+	vcpuTids []int    // OS thread IDs for signal-based wakeup
 
 	memory []byte // guest physical RAM
 
@@ -171,6 +172,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 
 	// Create vCPUs.
 	vcpuFds := make([]int, cfg.CPUCount)
+	vcpuTids := make([]int, cfg.CPUCount)
 	vcpuRun := make([][]byte, cfg.CPUCount)
 	for i := uint(0); i < cfg.CPUCount; i++ {
 		vcpuFd, err := ioctl(int(vmFd), kvmCreateVCPU, uintptr(i))
@@ -206,8 +208,29 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	devIdx := 0
 
 	// Virtio-console device — provides /dev/hvc0.
+	// Uses its own pipe pair so it doesn't compete with the PL011 UART
+	// for host stdin bytes. On Linux ARM64, the console is ttyAMA0 (UART),
+	// so hvc0 is secondary and shouldn't steal input from the UART.
 	{
-		consoleDev = NewVirtioConsoleDevice(stdinReader, stdoutWriter)
+		consoleInR, consoleInW, err := os.Pipe()
+		if err != nil {
+			unix.Munmap(mem)
+			unix.Close(int(vmFd))
+			unix.Close(kvmFd)
+			return nil, fmt.Errorf("console stdin pipe: %w", err)
+		}
+		consoleOutR, consoleOutW, err := os.Pipe()
+		if err != nil {
+			unix.Munmap(mem)
+			unix.Close(int(vmFd))
+			unix.Close(kvmFd)
+			return nil, fmt.Errorf("console stdout pipe: %w", err)
+		}
+		// Close write end of console input — nothing feeds hvc0 input.
+		consoleInW.Close()
+		// Close read end of console output — hvc0 output is discarded.
+		consoleOutR.Close()
+		consoleDev = NewVirtioConsoleDevice(consoleInR, consoleOutW)
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 		irqNum := uint32(16 + devIdx)
 		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, consoleDev)
@@ -317,6 +340,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		kvmFd:        kvmFd,
 		vmFd:         int(vmFd),
 		vcpuFds:      vcpuFds,
+		vcpuTids:     vcpuTids,
 		vcpuRun:      vcpuRun,
 		memory:       mem,
 		stdinWriter:  stdinWriter,
@@ -390,6 +414,9 @@ func (vm *VM) runVCPU(cpuID int) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	// Record OS thread ID so Stop() can send a signal to interrupt KVM_RUN.
+	vm.vcpuTids[cpuID] = unix.Gettid()
+
 	fd := vm.vcpuFds[cpuID]
 	run := vm.vcpuRun[cpuID]
 
@@ -409,11 +436,14 @@ func (vm *VM) runVCPU(cpuID int) {
 
 		_, err := ioctl(fd, kvmRun, 0)
 		if err != nil {
-			if err == unix.EINTR || err == unix.EAGAIN {
+			if err == unix.EINTR || err == unix.EAGAIN || err == unix.EBADF {
 				select {
 				case <-vm.stopCh:
 					return
 				default:
+					if err == unix.EBADF {
+						return // fd was closed by Stop()
+					}
 					continue
 				}
 			}
@@ -432,19 +462,24 @@ func (vm *VM) runVCPU(cpuID int) {
 			// Guest executed HLT. With in-kernel GIC and PSCI v0.2+,
 			// WFI is handled in-kernel. If HLT exits reach here, the
 			// guest is done.
+			vm.Stop()
 			return
 		case kvmExitShutdown:
+			vm.Stop()
 			return
 		case kvmExitSystemEvent:
 			evType := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 			switch evType {
 			case kvmSystemEventShutdown:
+				vm.Stop()
 				return
 			case kvmSystemEventReset:
 				slog.Warn("guest requested reset", slog.Int("vcpu", cpuID))
+				vm.Stop()
 				return
 			case kvmSystemEventCrash:
 				slog.Error("guest crashed", slog.Int("vcpu", cpuID))
+				vm.Stop()
 				return
 			}
 		case kvmExitFailEntry:
@@ -493,6 +528,23 @@ func (vm *VM) Stop() error {
 	}
 	vm.state = VMStateStopping
 	close(vm.stopCh)
+	// Wake vCPU threads that may be blocked in KVM_RUN (including
+	// in-kernel sleep from PSCI CPU_OFF). Closing fds alone doesn't
+	// reliably interrupt a blocked ioctl; a signal is needed.
+	// SIGURG is allowed through the vCPU signal mask, so it causes
+	// KVM_RUN to return with EINTR. The loop then sees stopCh closed.
+	pid := os.Getpid()
+	for _, tid := range vm.vcpuTids {
+		if tid > 0 {
+			unix.Tgkill(pid, tid, unix.SIGURG)
+		}
+	}
+	for i, fd := range vm.vcpuFds {
+		if fd >= 0 {
+			unix.Close(fd)
+			vm.vcpuFds[i] = -1
+		}
+	}
 	return nil
 }
 
@@ -520,7 +572,10 @@ func (vm *VM) StartIORelay(input io.Reader, output io.Writer) {
 func (vm *VM) Close() {
 	for i := range vm.vcpuFds {
 		unix.Munmap(vm.vcpuRun[i])
-		unix.Close(vm.vcpuFds[i])
+		if vm.vcpuFds[i] >= 0 {
+			unix.Close(vm.vcpuFds[i])
+			vm.vcpuFds[i] = -1
+		}
 	}
 	unix.Munmap(vm.memory)
 	unix.Close(vm.vmFd)

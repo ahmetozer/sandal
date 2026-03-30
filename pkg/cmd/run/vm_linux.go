@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
+	"strconv"
 
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
+	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
@@ -24,6 +27,12 @@ func runInKVM(args []string) error {
 	// Remove -vm flag from args -- it's consumed here, not forwarded
 	_, cleanArgs := extractFlag(args, "vm", "")
 
+	// Extract -cpu and -memory flags to apply to the VM itself.
+	// These flags are kept in cleanArgs so the container inside the VM
+	// can also enforce cgroup limits with the same values.
+	cpuVal, cleanArgs := extractFlag(cleanArgs, "cpu", "")
+	memVal, cleanArgs := extractFlag(cleanArgs, "memory", "")
+
 	// Scan args for -v values to determine VirtioFS shares
 	hostPaths := scanMountPaths(cleanArgs)
 
@@ -36,6 +45,19 @@ func runInKVM(args []string) error {
 	cfg := vmconfig.VMConfig{
 		CPUCount:    vmconfig.DefaultCPUCount,
 		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+	}
+
+	// Override VM resources if -cpu or -memory flags were provided
+	if cpuVal != "" {
+		if cpus, err := strconv.ParseFloat(cpuVal, 64); err == nil && cpus > 0 {
+			cfg.CPUCount = uint(math.Ceil(cpus))
+		}
+	}
+	if memVal != "" {
+		if memBytes, err := resources.ParseSize(memVal); err == nil && memBytes > 0 {
+			// KVM requires page-aligned memory size
+			cfg.MemoryBytes = (uint64(memBytes) + 4095) &^ 4095
+		}
 	}
 
 	// Auto-download kernel
