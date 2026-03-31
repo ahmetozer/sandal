@@ -6,10 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
+	"net"
 	"os"
 	"strconv"
+	"strings"
+
+	"golang.org/x/sys/unix"
 
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
@@ -33,8 +38,8 @@ func runInKVM(args []string) error {
 	cpuVal, cleanArgs := extractFlag(cleanArgs, "cpu", "")
 	memVal, cleanArgs := extractFlag(cleanArgs, "memory", "")
 
-	// Scan args for -v values to determine VirtioFS shares
-	hostPaths := scanMountPaths(cleanArgs)
+	// Scan args for -v values to determine VirtioFS shares and socket mounts
+	hostPaths, socketMounts := scanMountPaths(cleanArgs)
 
 	// Pre-pull OCI images on the host and convert to squashfs.
 	// Use env.LibDir / env.BaseImageDir so VM and non-VM runs share the same cache.
@@ -109,8 +114,21 @@ func runInKVM(args []string) error {
 		}
 	}
 
+	// Build socket relay entries for SANDAL_VM_SOCKETS
+	var socketEntries []string
+	for i, sm := range socketMounts {
+		port := 5000 + i
+		socketEntries = append(socketEntries, fmt.Sprintf("%d=%s=%s", port, sm.HostPath, sm.GuestPath))
+	}
+
+	// Remove socket -v entries from args forwarded to the container inside the VM.
+	// These are handled by vsock relay, not VirtioFS + bind mount.
+	if len(socketMounts) > 0 {
+		cleanArgs = removeSocketVolumes(cleanArgs, socketMounts)
+	}
+
 	// Build kernel command line
-	cfg.CommandLine = buildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded)
+	cfg.CommandLine = buildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
 
 	// Resolve sandal binary for initrd
 	selfBin, err := resolveVMBinary()
@@ -133,5 +151,98 @@ func runInKVM(args []string) error {
 	}
 	defer vmconfig.DeleteVM(vmName)
 
+	// Start host-side socket relay for vsock
+	if len(socketMounts) > 0 {
+		go startHostSocketRelay(socketMounts)
+	}
+
 	return kvm.Boot(vmName, cfg)
+}
+
+// startHostSocketRelay starts a vsock listener for each socket mount.
+// Each listener accepts connections from the guest and relays them to the
+// corresponding host Unix socket.
+func startHostSocketRelay(sockets []SocketMount) {
+	for i, sm := range sockets {
+		port := uint32(5000 + i)
+		go hostRelaySocket(sm.HostPath, port)
+	}
+}
+
+// hostRelaySocket listens on AF_VSOCK at the given port and for each accepted
+// connection, dials the host Unix socket and performs bidirectional relay.
+func hostRelaySocket(hostPath string, port uint32) {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		slog.Warn("vsock socket failed", slog.Any("err", err))
+		return
+	}
+	if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: port}); err != nil {
+		unix.Close(fd)
+		slog.Warn("vsock bind failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+		return
+	}
+	if err := unix.Listen(fd, 8); err != nil {
+		unix.Close(fd)
+		slog.Warn("vsock listen failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+		return
+	}
+
+	for {
+		nfd, _, err := unix.Accept(fd)
+		if err != nil {
+			slog.Warn("vsock accept failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+			return
+		}
+		go func(clientFD int) {
+			f := os.NewFile(uintptr(clientFD), fmt.Sprintf("vsock-client:%d", port))
+			defer f.Close()
+			vsockConn, err := net.FileConn(f)
+			if err != nil {
+				slog.Warn("vsock fileconn failed", slog.Any("err", err))
+				return
+			}
+			defer vsockConn.Close()
+
+			hostConn, err := net.Dial("unix", hostPath)
+			if err != nil {
+				slog.Warn("host socket dial failed", slog.String("path", hostPath), slog.Any("err", err))
+				return
+			}
+			defer hostConn.Close()
+
+			done := make(chan struct{})
+			go func() {
+				io.Copy(hostConn, vsockConn)
+				done <- struct{}{}
+			}()
+			io.Copy(vsockConn, hostConn)
+			<-done
+		}(nfd)
+	}
+}
+
+// removeSocketVolumes removes -v entries from args that correspond to socket mounts.
+func removeSocketVolumes(args []string, sockets []SocketMount) []string {
+	socketSet := make(map[string]bool)
+	for _, sm := range sockets {
+		socketSet[sm.HostPath] = true
+	}
+	var result []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			result = append(result, args[i:]...)
+			break
+		}
+		if args[i] == "-v" && i+1 < len(args) {
+			val := args[i+1]
+			hostPath := strings.SplitN(val, ":", 2)[0]
+			if socketSet[hostPath] {
+				i++ // skip value
+				continue
+			}
+		}
+		result = append(result, args[i])
+	}
+	return result
 }

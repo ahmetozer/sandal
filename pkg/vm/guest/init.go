@@ -6,9 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -157,6 +160,8 @@ func VMInit() error {
 		"vxlan", "geneve", "ipvlan", "macvlan",
 		// Block / virtio
 		"virtio_net", "virtio_blk",
+		// Vsock (host<->guest socket communication)
+		"vsock", "vmw_vsock_virtio_transport_common", "vmw_vsock_virtio_transport",
 	} {
 		if err := modprobe.Load(mod); err != nil {
 			slog.Warn("modprobe", slog.String("module", mod), slog.Any("err", err))
@@ -243,6 +248,11 @@ func VMInit() error {
 		if mountErr != nil {
 			slog.Warn("failed to mount virtiofs", slog.String("tag", tag), slog.String("mountpoint", mountPoint), slog.Any("err", mountErr))
 		}
+	}
+
+	// Start vsock socket relay for SANDAL_VM_SOCKETS
+	if sockSpec := os.Getenv("SANDAL_VM_SOCKETS"); sockSpec != "" {
+		startGuestSocketRelay(sockSpec)
 	}
 
 	// Configure guest network from SANDAL_VM_NET (JSON-encoded Link from host).
@@ -332,4 +342,91 @@ func vmConfigureNetwork(netSpec string) error {
 
 	slog.Info("network configured", slog.String("iface", ifName), slog.Any("addr", link.Addr))
 	return nil
+}
+
+// startGuestSocketRelay parses SANDAL_VM_SOCKETS (format: port=hostpath=guestpath,...)
+// and starts a background goroutine for each socket that relays connections
+// from the guest Unix socket to the host via vsock.
+func startGuestSocketRelay(spec string) {
+	for _, entry := range strings.Split(spec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "=", 3)
+		if len(parts) < 3 {
+			slog.Warn("invalid socket spec", slog.String("entry", entry))
+			continue
+		}
+		port, err := strconv.ParseUint(parts[0], 10, 32)
+		if err != nil {
+			slog.Warn("invalid socket port", slog.String("entry", entry), slog.Any("err", err))
+			continue
+		}
+		guestPath := parts[2]
+
+		// Create parent directory and remove stale socket
+		os.MkdirAll(filepath.Dir(guestPath), 0755)
+		os.Remove(guestPath)
+
+		go guestRelaySocket(guestPath, uint32(port))
+	}
+}
+
+// guestRelaySocket listens on a Unix socket at guestPath and for each
+// accepted connection, dials AF_VSOCK to the host (CID=2) on the given port,
+// then performs bidirectional relay.
+func guestRelaySocket(guestPath string, port uint32) {
+	ln, err := net.Listen("unix", guestPath)
+	if err != nil {
+		slog.Warn("guest socket listen failed", slog.String("path", guestPath), slog.Any("err", err))
+		return
+	}
+	defer ln.Close()
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			slog.Warn("guest socket accept failed", slog.String("path", guestPath), slog.Any("err", err))
+			return
+		}
+		go func(c net.Conn) {
+			defer c.Close()
+			// CID 2 is the host
+			vsock, err := vsockDial(2, port)
+			if err != nil {
+				slog.Warn("vsock dial failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+				return
+			}
+			defer vsock.Close()
+
+			done := make(chan struct{})
+			go func() {
+				io.Copy(vsock, c)
+				done <- struct{}{}
+			}()
+			io.Copy(c, vsock)
+			<-done
+		}(conn)
+	}
+}
+
+// vsockDial creates an AF_VSOCK connection to the given CID and port.
+func vsockDial(cid, port uint32) (net.Conn, error) {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		return nil, fmt.Errorf("vsock socket: %w", err)
+	}
+	err = unix.Connect(fd, &unix.SockaddrVM{CID: cid, Port: port})
+	if err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("vsock connect: %w", err)
+	}
+	f := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", cid, port))
+	defer f.Close()
+	conn, err := net.FileConn(f)
+	if err != nil {
+		return nil, fmt.Errorf("vsock fileconn: %w", err)
+	}
+	return conn, nil
 }
