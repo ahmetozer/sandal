@@ -30,14 +30,10 @@ func IsVMInit() bool {
 	if os.Getpid() != 1 {
 		return false
 	}
-	if os.Getenv("SANDAL_VM_ARGS") != "" {
-		return true
-	}
-	// On KVM, kernel cmdline params aren't auto-exported as env vars
-	// for initramfs init. Parse /proc/cmdline to check and export them.
+	// Always parse kernel cmdline to decode base64-encoded env vars.
+	// On VZ, the kernel auto-exports cmdline params but keeps them
+	// base64-encoded. On KVM, they aren't exported at all.
 	importKernelCmdlineEnv()
-	// Even if SANDAL_VM_ARGS is not set, if we're /init or /sandal-init at PID 1
-	// we're likely running as VM init
 	return os.Getenv("SANDAL_VM_ARGS") != "" ||
 		os.Args[0] == "/init" || os.Args[0] == "/sandal-init"
 }
@@ -60,19 +56,35 @@ func importKernelCmdlineEnv() {
 
 	// Parse space-separated tokens. Handle quoted values and
 	// SANDAL_VM_ARGS which contains JSON with potential spaces inside brackets.
+	// Keys that are base64-encoded on the kernel cmdline to survive parsing.
+	// On VZ, the kernel auto-exports cmdline params as env vars but keeps
+	// them encoded. Always decode and re-set these even if already present.
+	b64Keys := map[string]bool{
+		"SANDAL_VM_ARGS": true,
+		"SANDAL_VM_NET":  true,
+	}
+
 	for _, param := range parseCmdlineParams(cmdline) {
 		if idx := strings.IndexByte(param, '='); idx > 0 {
 			key := param[:idx]
 			val := param[idx+1:]
-			// SANDAL_VM_ARGS and SANDAL_VM_NET are base64-encoded to survive kernel cmdline parsing
-			if key == "SANDAL_VM_ARGS" || key == "SANDAL_VM_NET" {
+			if b64Keys[key] {
 				if decoded, err := base64.StdEncoding.DecodeString(val); err == nil {
 					val = string(decoded)
 				}
-			}
-			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			} else if os.Getenv(key) == "" {
 				os.Setenv(key, val)
 			}
+		}
+	}
+
+	// Override os.Args with the decoded SANDAL_VM_ARGS so cmd.Main()
+	// dispatches the correct subcommand on both KVM and VZ.
+	if vmArgs := os.Getenv("SANDAL_VM_ARGS"); vmArgs != "" {
+		var args []string
+		if err := json.Unmarshal([]byte(vmArgs), &args); err == nil && len(args) > 0 {
+			os.Args = append([]string{os.Args[0]}, args...)
 		}
 	}
 }

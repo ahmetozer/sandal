@@ -180,3 +180,34 @@ func marshalVMArgs(cleanArgs []string) ([]byte, error) {
 	}
 	return argsJSON, nil
 }
+
+// rewriteSocketVolumes rewrites -v entries for socket mounts so the source
+// path points to the relay socket under /var/run/sandal/vsock/ in the VM.
+// The relay in VMInit creates sockets there, and the container's mountVolumes
+// bind-mounts them into the container rootfs at the original guest path.
+func rewriteSocketVolumes(args []string, sockets []SocketMount) []string {
+	socketMap := make(map[string]string) // hostPath -> guestPath
+	for _, sm := range sockets {
+		socketMap[sm.HostPath] = sm.GuestPath
+	}
+	var result []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			result = append(result, args[i:]...)
+			break
+		}
+		if args[i] == "-v" && i+1 < len(args) {
+			val := args[i+1]
+			hostPath := strings.SplitN(val, ":", 2)[0]
+			if guestPath, ok := socketMap[hostPath]; ok {
+				// Rewrite: source becomes the relay socket path in VM's /var/run/sandal/vsock/
+				relayPath := "/var/run/sandal/vsock" + guestPath
+				result = append(result, "-v", relayPath+":"+guestPath)
+				i++ // skip original value
+				continue
+			}
+		}
+		result = append(result, args[i])
+	}
+	return result
+}

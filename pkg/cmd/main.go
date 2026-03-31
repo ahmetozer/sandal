@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,16 +17,6 @@ var (
 )
 
 func Main() {
-	// When running inside a VM, the kernel passes SANDAL_VM_ARGS as an env var
-	// to PID 1 (init). Override os.Args with the decoded JSON array so the
-	// normal subcommand dispatch works.
-	if vmArgs := os.Getenv("SANDAL_VM_ARGS"); vmArgs != "" {
-		var args []string
-		if err := json.Unmarshal([]byte(vmArgs), &args); err == nil && len(args) > 0 {
-			os.Args = append([]string{os.Args[0]}, args...)
-		}
-	}
-
 	if len(os.Args) < 2 {
 		slog.Error("Main", slog.String("error", "No argument provided"))
 		subCommandsHelp()

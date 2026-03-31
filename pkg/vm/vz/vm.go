@@ -12,12 +12,56 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"net"
 	"os"
 	"sync"
+	"syscall"
 	"unsafe"
 
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 )
+
+// SocketRelay maps a vsock port to a host Unix socket path for relay.
+type SocketRelay struct {
+	Port     uint32
+	HostPath string
+}
+
+// vsockRelayMap maps vsock port -> host Unix socket path.
+// Set before VM start, read from the connection callback.
+var vsockRelayMap sync.Map // uint32 -> string
+
+//export goVsockNewConnection
+func goVsockNewConnection(port C.uint32_t, fd C.int) {
+	hostPath, ok := vsockRelayMap.Load(uint32(port))
+	if !ok {
+		slog.Warn("vsock connection on unknown port", slog.Uint64("port", uint64(port)))
+		syscall.Close(int(fd))
+		return
+	}
+	go relayVsockToUnix(int(fd), hostPath.(string))
+}
+
+func relayVsockToUnix(vsockFD int, hostPath string) {
+	vsockFile := os.NewFile(uintptr(vsockFD), "vsock-conn")
+	defer vsockFile.Close()
+
+	hostConn, err := net.Dial("unix", hostPath)
+	if err != nil {
+		slog.Warn("host socket dial failed", slog.String("path", hostPath), slog.Any("err", err))
+		return
+	}
+	defer hostConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		io.Copy(hostConn, vsockFile)
+		done <- struct{}{}
+	}()
+	io.Copy(vsockFile, hostConn)
+	<-done
+}
 
 type VMState int
 
@@ -210,6 +254,9 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		storagePtr = (*unsafe.Pointer)(unsafe.Pointer(&storageDevices[0]))
 	}
 
+	// Vsock device (always created; harmless when unused)
+	socketDev := C.createVirtioSocketDevice()
+
 	// Assemble VM Configuration
 	vmConfig := C.createVMConfig(
 		bootLoader,
@@ -221,6 +268,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		entropy,
 		balloon,
 		dirSharePtr, C.int(len(dirShareDevices)),
+		socketDev,
 		&errOut,
 	)
 	if vmConfig == nil {
@@ -247,6 +295,15 @@ func (vm *VM) StartIORelay(input io.Reader, output io.Writer) {
 	go io.Copy(output, vm.stdoutReader)
 	// Host input -> guest stdin
 	go io.Copy(vm.stdinWriter, input)
+}
+
+// SetupVsockRelays registers vsock port listeners that relay guest connections
+// to host Unix sockets. Must be called after NewVM but before or after Start.
+func (vm *VM) SetupVsockRelays(relays []SocketRelay) {
+	for _, r := range relays {
+		vsockRelayMap.Store(r.Port, r.HostPath)
+		C.vzSocketListen(vm.vmHandle, C.uint32_t(r.Port))
+	}
 }
 
 func (vm *VM) Start() error {
