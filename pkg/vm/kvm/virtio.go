@@ -54,8 +54,9 @@ const (
 	virtioStatusDriverOK  = 4
 
 	// Virtio device IDs
-	virtioDevFS  = 26
-	virtioDevNet = 1
+	virtioDevFS    = 26
+	virtioDevNet   = 1
+	virtioDevVsock = 19
 
 	// Virtio feature bits
 	virtioFVersion1 = 32 // bit in feature word 1
@@ -274,6 +275,16 @@ func (v *virtioMMIODev) writeReg(offset uint32, val uint32) {
 		if val == 0 {
 			// Device reset
 			v.reset()
+		}
+		// When the driver signals DRIVER_OK, initialize vhost backends
+		if val&virtioStatusDriverOK != 0 {
+			if vsock, ok := v.device.(*VirtioVsockDevice); ok {
+				go func() {
+					if err := vsock.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
+						slog.Warn("vhost-vsock setup failed", slog.Any("err", err))
+					}
+				}()
+			}
 		}
 	case virtioMMIOQueueDescLow:
 		if q := v.currentQueue(); q != nil {

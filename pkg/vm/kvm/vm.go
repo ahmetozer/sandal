@@ -72,6 +72,7 @@ type VM struct {
 	consoleDev *VirtioConsoleDevice
 	netDevs    []*VirtioNetDevice
 	blkDevs    []*VirtioBlkDevice
+	vsockDev   *VirtioVsockDevice
 	tap        *tapDevice
 }
 
@@ -298,6 +299,16 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
+	// Virtio-vsock device for host<->guest socket communication.
+	vsockDev := NewVirtioVsockDevice(3) // CID=3 (guest)
+	{
+		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+		irqNum := uint32(16 + devIdx)
+		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, vsockDev)
+		virtioDevs = append(virtioDevs, vDev)
+		devIdx++
+	}
+
 	// Initialize vCPU registers (architecture-specific).
 	bootParams := bootConfig{
 		kernelAddr:    guestMemBase + kernelLoadOffset,
@@ -355,6 +366,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		consoleDev:   consoleDev,
 		netDevs:      netDevs,
 		blkDevs:      blkDevs,
+		vsockDev:     vsockDev,
 		tap:          tap,
 	}, nil
 }
@@ -586,6 +598,9 @@ func (vm *VM) Close() {
 	vm.stdoutWriter.Close()
 	for _, blk := range vm.blkDevs {
 		blk.Close()
+	}
+	if vm.vsockDev != nil {
+		vm.vsockDev.Close()
 	}
 	if vm.tap != nil {
 		vm.tap.Close()
