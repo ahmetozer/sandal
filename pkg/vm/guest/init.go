@@ -365,11 +365,13 @@ func startGuestSocketRelay(spec string) {
 		}
 		guestPath := parts[2]
 
-		// Create parent directory and remove stale socket
-		os.MkdirAll(filepath.Dir(guestPath), 0755)
-		os.Remove(guestPath)
+		// Create relay socket under /var/run/sandal/vsock/ so it survives
+		// the container's pivot_root (the container rewrites -v to source from here).
+		relayPath := "/var/run/sandal/vsock" + guestPath
+		os.MkdirAll(filepath.Dir(relayPath), 0755)
+		os.Remove(relayPath)
 
-		go guestRelaySocket(guestPath, uint32(port))
+		go guestRelaySocket(relayPath, uint32(port))
 	}
 }
 
@@ -402,17 +404,18 @@ func guestRelaySocket(guestPath string, port uint32) {
 
 			done := make(chan struct{})
 			go func() {
-				io.Copy(vsock, c)
+				io.Copy(vsock, c) // *os.File implements io.Writer
 				done <- struct{}{}
 			}()
-			io.Copy(c, vsock)
+			io.Copy(c, vsock) // *os.File implements io.Reader
 			<-done
 		}(conn)
 	}
 }
 
 // vsockDial creates an AF_VSOCK connection to the given CID and port.
-func vsockDial(cid, port uint32) (net.Conn, error) {
+// Returns an *os.File because Go's net package doesn't support AF_VSOCK.
+func vsockDial(cid, port uint32) (*os.File, error) {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, fmt.Errorf("vsock socket: %w", err)
@@ -422,11 +425,5 @@ func vsockDial(cid, port uint32) (net.Conn, error) {
 		unix.Close(fd)
 		return nil, fmt.Errorf("vsock connect: %w", err)
 	}
-	f := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", cid, port))
-	defer f.Close()
-	conn, err := net.FileConn(f)
-	if err != nil {
-		return nil, fmt.Errorf("vsock fileconn: %w", err)
-	}
-	return conn, nil
+	return os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", cid, port)), nil
 }

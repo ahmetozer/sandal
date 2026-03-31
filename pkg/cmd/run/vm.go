@@ -84,7 +84,7 @@ func buildVirtioFSMounts(hostPaths []string, sandalLibDir string) ([]vmconfig.Mo
 // vmType is "kvm" or "mac". argsJSON is the JSON-encoded SANDAL_VM_ARGS.
 // mountEntries are the SANDAL_VM_MOUNTS entries. netEncoded is base64-encoded
 // network config (may be empty).
-func buildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, netEncoded string) string {
+func buildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, netEncoded string, socketEntries []string) string {
 	argsEncoded := base64.StdEncoding.EncodeToString(argsJSON)
 
 	var cmdLineParts []string
@@ -96,6 +96,9 @@ func buildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, n
 	}
 	if len(mountEntries) > 0 {
 		cmdLineParts = append(cmdLineParts, "SANDAL_VM_MOUNTS="+strings.Join(mountEntries, ","))
+	}
+	if len(socketEntries) > 0 {
+		cmdLineParts = append(cmdLineParts, "SANDAL_VM_SOCKETS="+strings.Join(socketEntries, ","))
 	}
 	// Pass resolved sandal env vars to the VM
 	for _, e := range env.GetDefaults() {

@@ -24,7 +24,7 @@ func Run(args []string) error {
 	vmFlag, cleanArgs := extractFlag(args, "vm", "")
 
 	// Scan args for -v values to determine VirtioFS shares.
-	hostPaths := scanMountPaths(cleanArgs)
+	hostPaths, _ := scanMountPaths(cleanArgs)
 
 	// Build VM config: load from template if -vm was specified, otherwise use defaults
 	var cfg vmconfig.VMConfig
@@ -81,7 +81,7 @@ func Run(args []string) error {
 	}
 
 	// Build kernel command line (no network allocation on darwin)
-	cfg.CommandLine = buildKernelCmdLine("mac", argsJSON, mountEntries, "")
+	cfg.CommandLine = buildKernelCmdLine("mac", argsJSON, mountEntries, "", nil)
 
 	// Create initrd with sandal binary as /init
 	initrdPath, err := prepareInitrd(cfg.KernelPath, env.VMBinPath)

@@ -79,7 +79,21 @@ func runInKVM(args []string) error {
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
 
-	// Marshal args for the kernel command line
+	// Build socket relay entries for SANDAL_VM_SOCKETS
+	var socketEntries []string
+	for i, sm := range socketMounts {
+		port := 5000 + i
+		socketEntries = append(socketEntries, fmt.Sprintf("%d=%s=%s", port, sm.HostPath, sm.GuestPath))
+	}
+
+	// Rewrite socket -v entries so the container inside the VM bind-mounts
+	// from the relay socket path under /var/run/sandal/vsock/ instead of
+	// the original host path. The relay creates the socket there in VMInit.
+	if len(socketMounts) > 0 {
+		cleanArgs = rewriteSocketVolumes(cleanArgs, socketMounts)
+	}
+
+	// Marshal args for the kernel command line (must be after rewriteSocketVolumes)
 	argsJSON, err := marshalVMArgs(cleanArgs)
 	if err != nil {
 		return err
@@ -112,19 +126,6 @@ func runInKVM(args []string) error {
 				}
 			}
 		}
-	}
-
-	// Build socket relay entries for SANDAL_VM_SOCKETS
-	var socketEntries []string
-	for i, sm := range socketMounts {
-		port := 5000 + i
-		socketEntries = append(socketEntries, fmt.Sprintf("%d=%s=%s", port, sm.HostPath, sm.GuestPath))
-	}
-
-	// Remove socket -v entries from args forwarded to the container inside the VM.
-	// These are handled by vsock relay, not VirtioFS + bind mount.
-	if len(socketMounts) > 0 {
-		cleanArgs = removeSocketVolumes(cleanArgs, socketMounts)
 	}
 
 	// Build kernel command line
@@ -195,14 +196,8 @@ func hostRelaySocket(hostPath string, port uint32) {
 			return
 		}
 		go func(clientFD int) {
-			f := os.NewFile(uintptr(clientFD), fmt.Sprintf("vsock-client:%d", port))
-			defer f.Close()
-			vsockConn, err := net.FileConn(f)
-			if err != nil {
-				slog.Warn("vsock fileconn failed", slog.Any("err", err))
-				return
-			}
-			defer vsockConn.Close()
+			vsockFile := os.NewFile(uintptr(clientFD), fmt.Sprintf("vsock-client:%d", port))
+			defer vsockFile.Close()
 
 			hostConn, err := net.Dial("unix", hostPath)
 			if err != nil {
@@ -213,20 +208,23 @@ func hostRelaySocket(hostPath string, port uint32) {
 
 			done := make(chan struct{})
 			go func() {
-				io.Copy(hostConn, vsockConn)
+				io.Copy(hostConn, vsockFile)
 				done <- struct{}{}
 			}()
-			io.Copy(vsockConn, hostConn)
+			io.Copy(vsockFile, hostConn)
 			<-done
 		}(nfd)
 	}
 }
 
-// removeSocketVolumes removes -v entries from args that correspond to socket mounts.
-func removeSocketVolumes(args []string, sockets []SocketMount) []string {
-	socketSet := make(map[string]bool)
+// rewriteSocketVolumes rewrites -v entries for socket mounts so the source
+// path points to the relay socket under /var/run/sandal/vsock/ in the VM.
+// The relay in VMInit creates sockets there, and the container's mountVolumes
+// bind-mounts them into the container rootfs at the original guest path.
+func rewriteSocketVolumes(args []string, sockets []SocketMount) []string {
+	socketMap := make(map[string]string) // hostPath -> guestPath
 	for _, sm := range sockets {
-		socketSet[sm.HostPath] = true
+		socketMap[sm.HostPath] = sm.GuestPath
 	}
 	var result []string
 	for i := 0; i < len(args); i++ {
@@ -237,8 +235,11 @@ func removeSocketVolumes(args []string, sockets []SocketMount) []string {
 		if args[i] == "-v" && i+1 < len(args) {
 			val := args[i+1]
 			hostPath := strings.SplitN(val, ":", 2)[0]
-			if socketSet[hostPath] {
-				i++ // skip value
+			if guestPath, ok := socketMap[hostPath]; ok {
+				// Rewrite: source becomes the relay socket path in VM's /var/run/sandal/vsock/
+				relayPath := "/var/run/sandal/vsock" + guestPath
+				result = append(result, "-v", relayPath+":"+guestPath)
+				i++ // skip original value
 				continue
 			}
 		}

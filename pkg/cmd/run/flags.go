@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -48,24 +49,59 @@ func extractFlag(args []string, name string, defaultVal string) (string, []strin
 	return val, clean
 }
 
+// SocketMount represents a Unix socket to relay between host and guest via vsock.
+type SocketMount struct {
+	HostPath  string
+	GuestPath string
+}
+
 // scanMountPaths scans args for -v flag values and returns the host paths
-// that need VirtioFS shares. Does not modify args.
-func scanMountPaths(args []string) []string {
+// that need VirtioFS shares and socket mounts that need vsock relay.
+// Does not modify args.
+//
+// Detection rules for each -v host:guest[:opts] entry:
+//   - If opts contains "sock" -> socket share (guest->host, path may not exist yet)
+//   - Else if stat(host) returns a socket -> socket share (host->guest, auto-detect)
+//   - Else -> VirtioFS share (existing behavior)
+func scanMountPaths(args []string) ([]string, []SocketMount) {
 	var paths []string
+	var sockets []SocketMount
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--" {
 			break
 		}
 		if args[i] == "-v" && i+1 < len(args) {
 			i++
-			hostPath := args[i]
-			if parts := strings.SplitN(hostPath, ":", 2); len(parts) >= 1 {
-				hostPath = parts[0]
+			val := args[i]
+
+			// Parse host:guest:opts
+			parts := strings.SplitN(val, ":", 3)
+			hostPath := parts[0]
+			guestPath := hostPath
+			opts := ""
+			if len(parts) >= 2 {
+				guestPath = parts[1]
 			}
+			if len(parts) >= 3 {
+				opts = parts[2]
+			}
+
+			// Check if this is a socket mount
+			if strings.Contains(opts, "sock") {
+				sockets = append(sockets, SocketMount{HostPath: hostPath, GuestPath: guestPath})
+				continue
+			}
+
+			// Auto-detect existing sockets
+			if fi, err := os.Stat(hostPath); err == nil && fi.Mode().Type()&os.ModeSocket != 0 {
+				sockets = append(sockets, SocketMount{HostPath: hostPath, GuestPath: guestPath})
+				continue
+			}
+
 			paths = append(paths, hostPath)
 		}
 	}
-	return paths
+	return paths, sockets
 }
 
 // SplitFlagsArgs returns flags and child process args separated by "--".
