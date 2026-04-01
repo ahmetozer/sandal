@@ -1,6 +1,6 @@
 //go:build darwin
 
-package run
+package sandal
 
 import (
 	"fmt"
@@ -14,17 +14,14 @@ import (
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
 
-func Run(args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("no command option provided")
-	}
-
+// RunInVZ boots a VZ VM on macOS with the sandal Linux binary as /init,
+// then re-executes `sandal run` inside the VM with the original args.
+func RunInVZ(args []string) error {
 	// Extract -vm flag (darwin-only, not forwarded to VM).
-	// If specified, load that config as a base template; otherwise use defaults.
-	vmFlag, cleanArgs := extractFlag(args, "vm", "")
+	vmFlag, cleanArgs := ExtractFlag(args, "vm", "")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
-	hostPaths, socketMounts := scanMountPaths(cleanArgs)
+	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
 	// Build VM config: load from template if -vm was specified, otherwise use defaults
 	var cfg vmconfig.VMConfig
@@ -56,7 +53,7 @@ func Run(args []string) error {
 		cfg.KernelPath = p
 	}
 
-	// Resolve Linux sandal binary (configured via SANDAL_VM_BIN env var)
+	// Resolve Linux sandal binary
 	if _, err := os.Stat(env.VMBinPath); err != nil {
 		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", env.VMBinPath, env.VMBinPath)
 	}
@@ -68,7 +65,7 @@ func Run(args []string) error {
 	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir)
 
 	// Build VirtioFS mounts from collected host paths.
-	mounts, mountEntries, err := buildVirtioFSMounts(hostPaths, sandalLibDir)
+	mounts, mountEntries, err := BuildVirtioFSMounts(hostPaths, sandalLibDir)
 	if err != nil {
 		return err
 	}
@@ -83,24 +80,22 @@ func Run(args []string) error {
 		vsockRelays = append(vsockRelays, vz.SocketRelay{Port: port, HostPath: sm.HostPath})
 	}
 
-	// Rewrite socket -v entries so the container inside the VM bind-mounts
-	// from the relay socket path under /var/run/sandal/vsock/ instead of
-	// the original host path.
+	// Rewrite socket -v entries
 	if len(socketMounts) > 0 {
-		cleanArgs = rewriteSocketVolumes(cleanArgs, socketMounts)
+		cleanArgs = RewriteSocketVolumes(cleanArgs, socketMounts)
 	}
 
-	// Marshal args for the kernel command line (must be after rewriteSocketVolumes)
-	argsJSON, err := marshalVMArgs(cleanArgs)
+	// Marshal args for the kernel command line
+	argsJSON, err := MarshalVMArgs(cleanArgs)
 	if err != nil {
 		return err
 	}
 
 	// Build kernel command line (no network allocation on darwin)
-	cfg.CommandLine = buildKernelCmdLine("mac", argsJSON, mountEntries, "", socketEntries)
+	cfg.CommandLine = BuildKernelCmdLine("mac", argsJSON, mountEntries, "", socketEntries)
 
 	// Create initrd with sandal binary as /init
-	initrdPath, err := prepareInitrd(cfg.KernelPath, env.VMBinPath)
+	initrdPath, err := PrepareInitrd(cfg.KernelPath, env.VMBinPath)
 	if err != nil {
 		return err
 	}

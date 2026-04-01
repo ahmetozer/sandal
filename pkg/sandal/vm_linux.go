@@ -1,6 +1,6 @@
 //go:build linux
 
-package run
+package sandal
 
 import (
 	"encoding/base64"
@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+
 	"golang.org/x/sys/unix"
 
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
@@ -24,23 +25,20 @@ import (
 	"github.com/ahmetozer/sandal/pkg/vm/kvm"
 )
 
-// runInKVM boots a KVM VM with the current sandal binary as /init,
+// RunInKVM boots a KVM VM with the current sandal binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
-func runInKVM(args []string) error {
+func RunInKVM(args []string) error {
 	// Remove -vm flag from args -- it's consumed here, not forwarded
-	_, cleanArgs := extractFlag(args, "vm", "")
+	_, cleanArgs := ExtractFlag(args, "vm", "")
 
 	// Extract -cpu and -memory flags to apply to the VM itself.
-	// These flags are kept in cleanArgs so the container inside the VM
-	// can also enforce cgroup limits with the same values.
-	cpuVal, cleanArgs := extractFlag(cleanArgs, "cpu", "")
-	memVal, cleanArgs := extractFlag(cleanArgs, "memory", "")
+	cpuVal, cleanArgs := ExtractFlag(cleanArgs, "cpu", "")
+	memVal, cleanArgs := ExtractFlag(cleanArgs, "memory", "")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
-	hostPaths, socketMounts := scanMountPaths(cleanArgs)
+	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
-	// Pre-pull OCI images on the host and convert to squashfs.
-	// Use env.LibDir / env.BaseImageDir so VM and non-VM runs share the same cache.
+	// Pre-pull OCI images on the host
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
 
@@ -50,7 +48,6 @@ func runInKVM(args []string) error {
 		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
 	}
 
-	// Override VM resources if -cpu or -memory flags were provided
 	if cpuVal != "" {
 		if cpus, err := strconv.ParseFloat(cpuVal, 64); err == nil && cpus > 0 {
 			cfg.CPUCount = uint(math.Ceil(cpus))
@@ -58,7 +55,6 @@ func runInKVM(args []string) error {
 	}
 	if memVal != "" {
 		if memBytes, err := resources.ParseSize(memVal); err == nil && memBytes > 0 {
-			// KVM requires page-aligned memory size
 			cfg.MemoryBytes = (uint64(memBytes) + 4095) &^ 4095
 		}
 	}
@@ -71,7 +67,7 @@ func runInKVM(args []string) error {
 	cfg.KernelPath = kernelPath
 
 	// Build VirtioFS mounts from -v host paths
-	mounts, mountEntries, err := buildVirtioFSMounts(hostPaths, sandalLibDir)
+	mounts, mountEntries, err := BuildVirtioFSMounts(hostPaths, sandalLibDir)
 	if err != nil {
 		return err
 	}
@@ -84,20 +80,18 @@ func runInKVM(args []string) error {
 		socketEntries = append(socketEntries, fmt.Sprintf("%d=%s=%s", port, sm.HostPath, sm.GuestPath))
 	}
 
-	// Rewrite socket -v entries so the container inside the VM bind-mounts
-	// from the relay socket path under /var/run/sandal/vsock/ instead of
-	// the original host path. The relay creates the socket there in VMInit.
+	// Rewrite socket -v entries
 	if len(socketMounts) > 0 {
-		cleanArgs = rewriteSocketVolumes(cleanArgs, socketMounts)
+		cleanArgs = RewriteSocketVolumes(cleanArgs, socketMounts)
 	}
 
-	// Marshal args for the kernel command line (must be after rewriteSocketVolumes)
-	argsJSON, err := marshalVMArgs(cleanArgs)
+	// Marshal args for the kernel command line
+	argsJSON, err := MarshalVMArgs(cleanArgs)
 	if err != nil {
 		return err
 	}
 
-	// Allocate a network configuration for the VM from the sandal0 bridge.
+	// Allocate a network configuration for the VM from the sandal0 bridge
 	var vmNetEncoded string
 	bridge, bridgeErr := sandalnet.CreateDefaultBridge()
 	if bridgeErr != nil && bridgeErr != os.ErrExist {
@@ -127,16 +121,16 @@ func runInKVM(args []string) error {
 	}
 
 	// Build kernel command line
-	cfg.CommandLine = buildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
+	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
 
 	// Resolve sandal binary for initrd
-	selfBin, err := resolveVMBinary()
+	selfBin, err := ResolveVMBinary()
 	if err != nil {
 		return err
 	}
 
 	// Create initrd with sandal binary as /init
-	initrdPath, err := prepareInitrd(cfg.KernelPath, selfBin)
+	initrdPath, err := PrepareInitrd(cfg.KernelPath, selfBin)
 	if err != nil {
 		return err
 	}
@@ -152,16 +146,14 @@ func runInKVM(args []string) error {
 
 	// Start host-side socket relay for vsock
 	if len(socketMounts) > 0 {
-		go startHostSocketRelay(socketMounts)
+		go StartHostSocketRelay(socketMounts)
 	}
 
 	return kvm.Boot(vmName, cfg)
 }
 
-// startHostSocketRelay starts a vsock listener for each socket mount.
-// Each listener accepts connections from the guest and relays them to the
-// corresponding host Unix socket.
-func startHostSocketRelay(sockets []SocketMount) {
+// StartHostSocketRelay starts a vsock listener for each socket mount.
+func StartHostSocketRelay(sockets []SocketMount) {
 	for i, sm := range sockets {
 		port := uint32(5000 + i)
 		go hostRelaySocket(sm.HostPath, port)
@@ -214,4 +206,3 @@ func hostRelaySocket(hostPath string, port uint32) {
 		}(nfd)
 	}
 }
-

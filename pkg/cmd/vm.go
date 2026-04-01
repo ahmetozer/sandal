@@ -1,5 +1,3 @@
-//go:build darwin || linux
-
 package cmd
 
 import (
@@ -13,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/vm/boot"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
@@ -305,7 +304,7 @@ func startVM(name string, cfg vmconfig.VMConfig) error {
 		}
 	}
 
-	return platformBoot(name, cfg)
+	return boot.Boot(name, cfg)
 }
 
 func vmList() error {

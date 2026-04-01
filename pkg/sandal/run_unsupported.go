@@ -1,9 +1,9 @@
 //go:build !linux && !darwin
 
-package run
+package sandal
 
 import "fmt"
 
-func Run(args []string) error {
+func platformRun(args []string) error {
 	return fmt.Errorf("run command is only available on Linux and macOS")
 }

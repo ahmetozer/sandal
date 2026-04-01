@@ -1,12 +1,13 @@
 //go:build linux
 
-package cmd
+package boot
 
 import (
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kvm"
 )
 
-func platformBoot(name string, cfg vmconfig.VMConfig) error {
+// Boot starts a VM using KVM on Linux.
+func Boot(name string, cfg vmconfig.VMConfig) error {
 	return kvm.Boot(name, cfg)
 }

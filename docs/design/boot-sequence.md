@@ -33,7 +33,7 @@ The same binary serves three roles depending on context:
 
 | Subcommand | Handler | Description |
 |-----------|---------|-------------|
-| `run` | `run.Run()` | Create and start a container |
+| `run` | `Run()` → `sandal.Run()` | Create and start a container |
 | `ps` | `cmdPs()` | List running containers |
 | `kill` | `cmdKill()` | Send signal to container |
 | `exec` | `cmdExec()` | Execute command in running container |
@@ -43,25 +43,26 @@ The same binary serves three roles depending on context:
 
 ## Phase 2: Run Command Router
 
-**File**: `pkg/cmd/run/run_linux.go`
+**File**: `pkg/sandal/run.go`, `pkg/sandal/run_linux.go`
 
 ```
-run.Run(args)
-  |
-  +-- Has "--vm" flag AND not already in VM?
-  |     YES -> runInKVM(args)     # Phase 3
-  |
-  +-- NO -> runContainer(args)    # Phase 4
+sandal.Run(args)
+  -> platformRun(args)  [run_linux.go]
+       |
+       +-- Has "--vm" flag AND not already in VM?
+       |     YES -> RunInVM(args)      # Phase 3
+       |
+       +-- NO -> parseAndRunContainer(args)  # Phase 4
 ```
 
-Detection of "already in VM" uses `env.IsVM()` which checks the `SANDAL_VM` environment variable.
+Detection of "already in VM" uses `guest.IsVMInit()` which checks PID and `SANDAL_VM_ARGS` env var. Platform dispatch is handled via build tags: `run_linux.go`, `run_darwin.go`, `run_unsupported.go`.
 
 ## Phase 3: KVM VM Launch
 
-**File**: `pkg/cmd/run/vm_linux.go`
+**File**: `pkg/sandal/vm_linux.go`
 
 ```
-runInKVM(args)
+sandal.RunInKVM(args)
   |
   +-- 1. extractFlag("--vm") -> remove --vm from args
   |
@@ -246,10 +247,10 @@ initVCPUs() [x86-64]
 
 ## Phase 4: Container Creation (Direct Path)
 
-**File**: `pkg/cmd/run/container.go`, `pkg/container/host/crun.go`
+**File**: `pkg/sandal/run_linux.go`, `pkg/sandal/container.go`, `pkg/container/host/crun.go`
 
 ```
-runContainer(args)
+sandal.parseAndRunContainer(args) -> sandal.RunContainer(cfg, netFlags)
   |
   +-- Parse flags: image, -v volumes, -d daemon, -t tty, --ns-*, --cap-*, etc.
   +-- Generate container ID (base-62 timestamp + random)
@@ -360,7 +361,7 @@ VMInit()
   +-- Return to platformMain()
         cmd.Main() is called, dispatching the original CLI args
         from SANDAL_VM_ARGS (e.g., "run alpine:latest /bin/sh")
-        This triggers Phase 4 (runContainer) inside the VM
+        This triggers Phase 4 (sandal.RunContainer) inside the VM
 ```
 
 ## vCPU Run Loop

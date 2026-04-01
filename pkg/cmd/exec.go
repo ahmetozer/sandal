@@ -8,16 +8,16 @@ import (
 	"os"
 	"strings"
 
-	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"golang.org/x/sys/unix"
 )
 
 func ExecOnContainer(args []string) error {
-	thisFlags, childArgs, splitFlagErr := runCmd.SplitFlagsArgs(args)
+	thisFlags, childArgs, splitFlagErr := sandal.SplitFlagsArgs(args)
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 

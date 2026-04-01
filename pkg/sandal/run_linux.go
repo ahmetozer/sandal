@@ -1,6 +1,6 @@
 //go:build linux
 
-package run
+package sandal
 
 import (
 	"flag"
@@ -12,21 +12,25 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/capabilities"
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
-	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
-	"github.com/ahmetozer/sandal/pkg/container/net"
-	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
-	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
+	"github.com/ahmetozer/sandal/pkg/vm/guest"
 )
 
-func runContainer(args []string) error {
+func platformRun(args []string) error {
+	if !guest.IsVMInit() && HasFlag(args, "vm") {
+		return RunInVM(args)
+	}
+	return parseAndRunContainer(args)
+}
+
+// parseAndRunContainer parses CLI flags into a container config and runs it.
+func parseAndRunContainer(args []string) error {
 	c := config.NewContainer()
 	var (
 		help      bool
 		thisFlags []string
-		err       error
 		splitErr  error
 	)
 	thisFlags, c.ContArgs, splitErr = SplitFlagsArgs(args)
@@ -90,14 +94,6 @@ func runContainer(args []string) error {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
 
-	if err := config.ValidateName(c.Name); err != nil {
-		return err
-	}
-
-	conts, err := controller.Containers()
-	if err != nil {
-		return fmt.Errorf("unable to get other container informations %s", err)
-	}
 	// Flag does not have order while parsing
 	// If the name is presented and values are not filled by arguments
 	// re-fill values with new defaults.
@@ -119,37 +115,5 @@ func runContainer(args []string) error {
 		return splitErr
 	}
 
-	oldContStatus, err := crt.IsContainerRunning(c.Name)
-	if err != nil {
-		return err
-	}
-
-	if oldContStatus {
-		return fmt.Errorf("container %s is already running", c.Name)
-	}
-
-	if c.Startup && !c.Background {
-		return fmt.Errorf("startup only works with background mode, please enable with '-d' arg")
-	}
-
-	c.Net, err = net.ParseFlag(networkInterfacesCmd, conts, &c)
-	if err != nil {
-		return err
-	}
-
-	// Apply namespace defaults (sets IsHost, IsUserDefined) before saving
-	// the config to disk. The child process reads the config immediately
-	// after starting; without this, it races and reads a stale config where
-	// IsHost=false even when --ns-net host was passed, causing
-	// WaitUntilCreated to time out waiting for veths that were never created.
-	if err := c.NS.Defaults(); err != nil {
-		return err
-	}
-
-	err = controller.SetContainer(&c)
-	if err != nil {
-		return err
-	}
-
-	return host.Run(&c)
+	return RunContainer(&c, []string(networkInterfacesCmd))
 }

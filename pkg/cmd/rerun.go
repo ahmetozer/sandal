@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 
-	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
@@ -36,6 +35,6 @@ func Rerun(args []string) error {
 	}
 
 	slog.Debug("Rerun", slog.String("message", "re-executing command"), slog.Any("args", c.HostArgs[2:]))
-	return runCmd.Run(c.HostArgs[2:])
+	return Run(c.HostArgs[2:])
 
 }

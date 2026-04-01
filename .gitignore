@@ -22,7 +22,7 @@ go.work
 
 *.sqfs
 testing
-sandal
+/sandal
 __debug*
 .*
 site/
