@@ -24,10 +24,10 @@ Sandal is a lightweight, portable container runtime for Linux. It can run contai
        v
 +------+-----------------------------------------------------------+
 |                     Run Command Router                            |
-|  (pkg/cmd/run/)                                                  |
+|  (pkg/sandal/)                                                   |
 |                                                                   |
-|  --vm flag?  ----YES----> runInKVM()     (VM path)               |
-|              ----NO-----> runContainer() (Direct path)            |
+|  --vm flag?  ----YES----> RunInVM()      (VM path)               |
+|              ----NO-----> RunContainer() (Direct path)            |
 +------+------------------------+----------------------------------+
        |                        |
        v                        v
@@ -80,7 +80,7 @@ sandal run alpine:latest /bin/sh
 
 The binary runs on the host. It pulls the OCI image, sets up overlayfs, creates namespaces (mount, PID, network, IPC, UTS), configures a veth pair on the sandal0 bridge, drops capabilities, and exec's the user command inside the container.
 
-**Key path**: `cmd.Main()` -> `run.Run()` -> `runContainer()` -> `host.Run()` -> fork -> `guest.ContainerInitProc()`
+**Key path**: `cmd.Main()` -> `sandal.Run()` -> `sandal.RunContainer()` -> `host.Run()` -> fork -> `guest.ContainerInitProc()`
 
 ### Mode 2: VM-Isolated Container (`--vm`)
 
@@ -90,7 +90,7 @@ sandal run --vm alpine:latest /bin/sh
 
 The binary creates a KVM virtual machine, boots a Linux kernel inside it, and re-executes itself as PID 1 (init) in the VM. The VM init process then runs the container inside the VM using the same container runtime.
 
-**Key path**: `cmd.Main()` -> `run.Run()` -> `runInKVM()` -> `kvm.Boot()` -> [VM boots] -> `VMInit()` -> `cmd.Main()` -> `runContainer()`
+**Key path**: `cmd.Main()` -> `sandal.Run()` -> `sandal.RunInVM()` -> `sandal.RunInKVM()` -> `kvm.Boot()` -> [VM boots] -> `VMInit()` -> `cmd.Main()` -> `sandal.RunContainer()`
 
 ### Why the Same Binary?
 

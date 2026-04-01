@@ -36,8 +36,8 @@ sandal/
   main_linux.go                    # Linux: VM init / container init / host mode dispatch
   main_darwin.go                   # macOS: Apple Virtualization Framework path
   pkg/
-    cmd/                           # CLI subcommand implementations
-      run/                         # "sandal run" command (container + VM paths)
+    sandal/                        # Core API (run, VM dispatch, container lifecycle)
+    cmd/                           # CLI subcommand implementations (thin wrappers)
     container/
       config/                      # Container configuration types
       host/                        # Host-side container lifecycle (fork, exec, cleanup)
@@ -69,6 +69,7 @@ sandal/
       detectFs/                    # Filesystem type detection
       cmdLine/                     # Kernel cmdline parsing
     vm/
+      boot/                        # Platform-dispatched Boot() (KVM vs VZ)
       config/                      # VM configuration types
       disk/                        # Raw disk image creation
       guest/                       # VM guest init (PID 1 in VM)

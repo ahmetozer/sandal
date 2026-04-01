@@ -13,7 +13,7 @@ func Main() {
         return
     }
     switch os.Args[1] {
-    case "run":        run.Run(os.Args[2:])
+    case "run":        Run(os.Args[2:])
     case "ps":         cmdPs(os.Args[2:])
     case "kill":       cmdKill(os.Args[2:])
     case "stop":       cmdStop(os.Args[2:])
@@ -39,7 +39,7 @@ func Main() {
 
 ### `run` - Create and Run a Container
 
-**Files**: `pkg/cmd/run/run_linux.go`, `pkg/cmd/run/container.go`, `pkg/cmd/run/vm_linux.go`
+**Files**: `pkg/sandal/run_linux.go`, `pkg/sandal/container.go`, `pkg/sandal/vm_linux.go`
 
 ```
 sandal run [flags] <image> [command] [args...]
@@ -254,9 +254,9 @@ Prints the original command used to create the container, useful for recreation.
 
 ## Flag Parsing
 
-**Package**: `pkg/cmd/run/`
+**Package**: `pkg/sandal/`
 
-**File**: `run/flags.go`
+**File**: `pkg/sandal/run_linux.go`, `pkg/sandal/args.go`
 
 Flags are parsed using Go's `flag` package with custom types:
 
@@ -274,7 +274,7 @@ This allows repeated flags: `-v /a:/b -v /c:/d -e FOO=1 -e BAR=2`
 
 ## Platform-Specific Dispatch
 
-**File**: `run/run_linux.go` vs `run/run_darwin.go`
+**File**: `pkg/sandal/run_linux.go` vs `pkg/sandal/run_darwin.go`
 
 | Feature | Linux | macOS |
 |---------|-------|-------|
