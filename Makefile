@@ -22,7 +22,7 @@ build-darwin:
 	CGO_ENABLED=1 go build -ldflags "$(LDFLAGS)" -o $(BINARY) .
 
 build-linux:
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY) .
+	CGO_ENABLED=0 go build -tags preinit -ldflags "$(LDFLAGS)" -o $(BINARY) .
 
 # Cross-compile Linux binary from macOS (used as /init inside VZ VM)
 build-linux-vm:

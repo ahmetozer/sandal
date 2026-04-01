@@ -28,9 +28,9 @@ func Mount(path string) (ImmutableImage, error) {
 	case 0:
 		return image, fmt.Errorf("no file name provided")
 	case 1:
-		image.File = args[0]
+		image.File = cmount.ResolvePath(args[0])
 	default:
-		image.File = args[0]
+		image.File = cmount.ResolvePath(args[0])
 		image.path = path
 	}
 

@@ -68,9 +68,10 @@ func init() {
 	}
 
 	Get = getInit
+	defaultLibDir, defaultRunDir := platformDefaults()
 	for i := 0; i < 2; i++ {
-		LibDir = Get("SANDAL_LIB_DIR", "/var/lib/sandal")
-		RunDir = Get("SANDAL_RUN_DIR", "/var/run/sandal")
+		LibDir = Get("SANDAL_LIB_DIR", defaultLibDir)
+		RunDir = Get("SANDAL_RUN_DIR", defaultRunDir)
 
 		BaseImageDir = Get("SANDAL_IMAGE_DIR", path.Join(LibDir, "image"))
 		BaseStateDir = Get("SANDAL_STATE_DIR", path.Join(LibDir, "state"))

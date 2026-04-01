@@ -6,9 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,14 +30,10 @@ func IsVMInit() bool {
 	if os.Getpid() != 1 {
 		return false
 	}
-	if os.Getenv("SANDAL_VM_ARGS") != "" {
-		return true
-	}
-	// On KVM, kernel cmdline params aren't auto-exported as env vars
-	// for initramfs init. Parse /proc/cmdline to check and export them.
+	// Always parse kernel cmdline to decode base64-encoded env vars.
+	// On VZ, the kernel auto-exports cmdline params but keeps them
+	// base64-encoded. On KVM, they aren't exported at all.
 	importKernelCmdlineEnv()
-	// Even if SANDAL_VM_ARGS is not set, if we're /init or /sandal-init at PID 1
-	// we're likely running as VM init
 	return os.Getenv("SANDAL_VM_ARGS") != "" ||
 		os.Args[0] == "/init" || os.Args[0] == "/sandal-init"
 }
@@ -57,19 +56,35 @@ func importKernelCmdlineEnv() {
 
 	// Parse space-separated tokens. Handle quoted values and
 	// SANDAL_VM_ARGS which contains JSON with potential spaces inside brackets.
+	// Keys that are base64-encoded on the kernel cmdline to survive parsing.
+	// On VZ, the kernel auto-exports cmdline params as env vars but keeps
+	// them encoded. Always decode and re-set these even if already present.
+	b64Keys := map[string]bool{
+		"SANDAL_VM_ARGS": true,
+		"SANDAL_VM_NET":  true,
+	}
+
 	for _, param := range parseCmdlineParams(cmdline) {
 		if idx := strings.IndexByte(param, '='); idx > 0 {
 			key := param[:idx]
 			val := param[idx+1:]
-			// SANDAL_VM_ARGS and SANDAL_VM_NET are base64-encoded to survive kernel cmdline parsing
-			if key == "SANDAL_VM_ARGS" || key == "SANDAL_VM_NET" {
+			if b64Keys[key] {
 				if decoded, err := base64.StdEncoding.DecodeString(val); err == nil {
 					val = string(decoded)
 				}
-			}
-			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			} else if os.Getenv(key) == "" {
 				os.Setenv(key, val)
 			}
+		}
+	}
+
+	// Override os.Args with the decoded SANDAL_VM_ARGS so cmd.Main()
+	// dispatches the correct subcommand on both KVM and VZ.
+	if vmArgs := os.Getenv("SANDAL_VM_ARGS"); vmArgs != "" {
+		var args []string
+		if err := json.Unmarshal([]byte(vmArgs), &args); err == nil && len(args) > 0 {
+			os.Args = append([]string{os.Args[0]}, args...)
 		}
 	}
 }
@@ -157,6 +172,8 @@ func VMInit() error {
 		"vxlan", "geneve", "ipvlan", "macvlan",
 		// Block / virtio
 		"virtio_net", "virtio_blk",
+		// Vsock (host<->guest socket communication)
+		"vsock", "vmw_vsock_virtio_transport_common", "vmw_vsock_virtio_transport",
 	} {
 		if err := modprobe.Load(mod); err != nil {
 			slog.Warn("modprobe", slog.String("module", mod), slog.Any("err", err))
@@ -243,6 +260,11 @@ func VMInit() error {
 		if mountErr != nil {
 			slog.Warn("failed to mount virtiofs", slog.String("tag", tag), slog.String("mountpoint", mountPoint), slog.Any("err", mountErr))
 		}
+	}
+
+	// Start vsock socket relay for SANDAL_VM_SOCKETS
+	if sockSpec := os.Getenv("SANDAL_VM_SOCKETS"); sockSpec != "" {
+		startGuestSocketRelay(sockSpec)
 	}
 
 	// Configure guest network from SANDAL_VM_NET (JSON-encoded Link from host).
@@ -332,4 +354,88 @@ func vmConfigureNetwork(netSpec string) error {
 
 	slog.Info("network configured", slog.String("iface", ifName), slog.Any("addr", link.Addr))
 	return nil
+}
+
+// startGuestSocketRelay parses SANDAL_VM_SOCKETS (format: port=hostpath=guestpath,...)
+// and starts a background goroutine for each socket that relays connections
+// from the guest Unix socket to the host via vsock.
+func startGuestSocketRelay(spec string) {
+	for _, entry := range strings.Split(spec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "=", 3)
+		if len(parts) < 3 {
+			slog.Warn("invalid socket spec", slog.String("entry", entry))
+			continue
+		}
+		port, err := strconv.ParseUint(parts[0], 10, 32)
+		if err != nil {
+			slog.Warn("invalid socket port", slog.String("entry", entry), slog.Any("err", err))
+			continue
+		}
+		guestPath := parts[2]
+
+		// Create relay socket under /var/run/sandal/vsock/ so it survives
+		// the container's pivot_root (the container rewrites -v to source from here).
+		relayPath := "/var/run/sandal/vsock" + guestPath
+		os.MkdirAll(filepath.Dir(relayPath), 0755)
+		os.Remove(relayPath)
+
+		go guestRelaySocket(relayPath, uint32(port))
+	}
+}
+
+// guestRelaySocket listens on a Unix socket at guestPath and for each
+// accepted connection, dials AF_VSOCK to the host (CID=2) on the given port,
+// then performs bidirectional relay.
+func guestRelaySocket(guestPath string, port uint32) {
+	ln, err := net.Listen("unix", guestPath)
+	if err != nil {
+		slog.Warn("guest socket listen failed", slog.String("path", guestPath), slog.Any("err", err))
+		return
+	}
+	defer ln.Close()
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			slog.Warn("guest socket accept failed", slog.String("path", guestPath), slog.Any("err", err))
+			return
+		}
+		go func(c net.Conn) {
+			defer c.Close()
+			// CID 2 is the host
+			vsock, err := vsockDial(2, port)
+			if err != nil {
+				slog.Warn("vsock dial failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+				return
+			}
+			defer vsock.Close()
+
+			done := make(chan struct{})
+			go func() {
+				io.Copy(vsock, c) // *os.File implements io.Writer
+				done <- struct{}{}
+			}()
+			io.Copy(c, vsock) // *os.File implements io.Reader
+			<-done
+		}(conn)
+	}
+}
+
+// vsockDial creates an AF_VSOCK connection to the given CID and port.
+// Returns an *os.File because Go's net package doesn't support AF_VSOCK.
+func vsockDial(cid, port uint32) (*os.File, error) {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		return nil, fmt.Errorf("vsock socket: %w", err)
+	}
+	err = unix.Connect(fd, &unix.SockaddrVM{CID: cid, Port: port})
+	if err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("vsock connect: %w", err)
+	}
+	return os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", cid, port)), nil
 }

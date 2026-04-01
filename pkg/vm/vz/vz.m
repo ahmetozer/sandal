@@ -10,6 +10,7 @@ extern void goVMDidStop(void);
 extern void goVMDidStopWithError(const char *err);
 extern void goVMStartCallback(bool success, const char *err);
 extern void goVMStopCallback(bool success, const char *err);
+extern void goVsockNewConnection(uint32_t port, int fd);
 
 // --- Delegate ---
 
@@ -144,6 +145,57 @@ void* createVirtioFileSystemDevice(const char *tag, const char *dirPath, bool re
     }
 }
 
+// --- Vsock ---
+
+@interface SandalVsockListenerDelegate : NSObject <VZVirtioSocketListenerDelegate>
+@end
+
+@implementation SandalVsockListenerDelegate
+
+- (BOOL)listener:(VZVirtioSocketListener *)listener
+    shouldAcceptNewConnection:(VZVirtioSocketConnection *)connection
+    fromSocketDevice:(VZVirtioSocketDevice *)socketDevice {
+    // Get the fd from the connection and hand it to Go for relay.
+    // The connection's fileDescriptor is valid once we accept.
+    int fd = dup((int)connection.fileDescriptor);
+    uint32_t port = (uint32_t)connection.destinationPort;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        goVsockNewConnection(port, fd);
+    });
+    return YES;
+}
+
+@end
+
+static SandalVsockListenerDelegate *sharedVsockDelegate = nil;
+
+void* createVirtioSocketDevice(void) {
+    VZVirtioSocketDeviceConfiguration *socketConfig =
+        [[VZVirtioSocketDeviceConfiguration alloc] init];
+    return (__bridge_retained void *)socketConfig;
+}
+
+void vzSocketListen(void *vmHandle, uint32_t port) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        VZVirtualMachine *vm = (__bridge VZVirtualMachine *)vmHandle;
+
+        // Find the vsock device from the VM's socket devices
+        NSArray *socketDevices = vm.socketDevices;
+        if (socketDevices.count == 0) {
+            return;
+        }
+        VZVirtioSocketDevice *dev = (VZVirtioSocketDevice *)socketDevices[0];
+
+        if (!sharedVsockDelegate) {
+            sharedVsockDelegate = [[SandalVsockListenerDelegate alloc] init];
+        }
+
+        VZVirtioSocketListener *listener = [[VZVirtioSocketListener alloc] init];
+        listener.delegate = sharedVsockDelegate;
+        [dev setSocketListener:listener forPort:port];
+    });
+}
+
 // --- VM Configuration ---
 
 void* createVMConfig(
@@ -156,6 +208,7 @@ void* createVMConfig(
     void *entropyDevice,
     void *memoryBalloon,
     void **dirShareDevices, int dirShareCount,
+    void *socketDevice,
     char **errOut
 ) {
     @autoreleasepool {
@@ -204,6 +257,11 @@ void* createVMConfig(
                 [dirShares addObject:(__bridge VZDirectorySharingDeviceConfiguration *)dirShareDevices[i]];
             }
             config.directorySharingDevices = dirShares;
+        }
+
+        // Vsock
+        if (socketDevice) {
+            config.socketDevices = @[(__bridge VZVirtioSocketDeviceConfiguration *)socketDevice];
         }
 
         // Validate

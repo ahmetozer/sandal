@@ -23,8 +23,8 @@ func Run(args []string) error {
 	// If specified, load that config as a base template; otherwise use defaults.
 	vmFlag, cleanArgs := extractFlag(args, "vm", "")
 
-	// Scan args for -v values to determine VirtioFS shares.
-	hostPaths := scanMountPaths(cleanArgs)
+	// Scan args for -v values to determine VirtioFS shares and socket mounts.
+	hostPaths, socketMounts := scanMountPaths(cleanArgs)
 
 	// Build VM config: load from template if -vm was specified, otherwise use defaults
 	var cfg vmconfig.VMConfig
@@ -74,14 +74,30 @@ func Run(args []string) error {
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
 
-	// Marshal args for the kernel command line
+	// Build socket relay entries for SANDAL_VM_SOCKETS
+	var socketEntries []string
+	var vsockRelays []vz.SocketRelay
+	for i, sm := range socketMounts {
+		port := uint32(5000 + i)
+		socketEntries = append(socketEntries, fmt.Sprintf("%d=%s=%s", port, sm.HostPath, sm.GuestPath))
+		vsockRelays = append(vsockRelays, vz.SocketRelay{Port: port, HostPath: sm.HostPath})
+	}
+
+	// Rewrite socket -v entries so the container inside the VM bind-mounts
+	// from the relay socket path under /var/run/sandal/vsock/ instead of
+	// the original host path.
+	if len(socketMounts) > 0 {
+		cleanArgs = rewriteSocketVolumes(cleanArgs, socketMounts)
+	}
+
+	// Marshal args for the kernel command line (must be after rewriteSocketVolumes)
 	argsJSON, err := marshalVMArgs(cleanArgs)
 	if err != nil {
 		return err
 	}
 
 	// Build kernel command line (no network allocation on darwin)
-	cfg.CommandLine = buildKernelCmdLine("mac", argsJSON, mountEntries, "")
+	cfg.CommandLine = buildKernelCmdLine("mac", argsJSON, mountEntries, "", socketEntries)
 
 	// Create initrd with sandal binary as /init
 	initrdPath, err := prepareInitrd(cfg.KernelPath, env.VMBinPath)
@@ -98,5 +114,5 @@ func Run(args []string) error {
 	}
 	defer vmconfig.DeleteVM(vmName)
 
-	return vz.Boot(vmName, cfg)
+	return vz.Boot(vmName, cfg, vsockRelays...)
 }

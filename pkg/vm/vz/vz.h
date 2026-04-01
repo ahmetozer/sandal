@@ -28,6 +28,10 @@ void* createMemoryBalloonDevice(void);
 // Directory Sharing (VirtioFS)
 void* createVirtioFileSystemDevice(const char *tag, const char *dirPath, bool readOnly, char **errOut);
 
+// Vsock (virtio socket for host<->guest communication)
+void* createVirtioSocketDevice(void);
+void vzSocketListen(void *vmHandle, uint32_t port);
+
 // VM Configuration
 void* createVMConfig(
     void *bootLoader,
@@ -39,6 +43,7 @@ void* createVMConfig(
     void *entropyDevice,
     void *memoryBalloon,
     void **dirShareDevices, int dirShareCount,
+    void *socketDevice,
     char **errOut
 );
 

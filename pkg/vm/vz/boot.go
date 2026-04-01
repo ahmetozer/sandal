@@ -19,7 +19,9 @@ import (
 )
 
 // Boot boots the VM without applying any cloud-init or initrd overlays.
-func Boot(name string, cfg vmconfig.VMConfig) error {
+// If relays is non-empty, vsock listeners are set up to relay guest connections
+// to host Unix sockets (used for -v socket sharing).
+func Boot(name string, cfg vmconfig.VMConfig, relays ...SocketRelay) error {
 	// Kill stale VM processes holding the disk file
 	if cfg.DiskPath != "" {
 		if killed, err := killStaleDiskHolders(cfg.DiskPath); err != nil {
@@ -51,6 +53,11 @@ func Boot(name string, cfg vmconfig.VMConfig) error {
 	if err != nil {
 		restore()
 		return fmt.Errorf("creating VM: %w", err)
+	}
+
+	// Set up vsock relays for socket sharing (before start)
+	if len(relays) > 0 {
+		vm.SetupVsockRelays(relays)
 	}
 
 	// Relay serial console I/O between VM and host stdin/stdout

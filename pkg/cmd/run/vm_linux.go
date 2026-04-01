@@ -6,10 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
+	"net"
 	"os"
 	"strconv"
+	"golang.org/x/sys/unix"
 
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
@@ -33,8 +36,8 @@ func runInKVM(args []string) error {
 	cpuVal, cleanArgs := extractFlag(cleanArgs, "cpu", "")
 	memVal, cleanArgs := extractFlag(cleanArgs, "memory", "")
 
-	// Scan args for -v values to determine VirtioFS shares
-	hostPaths := scanMountPaths(cleanArgs)
+	// Scan args for -v values to determine VirtioFS shares and socket mounts
+	hostPaths, socketMounts := scanMountPaths(cleanArgs)
 
 	// Pre-pull OCI images on the host and convert to squashfs.
 	// Use env.LibDir / env.BaseImageDir so VM and non-VM runs share the same cache.
@@ -74,7 +77,21 @@ func runInKVM(args []string) error {
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
 
-	// Marshal args for the kernel command line
+	// Build socket relay entries for SANDAL_VM_SOCKETS
+	var socketEntries []string
+	for i, sm := range socketMounts {
+		port := 5000 + i
+		socketEntries = append(socketEntries, fmt.Sprintf("%d=%s=%s", port, sm.HostPath, sm.GuestPath))
+	}
+
+	// Rewrite socket -v entries so the container inside the VM bind-mounts
+	// from the relay socket path under /var/run/sandal/vsock/ instead of
+	// the original host path. The relay creates the socket there in VMInit.
+	if len(socketMounts) > 0 {
+		cleanArgs = rewriteSocketVolumes(cleanArgs, socketMounts)
+	}
+
+	// Marshal args for the kernel command line (must be after rewriteSocketVolumes)
 	argsJSON, err := marshalVMArgs(cleanArgs)
 	if err != nil {
 		return err
@@ -110,7 +127,7 @@ func runInKVM(args []string) error {
 	}
 
 	// Build kernel command line
-	cfg.CommandLine = buildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded)
+	cfg.CommandLine = buildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
 
 	// Resolve sandal binary for initrd
 	selfBin, err := resolveVMBinary()
@@ -133,5 +150,68 @@ func runInKVM(args []string) error {
 	}
 	defer vmconfig.DeleteVM(vmName)
 
+	// Start host-side socket relay for vsock
+	if len(socketMounts) > 0 {
+		go startHostSocketRelay(socketMounts)
+	}
+
 	return kvm.Boot(vmName, cfg)
 }
+
+// startHostSocketRelay starts a vsock listener for each socket mount.
+// Each listener accepts connections from the guest and relays them to the
+// corresponding host Unix socket.
+func startHostSocketRelay(sockets []SocketMount) {
+	for i, sm := range sockets {
+		port := uint32(5000 + i)
+		go hostRelaySocket(sm.HostPath, port)
+	}
+}
+
+// hostRelaySocket listens on AF_VSOCK at the given port and for each accepted
+// connection, dials the host Unix socket and performs bidirectional relay.
+func hostRelaySocket(hostPath string, port uint32) {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		slog.Warn("vsock socket failed", slog.Any("err", err))
+		return
+	}
+	if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: port}); err != nil {
+		unix.Close(fd)
+		slog.Warn("vsock bind failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+		return
+	}
+	if err := unix.Listen(fd, 8); err != nil {
+		unix.Close(fd)
+		slog.Warn("vsock listen failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+		return
+	}
+
+	for {
+		nfd, _, err := unix.Accept(fd)
+		if err != nil {
+			slog.Warn("vsock accept failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+			return
+		}
+		go func(clientFD int) {
+			vsockFile := os.NewFile(uintptr(clientFD), fmt.Sprintf("vsock-client:%d", port))
+			defer vsockFile.Close()
+
+			hostConn, err := net.Dial("unix", hostPath)
+			if err != nil {
+				slog.Warn("host socket dial failed", slog.String("path", hostPath), slog.Any("err", err))
+				return
+			}
+			defer hostConn.Close()
+
+			done := make(chan struct{})
+			go func() {
+				io.Copy(hostConn, vsockFile)
+				done <- struct{}{}
+			}()
+			io.Copy(vsockFile, hostConn)
+			<-done
+		}(nfd)
+	}
+}
+
