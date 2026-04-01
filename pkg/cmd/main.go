@@ -6,7 +6,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	runCmd "github.com/ahmetozer/sandal/pkg/cmd/run"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -24,7 +23,7 @@ func Main() {
 	} else {
 		switch os.Args[1] {
 		case "run":
-			executeSubCommand(runCmd.Run)
+			executeSubCommand(Run)
 		case "ps":
 			executeSubCommand(Ps)
 		case "convert":
