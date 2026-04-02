@@ -48,65 +48,97 @@ The same binary serves three roles depending on context:
 ```
 sandal.Run(args)
   -> platformRun(args)  [run_linux.go]
-       |
-       +-- Has "--vm" flag AND not already in VM?
-       |     YES -> RunInVM(args)      # Phase 3
-       |
-       +-- NO -> parseAndRunContainer(args)  # Phase 4
+       -> parseAndRunContainer(args)
+            |
+            +-- Parse ALL flags (including -vm) into Config struct
+            |
+            +-- c.VM != "" AND not already in VM?
+            |     YES -> RunInVM(&config)    # Phase 3
+            |
+            +-- NO -> RunContainer(&config)  # Phase 4
 ```
 
-Detection of "already in VM" uses `guest.IsVMInit()` which checks PID and `SANDAL_VM_ARGS` env var. Platform dispatch is handled via build tags: `run_linux.go`, `run_darwin.go`, `run_unsupported.go`.
+All flags are parsed into the container Config struct first, including `-vm`. This enables VM containers to be tracked with the same state system as direct containers. The `VM` field persists in the config JSON, allowing the daemon to distinguish VM containers for health checks and recovery.
+
+Detection of "already in VM" uses `guest.IsVMInit()` which checks PID and `SANDAL_VM_ARGS` env var. Platform dispatch is handled via build tags: `run_vm_linux.go` (KVM), `run_vm_darwin.go` (VZ), `run_vm_unsupported.go`.
 
 ## Phase 3: KVM VM Launch
 
 **File**: `pkg/sandal/vm_linux.go`
 
 ```
-sandal.RunInKVM(args)
+sandal.RunInKVM(config)
   |
-  +-- 1. extractFlag("--vm") -> remove --vm from args
+  +-- 1. Strip host-only flags from args for VM guest forwarding:
+  |      Remove: -vm (consumed here), -cpu/-memory (VM resources),
+  |              -d/-startup (would cause guest to delegate/exit),
+  |              --name (would overwrite host state via shared VirtioFS)
   |
   +-- 2. scanMountPaths(args) -> collect -v mount paths for VirtioFS
   |      Each -v /host/path:/guest/path becomes a VirtioFS mount
+  |      Unix socket paths detected for vsock relay instead
   |
   +-- 3. squash.PullFromArgs(args) -> pre-pull OCI images to squashfs cache
   |      Downloads image layers, flattens to single squashfs file
   |      Replaces image reference in args with cache path
   |
-  +-- 4. kernel.EnsureKernel() -> download Linux kernel if not cached
+  +-- 4. Build VM config from container config:
+  |      c.CPULimit -> cfg.CPUCount (ceil to integer vCPUs)
+  |      c.MemoryLimit -> cfg.MemoryBytes (page-aligned)
+  |      Clear c.CPULimit/c.MemoryLimit (consumed as VM resources)
+  |
+  +-- 5. kernel.EnsureKernel() -> download Linux kernel if not cached
   |      Source: Alpine Linux APK repository (linux-virt package)
   |      Handles ZBOOT extraction (ARM64 EFI compressed format)
   |      Cache: ~/.sandal-vm/kernel/<arch>/
   |
-  +-- 5. buildVirtioFSMounts() -> create mount configs
+  +-- 6. buildVirtioFSMounts() -> create mount configs
   |      Each mount gets tag: fs-0, fs-1, fs-2, ...
   |      Always includes: sandal library dir, image cache dir
   |
-  +-- 6. marshalVMArgs() -> JSON-encode original CLI args
+  +-- 7. marshalVMArgs() -> JSON-encode cleaned CLI args
   |
-  +-- 7. sandalnet.CreateDefaultBridge() -> ensure sandal0 bridge exists
+  +-- 8. sandalnet.CreateDefaultBridge() -> ensure sandal0 bridge exists
   |
-  +-- 8. sandalnet.IPRequest() -> allocate IP from bridge subnet
+  +-- 9. sandalnet.IPRequest() -> allocate IP from bridge subnet
   |
-  +-- 9. buildKernelCmdLine() -> construct kernel parameters
-  |      SANDAL_VM_ARGS=<base64(json_args)>
-  |      SANDAL_VM_NET=<base64(json_network_config)>
-  |      SANDAL_VM_MOUNTS=<comma_separated_mount_specs>
-  |      SANDAL_VM=kvm
-  |      console=ttyAMA0 (ARM64) or console=ttyS0 (x86)
-  |      loglevel=0
+  +-- 10. buildKernelCmdLine() -> construct kernel parameters
+  |       SANDAL_VM_ARGS=<base64(json_args)>
+  |       SANDAL_VM_NET=<base64(json_network_config)>
+  |       SANDAL_VM_MOUNTS=<comma_separated_mount_specs>
+  |       SANDAL_VM_SOCKETS=<port=host=guest entries>
+  |       SANDAL_VM=kvm
+  |       console=ttyAMA0 (ARM64) or console=ttyS0 (x86)
+  |       loglevel=0
   |
-  +-- 10. resolveVMBinary() -> get sandal binary path for /init
+  +-- 11. resolveVMBinary() -> get sandal binary path for /init
   |
-  +-- 11. kernel.CreateFromBinary(binary, baseInitrd) -> build initrd
+  +-- 12. kernel.CreateFromBinary(binary, baseInitrd) -> build initrd
   |       Wraps sandal binary into CPIO archive as /sandal-init
   |       Includes preinit (ARM64): tiny ELF that mounts /proc, /dev
   |       Appends to base initrd (kernel modules)
   |
-  +-- 12. vmconfig.SaveConfig(name, cfg) -> persist to disk
+  +-- 13. vmconfig.SaveConfig(name, cfg) -> persist ephemeral VM config
   |       Path: ~/.sandal-vm/machines/<name>/config.json
   |
-  +-- 13. kvm.Boot(name, cfg) -> launch VM (Phase 3a)
+  +-- 14. Execution path dispatch:
+  |
+  |   Path A: Delegate to daemon (-d -startup, daemon running)
+  |     controller.SetContainer(config) -> save to state dir
+  |     Return immediately. Daemon health check will boot the VM.
+  |     Ephemeral VM config and initrd cleaned up (daemon rebuilds).
+  |
+  |   Path B: Fork child process (daemon context or -d)
+  |     forkVMProcess() -> exec.Command("sandal vm start -name <name>")
+  |     Child process runs in new session (Setsid: true)
+  |     Parent records child PID as HostPid
+  |     Goroutine waits for child, cleans up VM config/initrd on exit
+  |
+  |   Path C: Foreground (default)
+  |     controller.SetContainer(config)
+  |     kvm.Boot(name, cfg, nil, nil) -> launch VM (Phase 3a)
+  |     Blocks until VM exits, then updates status
+  |     Defer cleans up VM config and initrd
 ```
 
 ### Phase 3a: KVM VM Creation
@@ -114,9 +146,12 @@ sandal.RunInKVM(args)
 **File**: `pkg/vm/kvm/boot.go`, `pkg/vm/kvm/vm.go`
 
 ```
-kvm.Boot(name, cfg)
+kvm.Boot(name, cfg, stdin, stdout)
   |
-  +-- terminal.SetRaw() -> put host terminal in raw mode
+  +-- If stdin/stdout are nil (foreground): use os.Stdin/os.Stdout
+  |   If custom IO provided (future use): skip terminal raw mode
+  |
+  +-- terminal.SetRaw() -> put host terminal in raw mode (foreground only)
   |
   +-- NewVM(name, cfg)
   |   |
@@ -168,7 +203,7 @@ kvm.Boot(name, cfg)
   |         setupIRQFD(vmFd, dev) -> KVM_IRQFD with eventfd
   |         Enables userspace interrupt injection without ioctl per IRQ
   |
-  +-- vm.StartIORelay(os.Stdin, os.Stdout)
+  +-- vm.StartIORelay(stdin, stdout)
   |     Goroutines: host stdin -> VM stdin pipe, VM stdout pipe -> host stdout
   |
   +-- signal.Notify(SIGINT, SIGTERM) -> vm.Stop()

@@ -6,27 +6,33 @@ import (
 )
 
 // ExtractFlag removes a flag and its value from args, returning the value and cleaned args.
-// Handles both "-flag value" and "-flag=value" forms.
+// Handles "-flag value", "-flag=value", "--flag value", and "--flag=value" forms.
 func ExtractFlag(args []string, name string, defaultVal string) (string, []string) {
 	val := defaultVal
-	prefix := "-" + name
+	prefixes := []string{"-" + name, "--" + name}
 	var clean []string
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		matched := false
 
-		if arg == prefix+"=" || strings.HasPrefix(arg, prefix+"=") {
-			val = arg[len(prefix)+1:]
-			continue
+		for _, prefix := range prefixes {
+			if arg == prefix+"=" || strings.HasPrefix(arg, prefix+"=") {
+				val = arg[len(prefix)+1:]
+				matched = true
+				break
+			}
+			if arg == prefix && i+1 < len(args) {
+				val = args[i+1]
+				i++
+				matched = true
+				break
+			}
 		}
 
-		if arg == prefix && i+1 < len(args) {
-			val = args[i+1]
-			i++
-			continue
+		if !matched {
+			clean = append(clean, arg)
 		}
-
-		clean = append(clean, arg)
 	}
 
 	return val, clean
@@ -44,6 +50,19 @@ func HasFlag(args []string, name string) bool {
 		}
 	}
 	return false
+}
+
+// RemoveBoolFlag removes a boolean flag (no value) from args.
+// Handles both "-flag" and "--flag" forms.
+func RemoveBoolFlag(args []string, name string) []string {
+	var clean []string
+	for _, arg := range args {
+		if arg == "-"+name || arg == "--"+name {
+			continue
+		}
+		clean = append(clean, arg)
+	}
+	return clean
 }
 
 // SplitFlagsArgs returns flags and child process args separated by "--".

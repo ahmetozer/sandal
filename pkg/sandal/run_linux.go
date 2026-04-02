@@ -19,9 +19,6 @@ import (
 )
 
 func platformRun(args []string) error {
-	if !guest.IsVMInit() && HasFlag(args, "vm") {
-		return RunInVM(args)
-	}
 	return parseAndRunContainer(args)
 }
 
@@ -41,8 +38,7 @@ func parseAndRunContainer(args []string) error {
 
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
-	var vmFlag string
-	f.StringVar(&vmFlag, "vm", "", "Run inside a KVM virtual machine")
+	f.StringVar(&c.VM, "vm", "", "Run inside a KVM virtual machine")
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.BoolVar(&c.Background, "d", false, "run container in background")
@@ -113,6 +109,11 @@ func parseAndRunContainer(args []string) error {
 
 	if splitErr != nil {
 		return splitErr
+	}
+
+	// If -vm is set and we're not already inside a VM, dispatch to VM boot path
+	if c.VM != "" && !guest.IsVMInit() {
+		return RunInVM(&c)
 	}
 
 	return RunContainer(&c, []string(networkInterfacesCmd))

@@ -4,6 +4,7 @@ package kvm
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -17,22 +18,37 @@ import (
 // Boot boots a VM using KVM with the given name and configuration.
 // It sets up the terminal, creates the VM, relays I/O, and blocks until
 // the VM stops or a signal is received.
-func Boot(name string, cfg vmconfig.VMConfig) error {
+// If stdin/stdout are nil, os.Stdin/os.Stdout are used with raw terminal mode.
+func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer) error {
 	// Write PID file
 	if err := vmconfig.WritePidFile(name); err != nil {
 		slog.Warn("Boot", slog.String("action", "write pid file"), slog.Any("error", err))
 	}
 	defer vmconfig.RemovePidFile(name)
 
-	// Set terminal to raw mode for serial console (skip if not a TTY)
-	restore, err := terminal.SetRaw()
-	if err != nil {
-		slog.Warn("Boot", slog.String("action", "set raw terminal"), slog.Any("error", err))
-		restore = func() {} // no-op
+	customIO := stdin != nil && stdout != nil
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+
+	// Set terminal to raw mode for serial console (skip if custom I/O provided)
+	restore := func() {}
+	if !customIO {
+		var err error
+		restore, err = terminal.SetRaw()
+		if err != nil {
+			slog.Warn("Boot", slog.String("action", "set raw terminal"), slog.Any("error", err))
+			restore = func() {}
+		}
 	}
 	defer func() {
 		restore()
-		exec.Command("stty", "sane").Run()
+		if !customIO {
+			exec.Command("stty", "sane").Run()
+		}
 	}()
 
 	vm, err := NewVM(name, cfg)
@@ -42,8 +58,8 @@ func Boot(name string, cfg vmconfig.VMConfig) error {
 	}
 	defer vm.Close()
 
-	// Relay serial console I/O between VM and host stdin/stdout
-	vm.StartIORelay(os.Stdin, os.Stdout)
+	// Relay serial console I/O
+	vm.StartIORelay(stdin, stdout)
 
 	// Handle signals
 	sigCh := make(chan os.Signal, 1)

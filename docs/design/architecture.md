@@ -92,6 +92,10 @@ The binary creates a KVM virtual machine, boots a Linux kernel inside it, and re
 
 **Key path**: `cmd.Main()` -> `sandal.Run()` -> `sandal.RunInVM()` -> `sandal.RunInKVM()` -> `kvm.Boot()` -> [VM boots] -> `VMInit()` -> `cmd.Main()` -> `sandal.RunContainer()`
 
+**With daemon (`-d -startup`)**: The CLI delegates to the daemon instead of booting directly. The daemon health check detects the container has no running PID and calls `sandal.Run(HostArgs)` to boot the VM in a forked child process. This enables auto-restart: if the VM process dies, the daemon detects it and re-boots.
+
+**Key path (daemon)**: CLI -> `RunInKVM()` -> delegate -> daemon health check -> `sandal.Run()` -> `RunInKVM()` -> `forkVMProcess()` -> child: `sandal vm start` -> `kvm.Boot()`
+
 ### Why the Same Binary?
 
 Sandal embeds itself into the VM's initrd as `/init`. When the kernel boots, it runs the sandal binary as PID 1. The binary detects it's running as VM init (`IsVMInit()`: PID == 1 && SANDAL_VM_ARGS is set) and enters the guest initialization path before re-dispatching the original CLI command.
@@ -108,25 +112,31 @@ Sandal embeds itself into the VM's initrd as `/init`. When the kernel boots, it 
 
 ### 1. Container Config (`pkg/container/config/`)
 
-Central configuration struct passed through the container lifecycle:
+Central configuration struct passed through the container lifecycle. Both direct containers and VM-isolated containers use this same struct for unified state management:
 
 ```go
 type Config struct {
     Name        string              // Unique container name
-    HostPid     int                 // Host-side PID
-    ContPid     int                 // Container-side PID
+    HostPid     int                 // Host-side PID (VM: KVM child process PID)
+    ContPid     int                 // Container-side PID (unused for VM containers)
     RootfsDir   string              // Mounted root filesystem path
     ChangeDir   string              // Overlay upper/work directory
     NS          namespace.Namespaces // Namespace configuration
     Capabilities capabilities.Capabilities
     Net         any                 // Network interface specs
+    VM          string              // VM mode: "" (direct), "kvm", "vz"
     Volumes     wrapper.StringFlags // Bind mount specs (-v host:container)
-    MemoryLimit string              // Cgroup memory limit
-    CPULimit    string              // Cgroup CPU limit
+    MemoryLimit string              // Cgroup memory limit (VM: used for VM RAM)
+    CPULimit    string              // Cgroup CPU limit (VM: used for vCPU count)
     Env         wrapper.StringFlags // Environment variables
     ContArgs    []string            // Command to execute
+    HostArgs    []string            // Original CLI args (used for daemon recovery)
+    Background  bool                // Run in background (-d)
+    Startup     bool                // Auto-restart via daemon (-startup)
 }
 ```
+
+The `VM` field enables the daemon to distinguish VM containers from direct containers for health checks and recovery. When `VM != ""`, the daemon monitors `HostPid` (the KVM child process) instead of `ContPid`.
 
 ### 2. VM Config (`pkg/vm/config/`)
 
@@ -195,10 +205,12 @@ All virtio devices (console, net, block, fs) implement this interface and are re
 
 | Path | Content |
 |------|---------|
-| `/var/lib/sandal/state/` | Container config JSON files |
+| `/var/lib/sandal/state/` | Container config JSON files (both direct and VM containers) |
 | `/var/run/sandal/` | Runtime files (PID files, sockets) |
-| `~/.sandal-vm/machines/<name>/` | VM config and PID files |
+| `~/.sandal-vm/machines/<name>/` | Ephemeral VM config (kernel/initrd paths, created at boot, deleted on exit) |
 | `~/.sandal-vm/kernel/` | Cached Linux kernel images |
 | `~/.sandal-vm/images/` | Cached OCI images (squashfs) |
 | `$SANDAL_ROOTFSDIR/<name>/` | Container root filesystems |
 | `$SANDAL_CHANGE_DIR/<name>/` | Overlay upper/work directories |
+
+VM containers are tracked in the same state directory as direct containers. The container config's `VM` field distinguishes them. The ephemeral VM config under `~/.sandal-vm/machines/` is only used during the VM boot process and is cleaned up when the VM exits.

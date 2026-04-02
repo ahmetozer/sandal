@@ -304,7 +304,7 @@ func startVM(name string, cfg vmconfig.VMConfig) error {
 		}
 	}
 
-	return boot.Boot(name, cfg)
+	return boot.Boot(name, cfg, nil, nil)
 }
 
 func vmList() error {
