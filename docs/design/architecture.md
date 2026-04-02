@@ -168,6 +168,47 @@ type virtioDevice interface {
 
 All virtio devices (console, net, block, fs) implement this interface and are registered with the MMIO transport layer.
 
+## VirtioFS State Isolation
+
+The sandal library directory (`/var/lib/sandal/`) is shared into the VM guest via VirtioFS so the guest can access cached images, rootfs directories, and overlay change directories. However, this directory also contains the state subdirectory (`/var/lib/sandal/state/`) where container configs are persisted as JSON files.
+
+Without protection, the container runtime running **inside** the VM guest would write its own state files through VirtioFS into the host's state directory, creating "ghost" container entries visible from the host:
+
+```
+HOST                                        VM GUEST (via VirtioFS)
+/var/lib/sandal/                            /var/lib/sandal/
+  ├── state/                                  ├── state/
+  │   ├── myvm.json       ◄── host writes     │   ├── myvm.json     (same file)
+  │   └── xyzrandom.json  ◄── guest writes!   │   └── xyzrandom.json
+  ├── image/                                  ├── image/
+  │   └── alpine_*.sqfs   (shared, read)      │   └── alpine_*.sqfs
+  └── changedir/                              └── changedir/
+      └── myvm/            (shared, r/w)          └── myvm/
+```
+
+### Solution: `controller.DisableStateWrites`
+
+**Files**: `main_linux.go`, `pkg/controller/client.go`, `pkg/controller/set.go`
+
+After `VMInit()` completes in `main_linux.go`, the flag `controller.DisableStateWrites` is set to `true`. This makes every `SetContainer()` call inside the VM guest a no-op — no state file is written through VirtioFS.
+
+```
+main_linux.go (VM guest path):
+
+  guest.VMInit()                        ◄── Stage 1-6: mount filesystems, VirtioFS
+  controller.DisableStateWrites = true  ◄── Prevent ghost state entries
+  cmd.Main()                            ◄── Re-dispatch: sandal run → RunContainer()
+    └── RunContainer()
+          ├── SetContainer(c) → no-op   ◄── Would have written ghost entry
+          └── host.Run(c)
+                └── crun()
+                      └── SetContainer(c) → no-op
+```
+
+This is necessary because `SetContainer()` is called at multiple points during the container lifecycle (`RunContainer`, `crun`, `host.Run` exit handler), and the container runtime code is shared between host and VM guest execution. Guarding at the controller level catches all call sites.
+
+The host-side `SetContainer()` calls in `RunInKVM()` are unaffected since they run outside the VM where `DisableStateWrites` is `false`.
+
 ## Data Flow: `sandal run --vm -v /data alpine:latest /bin/sh`
 
 ```

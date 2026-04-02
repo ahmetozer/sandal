@@ -21,6 +21,12 @@ const (
 var (
 	currentConrollerType ConrollerType = 0
 	httpc                http.Client
+
+	// DisableStateWrites skips all SetContainer disk writes.
+	// Set to true inside VM guests where the state directory is
+	// shared via VirtioFS and writes would create ghost entries
+	// visible from the host.
+	DisableStateWrites bool
 )
 
 func init() {

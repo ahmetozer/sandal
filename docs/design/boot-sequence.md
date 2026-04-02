@@ -394,7 +394,15 @@ VMInit()
   |     ip route add default via <gateway>
   |
   +-- Return to platformMain()
-        cmd.Main() is called, dispatching the original CLI args
+  |
+  +-- controller.DisableStateWrites = true
+  |     Prevent ghost container entries: the state directory
+  |     (/var/lib/sandal/state/) is shared via VirtioFS, so
+  |     SetContainer() calls from the guest runtime would create
+  |     duplicate entries visible from the host. See architecture.md
+  |     "VirtioFS State Isolation" for details.
+  |
+  +-- cmd.Main() is called, dispatching the original CLI args
         from SANDAL_VM_ARGS (e.g., "run alpine:latest /bin/sh")
         This triggers Phase 4 (sandal.RunContainer) inside the VM
 ```

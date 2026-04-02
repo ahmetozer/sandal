@@ -14,6 +14,10 @@ import (
 )
 
 func SetContainer(c *config.Config) error {
+	if DisableStateWrites {
+		return nil
+	}
+
 CONTROLLER:
 	slog.Debug("SetContainer", slog.Any("currentConrollerType", currentConrollerType))
 
