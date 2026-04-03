@@ -39,7 +39,7 @@ func RunInKVM(c *config.Config) error {
 	}
 
 	// Remove -vm flag from args -- it's consumed here, not forwarded to guest
-	_, cleanArgs := ExtractFlag(rawArgs, "vm", "")
+	cleanArgs := RemoveBoolFlag(rawArgs, "vm")
 
 	// Remove -cpu and -memory from forwarded args -- they apply to the VM, not guest cgroups
 	_, cleanArgs = ExtractFlag(cleanArgs, "cpu", "")
@@ -60,10 +60,13 @@ func RunInKVM(c *config.Config) error {
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
 
-	// Build VM config with defaults, override from parsed config fields
-	cfg := vmconfig.VMConfig{
-		CPUCount:    vmconfig.DefaultCPUCount,
-		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+	// Build VM config: try loading a named config for this container, fall back to defaults
+	cfg, err := vmconfig.LoadConfig(c.Name)
+	if err != nil {
+		cfg = vmconfig.VMConfig{
+			CPUCount:    vmconfig.DefaultCPUCount,
+			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+		}
 	}
 
 	// Use -cpu and -memory values for VM resources

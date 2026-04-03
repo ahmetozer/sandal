@@ -4,10 +4,12 @@ package sandal
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
@@ -24,21 +26,15 @@ func RunInVZ(c *config.Config) error {
 		rawArgs = c.HostArgs[2:]
 	}
 
-	// Extract -vm flag (darwin-only, not forwarded to VM).
-	vmFlag, cleanArgs := ExtractFlag(rawArgs, "vm", "")
+	// Remove -vm flag from args -- it's consumed here, not forwarded to VM.
+	cleanArgs := RemoveBoolFlag(rawArgs, "vm")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
-	// Build VM config: load from template if -vm was specified, otherwise use defaults
-	var cfg vmconfig.VMConfig
-	if vmFlag != "" {
-		var err error
-		cfg, err = vmconfig.LoadConfig(vmFlag)
-		if err != nil {
-			return fmt.Errorf("loading VM config '%s': %w", vmFlag, err)
-		}
-	} else {
+	// Build VM config: try loading a named config for this container, fall back to defaults
+	cfg, err := vmconfig.LoadConfig(c.Name)
+	if err != nil {
 		cfg = vmconfig.VMConfig{
 			CPUCount:    vmconfig.DefaultCPUCount,
 			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
@@ -116,5 +112,29 @@ func RunInVZ(c *config.Config) error {
 	}
 	defer vmconfig.DeleteVM(vmName)
 
-	return vz.Boot(vmName, cfg, vsockRelays...)
+	// Register container in state files (mirror RunInKVM behavior)
+	c.HostPid = os.Getpid()
+	c.VM = "vz"
+	c.Status = "running"
+	if err := controller.SetContainer(c); err != nil {
+		slog.Warn("RunInVZ", slog.String("action", "register container"), slog.Any("error", err))
+	}
+	defer func() {
+		if c.Remove {
+			controller.DeleteContainer(c.Name)
+			os.Remove(c.ConfigFileLoc())
+		}
+	}()
+
+	err = vz.Boot(vmName, cfg, vsockRelays...)
+
+	// Update status after VM exits
+	if err != nil {
+		c.Status = fmt.Sprintf("err %v", err)
+	} else {
+		c.Status = "exit 0"
+	}
+	controller.SetContainer(c)
+
+	return err
 }
