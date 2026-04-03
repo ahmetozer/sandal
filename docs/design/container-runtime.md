@@ -272,7 +272,7 @@ switchUser(spec)   // spec = "user:group" or "uid:gid"
 
 **Package**: `pkg/container/config/`
 
-**File**: `config/definitions.go`
+**File**: `config/definitions.go` (cross-platform — type dependencies in `namespace/types.go`, `capabilities/types.go`, `diskimage/types.go`, `wrapper/flags.go` are also cross-platform)
 
 ```go
 type Config struct {

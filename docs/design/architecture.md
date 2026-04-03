@@ -186,28 +186,29 @@ HOST                                        VM GUEST (via VirtioFS)
       └── myvm/            (shared, r/w)          └── myvm/
 ```
 
-### Solution: `controller.DisableStateWrites`
+### Solution: State Directory Redirect
 
-**Files**: `main_linux.go`, `pkg/controller/client.go`, `pkg/controller/set.go`
+**Files**: `main_linux.go`, `pkg/env/get.go`
 
-After `VMInit()` completes in `main_linux.go`, the flag `controller.DisableStateWrites` is set to `true`. This makes every `SetContainer()` call inside the VM guest a no-op — no state file is written through VirtioFS.
+After `VMInit()` completes in `main_linux.go`, the state directory is redirected to a local tmpfs path (`/tmp/sandal-state`). This allows the container runtime inside the VM to write config files that child processes need to read, without creating ghost entries on the host via VirtioFS.
 
 ```
 main_linux.go (VM guest path):
 
-  guest.VMInit()                        ◄── Stage 1-6: mount filesystems, VirtioFS
-  controller.DisableStateWrites = true  ◄── Prevent ghost state entries
-  cmd.Main()                            ◄── Re-dispatch: sandal run → RunContainer()
+  guest.VMInit()                                      ◄── Stage 1-6: mount filesystems, VirtioFS
+  env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")  ◄── Redirect state to tmpfs
+  env.BaseStateDir = "/tmp/sandal-state"
+  cmd.Main()                                          ◄── Re-dispatch: sandal run → RunContainer()
     └── RunContainer()
-          ├── SetContainer(c) → no-op   ◄── Would have written ghost entry
+          ├── SetContainer(c) → writes to /tmp/sandal-state/  ◄── Local tmpfs, not VirtioFS
           └── host.Run(c)
                 └── crun()
-                      └── SetContainer(c) → no-op
+                      └── SetContainer(c) → writes to /tmp/sandal-state/
 ```
 
-This is necessary because `SetContainer()` is called at multiple points during the container lifecycle (`RunContainer`, `crun`, `host.Run` exit handler), and the container runtime code is shared between host and VM guest execution. Guarding at the controller level catches all call sites.
+`env.SetDefault()` updates both the `env.BaseStateDir` variable and the defaults list used by `appendSandalVariables()` to propagate environment to child processes. This ensures the spawned container child reads config from the same redirected path.
 
-The host-side `SetContainer()` calls in `RunInKVM()` are unaffected since they run outside the VM where `DisableStateWrites` is `false`.
+The host-side `SetContainer()` calls in `RunInKVM()` are unaffected since they run outside the VM where `SANDAL_STATE_DIR` points to the real state directory.
 
 ## Data Flow: `sandal run --vm -v /data alpine:latest /bin/sh`
 

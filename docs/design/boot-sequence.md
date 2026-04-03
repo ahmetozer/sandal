@@ -395,11 +395,14 @@ VMInit()
   |
   +-- Return to platformMain()
   |
-  +-- controller.DisableStateWrites = true
-  |     Prevent ghost container entries: the state directory
-  |     (/var/lib/sandal/state/) is shared via VirtioFS, so
-  |     SetContainer() calls from the guest runtime would create
-  |     duplicate entries visible from the host. See architecture.md
+  +-- env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")
+  +-- env.BaseStateDir = "/tmp/sandal-state"
+  |     Redirect state directory to local tmpfs to prevent ghost
+  |     container entries: the real state directory
+  |     (/var/lib/sandal/state/) is shared via VirtioFS, so writes
+  |     would create duplicate entries visible from the host.
+  |     The redirect allows child processes to read config while
+  |     keeping the host state clean. See architecture.md
   |     "VirtioFS State Isolation" for details.
   |
   +-- cmd.Main() is called, dispatching the original CLI args

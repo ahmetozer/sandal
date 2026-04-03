@@ -264,9 +264,6 @@ Container state is stored as JSON files:
 
 ```go
 func SetContainer(cfg *config.Config) error {
-    if DisableStateWrites {
-        return nil // VM guest: shared VirtioFS, skip writes
-    }
     data, _ := json.Marshal(cfg)
     return os.WriteFile(
         filepath.Join(stateDir, cfg.Name+".json"),
@@ -285,13 +282,13 @@ func GetContainer(name string) (*config.Config, error) {
 
 The state directory (`/var/lib/sandal/state/`) is a subdirectory of the sandal library dir, which is shared into VM guests via VirtioFS. Without protection, `SetContainer()` calls from the container runtime inside the VM would write "ghost" state files through VirtioFS, creating duplicate container entries visible from the host.
 
-The `DisableStateWrites` flag (set in `main_linux.go` after `VMInit()`) makes all `SetContainer()` calls inside VM guests a no-op. This is set at the controller level rather than individual call sites because the container runtime (`host.Run()`, `crun()`) calls `SetContainer()` at multiple points during the lifecycle and shares the same code path between host and VM execution.
+After `VMInit()`, `main_linux.go` redirects the state directory to a local tmpfs path (`/tmp/sandal-state`) using `env.SetDefault()`. This allows the container runtime to write config files (needed by child processes) without leaking state to the host. The `env.SetDefault()` function updates both the Go variable and the defaults list used for child process environment propagation.
 
 ```
 HOST PROCESS                           VM GUEST PROCESS
   SetContainer(c)                        SetContainer(c)
-    DisableStateWrites = false             DisableStateWrites = true
-    → writes state JSON ✓                 → returns nil (no-op) ✓
+    stateDir = /var/lib/sandal/state       stateDir = /tmp/sandal-state
+    → writes to VirtioFS ✓                → writes to local tmpfs ✓
 ```
 
 ### Container Listing
