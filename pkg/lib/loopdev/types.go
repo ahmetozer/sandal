@@ -1,5 +1,3 @@
-//go:build linux
-
 package loopdev
 
 // LoopInfo64 represents the loop device information structure
@@ -17,4 +15,11 @@ type LoopInfo64 struct {
 	CryptName      [64]byte
 	EncryptKey     [32]byte
 	Init           [2]uint64
+}
+
+type Config struct {
+	No   int
+	Path string
+	Info *LoopInfo64
+	RW   bool // Open image file read-write instead of read-only
 }

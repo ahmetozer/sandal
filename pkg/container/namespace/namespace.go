@@ -6,16 +6,6 @@ import (
 	"syscall"
 )
 
-type NamespaceConf struct {
-	UserValue     *string
-	IsUserDefined bool
-	IsHost        bool
-}
-
-type Name string
-
-type Namespaces map[Name]NamespaceConf
-
 func (NS Namespaces) Cloneflags() uintptr {
 	var Cloneflags uintptr
 	for name, conf := range NS {

@@ -3,17 +3,8 @@
 package capabilities
 
 import (
-	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"golang.org/x/sys/unix"
 )
-
-type Capabilities struct {
-	AddCapabilities  wrapper.StringFlags
-	DropCapabilities wrapper.StringFlags
-	Privileged       bool
-}
-
-type Name string
 
 // capabilityMap maps capability names to their numeric values
 var capabilityMap = map[string]uint32{
