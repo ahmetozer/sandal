@@ -186,28 +186,32 @@ Configure:
   ip route add default via <gateway>
 ```
 
-### Stage 7: CLI Re-dispatch
+### Stage 7: State Isolation and CLI Re-dispatch
 
-After VMInit() returns, `main_linux.go` calls `cmd.Main()`:
+After VMInit() returns, `main_linux.go` redirects the state directory to local tmpfs and calls `cmd.Main()`:
 
 ```go
 func platformMain() {
     if guest.IsVMInit() {
-        guest.VMInit()    // Stages 1-6 above
-        cmd.Main()        // Re-dispatch original command
+        guest.VMInit()                                            // Stages 1-6 above
+        env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")  // Redirect state to tmpfs
+        env.BaseStateDir = "/tmp/sandal-state"
+        cmd.Main()                                                // Re-dispatch original command
         return
     }
     // ...
 }
 ```
 
+The state directory redirect is critical because `/var/lib/sandal/state/` is shared into the VM via VirtioFS as part of the sandal library directory. Without redirection, `RunContainer()` and the container runtime would write state JSON files through VirtioFS, creating ghost container entries visible from the host. By redirecting to `/tmp/sandal-state` (local tmpfs), the container runtime can still write config files that child processes need to read, without leaking state to the host. `env.SetDefault()` ensures the redirected path propagates to child processes via environment variables. See [architecture.md](architecture.md#virtiofs-state-isolation) for the full explanation.
+
 `cmd.Main()` reads `os.Args` which were reconstructed from `SANDAL_VM_ARGS`:
 ```
-Original host command:  sandal run --vm -v /data alpine:latest /bin/sh
+Original host command:  sandal run --vm --name myvm -d -v /data alpine:latest /bin/sh
 VM_ARGS decoded:        ["run", "-v", "/mnt/data", "alpine:latest", "/bin/sh"]
 ```
 
-Note: paths are translated from host paths to guest VirtioFS mount paths by `guest.ResolvePath()`.
+Note that host-only flags (`--vm`, `--name`, `-d`, `-startup`, `--cpu`, `--memory`) are stripped before encoding into `SANDAL_VM_ARGS`. Paths are translated from host paths to guest VirtioFS mount paths by `guest.ResolvePath()`.
 
 ## Path Resolution
 

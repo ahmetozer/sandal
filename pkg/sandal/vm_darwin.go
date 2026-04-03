@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
@@ -16,9 +17,15 @@ import (
 
 // RunInVZ boots a VZ VM on macOS with the sandal Linux binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
-func RunInVZ(args []string) error {
+func RunInVZ(c *config.Config) error {
+	// Build args from HostArgs, stripping binary name and "run"
+	var rawArgs []string
+	if len(c.HostArgs) > 2 {
+		rawArgs = c.HostArgs[2:]
+	}
+
 	// Extract -vm flag (darwin-only, not forwarded to VM).
-	vmFlag, cleanArgs := ExtractFlag(args, "vm", "")
+	vmFlag, cleanArgs := ExtractFlag(rawArgs, "vm", "")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
@@ -103,7 +110,7 @@ func RunInVZ(args []string) error {
 	cfg.InitrdPath = initrdPath
 
 	// Each run gets an ephemeral VM that is cleaned up on exit.
-	vmName := fmt.Sprintf("run-%d", os.Getpid())
+	vmName := c.Name
 	if err := vmconfig.SaveConfig(vmName, cfg); err != nil {
 		return fmt.Errorf("saving ephemeral VM config: %w", err)
 	}

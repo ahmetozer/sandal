@@ -68,7 +68,7 @@ sandal run [flags] <image> [command] [args...]
 | `-w` | Working directory | `-w /app` |
 | `--env-host` | Pass all host env vars | |
 
-**Behavior with `--vm`**: Strips the `--vm` flag, pre-pulls the image, downloads the kernel, builds an initrd containing the sandal binary, and launches a KVM VM that re-executes the remaining command inside the VM.
+**Behavior with `--vm`**: Parses `--vm` into the container config's `VM` field, pre-pulls the image, downloads the kernel, builds an initrd containing the sandal binary, and launches a KVM VM that re-executes the remaining command inside the VM. Host-only flags (`-d`, `-startup`, `--name`, `--cpu`, `--memory`) are stripped from the args forwarded to the VM guest. When combined with `-d -startup`, the VM container is registered in the same state system as direct containers and managed by the daemon for auto-restart.
 
 ### `ps` - List Containers
 
@@ -87,7 +87,10 @@ Output format (tabwriter):
 ```
 NAME          IMAGE          STATUS    PID     CREATED
 myapp         alpine:latest  running   12345   2024-01-01 12:00:00
+myvm          alpine         running   12346   2024-01-01 12:01:00
 ```
+
+Both direct containers and VM containers appear in the same listing. VM containers show the KVM child process PID in the PID column.
 
 ### `kill` - Send Signal to Container
 
@@ -97,7 +100,7 @@ myapp         alpine:latest  running   12345   2024-01-01 12:00:00
 sandal kill [-s SIGNAL] <name>
 ```
 
-Sends a signal (default: SIGKILL) to the container's host PID.
+Sends a signal (default: SIGKILL) to the container's host PID. For VM containers, this kills the KVM child process (HostPid), which terminates the VM. If the container has `-startup`, the daemon will auto-restart it.
 
 ### `stop` - Graceful Stop
 
@@ -218,17 +221,17 @@ sandal daemon
 
 Starts the background daemon for persistent container management. See [daemon-controller.md](daemon-controller.md).
 
-### `vm` - VM Management (macOS)
+### `vm` - VM Management
 
 **File**: `pkg/cmd/vm.go`
 
 ```
 sandal vm list
-sandal vm start <name>
-sandal vm stop <name>
+sandal vm start -name <name>
+sandal vm stop -name <name>
 ```
 
-Manages VMs using Apple Virtualization Framework. Linux uses `--vm` flag on `run` instead.
+Manages VMs directly. On macOS, uses Apple Virtualization Framework. On Linux, uses KVM. The `vm start` subcommand is also used internally by the daemon's `forkVMProcess()` to boot a VM in a child process — this ensures the daemon PID is not the VM PID, so killing the VM doesn't kill the daemon.
 
 ### `completion` - Shell Completions
 
@@ -271,6 +274,17 @@ func (s *StringFlags) Set(value string) error {
 ```
 
 This allows repeated flags: `-v /a:/b -v /c:/d -e FOO=1 -e BAR=2`
+
+### Arg Manipulation Helpers (`pkg/sandal/args.go`)
+
+When forwarding CLI args to the VM guest, certain flags must be stripped or rewritten. Helper functions in `args.go`:
+
+| Function | Purpose |
+|----------|---------|
+| `ExtractFlag(args, name, default)` | Remove a flag and its value (`-flag val` or `--flag=val`), return value and cleaned args |
+| `RemoveBoolFlag(args, name)` | Remove a boolean flag (`-flag` or `--flag`) from args |
+| `HasFlag(args, name)` | Check if a flag is present in args |
+| `SplitFlagsArgs(args)` | Split at `--` separator into flag args and command args |
 
 ## Platform-Specific Dispatch
 

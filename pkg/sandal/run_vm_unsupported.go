@@ -2,9 +2,13 @@
 
 package sandal
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ahmetozer/sandal/pkg/container/config"
+)
 
 // RunInVM is not supported on this platform.
-func RunInVM(args []string) error {
+func RunInVM(c *config.Config) error {
 	return fmt.Errorf("VM is not supported on this platform")
 }

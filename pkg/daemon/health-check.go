@@ -12,6 +12,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup) {
@@ -32,7 +33,13 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 			for c := range conts {
 				cont := (conts)[c]
 
-				isRunning, err := crt.IsPidRunning(cont.ContPid)
+				// For VM containers, monitor HostPid (the KVM process);
+				// for regular containers, monitor ContPid.
+				checkPid := cont.ContPid
+				if cont.VM != "" {
+					checkPid = cont.HostPid
+				}
+				isRunning, err := crt.IsPidRunning(checkPid)
 				if err != nil {
 					slog.Warn("unable to get container status", "cont", cont.Name, "err", err.Error())
 				}
@@ -95,6 +102,18 @@ func contRecover(cont *config.Config) {
 
 	if len(latest.HostArgs) < 2 {
 		slog.Error("daemon", slog.String("error", "unkown arg size"), slog.String("name", latest.Name), slog.String("args", strings.Join(latest.HostArgs, " ")))
+		return
+	}
+
+	if latest.VM != "" {
+		// VM container: re-run the full sandal.Run() pipeline which goes
+		// through RunInKVM() again (re-pulls images, re-allocates network,
+		// re-builds initrd, boots KVM).
+		err = sandal.Run(latest.HostArgs[2:])
+		if err != nil {
+			slog.Error("recover vm", slog.String("cont", latest.Name), slog.Any("error", err))
+		}
+		slog.Info("recover", slog.String("cont", latest.Name), slog.String("type", "vm"))
 		return
 	}
 

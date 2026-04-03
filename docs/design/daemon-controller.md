@@ -51,12 +51,43 @@ cmdDaemon()
 
 ```
 healthCheckLoop():
-  Every interval:
+  Every 3 seconds:
     For each container in state directory:
+      Determine which PID to monitor:
+        VM container (VM != ""): check HostPid (KVM child process)
+        Direct container:        check ContPid
       Check if process PID is alive (kill -0)
       If zombie: reap with waitpid
-      If dead and Startup=true: restart
-      If dead and not Startup: mark as stopped
+      If dead and Startup=true: recover (contRecover)
+      If dead and not Startup: skip
+```
+
+#### VM-Aware PID Monitoring
+
+For VM containers, the health check monitors `HostPid` instead of `ContPid`. This is because:
+- `ContPid` is always 0 for VM containers (the container PID lives inside the VM)
+- `HostPid` is the KVM child process PID that was forked by `forkVMProcess()`
+- When the VM process dies (crash, kill, or normal exit), the daemon detects it via `HostPid`
+
+#### Container Recovery (`contRecover`)
+
+```
+contRecover(cont):
+  If status == "stop": return (user explicitly stopped it)
+
+  Clean up stale resources (console sockets, mounts, cgroups)
+  Kill old process (SIGTERM with timeout, then SIGKILL)
+  Re-read latest config from controller
+
+  If VM container (VM != ""):
+    Call sandal.Run(HostArgs[2:])
+    This re-runs the full RunInKVM() pipeline:
+      - Re-pulls images
+      - Re-allocates network
+      - Re-builds initrd
+      - Boots KVM in a forked child process
+  Else (direct container):
+    Call host.Run(latest)
 ```
 
 ### Signal Proxy
@@ -105,6 +136,56 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
+```
+
+### VM Container Lifecycle with Daemon
+
+VM containers integrate with the daemon using the same state system as direct containers. The `VM` field in the container config enables VM-specific behavior.
+
+#### Three Execution Paths
+
+When `RunInKVM()` is called, it takes one of three paths depending on context:
+
+```
+RunInKVM(config)
+  |
+  +-- Path 1: Delegation (-d -startup, daemon running)
+  |     CLI saves container config with HostPid=self, returns immediately.
+  |     Daemon health check detects dead PID, calls sandal.Run(HostArgs)
+  |     which re-enters RunInKVM() in the daemon process (Path 2).
+  |
+  +-- Path 2: Fork (daemon context or -d without -startup)
+  |     Forks a child process: "sandal vm start -name <vmName>"
+  |     Child process loads saved VM config and calls kvm.Boot().
+  |     Parent records child PID as HostPid, starts socket relay,
+  |     goroutine waits for child exit and updates status.
+  |     Critical: daemon PID != VM PID, so killing VM doesn't kill daemon.
+  |
+  +-- Path 3: Foreground (no -d, no daemon)
+        Boots KVM directly in the current process.
+        kvm.Boot() blocks until VM exits.
+        Process PID is recorded as HostPid.
+```
+
+#### Flag Stripping
+
+Flags that apply to the host VM process are stripped before forwarding args to the guest:
+- `-vm`: consumed by RunInKVM, not meaningful inside VM
+- `-cpu`, `-memory`: used for VM resources (vCPU count, RAM), not guest cgroups
+- `-d`, `-startup`: would cause guest to background/delegate, causing immediate exit
+- `--name`: would cause guest container to overwrite host's state file (shared via VirtioFS)
+
+#### Auto-Restart Flow
+
+```
+1. User: sandal run -d -startup --name myvm -vm kvm alpine sleep 60
+2. CLI: saves config (VM="kvm", Startup=true), delegates to daemon
+3. Daemon health check: detects dead PID, calls sandal.Run(HostArgs)
+4. RunInKVM: forks child process (sandal vm start), records child PID
+5. VM runs sleep 60
+6. VM process killed (crash or "sandal kill myvm")
+7. forkVMProcess wait goroutine: updates status, cleans up VM config
+8. Daemon health check: detects dead PID again, repeats from step 3
 ```
 
 ## Controller (IPC)
@@ -195,6 +276,19 @@ func GetContainer(name string) (*config.Config, error) {
     json.Unmarshal(data, &cfg)
     return &cfg, nil
 }
+```
+
+#### VirtioFS State Isolation
+
+The state directory (`/var/lib/sandal/state/`) is a subdirectory of the sandal library dir, which is shared into VM guests via VirtioFS. Without protection, `SetContainer()` calls from the container runtime inside the VM would write "ghost" state files through VirtioFS, creating duplicate container entries visible from the host.
+
+After `VMInit()`, `main_linux.go` redirects the state directory to a local tmpfs path (`/tmp/sandal-state`) using `env.SetDefault()`. This allows the container runtime to write config files (needed by child processes) without leaking state to the host. The `env.SetDefault()` function updates both the Go variable and the defaults list used for child process environment propagation.
+
+```
+HOST PROCESS                           VM GUEST PROCESS
+  SetContainer(c)                        SetContainer(c)
+    stateDir = /var/lib/sandal/state       stateDir = /tmp/sandal-state
+    → writes to VirtioFS ✓                → writes to local tmpfs ✓
 ```
 
 ### Container Listing

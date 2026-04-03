@@ -2,7 +2,9 @@
 
 package sandal
 
+import "github.com/ahmetozer/sandal/pkg/container/config"
+
 // RunInVM starts a VM using KVM on Linux.
-func RunInVM(args []string) error {
-	return RunInKVM(args)
+func RunInVM(c *config.Config) error {
+	return RunInKVM(c)
 }

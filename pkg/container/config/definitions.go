@@ -1,5 +1,3 @@
-//go:build linux
-
 package config
 
 import (
@@ -55,6 +53,9 @@ type Config struct {
 	RunPrePivot     wrapper.StringFlags
 	PassEnv         wrapper.StringFlags
 	Net             any
+
+	// VM execution context (empty string means no VM)
+	VM string // "" = no VM, "kvm" = KVM, "vz" = VZ
 
 	// Resource limits (cgroups v2)
 	MemoryLimit string // Memory limit with units (e.g., "512M", "1G")

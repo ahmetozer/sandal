@@ -10,13 +10,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type Config struct {
-	No   int
-	Path string
-	Info *LoopInfo64
-	RW   bool // Open image file read-write instead of read-only
-}
-
 func (lc Config) Attach(imagePath string) error {
 
 	openFlags := os.O_RDONLY

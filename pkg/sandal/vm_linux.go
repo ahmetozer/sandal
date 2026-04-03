@@ -11,10 +11,13 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -27,13 +30,28 @@ import (
 
 // RunInKVM boots a KVM VM with the current sandal binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
-func RunInKVM(args []string) error {
-	// Remove -vm flag from args -- it's consumed here, not forwarded
-	_, cleanArgs := ExtractFlag(args, "vm", "")
+func RunInKVM(c *config.Config) error {
+	// Build clean args from HostArgs, stripping the binary name and "run" prefix.
+	// HostArgs is ["/path/to/sandal", "run", ...flags..., "--", ...cmd...]
+	var rawArgs []string
+	if len(c.HostArgs) > 2 {
+		rawArgs = c.HostArgs[2:]
+	}
 
-	// Extract -cpu and -memory flags to apply to the VM itself.
-	cpuVal, cleanArgs := ExtractFlag(cleanArgs, "cpu", "")
-	memVal, cleanArgs := ExtractFlag(cleanArgs, "memory", "")
+	// Remove -vm flag from args -- it's consumed here, not forwarded to guest
+	_, cleanArgs := ExtractFlag(rawArgs, "vm", "")
+
+	// Remove -cpu and -memory from forwarded args -- they apply to the VM, not guest cgroups
+	_, cleanArgs = ExtractFlag(cleanArgs, "cpu", "")
+	_, cleanArgs = ExtractFlag(cleanArgs, "memory", "")
+
+	// Remove host-only flags from forwarded args. These apply to the host VM process,
+	// not the container inside the guest:
+	// - -d/-startup: would cause guest to background/delegate, causing immediate exit
+	// - --name: would cause guest container to overwrite host's state file (same name)
+	cleanArgs = RemoveBoolFlag(cleanArgs, "d")
+	cleanArgs = RemoveBoolFlag(cleanArgs, "startup")
+	_, cleanArgs = ExtractFlag(cleanArgs, "name", "")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
@@ -42,22 +60,26 @@ func RunInKVM(args []string) error {
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
 
-	// Build VM config with defaults
+	// Build VM config with defaults, override from parsed config fields
 	cfg := vmconfig.VMConfig{
 		CPUCount:    vmconfig.DefaultCPUCount,
 		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
 	}
 
-	if cpuVal != "" {
-		if cpus, err := strconv.ParseFloat(cpuVal, 64); err == nil && cpus > 0 {
+	// Use -cpu and -memory values for VM resources
+	if c.CPULimit != "" {
+		if cpus, err := strconv.ParseFloat(c.CPULimit, 64); err == nil && cpus > 0 {
 			cfg.CPUCount = uint(math.Ceil(cpus))
 		}
 	}
-	if memVal != "" {
-		if memBytes, err := resources.ParseSize(memVal); err == nil && memBytes > 0 {
+	if c.MemoryLimit != "" {
+		if memBytes, err := resources.ParseSize(c.MemoryLimit); err == nil && memBytes > 0 {
 			cfg.MemoryBytes = (uint64(memBytes) + 4095) &^ 4095
 		}
 	}
+	// Clear cgroup fields — they were consumed as VM resources
+	c.CPULimit = ""
+	c.MemoryLimit = ""
 
 	// Auto-download kernel
 	kernelPath, err := kernel.EnsureKernel()
@@ -134,22 +156,111 @@ func RunInKVM(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(initrdPath)
 	cfg.InitrdPath = initrdPath
 
-	// Boot ephemeral VM
-	vmName := fmt.Sprintf("run-%d", os.Getpid())
+	// Save ephemeral VM config (legacy path, kept for sandal vm list compatibility)
+	vmName := c.Name
 	if err := vmconfig.SaveConfig(vmName, cfg); err != nil {
 		return fmt.Errorf("saving ephemeral VM config: %w", err)
 	}
+
+	// For startup containers with a running daemon, delegate to daemon.
+	// The daemon health check will detect the container has no running PID
+	// and call sandal.Run(HostArgs) to boot the VM.
+	if c.Background && c.Startup && !env.IsDaemon && controller.GetControllerType() == controller.ControllerTypeServer {
+		// Delegation path: daemon will rebuild everything via sandal.Run(),
+		// so clean up the ephemeral VM config and initrd now.
+		os.Remove(initrdPath)
+		vmconfig.DeleteVM(vmName)
+		c.HostPid = os.Getpid()
+		if err := controller.SetContainer(c); err != nil {
+			return fmt.Errorf("registering VM container: %w", err)
+		}
+		slog.Info("runInKVM", slog.String("action", "delegated to daemon"), slog.String("name", c.Name))
+		return nil
+	}
+
+	// When running from daemon, fork a child process for the VM so that
+	// killing the VM doesn't kill the daemon itself.
+	// The forked child needs the VM config and initrd, so cleanup is
+	// handled inside forkVMProcess after the child exits.
+	if env.IsDaemon || c.Background {
+		return forkVMProcess(c, vmName, cfg, socketMounts, initrdPath)
+	}
+
+	// Foreground mode: clean up on exit
+	defer os.Remove(initrdPath)
 	defer vmconfig.DeleteVM(vmName)
+
+	// Foreground mode: register and boot directly in this process
+	c.HostPid = os.Getpid()
+	if err := controller.SetContainer(c); err != nil {
+		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
+	}
+	defer func() {
+		if c.Remove {
+			controller.DeleteContainer(c.Name)
+		}
+	}()
 
 	// Start host-side socket relay for vsock
 	if len(socketMounts) > 0 {
 		go StartHostSocketRelay(socketMounts)
 	}
 
-	return kvm.Boot(vmName, cfg)
+	err = kvm.Boot(vmName, cfg, nil, nil)
+
+	// Update status after VM exits
+	if err != nil {
+		c.Status = fmt.Sprintf("err %v", err)
+	} else {
+		c.Status = "exit 0"
+	}
+	controller.SetContainer(c)
+
+	return err
+}
+
+// forkVMProcess starts the VM in a child process so the daemon/CLI isn't blocked.
+func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socketMounts []SocketMount, initrdPath string) error {
+	// The child process will boot the VM using "sandal vm start <name>"
+	// which loads the saved VM config and calls boot.Boot().
+	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("forking VM process: %w", err)
+	}
+
+	c.HostPid = cmd.Process.Pid
+	if err := controller.SetContainer(c); err != nil {
+		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
+	}
+
+	// Start host-side socket relay for vsock
+	if len(socketMounts) > 0 {
+		go StartHostSocketRelay(socketMounts)
+	}
+
+	// Wait for child to exit and update status
+	go func() {
+		waitErr := cmd.Wait()
+		if waitErr != nil {
+			c.Status = fmt.Sprintf("err %v", waitErr)
+		} else {
+			c.Status = "exit 0"
+		}
+		controller.SetContainer(c)
+		os.Remove(initrdPath)
+		vmconfig.DeleteVM(vmName)
+		if c.Remove {
+			controller.DeleteContainer(c.Name)
+		}
+	}()
+
+	return nil
 }
 
 // StartHostSocketRelay starts a vsock listener for each socket mount.

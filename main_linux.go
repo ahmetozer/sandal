@@ -9,6 +9,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
 	containerguest "github.com/ahmetozer/sandal/pkg/container/guest"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"golang.org/x/sys/unix"
 )
@@ -25,6 +26,12 @@ func platformMain() {
 			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
 			os.Exit(1)
 		}
+		// Redirect state directory to a local tmpfs path so the container
+		// runtime can write config files for child processes, without
+		// creating ghost entries on the host via VirtioFS.
+		env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")
+		env.BaseStateDir = "/tmp/sandal-state"
+
 		// Override ExitHandler so cmd.Main() triggers a VM power-off instead
 		// of os.Exit(). The exit_linux.go init() may have missed SANDAL_VM_ARGS
 		// because importKernelCmdlineEnv() hadn't run yet at package init time.
