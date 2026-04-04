@@ -3,6 +3,7 @@
 package namespace
 
 import (
+	"fmt"
 	"syscall"
 )
 
@@ -46,12 +47,22 @@ func (NS Namespaces) Get(name Name) NamespaceConf {
 	return NS[name]
 }
 
-// func toString(clone uintptr) (name string) {
-// 	var val uintptr
-// 	for name, val = range namespaceList {
-// 		if clone == val {
-// 			return
-// 		}
-// 	}
-// 	return
-// }
+// DefaultsForPid builds a Namespaces map targeting all standard namespaces
+// for the given PID. Used when c.NS is empty (e.g., VM containers where
+// namespace flags weren't parsed on the host).
+func DefaultsForPid(pid int) Namespaces {
+	ns := make(Namespaces, len(namespaceList))
+	for name := range namespaceList {
+		// Skip user namespace (default is host) and time namespace
+		// (can't setns on multithreaded process).
+		if name == "user" || name == "time" {
+			continue
+		}
+		val := fmt.Sprintf("pid:%d", pid)
+		ns[name] = NamespaceConf{
+			UserValue:     &val,
+			IsUserDefined: true,
+		}
+	}
+	return ns
+}

@@ -439,3 +439,71 @@ func vsockDial(cid, port uint32) (*os.File, error) {
 	}
 	return os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", cid, port)), nil
 }
+
+// ControllerVsockPort is the well-known vsock port for the embedded controller API.
+const ControllerVsockPort = 4000
+
+// ControllerSocketPath is the Unix socket where the embedded controller listens inside the VM.
+const ControllerSocketPath = "/var/run/sandal/controller.sock"
+
+// StartControllerVsockListener listens on vsock port 4000 and relays each
+// connection to the embedded controller Unix socket inside the VM.
+// Must be called as a goroutine — blocks forever.
+func StartControllerVsockListener() {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		slog.Warn("controller vsock: socket", slog.Any("err", err))
+		return
+	}
+
+	err = unix.Bind(fd, &unix.SockaddrVM{
+		CID:  unix.VMADDR_CID_ANY,
+		Port: ControllerVsockPort,
+	})
+	if err != nil {
+		unix.Close(fd)
+		slog.Warn("controller vsock: bind", slog.Any("err", err))
+		return
+	}
+
+	err = unix.Listen(fd, 8)
+	if err != nil {
+		unix.Close(fd)
+		slog.Warn("controller vsock: listen", slog.Any("err", err))
+		return
+	}
+
+	slog.Info("controller vsock listener ready", slog.Uint64("port", ControllerVsockPort))
+
+	for {
+		nfd, _, err := unix.Accept(fd)
+		if err != nil {
+			slog.Warn("controller vsock: accept", slog.Any("err", err))
+			continue
+		}
+		go controllerVsockRelay(nfd)
+	}
+}
+
+// controllerVsockRelay relays a single vsock connection to the embedded
+// controller Unix socket. When one direction finishes (e.g., exec output
+// complete), connections are closed to unblock the other direction.
+func controllerVsockRelay(vsockFD int) {
+	vsockFile := os.NewFile(uintptr(vsockFD), "vsock-controller")
+
+	ctrlConn, err := net.Dial("unix", ControllerSocketPath)
+	if err != nil {
+		slog.Warn("controller dial failed", slog.Any("err", err))
+		vsockFile.Close()
+		return
+	}
+
+	// host→controller (request + stdin)
+	go func() {
+		io.Copy(ctrlConn, vsockFile)
+		ctrlConn.Close()
+	}()
+	// controller→host (response + stdout)
+	io.Copy(vsockFile, ctrlConn)
+	vsockFile.Close()
+}

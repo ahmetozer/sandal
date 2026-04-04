@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package cmd
 
@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
-	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 func Snapshot(args []string) error {
@@ -40,14 +40,10 @@ func Snapshot(args []string) error {
 		return fmt.Errorf("container %q not found: %w", containerName, err)
 	}
 
-	outPath, err := snapshot.Create(c, filePath, snapshot.FilterOptions{
-		Includes: includes,
-		Excludes: excludes,
-	})
+	outPath, err := sandal.Snapshot(c, filePath, []string(includes), []string(excludes))
 	if err != nil {
 		return err
 	}
-
 	fmt.Printf("%s\n", outPath)
 	return nil
 }

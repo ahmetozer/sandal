@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package cmd
 
@@ -6,14 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
-	"github.com/ahmetozer/sandal/pkg/container/namespace"
-	"github.com/ahmetozer/sandal/pkg/sandal"
-	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
-	"golang.org/x/sys/unix"
+	"github.com/ahmetozer/sandal/pkg/sandal"
+	"github.com/ahmetozer/sandal/pkg/vm/terminal"
 )
 
 func ExecOnContainer(args []string) error {
@@ -22,29 +20,18 @@ func ExecOnContainer(args []string) error {
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
 	var (
-		help     bool
-		EnvAll   bool
-		PassEnv  wrapper.StringFlags
-		Dir      string
-		User     string
-		contName string
+		help bool
+		Dir  string
+		User string
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
-	f.BoolVar(&EnvAll, "env-all", false, "send all environment variables to container")
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.StringVar(&User, "user", "", "work user")
-
-	f.Var(&PassEnv, "env-pass", "pass only requested environment variables to container")
-
-	// Allocate variable locations
-	NS := namespace.ParseFlagSet(f)
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
 	}
-	// Execute after parsing flag to prevent nil pointer issues or empty variable
-	NS.Defaults()
 
 	if help {
 		f.Usage()
@@ -57,51 +44,29 @@ func ExecOnContainer(args []string) error {
 
 	switch len(f.Args()) {
 	case 0:
-		return fmt.Errorf("please provide name or provide name after arguments")
+		return fmt.Errorf("please provide container name")
 	case 1:
 	default:
-		return fmt.Errorf("multiple unrecognized name provided, please provide only one %v", f.Args())
+		return fmt.Errorf("multiple names provided, please provide only one: %v", f.Args())
 	}
 
-	contName = f.Args()[0]
+	contName := f.Args()[0]
 
 	c, err := controller.GetContainer(contName)
 	if err != nil {
-		return fmt.Errorf("failed to get container %s: %v", contName, err)
+		return fmt.Errorf("container %q not found: %w", contName, err)
 	}
 
-	merge := c.NS.SetEmptyToPid(c.ContPid).Merge(NS)
+	// Terminal raw mode + signal handling (CLI concerns)
+	restore, rawErr := terminal.SetRaw()
+	if rawErr != nil {
+		restore = func() {}
+	}
+	defer restore()
 
-	if err := merge.Unshare(); err != nil {
-		return err
-	}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
 
-	err = merge.SetNS()
-	if err != nil {
-		return err
-	}
-
-	// Set the hostname
-	if err := unix.Sethostname([]byte(c.Name)); err != nil {
-		return fmt.Errorf("set hostname %s: %v", c.Name, err)
-	}
-
-	if !EnvAll {
-		PassEnv = append(PassEnv, "PATH")
-		for _, e := range os.Environ() {
-			key := strings.Split(e, "=")[0]
-			if !isIn((*[]string)(&PassEnv), key) {
-				os.Unsetenv(key)
-			}
-		}
-	}
-
-	if User == "" {
-		User = c.User
-	}
-	exitCode, err = crt.Exec(childArgs, "", User)
-	if err != nil && strings.Contains(err.Error(), "exit status") {
-		err = nil
-	}
-	return err
+	return sandal.Exec(c, childArgs, User, Dir, os.Stdin, os.Stdout, os.Stderr)
 }

@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
+	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
 )
 
@@ -77,6 +78,11 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 		return fmt.Errorf("starting VM: %w", err)
 	}
 	slog.Debug("Boot", slog.String("action", "started"), slog.String("state", vm.State().String()))
+
+	// Start the management socket relay so host commands can reach the
+	// embedded controller inside the VM via AF_VSOCK (CID=3, port=4000).
+	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: 3, Port: 4000})
+	defer mgmtCleanup()
 
 	// Wait for VM to stop
 	if err := vm.WaitUntilStopped(); err != nil {

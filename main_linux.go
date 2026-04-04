@@ -9,6 +9,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
 	containerguest "github.com/ahmetozer/sandal/pkg/container/guest"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"golang.org/x/sys/unix"
@@ -31,6 +32,11 @@ func platformMain() {
 		// creating ghost entries on the host via VirtioFS.
 		env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")
 		env.BaseStateDir = "/tmp/sandal-state"
+
+		// Start the embedded controller API server and vsock listener so the
+		// macOS host can send management commands (exec, attach, snapshot, etc.).
+		go controller.StartEmbeddedController()
+		go guest.StartControllerVsockListener()
 
 		// Override ExitHandler so cmd.Main() triggers a VM power-off instead
 		// of os.Exit(). The exit_linux.go init() may have missed SANDAL_VM_ARGS

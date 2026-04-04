@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/container/console"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 	"golang.org/x/sys/unix"
 )
 
@@ -35,20 +35,28 @@ func Attach(args []string) error {
 		return fmt.Errorf("container %q not found: %w", containerName, err)
 	}
 
-	// Verify container is running
+	// For VM containers, set up terminal and delegate
+	if c.VM != "" {
+		restore := setupRawTerminal()
+		defer restore()
+
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		defer signal.Stop(sigCh)
+
+		fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+C to detach)\r\n", containerName)
+		err := sandal.Attach(c, os.Stdin, os.Stdout, os.Stderr, nil)
+		fmt.Fprintf(os.Stderr, "\nDetached from %s\n", containerName)
+		return err
+	}
+
+	// Native container — verify running
 	running, _ := crt.IsPidRunning(c.ContPid)
 	if !running {
 		return fmt.Errorf("container %q is not running", containerName)
 	}
 
-	// Detect console mode from the mode file
-	modeBytes, err := os.ReadFile(console.ModePath(containerName))
-	if err != nil {
-		return fmt.Errorf("no console available for %q (was it started in background?)", containerName)
-	}
-	mode := string(modeBytes)
-
-	// Create a done channel that closes when the container exits
+	// Create done channel that closes when container exits
 	done := make(chan struct{})
 	go func() {
 		for {
@@ -60,33 +68,32 @@ func Attach(args []string) error {
 		}
 	}()
 
-	switch mode {
-	case console.ModeSocket:
-		// Put terminal in raw mode for full PTY experience
-		oldTermios, rawErr := makeRaw(os.Stdin)
-		if rawErr == nil {
-			defer restoreTerminal(os.Stdin, oldTermios)
-		}
+	// Set up terminal raw mode
+	restore := setupRawTerminal()
+	defer restore()
 
-		// Ignore signals so Ctrl+C is forwarded to the container via PTY
-		// rather than killing the attach process.
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-		defer signal.Stop(sigCh)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer signal.Stop(sigCh)
 
-		fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+P, Ctrl+Q to detach)\r\n", containerName)
-		err = console.AttachSocket(containerName, os.Stdin, os.Stdout, done)
-
-	case console.ModeFIFO:
-		fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+C to detach)\n", containerName)
-		err = console.AttachFIFO(containerName, os.Stdin, os.Stdout, os.Stderr, done)
-
-	default:
-		return fmt.Errorf("unknown console mode: %s", mode)
-	}
-
+	fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+P, Ctrl+Q to detach)\r\n", containerName)
+	err = sandal.Attach(c, os.Stdin, os.Stdout, os.Stderr, done)
 	fmt.Fprintf(os.Stderr, "\nDetached from %s\n", containerName)
 	return err
+}
+
+// setupRawTerminal puts the terminal into raw mode and returns a restore function.
+func setupRawTerminal() func() {
+	oldTermios, err := makeRaw(os.Stdin)
+	if err != nil {
+		return func() {}
+	}
+	// restoreTerminal restores the terminal to its previous state.
+	restoreTerminal := func(f *os.File, termios *unix.Termios) {
+		unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, termios)
+	}
+
+	return func() { restoreTerminal(os.Stdin, oldTermios) }
 }
 
 // makeRaw puts the terminal into raw mode and returns the previous state.
@@ -110,9 +117,4 @@ func makeRaw(f *os.File) (*unix.Termios, error) {
 		return nil, err
 	}
 	return oldTermios, nil
-}
-
-// restoreTerminal restores the terminal to its previous state.
-func restoreTerminal(f *os.File, termios *unix.Termios) {
-	unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, termios)
 }

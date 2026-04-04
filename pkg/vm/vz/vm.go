@@ -340,6 +340,42 @@ func StopMainRunLoop() {
 	C.stopMainRunLoop()
 }
 
+// --- Host-initiated vsock connect ---
+
+type vsockConnectResult struct {
+	fd  int
+	err error
+}
+
+var (
+	vsockConnectCh = make(chan vsockConnectResult, 1)
+	vsockConnectMu sync.Mutex // serialize concurrent ConnectVsock calls
+)
+
+//export goVsockConnectResult
+func goVsockConnectResult(fd C.int, errMsg *C.char) {
+	if fd < 0 {
+		vsockConnectCh <- vsockConnectResult{err: errors.New(C.GoString(errMsg))}
+	} else {
+		vsockConnectCh <- vsockConnectResult{fd: int(fd)}
+	}
+}
+
+// ConnectVsock initiates a connection from the host to the guest on the given
+// vsock port. Returns an *os.File wrapping the vsock file descriptor.
+// Uses os.File directly (not net.Conn) because Go's net package doesn't support AF_VSOCK.
+func (vm *VM) ConnectVsock(port uint32) (*os.File, error) {
+	vsockConnectMu.Lock()
+	defer vsockConnectMu.Unlock()
+
+	C.vzSocketConnect(vm.vmHandle, C.uint32_t(port))
+	result := <-vsockConnectCh
+	if result.err != nil {
+		return nil, result.err
+	}
+	return os.NewFile(uintptr(result.fd), fmt.Sprintf("vsock-connect:%d", port)), nil
+}
+
 func MaxCPUCount() uint {
 	return uint(C.vzMaxCPUCount())
 }
