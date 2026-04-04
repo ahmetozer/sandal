@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
@@ -74,6 +75,7 @@ type execRequest struct {
 	Args      []string `json:"args"`
 	User      string   `json:"user"`
 	Dir       string   `json:"dir"`
+	TTY       bool     `json:"tty"`
 }
 
 // embeddedExecHandler runs a command inside the container's namespaces.
@@ -122,8 +124,13 @@ func embeddedExecHandler(w http.ResponseWriter, r *http.Request) {
 	// Call the same exec function used by the native Linux CLI.
 	// ExecInContainer uses LockOSThread + SetNS to enter the container's
 	// namespaces on a dedicated OS thread — safe for concurrent handlers.
-	if err := containerexec.ExecInContainer(c, req.Args, req.User, req.Dir, conn, conn, conn); err != nil {
-		fmt.Fprintf(conn, "\n[exec error: %v]\n", err)
+	if err := containerexec.ExecInContainer(c, req.Args, req.User, req.Dir, req.TTY, conn, conn, conn); err != nil {
+		// Ignore broken pipe (relay closing after command exits) and
+		// exit status errors (normal non-zero exit codes).
+		errStr := err.Error()
+		if !strings.Contains(errStr, "broken pipe") && !strings.Contains(errStr, "exit status") {
+			fmt.Fprintf(conn, "\n[exec error: %v]\n", err)
+		}
 	}
 }
 

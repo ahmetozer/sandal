@@ -23,11 +23,13 @@ func ExecOnContainer(args []string) error {
 		help bool
 		Dir  string
 		User string
+		TTY  bool
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.StringVar(&User, "user", "", "work user")
+	f.BoolVar(&TTY, "t", false, "allocate a pseudo-TTY (for interactive shells)")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -57,6 +59,14 @@ func ExecOnContainer(args []string) error {
 		return fmt.Errorf("container %q not found: %w", contName, err)
 	}
 
+	// Auto-detect TTY: if stdin is a terminal and -t wasn't explicitly set,
+	// enable TTY mode automatically for interactive commands.
+	if !TTY {
+		if fi, err := os.Stdin.Stat(); err == nil {
+			TTY = (fi.Mode() & os.ModeCharDevice) != 0
+		}
+	}
+
 	// Terminal raw mode + signal handling (CLI concerns)
 	restore, rawErr := terminal.SetRaw()
 	if rawErr != nil {
@@ -68,5 +78,5 @@ func ExecOnContainer(args []string) error {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	return sandal.Exec(c, childArgs, User, Dir, os.Stdin, os.Stdout, os.Stderr)
+	return sandal.Exec(c, childArgs, User, Dir, TTY, os.Stdin, os.Stdout, os.Stderr)
 }

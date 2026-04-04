@@ -485,6 +485,12 @@ func StartControllerVsockListener() {
 	}
 }
 
+// readerOnly hides WriteTo so io.Copy can't use splice/sendfile.
+type readerOnly struct{ io.Reader }
+
+// writerOnly hides ReadFrom so io.Copy can't use splice/sendfile.
+type writerOnly struct{ io.Writer }
+
 // controllerVsockRelay relays a single vsock connection to the embedded
 // controller Unix socket. When one direction finishes (e.g., exec output
 // complete), connections are closed to unblock the other direction.
@@ -498,12 +504,13 @@ func controllerVsockRelay(vsockFD int) {
 		return
 	}
 
+	// Wrap to prevent splice/sendfile which can batch interactive keystrokes.
 	// host→controller (request + stdin)
 	go func() {
-		io.Copy(ctrlConn, vsockFile)
+		io.Copy(writerOnly{ctrlConn}, readerOnly{vsockFile})
 		ctrlConn.Close()
 	}()
 	// controller→host (response + stdout)
-	io.Copy(vsockFile, ctrlConn)
+	io.Copy(writerOnly{vsockFile}, readerOnly{ctrlConn})
 	vsockFile.Close()
 }

@@ -10,6 +10,6 @@ import (
 )
 
 // execNative runs exec directly by entering the container's namespaces.
-func execNative(c *config.Config, args []string, user, dir string) error {
-	return containerexec.ExecInContainer(c, args, user, dir, os.Stdin, os.Stdout, os.Stderr)
+func execNative(c *config.Config, args []string, user, dir string, tty bool) error {
+	return containerexec.ExecInContainer(c, args, user, dir, tty, os.Stdin, os.Stdout, os.Stderr)
 }

@@ -65,12 +65,22 @@ func managementRelay(connector Connector, hostConn net.Conn) {
 	}
 	slog.Debug("management relay: connected")
 
+	// Wrap connections to prevent io.Copy from using splice/sendfile,
+	// which can batch data and delay individual keystrokes in interactive
+	// sessions. The wrapper forces io.Copy to use userspace read/write.
+
 	// host → guest
 	go func() {
-		io.Copy(guestConn, hostConn)
+		io.Copy(writerOnly{guestConn}, readerOnly{hostConn})
 		guestConn.Close()
 	}()
 	// guest → host
-	io.Copy(hostConn, guestConn)
+	io.Copy(writerOnly{hostConn}, readerOnly{guestConn})
 	hostConn.Close()
 }
+
+// readerOnly hides WriteTo so io.Copy can't use splice/sendfile.
+type readerOnly struct{ io.Reader }
+
+// writerOnly hides ReadFrom so io.Copy can't use splice/sendfile.
+type writerOnly struct{ io.Writer }

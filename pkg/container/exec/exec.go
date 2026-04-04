@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"syscall"
+	"unsafe"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
@@ -25,10 +26,13 @@ import (
 // pattern used in kvm/vm.go:runVCPU() — other goroutines (including the
 // VM init process) are completely unaffected.
 //
+// When tty is true, a PTY is allocated inside the container for interactive
+// shells (ash, bash, etc.) that require a terminal.
+//
 // stdin/stdout/stderr allow the caller to provide I/O handles:
 //   - CLI: os.Stdin, os.Stdout, os.Stderr
 //   - Embedded controller: hijacked HTTP connection
-func ExecInContainer(c *config.Config, args []string, user, dir string,
+func ExecInContainer(c *config.Config, args []string, user, dir string, tty bool,
 	stdin io.Reader, stdout, stderr io.Writer) error {
 
 	if len(args) == 0 {
@@ -54,10 +58,6 @@ func ExecInContainer(c *config.Config, args []string, user, dir string,
 	} else {
 		ns = ns.SetEmptyToPid(c.ContPid)
 	}
-	// Remove mount namespace — we'll use chroot on the child instead.
-	// chroot() is process-wide (not per-thread), so we can't call it
-	// in the controller goroutine. SysProcAttr.Chroot applies only to
-	// the forked child process.
 	delete(ns, "mnt")
 	if err := ns.SetNS(); err != nil {
 		return fmt.Errorf("setns: %w", err)
@@ -67,7 +67,6 @@ func ExecInContainer(c *config.Config, args []string, user, dir string,
 	unix.Sethostname([]byte(c.Name))
 
 	// Resolve binary path inside the container's root via /proc/<pid>/root.
-	// We can't use exec.LookPath because we haven't chrooted (process-wide).
 	contRoot := fmt.Sprintf("/proc/%d/root", c.ContPid)
 	binPath := args[0]
 	if !filepath.IsAbs(binPath) {
@@ -80,8 +79,7 @@ func ExecInContainer(c *config.Config, args []string, user, dir string,
 		}
 	}
 
-	// Build Cmd with SysProcAttr.Chroot — applied only to the forked child.
-	// Set Path directly to skip LookPath (which runs in the parent root).
+	// Build command with chroot applied only to the forked child.
 	cred, homeDir := resolveUser(user)
 	cmd := &osExec.Cmd{
 		Path: binPath,
@@ -89,10 +87,8 @@ func ExecInContainer(c *config.Config, args []string, user, dir string,
 		SysProcAttr: &syscall.SysProcAttr{
 			Chroot:     contRoot,
 			Credential: cred,
+			Setsid:     tty, // new session for PTY
 		},
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
 		Env: []string{
 			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 			"TERM=xterm-256color",
@@ -105,7 +101,78 @@ func ExecInContainer(c *config.Config, args []string, user, dir string,
 		cmd.Dir = dir
 	}
 
+	if tty {
+		return execWithPTY(cmd, contRoot, stdin, stdout)
+	}
+
+	// Non-TTY: pipe directly
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	return cmd.Run()
+}
+
+// execWithPTY allocates a PTY inside the container's devpts, connects the
+// child to the slave, and relays the master to stdin/stdout.
+func execWithPTY(cmd *osExec.Cmd, contRoot string, stdin io.Reader, stdout io.Writer) error {
+	// Open the PTY master from the container's /dev/ptmx via /proc/<pid>/root
+	ptmxPath := filepath.Join(contRoot, "dev", "ptmx")
+	master, err := os.OpenFile(ptmxPath, os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("open ptmx: %w", err)
+	}
+	defer master.Close()
+
+	// Unlock the slave
+	unlock := 0
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, master.Fd(), unix.TIOCSPTLCK, uintptr(unsafe.Pointer(&unlock))); errno != 0 {
+		return fmt.Errorf("TIOCSPTLCK: %w", errno)
+	}
+
+	// Get slave PTY number
+	var ptn uint32
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, master.Fd(), unix.TIOCGPTN, uintptr(unsafe.Pointer(&ptn))); errno != 0 {
+		return fmt.Errorf("TIOCGPTN: %w", errno)
+	}
+
+	// Open the slave from the container's devpts
+	slavePath := filepath.Join(contRoot, fmt.Sprintf("dev/pts/%d", ptn))
+	slave, err := os.OpenFile(slavePath, os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("open slave %s: %w", slavePath, err)
+	}
+	defer slave.Close()
+
+	// Set default terminal size
+	ws := unix.Winsize{Row: 24, Col: 80}
+	unix.IoctlSetWinsize(int(master.Fd()), unix.TIOCSWINSZ, &ws)
+
+	// Connect child to slave PTY
+	cmd.Stdin = slave
+	cmd.Stdout = slave
+	cmd.Stderr = slave
+	cmd.SysProcAttr.Ctty = int(slave.Fd())
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start: %w", err)
+	}
+	slave.Close() // parent doesn't need the slave
+
+	// Relay: master ↔ stdin/stdout
+	// master → stdout (terminates when child exits → master read returns EIO)
+	done := make(chan struct{})
+	go func() {
+		io.Copy(stdout, master)
+		close(done)
+	}()
+	// stdin → master
+	go io.Copy(master, stdin)
+
+	// Wait for child and output relay
+	cmd.Wait()
+	<-done
+
+	return nil
 }
 
 // resolveUser looks up a user string (name, uid, or "user:group") and returns
@@ -116,7 +183,6 @@ func resolveUser(ug string) (*syscall.Credential, string) {
 	}
 	u, err := user.Lookup(ug)
 	if err != nil {
-		// Try as numeric UID
 		u, err = user.LookupId(ug)
 		if err != nil {
 			return &syscall.Credential{Uid: 0, Gid: 0}, "/root"
