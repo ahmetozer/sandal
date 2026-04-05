@@ -88,8 +88,7 @@ func init() {
 
 		IsDaemon = os.Getenv("SANDAL_DAEMON_PID") != ""
 
-		home, _ := os.UserHomeDir()
-		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(home, ".sandal-vm", "bin", "sandal"))
+		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(LibDir, "bin", "sandal"))
 
 		Get("SANDAL_LOG_LEVEL", "warn")
 

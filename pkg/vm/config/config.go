@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 const (
@@ -81,8 +83,7 @@ func (c *VMConfig) Validate() error {
 }
 
 func VMDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".sandal-vm", "machines")
+	return filepath.Join(env.LibDir, "machines")
 }
 
 func SaveConfig(name string, cfg VMConfig) error {
