@@ -17,6 +17,22 @@ import (
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
 
+// stageHostEtc creates a staging directory with host /etc files
+// that the VM needs. On macOS, /etc is a symlink to /private/etc
+// which VirtioFS may not follow, so we stage the files explicitly.
+func stageHostEtc() string {
+	dir := filepath.Join(env.LibDir, "system", "etc")
+	os.MkdirAll(dir, 0755)
+
+	resolvPath := filepath.Join(dir, "resolv.conf")
+	if _, err := os.Stat(resolvPath); err != nil {
+		if data, err := os.ReadFile("/etc/resolv.conf"); err == nil {
+			os.WriteFile(resolvPath, data, 0644)
+		}
+	}
+	return dir
+}
+
 // RunInVZ boots a VZ VM on macOS with the sandal Linux binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
 func RunInVZ(c *config.Config) error {
@@ -72,13 +88,16 @@ func RunInVZ(c *config.Config) error {
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
 
-	// Share host /etc read-only so the VM can access resolv.conf, hosts, etc.
+	// Share generated /etc files so the VM can access resolv.conf, etc.
+	// macOS /etc/resolv.conf is empty; DNS is managed by mDNSResponder.
+	// Stage a generated resolv.conf from scutil --dns instead.
+	etcDir := stageHostEtc()
 	cfg.Mounts = append(cfg.Mounts, vmconfig.MountConfig{
 		Tag:      "host-etc",
-		HostPath: "/etc",
+		HostPath: etcDir,
 		ReadOnly: true,
 	})
-	mountEntries = append(mountEntries, "host-etc=/etc=/mnt/host-etc")
+	mountEntries = append(mountEntries, "host-etc="+etcDir+"=/mnt/host-etc")
 
 	// Build socket relay entries for SANDAL_VM_SOCKETS
 	var socketEntries []string
@@ -133,6 +152,9 @@ func RunInVZ(c *config.Config) error {
 	}()
 
 	err = vz.Boot(vmName, cfg, vsockRelays...)
+
+	// Clean up staged etc directory
+	os.RemoveAll(filepath.Join(env.LibDir, "system", "etc"))
 
 	// Update status after VM exits
 	if err != nil {
