@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // VirtioNetDevice implements a virtio-net device backed by a TAP interface.
@@ -84,8 +86,10 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 	// virtio_net_hdr followed by the Ethernet frame as a single write.
 	// The guest typically splits these across separate descriptors (header
 	// in one, packet data in the next), so we must concatenate them.
+	// Use unix.Write to bypass Go's poller (TAP fds are not pollable).
+	fd := d.tap.Fd()
 	if len(readBufs) == 1 {
-		n, err := d.tap.file.Write(readBufs[0])
+		n, err := unix.Write(fd, readBufs[0])
 		if err != nil {
 			slog.Error("virtio-net TAP write error", slog.Any("err", err))
 			return 0
@@ -101,7 +105,7 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 	for _, buf := range readBufs {
 		pkt = append(pkt, buf...)
 	}
-	n, err := d.tap.file.Write(pkt)
+	n, err := unix.Write(fd, pkt)
 	if err != nil {
 		slog.Error("virtio-net TAP write error", slog.Any("err", err))
 		return 0
@@ -116,6 +120,7 @@ func (d *VirtioNetDevice) StartRX(dev *virtioMMIODev) {
 }
 
 func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
+	fd := d.tap.Fd()
 	buf := make([]byte, 65536)
 	for {
 		select {
@@ -124,7 +129,7 @@ func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 		default:
 		}
 
-		n, err := d.tap.file.Read(buf)
+		n, err := unix.Read(fd, buf)
 		if err != nil {
 			select {
 			case <-d.stopCh:
@@ -145,6 +150,7 @@ func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 		// Inject packet into RX queue (queue 0)
 		dev.ProcessAvailRing(0, func(readBufs, writeBufs [][]byte) uint32 {
 			if len(writeBufs) == 0 {
+				slog.Warn("virtio-net RX: no write buffers available")
 				return 0
 			}
 

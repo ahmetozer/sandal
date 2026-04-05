@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -33,6 +34,32 @@ type Links []Link
 
 func (l Link) defaults(conts *[]*config.Config) Link {
 
+	if isVM, _ := env.IsVM(); isVM {
+		// VM mode: move eth0 directly into the container netns.
+		// No bridge or veth needed. Override veth default.
+		if l.Type == "" || l.Type == LinkTypeVeth {
+			l.Type = LinkTypePassthru
+		}
+		if l.Type == LinkTypePassthru {
+			l.Master = ""
+			l.Id = "eth0"
+			// KVM: host allocates static IP via SANDAL_VM_NET
+			// VZ:  no SANDAL_VM_NET, container will DHCP on eth0
+			if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
+				if netSpec := os.Getenv("SANDAL_VM_NET"); netSpec != "" {
+					var vmLink Link
+					if err := json.Unmarshal([]byte(netSpec), &vmLink); err == nil {
+						l.Addr = vmLink.Addr
+						l.Route = vmLink.Route
+					}
+				} else {
+					l.DHCPv4 = true
+				}
+			}
+		}
+		return l
+	}
+
 	if l.Type == "" {
 		l.Type = LinkTypeVeth
 	}
@@ -50,31 +77,21 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 
 	// Allocate IP addresses to container for each subnet
 	if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
-		if isVM, _ := env.IsVM(); isVM {
-			// VM mode: containers DHCP directly through the L2 bridge.
-			// Use the original VZ-assigned MAC — VZ NAT only forwards this MAC.
-			l.DHCPv4 = true
-			if vmUplinkMAC != nil {
-				l.Ether = make(net.HardwareAddr, len(vmUplinkMAC))
-				copy(l.Ether, vmUplinkMAC)
-			}
-		} else {
-			contAddrs := make(Addrs, 0)
-			if err == nil {
-				for i := range hostAddrs {
-					IP, err := IPRequest(conts, hostAddrs[i].IPNet)
-					if err != nil {
-						slog.Warn("unable to allocate ip", "err", err)
-						continue
-					}
-					contAddrs = append(contAddrs, Addr{
-						IP:    IP,
-						IPNet: hostAddrs[i].IPNet,
-					})
+		contAddrs := make(Addrs, 0)
+		if err == nil {
+			for i := range hostAddrs {
+				IP, err := IPRequest(conts, hostAddrs[i].IPNet)
+				if err != nil {
+					slog.Warn("unable to allocate ip", "err", err)
+					continue
 				}
-				l.Addr = contAddrs
-				l.Route = append(hostAddrs, l.Route...)
+				contAddrs = append(contAddrs, Addr{
+					IP:    IP,
+					IPNet: hostAddrs[i].IPNet,
+				})
 			}
+			l.Addr = contAddrs
+			l.Route = append(hostAddrs, l.Route...)
 		}
 	}
 
@@ -87,13 +104,16 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 }
 
 const (
-	LinkTypeVeth = "veth"
+	LinkTypeVeth     = "veth"
+	LinkTypePassthru = "passthru" // move existing interface into container netns
 )
 
 func (l Link) Create() error {
 	switch l.Type {
 	case LinkTypeVeth:
 		return l.createVeth()
+	case LinkTypePassthru:
+		return nil // interface already exists, nothing to create
 	default:
 		return fmt.Errorf("interface type is not found")
 	}
