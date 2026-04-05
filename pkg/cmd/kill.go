@@ -6,9 +6,9 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/container/host"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 func Kill(args []string) error {
@@ -53,7 +53,13 @@ func Kill(args []string) error {
 
 	var lastErr error
 	for _, name := range names {
-		if err := host.KillByName(name, signal, timeout); err != nil {
+		c, err := controller.GetContainer(name)
+		if err != nil {
+			fmt.Printf("kill %s: %s\n", name, err)
+			lastErr = err
+			continue
+		}
+		if err := sandal.Kill(c, signal, timeout); err != nil {
 			fmt.Printf("kill %s: %s\n", name, err)
 			lastErr = err
 		}
