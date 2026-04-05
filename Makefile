@@ -26,7 +26,7 @@ build-linux:
 
 # Cross-compile Linux binary from macOS (used as /init inside VZ VM)
 build-linux-vm:
-	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(HOME)/.sandal-vm/bin/sandal .
+	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(HOME)/.sandal/lib/bin/sandal .
 
 sign:
 	codesign --entitlements $(ENTITLEMENTS) --force -s "$(CODESIGN_IDENTITY)" $(BINARY)
