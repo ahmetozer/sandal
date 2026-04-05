@@ -260,6 +260,11 @@ func VMInit() error {
 		}
 	}
 
+	// Copy host /etc/resolv.conf into the VM via the host-etc VirtioFS share
+	if data, err := os.ReadFile("/mnt/host-etc/resolv.conf"); err == nil {
+		os.WriteFile("/etc/resolv.conf", data, 0644)
+	}
+
 	// Start vsock socket relay for SANDAL_VM_SOCKETS
 	if sockSpec := os.Getenv("SANDAL_VM_SOCKETS"); sockSpec != "" {
 		startGuestSocketRelay(sockSpec)

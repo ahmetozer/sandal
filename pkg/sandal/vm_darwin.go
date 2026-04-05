@@ -74,6 +74,14 @@ func RunInVZ(c *config.Config) error {
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
 
+	// Share host /etc read-only so the VM can access resolv.conf, hosts, etc.
+	cfg.Mounts = append(cfg.Mounts, vmconfig.MountConfig{
+		Tag:      "host-etc",
+		HostPath: "/etc",
+		ReadOnly: true,
+	})
+	mountEntries = append(mountEntries, "host-etc=/etc=/mnt/host-etc")
+
 	// Build socket relay entries for SANDAL_VM_SOCKETS
 	var socketEntries []string
 	var vsockRelays []vz.SocketRelay
