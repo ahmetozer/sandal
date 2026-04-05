@@ -56,19 +56,23 @@ func Ps(args []string) error {
 }
 
 func printVerified(c *config.Config, t *tabwriter.Writer) {
-	if c.Status == crt.ContainerStatusRunning {
+	if c.Status == crt.ContainerStatusRunning || c.Status == "" {
 		// For VM containers, ContPid is inside the VM (not visible from host).
 		// Check HostPid instead.
 		pid := c.ContPid
 		if pid == 0 && c.VM != "" {
 			pid = c.HostPid
 		}
-		isRunning, err := crt.IsPidRunning(pid)
-		if err != nil {
-			slog.Warn("unable to get container status,", "error", err.Error())
-		}
-		if !isRunning {
-			c.Status = crt.ContainerStatusHang
+		if pid > 0 {
+			isRunning, err := crt.IsPidRunning(pid)
+			if err != nil {
+				slog.Warn("unable to get container status,", "error", err.Error())
+			}
+			if isRunning {
+				c.Status = crt.ContainerStatusRunning
+			} else {
+				c.Status = crt.ContainerStatusHang
+			}
 		}
 	}
 	printDry(c, t)

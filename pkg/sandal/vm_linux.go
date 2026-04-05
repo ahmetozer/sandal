@@ -200,6 +200,7 @@ func RunInKVM(c *config.Config) error {
 	// Foreground mode: register and boot directly in this process
 	c.HostPid = os.Getpid()
 	c.VM = "kvm"
+	c.Status = "running"
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
@@ -249,6 +250,7 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 
 	c.HostPid = cmd.Process.Pid
 	c.VM = "kvm"
+	c.Status = "running"
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
