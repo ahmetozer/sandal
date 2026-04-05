@@ -5,7 +5,6 @@ package kvm
 import (
 	"encoding/binary"
 	"log/slog"
-	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -19,18 +18,21 @@ const (
 )
 
 type VirtioNetDevice struct {
-	tap    *tapDevice
-	mac    [6]byte
-	mu     sync.Mutex
-	stopCh chan struct{}
+	tap      *tapDevice
+	mac      [6]byte
+	stopCh   chan struct{}
+	txNotify chan struct{} // signals persistent TX worker
+	txBuf    []byte        // reusable buffer for multi-descriptor TX concatenation
 }
 
 // NewVirtioNetDevice creates a virtio-net device backed by the given TAP.
 func NewVirtioNetDevice(tap *tapDevice, mac [6]byte) *VirtioNetDevice {
 	return &VirtioNetDevice{
-		tap:    tap,
-		mac:    mac,
-		stopCh: make(chan struct{}),
+		tap:      tap,
+		mac:      mac,
+		stopCh:   make(chan struct{}),
+		txNotify: make(chan struct{}, 1),
+		txBuf:    make([]byte, 0, 65536),
 	}
 }
 
@@ -68,12 +70,13 @@ func (d *VirtioNetDevice) ConfigWrite(offset uint32, size uint32, val uint32) {
 func (d *VirtioNetDevice) HandleQueue(queueIdx int, dev *virtioMMIODev) {
 	switch queueIdx {
 	case 0:
-		// RX queue — nothing to do here; RX is handled by the background reader
+		// RX queue — handled by rxLoop
 	case 1:
-		// TX queue — guest is sending packets
-		dev.ProcessAvailRing(queueIdx, func(readBufs, writeBufs [][]byte) uint32 {
-			return d.handleTX(readBufs)
-		})
+		// Signal persistent TX worker (non-blocking; coalesces rapid kicks)
+		select {
+		case d.txNotify <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -86,7 +89,6 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 	// virtio_net_hdr followed by the Ethernet frame as a single write.
 	// The guest typically splits these across separate descriptors (header
 	// in one, packet data in the next), so we must concatenate them.
-	// Use unix.Write to bypass Go's poller (TAP fds are not pollable).
 	fd := d.tap.Fd()
 	if len(readBufs) == 1 {
 		n, err := unix.Write(fd, readBufs[0])
@@ -97,15 +99,13 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 		return uint32(n)
 	}
 
-	var total int
+	// Concatenate into reusable buffer — zero allocation in steady state.
+	// Safe: txLoop is single-goroutine, so txBuf needs no synchronization.
+	d.txBuf = d.txBuf[:0]
 	for _, buf := range readBufs {
-		total += len(buf)
+		d.txBuf = append(d.txBuf, buf...)
 	}
-	pkt := make([]byte, 0, total)
-	for _, buf := range readBufs {
-		pkt = append(pkt, buf...)
-	}
-	n, err := unix.Write(fd, pkt)
+	n, err := unix.Write(fd, d.txBuf)
 	if err != nil {
 		slog.Error("virtio-net TAP write error", slog.Any("err", err))
 		return 0
@@ -113,15 +113,53 @@ func (d *VirtioNetDevice) handleTX(readBufs [][]byte) uint32 {
 	return uint32(n)
 }
 
-// StartRX begins reading packets from the TAP device and injecting them
-// into the guest's RX virtqueue.
-func (d *VirtioNetDevice) StartRX(dev *virtioMMIODev) {
+// StartIO launches persistent TX and RX worker goroutines.
+func (d *VirtioNetDevice) StartIO(dev *virtioMMIODev) {
+	go d.txLoop(dev)
 	go d.rxLoop(dev)
+}
+
+// txLoop is a persistent goroutine that processes TX descriptors when
+// signalled by HandleQueue. Replaces per-kick goroutine spawning;
+// the cap-1 channel naturally coalesces rapid kicks.
+func (d *VirtioNetDevice) txLoop(dev *virtioMMIODev) {
+	for {
+		select {
+		case <-d.stopCh:
+			return
+		case <-d.txNotify:
+			dev.ProcessAvailRing(1, func(readBufs, writeBufs [][]byte) uint32 {
+				return d.handleTX(readBufs)
+			})
+		}
+	}
 }
 
 func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 	fd := d.tap.Fd()
 	buf := make([]byte, 65536)
+
+	// rxHandler copies pkt (set before each call) into guest write buffers.
+	// Defined once to avoid closure allocation per packet.
+	var pkt []byte
+	rxHandler := func(readBufs, writeBufs [][]byte) uint32 {
+		if len(writeBufs) == 0 {
+			slog.Warn("virtio-net RX: no write buffers available")
+			return 0
+		}
+		written := 0
+		remaining := pkt
+		for _, wb := range writeBufs {
+			n := copy(wb, remaining)
+			written += n
+			remaining = remaining[n:]
+			if len(remaining) == 0 {
+				break
+			}
+		}
+		return uint32(written)
+	}
+
 	for {
 		select {
 		case <-d.stopCh:
@@ -129,13 +167,13 @@ func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 		default:
 		}
 
+		// Blocking read — first packet in a potential batch.
 		n, err := unix.Read(fd, buf)
 		if err != nil {
 			select {
 			case <-d.stopCh:
 				return
 			default:
-				// Avoid tight spin on persistent read errors.
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
@@ -144,31 +182,35 @@ func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 			continue
 		}
 
-		packet := make([]byte, n)
-		copy(packet, buf[:n])
+		// Zero-copy: use buf slice directly as source for guest memory copy.
+		// Safe because ProcessSingleAvailNoIRQ copies into guest memory
+		// synchronously before returning, so buf won't be overwritten.
+		pkt = buf[:n]
+		if !dev.ProcessSingleAvailNoIRQ(0, rxHandler) {
+			continue
+		}
 
-		// Inject packet into RX queue (queue 0).
-		// Use ProcessSingleAvail to consume exactly one descriptor chain
-		// per packet — ProcessAvailRing would duplicate the packet into
-		// every available buffer.
-		dev.ProcessSingleAvail(0, func(readBufs, writeBufs [][]byte) uint32 {
-			if len(writeBufs) == 0 {
-				slog.Warn("virtio-net RX: no write buffers available")
-				return 0
+		// Try to batch more packets: poll with zero timeout to check if
+		// more data is available, avoiding blocking on the TAP fd.
+		// This amortizes one IRQ across up to rxBatchMax packets.
+		const rxBatchMax = 16
+		pollFds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
+		for i := 1; i < rxBatchMax; i++ {
+			ready, _ := unix.Poll(pollFds, 0)
+			if ready <= 0 {
+				break
 			}
+			nn, err := unix.Read(fd, buf)
+			if nn <= 0 || err != nil {
+				break
+			}
+			pkt = buf[:nn]
+			if !dev.ProcessSingleAvailNoIRQ(0, rxHandler) {
+				break
+			}
+		}
 
-			written := 0
-			remaining := packet
-			for _, wb := range writeBufs {
-				n := copy(wb, remaining)
-				written += n
-				remaining = remaining[n:]
-				if len(remaining) == 0 {
-					break
-				}
-			}
-			return uint32(written)
-		})
+		dev.injectIRQ()
 	}
 }
 

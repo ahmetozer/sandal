@@ -352,10 +352,10 @@ func (v *virtioMMIODev) injectIRQ() {
 	}
 }
 
-// ProcessSingleAvail processes exactly one available descriptor chain.
-// Used by the RX path where each call injects one packet into one buffer.
-// Returns false if no descriptor was available.
-func (v *virtioMMIODev) ProcessSingleAvail(queueIdx int, handler func(readBufs, writeBufs [][]byte) uint32) bool {
+// ProcessSingleAvailNoIRQ processes exactly one available descriptor chain
+// without injecting an IRQ. The caller is responsible for calling injectIRQ()
+// after batching. Returns false if no descriptor was available.
+func (v *virtioMMIODev) ProcessSingleAvailNoIRQ(queueIdx int, handler func(readBufs, writeBufs [][]byte) uint32) bool {
 	if queueIdx >= len(v.queues) {
 		return false
 	}
@@ -404,8 +404,16 @@ func (v *virtioMMIODev) ProcessSingleAvail(queueIdx int, handler func(readBufs, 
 	v.writeGuestU16(q.devAddr+2, usedIdx+1)
 
 	q.lastAvail++
-	v.injectIRQ()
 	return true
+}
+
+// ProcessSingleAvail processes one descriptor chain and injects an IRQ.
+func (v *virtioMMIODev) ProcessSingleAvail(queueIdx int, handler func(readBufs, writeBufs [][]byte) uint32) bool {
+	if v.ProcessSingleAvailNoIRQ(queueIdx, handler) {
+		v.injectIRQ()
+		return true
+	}
+	return false
 }
 
 // ProcessAvailRing processes all available descriptors in a queue.

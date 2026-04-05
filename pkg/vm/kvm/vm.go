@@ -390,13 +390,13 @@ func (vm *VM) Start() error {
 		}(i)
 	}
 
-	// Start RX loops for virtio devices.
+	// Start I/O loops for virtio devices.
 	for _, vd := range vm.virtioDevs {
 		switch dev := vd.device.(type) {
 		case *VirtioConsoleDevice:
 			dev.StartRX(vd)
 		case *VirtioNetDevice:
-			dev.StartRX(vd)
+			dev.StartIO(vd)
 		}
 	}
 
