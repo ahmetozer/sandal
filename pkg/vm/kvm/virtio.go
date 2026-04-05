@@ -352,6 +352,62 @@ func (v *virtioMMIODev) injectIRQ() {
 	}
 }
 
+// ProcessSingleAvail processes exactly one available descriptor chain.
+// Used by the RX path where each call injects one packet into one buffer.
+// Returns false if no descriptor was available.
+func (v *virtioMMIODev) ProcessSingleAvail(queueIdx int, handler func(readBufs, writeBufs [][]byte) uint32) bool {
+	if queueIdx >= len(v.queues) {
+		return false
+	}
+	q := &v.queues[queueIdx]
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if !q.ready || q.num == 0 {
+		return false
+	}
+
+	availIdx := v.readGuestU16(q.drvAddr + 2)
+	if q.lastAvail == availIdx {
+		return false
+	}
+
+	ringOff := 4 + uint64(q.lastAvail%uint16(q.num))*2
+	descIdx := v.readGuestU16(q.drvAddr + ringOff)
+
+	var readBufs, writeBufs [][]byte
+	idx := descIdx
+	for {
+		desc := v.readDescriptor(q, idx)
+		gpa := desc.Addr
+		buf := v.guestSlice(gpa, uint64(desc.Len))
+		if buf != nil {
+			if desc.Flags&vringDescFWrite != 0 {
+				writeBufs = append(writeBufs, buf)
+			} else {
+				readBufs = append(readBufs, buf)
+			}
+		}
+		if desc.Flags&vringDescFNext == 0 {
+			break
+		}
+		idx = desc.Next
+	}
+
+	written := handler(readBufs, writeBufs)
+
+	usedIdx := v.readGuestU16(q.devAddr + 2)
+	usedRingOff := 4 + uint64(usedIdx%uint16(q.num))*8
+	v.writeGuestU32(q.devAddr+usedRingOff, uint32(descIdx))
+	v.writeGuestU32(q.devAddr+usedRingOff+4, written)
+	v.writeGuestU16(q.devAddr+2, usedIdx+1)
+
+	q.lastAvail++
+	v.injectIRQ()
+	return true
+}
+
 // ProcessAvailRing processes all available descriptors in a queue.
 // For each descriptor chain, it calls the handler function with the
 // readable and writable buffers. The handler returns the number of

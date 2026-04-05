@@ -147,14 +147,16 @@ func (d *VirtioNetDevice) rxLoop(dev *virtioMMIODev) {
 		packet := make([]byte, n)
 		copy(packet, buf[:n])
 
-		// Inject packet into RX queue (queue 0)
-		dev.ProcessAvailRing(0, func(readBufs, writeBufs [][]byte) uint32 {
+		// Inject packet into RX queue (queue 0).
+		// Use ProcessSingleAvail to consume exactly one descriptor chain
+		// per packet — ProcessAvailRing would duplicate the packet into
+		// every available buffer.
+		dev.ProcessSingleAvail(0, func(readBufs, writeBufs [][]byte) uint32 {
 			if len(writeBufs) == 0 {
 				slog.Warn("virtio-net RX: no write buffers available")
 				return 0
 			}
 
-			// Write virtio_net_hdr + packet data into write buffers
 			written := 0
 			remaining := packet
 			for _, wb := range writeBufs {
