@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/console"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 )
 
@@ -23,6 +24,13 @@ import (
 // done: closed when the caller wants to detach (e.g., container exited).
 func Attach(c *config.Config, stdin io.Reader, stdout, stderr io.Writer, done <-chan struct{}) error {
 	if c.VM != "" {
+		// Check for host-side FIFO console first (created by forkVMProcess).
+		// This captures the VM's serial output without routing through the
+		// in-VM management channel.
+		if _, err := os.Stat(console.ModePath(c.Name)); err == nil {
+			return attachNative(c, stdin, stdout, stderr, done)
+		}
+		// Fallback: try management channel (for in-VM console socket)
 		return attachViaMgmt(c.Name, stdin, stdout)
 	}
 	return attachNative(c, stdin, stdout, stderr, done)

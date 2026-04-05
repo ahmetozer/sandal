@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/console"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -232,10 +233,17 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	// which loads the saved VM config and calls boot.Boot().
 	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	// Set up FIFO console so `sandal attach` can read VM output.
+	var consoleCleanup func()
+	if err := console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup); err != nil {
+		slog.Warn("forkVMProcess", slog.String("action", "fifo console"), slog.Any("error", err))
+	}
 
 	if err := cmd.Start(); err != nil {
+		if consoleCleanup != nil {
+			consoleCleanup()
+		}
 		return fmt.Errorf("forking VM process: %w", err)
 	}
 
@@ -253,6 +261,9 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	// Wait for child to exit and update status
 	go func() {
 		waitErr := cmd.Wait()
+		if consoleCleanup != nil {
+			consoleCleanup()
+		}
 		if waitErr != nil {
 			c.Status = fmt.Sprintf("err %v", waitErr)
 		} else {
