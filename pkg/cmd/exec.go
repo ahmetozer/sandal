@@ -67,16 +67,19 @@ func ExecOnContainer(args []string) error {
 		}
 	}
 
-	// Terminal raw mode + signal handling (CLI concerns)
-	restore, rawErr := terminal.SetRaw()
-	if rawErr != nil {
-		restore = func() {}
-	}
-	defer restore()
-
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
+
+	// Set terminal raw mode only for TTY sessions. Defer restore so the
+	// terminal is always cleaned up, even if exec fails mid-stream.
+	if TTY {
+		restore, rawErr := terminal.SetRaw()
+		if rawErr != nil {
+			restore = func() {}
+		}
+		defer restore()
+	}
 
 	return sandal.Exec(c, childArgs, User, Dir, TTY, os.Stdin, os.Stdout, os.Stderr)
 }

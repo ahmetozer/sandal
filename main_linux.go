@@ -9,7 +9,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
 	containerguest "github.com/ahmetozer/sandal/pkg/container/guest"
-	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/controller/embedded"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"golang.org/x/sys/unix"
@@ -35,7 +35,7 @@ func platformMain() {
 
 		// Start the embedded controller API server and vsock listener so the
 		// host can send management commands (exec, attach, snapshot, etc.).
-		go controller.StartEmbeddedController()
+		go embedded.StartEmbeddedController()
 		go guest.StartControllerVsockListener()
 
 		// Override ExitHandler so cmd.Main() triggers a VM power-off instead
