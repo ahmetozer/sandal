@@ -278,11 +278,19 @@ func (v *virtioMMIODev) writeReg(offset uint32, val uint32) {
 		}
 		// When the driver signals DRIVER_OK, initialize vhost backends
 		if val&virtioStatusDriverOK != 0 {
-			if vsock, ok := v.device.(*VirtioVsockDevice); ok {
+			switch dev := v.device.(type) {
+			case *VirtioVsockDevice:
 				go func() {
-					if err := vsock.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
+					if err := dev.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
 						slog.Warn("vhost-vsock setup failed", slog.Any("err", err))
 					}
+				}()
+			case *VirtioNetDevice:
+				go func() {
+					if err := dev.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
+						slog.Warn("vhost-net not available, using userspace fallback", slog.Any("err", err))
+					}
+					dev.StartIO(v)
 				}()
 			}
 		}

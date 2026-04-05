@@ -391,12 +391,11 @@ func (vm *VM) Start() error {
 	}
 
 	// Start I/O loops for virtio devices.
+	// Note: VirtioNetDevice I/O is started from the DRIVER_OK handler
+	// (after vhost-net setup is attempted), not here.
 	for _, vd := range vm.virtioDevs {
-		switch dev := vd.device.(type) {
-		case *VirtioConsoleDevice:
+		if dev, ok := vd.device.(*VirtioConsoleDevice); ok {
 			dev.StartRX(vd)
-		case *VirtioNetDevice:
-			dev.StartIO(vd)
 		}
 	}
 
