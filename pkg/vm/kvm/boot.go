@@ -14,6 +14,7 @@ import (
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
+	"golang.org/x/sys/unix"
 )
 
 // Boot boots a VM using KVM with the given name and configuration.
@@ -79,8 +80,8 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 	}
 	slog.Debug("Boot", slog.String("action", "started"), slog.String("state", vm.State().String()))
 
-	// Start the management socket relay so host commands can reach the
-	// embedded controller inside the VM via AF_VSOCK (CID=3, port=4000).
+	// Start the management socket relay so host commands (e.g. sandal exec)
+	// can reach the embedded controller inside the VM via AF_VSOCK.
 	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: 3, Port: 4000})
 	defer mgmtCleanup()
 
@@ -92,4 +93,16 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 	}
 
 	return nil
+}
+
+// vsockAvailable returns true if the host can communicate with KVM guests
+// via AF_VSOCK. This requires /dev/vhost-vsock which provides the vhost
+// backend for virtio-vsock devices in KVM VMs.
+func vsockAvailable() bool {
+	fd, err := unix.Open("/dev/vhost-vsock", unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return false
+	}
+	unix.Close(fd)
+	return true
 }

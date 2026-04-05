@@ -38,11 +38,10 @@ func execViaMgmt(contName string, args []string, user, dir string, tty bool,
 	defer conn.Close()
 
 	reqBody, _ := json.Marshal(map[string]any{
-		"container": contName,
-		"args":      args,
-		"user":      user,
-		"dir":       dir,
-		"tty":       tty,
+		"args": args,
+		"user": user,
+		"dir":  dir,
+		"tty":  tty,
 	})
 
 	fmt.Fprintf(conn, "POST /exec HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\nContent-Type: application/json\r\nConnection: Upgrade\r\n\r\n%s", len(reqBody), reqBody)

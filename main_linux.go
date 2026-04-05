@@ -34,7 +34,7 @@ func platformMain() {
 		env.BaseStateDir = "/tmp/sandal-state"
 
 		// Start the embedded controller API server and vsock listener so the
-		// macOS host can send management commands (exec, attach, snapshot, etc.).
+		// host can send management commands (exec, attach, snapshot, etc.).
 		go controller.StartEmbeddedController()
 		go guest.StartControllerVsockListener()
 
