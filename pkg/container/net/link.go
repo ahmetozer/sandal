@@ -43,6 +43,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 		if l.Type == LinkTypePassthru {
 			l.Master = ""
 			l.Id = "eth0"
+			l.Name = "eth0"
 			// KVM: host allocates static IP via SANDAL_VM_NET
 			// VZ:  no SANDAL_VM_NET, container will DHCP on eth0
 			if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {

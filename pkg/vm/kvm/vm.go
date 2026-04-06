@@ -270,17 +270,8 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		}
 	}
 
-	// VirtioFS devices for each mount.
-	for _, mount := range cfg.Mounts {
-		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
-		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
-		irqNum := uint32(16 + devIdx)
-		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
-		virtioDevs = append(virtioDevs, vDev)
-		devIdx++
-	}
-
 	// Virtio-net device backed by TAP interface.
+	// Placed before VirtioFS so the kernel assigns eth0 to it.
 	tapName := fmt.Sprintf("sandal%d", os.Getpid()%10000)
 	tap, err := createTAP(tapName)
 	if err != nil {
@@ -298,6 +289,16 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, netDev)
 		virtioDevs = append(virtioDevs, vDev)
 		netDevs = append(netDevs, netDev)
+		devIdx++
+	}
+
+	// VirtioFS devices for each mount.
+	for _, mount := range cfg.Mounts {
+		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
+		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+		irqNum := uint32(16 + devIdx)
+		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
+		virtioDevs = append(virtioDevs, vDev)
 		devIdx++
 	}
 
