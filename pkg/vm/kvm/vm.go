@@ -68,6 +68,7 @@ type VM struct {
 	stopCh     chan struct{}
 	stoppedCh  chan error
 	uart       *uart
+	rtc        *rtc
 	virtioDevs []*virtioMMIODev
 	consoleDev *VirtioConsoleDevice
 	netDevs    []*VirtioNetDevice
@@ -161,6 +162,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	}
 
 	u := newUART(stdinReader, stdoutWriter, int(vmFd))
+	rtcDev := newRTC()
 
 	// Get vCPU mmap size.
 	vcpuMmapSize, err := getVCPUMmapSize(kvmFd)
@@ -362,6 +364,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		stopCh:       make(chan struct{}),
 		stoppedCh:    make(chan error, 1),
 		uart:         u,
+		rtc:          rtcDev,
 		virtioDevs:   virtioDevs,
 		consoleDev:   consoleDev,
 		netDevs:      netDevs,
@@ -524,6 +527,11 @@ func (vm *VM) handleExitMMIO(run []byte) {
 		if vdev.HandleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:]) {
 			return
 		}
+	}
+
+	// Try RTC.
+	if vm.rtc.handleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:]) {
+		return
 	}
 
 	// Fall back to UART.
