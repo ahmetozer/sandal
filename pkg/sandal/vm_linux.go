@@ -54,10 +54,11 @@ func RunInKVM(c *config.Config) error {
 	// Remove host-only flags from forwarded args. These apply to the host VM process,
 	// not the container inside the guest:
 	// - -d/-startup: would cause guest to background/delegate, causing immediate exit
-	// - --name: would cause guest container to overwrite host's state file (same name)
+	// --name is kept so the container inside the VM inherits the correct name
+	// (used for hostname via Sethostname). State files don't collide because
+	// main_linux.go redirects SANDAL_STATE_DIR to /tmp/sandal-state inside the VM.
 	cleanArgs = RemoveBoolFlag(cleanArgs, "d")
 	cleanArgs = RemoveBoolFlag(cleanArgs, "startup")
-	_, cleanArgs = ExtractFlag(cleanArgs, "name", "")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
