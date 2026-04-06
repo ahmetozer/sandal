@@ -35,7 +35,7 @@ import (
 //   - CLI: os.Stdin, os.Stdout, os.Stderr
 //   - Embedded controller: hijacked HTTP connection
 func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty bool,
-	stdin io.Reader, stdout, stderr io.Writer) error {
+	extraEnv []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	if len(args) == 0 {
 		return fmt.Errorf("no command specified")
@@ -132,6 +132,8 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 	if tty {
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 	}
+	// Caller-supplied env vars (-env-pass / -env-all) take precedence.
+	cmd.Env = append(cmd.Env, extraEnv...)
 	if dir != "" {
 		cmd.Dir = dir
 	}

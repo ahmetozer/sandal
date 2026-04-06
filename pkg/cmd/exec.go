@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -14,22 +15,32 @@ import (
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
 )
 
+// stringSliceFlag collects repeated -env-pass values.
+type stringSliceFlag []string
+
+func (s *stringSliceFlag) String() string     { return strings.Join(*s, ",") }
+func (s *stringSliceFlag) Set(v string) error { *s = append(*s, v); return nil }
+
 func ExecOnContainer(args []string) error {
 	thisFlags, childArgs, splitFlagErr := sandal.SplitFlagsArgs(args)
 
 	f := flag.NewFlagSet("exec", flag.ExitOnError)
 
 	var (
-		help bool
-		Dir  string
-		User string
-		TTY  bool
+		help    bool
+		Dir     string
+		User    string
+		TTY     bool
+		EnvAll  bool
+		EnvPass stringSliceFlag
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
 	f.StringVar(&Dir, "dir", "", "working directory")
 	f.StringVar(&User, "user", "", "work user")
 	f.BoolVar(&TTY, "t", false, "allocate a pseudo-TTY (for interactive shells)")
+	f.Var(&EnvPass, "env-pass", "pass a specific environment variable by name from the caller (repeatable)")
+	f.BoolVar(&EnvAll, "env-all", false, "pass all environment variables from the caller")
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -81,5 +92,17 @@ func ExecOnContainer(args []string) error {
 		defer restore()
 	}
 
-	return sandal.Exec(c, childArgs, User, Dir, TTY, os.Stdin, os.Stdout, os.Stderr)
+	// Collect env vars to forward to the container command.
+	var extraEnv []string
+	if EnvAll {
+		extraEnv = append(extraEnv, os.Environ()...)
+	} else {
+		for _, name := range EnvPass {
+			if v, ok := os.LookupEnv(name); ok {
+				extraEnv = append(extraEnv, name+"="+v)
+			}
+		}
+	}
+
+	return sandal.Exec(c, childArgs, User, Dir, TTY, extraEnv, os.Stdin, os.Stdout, os.Stderr)
 }

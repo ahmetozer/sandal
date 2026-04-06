@@ -17,6 +17,7 @@ type execRequest struct {
 	User      string   `json:"user"`
 	Dir       string   `json:"dir"`
 	TTY       bool     `json:"tty"`
+	Env       []string `json:"env"`
 }
 
 // execHandler runs a command inside the container's namespaces.
@@ -60,7 +61,7 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 	bufrw.WriteString("Upgrade: raw-stream\r\n\r\n")
 	bufrw.Flush()
 
-	if err := containerexec.ExecInContainer(c, req.Args, req.User, req.Dir, req.TTY, conn, conn, conn); err != nil {
+	if err := containerexec.ExecInContainer(c, req.Args, req.User, req.Dir, req.TTY, req.Env, conn, conn, conn); err != nil {
 		errStr := err.Error()
 		if !strings.Contains(errStr, "broken pipe") && !strings.Contains(errStr, "exit status") {
 			fmt.Fprintf(conn, "\n[exec error: %v]\n", err)

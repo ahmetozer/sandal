@@ -16,19 +16,21 @@ import (
 // Exec dispatches exec to the native path or VM management socket.
 // The caller is responsible for terminal setup (raw mode), signal handling,
 // and container lookup. stdin/stdout/stderr allow reuse from CLI, web, etc.
-func Exec(c *config.Config, args []string, user, dir string, tty bool,
+// extraEnv contains extra environment variables (KEY=VALUE) to pass to the
+// command inside the container (e.g. from -env-pass / -env-all).
+func Exec(c *config.Config, args []string, user, dir string, tty bool, extraEnv []string,
 	stdin io.Reader, stdout, stderr io.Writer) error {
 
 	if c.VM != "" {
-		return execViaMgmt(c.Name, args, user, dir, tty, stdin, stdout)
+		return execViaMgmt(c.Name, args, user, dir, tty, extraEnv, stdin, stdout)
 	}
 
-	return execNative(c, args, user, dir, tty)
+	return execNative(c, args, user, dir, tty, extraEnv)
 }
 
 // execViaMgmt sends an exec request to the VM's embedded controller
 // via the management socket and relays I/O.
-func execViaMgmt(contName string, args []string, user, dir string, tty bool,
+func execViaMgmt(contName string, args []string, user, dir string, tty bool, extraEnv []string,
 	stdin io.Reader, stdout io.Writer) error {
 
 	conn, err := mgmt.DialRaw(contName)
@@ -42,6 +44,7 @@ func execViaMgmt(contName string, args []string, user, dir string, tty bool,
 		"user": user,
 		"dir":  dir,
 		"tty":  tty,
+		"env":  extraEnv,
 	})
 
 	fmt.Fprintf(conn, "POST /exec HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\nContent-Type: application/json\r\nConnection: Upgrade\r\n\r\n%s", len(reqBody), reqBody)
