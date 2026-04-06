@@ -415,13 +415,30 @@ type writerOnly struct{ io.Writer }
 // controllerVsockRelay relays a single vsock connection to the embedded
 // controller Unix socket. When one direction finishes (e.g., exec output
 // complete), connections are closed to unblock the other direction.
+//
+// AF_VSOCK fds are not registered with Go's runtime netpoller, so reads on
+// vsockFile fall back to a blocking syscall on a dedicated OS thread. On
+// Linux, calling Close() on such an fd while another thread is parked in
+// read() does NOT unblock that read, AND does not propagate FIN to the
+// peer until the orphaned read finally returns. We must call shutdown(2)
+// before Close() to immediately wake the parked read with EOF and to
+// flush FIN to the peer. Without this, an interactive `sandal exec`
+// session hangs after the child exits until the user presses a key,
+// because that keystroke is what finally unblocks the parked read here.
 func controllerVsockRelay(vsockFD int) {
 	vsockFile := os.NewFile(uintptr(vsockFD), "vsock-controller")
+
+	closeVsock := func() {
+		// Force-shutdown both directions: wakes any parked Read on this
+		// fd and sends FIN to the host immediately.
+		unix.Shutdown(vsockFD, unix.SHUT_RDWR)
+		vsockFile.Close()
+	}
 
 	ctrlConn, err := net.Dial("unix", ControllerSocketPath)
 	if err != nil {
 		slog.Warn("controller dial failed", slog.Any("err", err))
-		vsockFile.Close()
+		closeVsock()
 		return
 	}
 
@@ -433,5 +450,5 @@ func controllerVsockRelay(vsockFD int) {
 	}()
 	// controller→host (response + stdout)
 	io.Copy(writerOnly{vsockFile}, readerOnly{ctrlConn})
-	vsockFile.Close()
+	closeVsock()
 }

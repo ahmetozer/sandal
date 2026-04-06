@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Connector abstracts vsock connection creation.
@@ -65,6 +67,19 @@ func managementRelay(connector Connector, hostConn net.Conn) {
 	}
 	slog.Debug("management relay: connected")
 
+	// AF_VSOCK fds returned by Connect() are *os.File-wrapped raw fds; Go's
+	// runtime netpoller does not manage them, so a parked Read() is not
+	// woken by a sibling Close(). Without an explicit shutdown(2), closing
+	// the vsock side here does not propagate FIN to the peer until the
+	// orphaned read finally returns — which never happens until the user
+	// types something. Force-shutdown via the fd if available.
+	closeGuest := func() {
+		if f, ok := guestConn.(interface{ Fd() uintptr }); ok {
+			unix.Shutdown(int(f.Fd()), unix.SHUT_RDWR)
+		}
+		guestConn.Close()
+	}
+
 	// Wrap connections to prevent io.Copy from using splice/sendfile,
 	// which can batch data and delay individual keystrokes in interactive
 	// sessions. The wrapper forces io.Copy to use userspace read/write.
@@ -72,10 +87,11 @@ func managementRelay(connector Connector, hostConn net.Conn) {
 	// host → guest
 	go func() {
 		io.Copy(writerOnly{guestConn}, readerOnly{hostConn})
-		guestConn.Close()
+		closeGuest()
 	}()
 	// guest → host
 	io.Copy(writerOnly{hostConn}, readerOnly{guestConn})
+	closeGuest()
 	hostConn.Close()
 }
 
