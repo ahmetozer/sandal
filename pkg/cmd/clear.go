@@ -40,7 +40,11 @@ func Clear(args []string) error {
 				continue
 			}
 		}
-		isRunning, err := crt.IsPidRunning(c.ContPid)
+		pid := c.ContPid
+		if pid == 0 && c.VM != "" {
+			pid = c.HostPid
+		}
+		isRunning, err := crt.IsPidRunning(pid)
 
 		if err != nil {
 			slog.Error("unable to get container status", "container", c.Name, "err", err)
