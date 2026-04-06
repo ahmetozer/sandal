@@ -37,6 +37,10 @@ var (
 	Get func(EnvName, DefaultValue string) string
 
 	defaults []SandalSystemEnv
+
+	// System Variables
+	PATH string = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	TERM string = "xterm-256color"
 )
 
 func GetDefaults() []SandalSystemEnv {
@@ -90,10 +94,15 @@ func init() {
 
 		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(LibDir, "bin", "sandal"))
 
+		PATH = Get("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+
 		Get("SANDAL_LOG_LEVEL", "warn")
 
 		Get = getCurrents
 	}
 	Get = getMain
+
+	os.Setenv("PATH", Get("PATH", PATH))
+	os.Setenv("TERM", Get("TERM", TERM))
 
 }
