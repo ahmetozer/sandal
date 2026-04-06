@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
@@ -36,6 +37,10 @@ func stageHostEtc() string {
 // RunInVZ boots a VZ VM on macOS with the sandal Linux binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
 func RunInVZ(c *config.Config) error {
+	if running, _ := crt.IsContainerRunning(c.Name); running {
+		return fmt.Errorf("container %s is already running", c.Name)
+	}
+
 	// Build args from HostArgs, stripping binary name and "run"
 	var rawArgs []string
 	if len(c.HostArgs) > 2 {

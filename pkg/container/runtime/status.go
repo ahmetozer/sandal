@@ -18,12 +18,15 @@ const (
 func IsContainerRunning(name string) (bool, error) {
 	oldConfig, err := controller.GetContainer(name)
 	if err == nil {
-		b, err := IsPidRunning(oldConfig.ContPid)
-		if err != nil && oldConfig.ContPid != 0 {
-			return false, fmt.Errorf("unable to check pid %d: %v", oldConfig.ContPid, err)
+		pid := oldConfig.ContPid
+		if pid == 0 && oldConfig.VM != "" {
+			pid = oldConfig.HostPid
+		}
+		b, err := IsPidRunning(pid)
+		if err != nil && pid != 0 {
+			return false, fmt.Errorf("unable to check pid %d: %v", pid, err)
 		}
 		return b, nil
-
 	}
 	return false, nil
 }

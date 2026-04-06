@@ -20,6 +20,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -32,6 +33,10 @@ import (
 // RunInKVM boots a KVM VM with the current sandal binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
 func RunInKVM(c *config.Config) error {
+	if running, _ := crt.IsContainerRunning(c.Name); running {
+		return fmt.Errorf("container %s is already running", c.Name)
+	}
+
 	// Build clean args from HostArgs, stripping the binary name and "run" prefix.
 	// HostArgs is ["/path/to/sandal", "run", ...flags..., "--", ...cmd...]
 	var rawArgs []string
