@@ -82,7 +82,7 @@ _sandal() {
     local cur prev words cword
     _init_completion || return
 
-    local subcommands="run ps convert kill stop rerun rm inspect daemon cmd clear exec snapshot export attach vm completion help"
+    local subcommands="run ps kill stop rerun rm inspect daemon cmd clear exec snapshot export attach vm completion help"
 
     # Check if we're past a -- separator (stop completing flags)
     local i
@@ -121,11 +121,6 @@ _sandal() {
             ;;
         ps)
             COMPREPLY=($(compgen -W "-help -dry -ns" -- "${cur}"))
-            ;;
-        convert)
-            if [[ "${cur}" == -* ]]; then
-                COMPREPLY=($(compgen -W "-help -comp -block -pf -ow -mksquashfs" -- "${cur}"))
-            fi
             ;;
         kill)
             if [[ "${cur}" == -* ]]; then
@@ -256,7 +251,6 @@ func zshCompletion() string {
 	subcommands := []struct{ name, desc string }{
 		{"run", "Run a container"},
 		{"ps", "List containers"},
-		{"convert", "Convert a container image to squashfs"},
 		{"kill", "Kill a container"},
 		{"stop", "Stop a container"},
 		{"rerun", "Restart a container"},
@@ -351,16 +345,6 @@ _sandal() {
                         '-help[show this help message]' \
                         '-dry[do not verify running state]' \
                         '-ns[show namespaces]'
-                    ;;
-                convert)
-                    _arguments \
-                        '-help[show this help message]' \
-                        '-comp[compression algorithm]:algo:(lz4 zstd xz lzo gzip lzma)' \
-                        '-block[block size]:size:' \
-                        '-pf[container platform]:platform:(podman docker)' \
-                        '-ow[overwrite existing sqfs]' \
-                        '-mksquashfs[path to mksquashfs]:path:_files' \
-                        '*:container:'
                     ;;
                 kill)
                     _arguments \

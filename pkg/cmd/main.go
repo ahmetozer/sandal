@@ -26,8 +26,6 @@ func Main() {
 			executeSubCommand(Run)
 		case "ps":
 			executeSubCommand(Ps)
-		case "convert":
-			executeSubCommand(Convert)
 		case "kill":
 			executeSubCommand(Kill)
 		case "stop":
@@ -91,7 +89,6 @@ func subCommandsHelp() {
 	fmt.Printf(`Avaible sub commands:
 	run - Run a container
 	ps - List containers
-	convert - Convert a container image to squashfs
 	kill - Kill a container
 	rerun - Restart a container
 	rm - Remove a container

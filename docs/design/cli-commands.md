@@ -24,7 +24,6 @@ func Main() {
     case "rerun":      cmdRerun(os.Args[2:])
     case "snapshot":   cmdSnapshot(os.Args[2:])
     case "export":     cmdExport(os.Args[2:])
-    case "convert":    cmdConvert(os.Args[2:])
     case "clear":      cmdClear(os.Args[2:])
     case "daemon":     cmdDaemon(os.Args[2:])
     case "cmd":        cmdCmd(os.Args[2:])
@@ -170,16 +169,6 @@ sandal export <name> <output.sqsh>
 ```
 
 Creates a squashfs image from the container's merged filesystem (all layers + changes).
-
-### `convert` - Convert to SquashFS
-
-**File**: `pkg/cmd/convert.go`
-
-```
-sandal convert <input> <output.sqsh>
-```
-
-Converts a directory or OCI image to squashfs format.
 
 ### `rm` - Remove Container
 
