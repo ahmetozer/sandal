@@ -155,15 +155,13 @@ CreateFromBinary(binaryPath, baseInitrd) -> initrdPath
   |
   +-- Strip CPIO trailer from base initrd (to allow appending)
   |
-  +-- Append pre-init binary (ARM64 only):
-  |     /init -> tiny ARM64 ELF that:
-  |       mount -t proc proc /proc
-  |       mount -t devtmpfs devtmpfs /dev
-  |       open /dev/console as stdin/stdout/stderr
-  |       exec /sandal-init
+  +-- Append /dev/console char device (5,1) so the kernel
+  |   wires fds 0/1/2 when init is exec'd
   |
-  +-- Append sandal binary:
-  |     /sandal-init -> the full sandal binary
+  +-- Append sandal binary as /init
+  |     The Go binary mounts /dev (devtmpfs) and /proc itself
+  |     during importKernelCmdlineEnv() before any code that
+  |     depends on them.
   |
   +-- Write CPIO trailer
   |
@@ -216,25 +214,6 @@ CreateOverlay(baseInitrd, mounts) -> modifiedInitrd
   |
   +-- Return combined initrd
 ```
-
-### Preinit (ARM64)
-
-**File**: `kernel/preinit.go`
-
-ARM64 kernels require `/proc` and `/dev` to be mounted before the Go runtime can function (it needs `/proc/self/exe` and file descriptors). A tiny static ELF binary handles this:
-
-```go
-//go:embed preinit_arm64
-var preinitBinary []byte
-```
-
-The preinit binary (compiled from assembly/C, embedded in Go):
-1. `mount("proc", "/proc", "proc", 0, "")`
-2. `mount("devtmpfs", "/dev", "devtmpfs", 0, "")`
-3. `open("/dev/console", O_RDWR)` -> fd 0 (stdin)
-4. `dup2(0, 1)` -> fd 1 (stdout)
-5. `dup2(0, 2)` -> fd 2 (stderr)
-6. `execve("/sandal-init", ...)` -> the actual sandal binary
 
 ### ZBOOT Extraction
 

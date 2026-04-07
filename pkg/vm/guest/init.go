@@ -32,16 +32,21 @@ func IsVMInit() bool {
 	// On VZ, the kernel auto-exports cmdline params but keeps them
 	// base64-encoded. On KVM, they aren't exported at all.
 	importKernelCmdlineEnv()
-	return os.Getenv("SANDAL_VM_ARGS") != "" ||
-		os.Args[0] == "/init" || os.Args[0] == "/sandal-init"
+	return os.Getenv("SANDAL_VM_ARGS") != "" || os.Args[0] == "/init"
 }
 
 // importKernelCmdlineEnv reads /proc/cmdline and sets KEY=VALUE pairs
 // as environment variables. This is needed for KVM initramfs boot where
 // the kernel doesn't auto-export cmdline params to init's environment.
 func importKernelCmdlineEnv() {
-	// /proc may not be mounted yet when running as PID 1 in initramfs.
-	// Mount it and leave it mounted — VMInit() will use it later.
+	// /dev and /proc may not be mounted yet when running as PID 1 in
+	// initramfs. Mount them and leave them mounted — VMInit() will reuse
+	// them later. devtmpfs upgrades /dev (which already contains the cpio
+	// /dev/console char device) so subsequent code can see virtio devices.
+	if _, err := os.Stat("/dev/null"); err != nil {
+		os.MkdirAll("/dev", 0755)
+		cmount.Mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+	}
 	if _, err := os.Stat("/proc/cmdline"); err != nil {
 		os.MkdirAll("/proc", 0755)
 		cmount.Mount("proc", "/proc", "proc", 0, "")
@@ -125,7 +130,9 @@ func parseCmdlineParams(cmdline string) []string {
 // (so the container runtime can later pivot_root), loads virtiofs modules, and
 // mounts virtiofs shares.
 func VMInit() error {
-	// Mount essential filesystems on the initramfs (may already be mounted by preinit)
+	// Mount essential filesystems on the initramfs.
+	// importKernelCmdlineEnv() may have mounted /proc and /dev already;
+	// these calls are idempotent retries in case it didn't.
 	os.MkdirAll("/proc", 0755)
 	cmount.Mount("proc", "/proc", "proc", 0, "")
 
@@ -185,14 +192,9 @@ func VMInit() error {
 	}
 
 	// Copy init binary to the new root.
-	// The binary may be /sandal-init (KVM with preinit) or /init (VZ).
-	initSrc := "/init"
-	if _, err := os.Stat("/sandal-init"); err == nil {
-		initSrc = "/sandal-init"
-	}
-	initData, err := os.ReadFile(initSrc)
+	initData, err := os.ReadFile("/init")
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", initSrc, err)
+		return fmt.Errorf("reading /init: %w", err)
 	}
 	if err := os.WriteFile("/newroot/init", initData, 0755); err != nil {
 		return fmt.Errorf("writing /newroot/init: %w", err)

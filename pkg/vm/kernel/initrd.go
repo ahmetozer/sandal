@@ -182,17 +182,11 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	writeCPIOFile(&initCPIO, "etc/resolv.conf", []byte(""), 0100644, 0xFFE2)
 	writeCPIOFile(&initCPIO, "etc/hosts", []byte("127.0.0.1 localhost\n::1 localhost\n"), 0100644, 0xFFE3)
 
-	if len(preinitBinary) > 0 {
-		// On KVM: use the preinit stub as /init which mounts /proc, /dev,
-		// sets up console fds, then execve's /sandal-init.
-		// Go's runtime needs /proc and valid fds to initialize properly.
-		writeCPIOFile(&initCPIO, "init", preinitBinary, 0100755, 0xFFF2)
-		writeCPIOFile(&initCPIO, "sandal-init", binData, 0100755, 0xFFF3)
-	} else {
-		// On macOS VZ: the hypervisor handles /dev setup, so Go binary
-		// can be /init directly.
-		writeCPIOFile(&initCPIO, "init", binData, 0100755, 0xFFF2)
-	}
+	// The Go binary runs directly as /init. The kernel opens /dev/console
+	// (provided as a cpio char device above) for fds 0/1/2 when init is
+	// exec'd, and importKernelCmdlineEnv() mounts devtmpfs and procfs
+	// before any code that depends on them.
+	writeCPIOFile(&initCPIO, "init", binData, 0100755, 0xFFF2)
 	writeCPIOFile(&initCPIO, "TRAILER!!!", nil, 0, 0)
 	if _, err := gz.Write(initCPIO.Bytes()); err != nil {
 		os.Remove(tmp.Name())

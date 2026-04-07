@@ -114,8 +114,8 @@ sandal.RunInKVM(config)
   +-- 11. resolveVMBinary() -> get sandal binary path for /init
   |
   +-- 12. kernel.CreateFromBinary(binary, baseInitrd) -> build initrd
-  |       Wraps sandal binary into CPIO archive as /sandal-init
-  |       Includes preinit (ARM64): tiny ELF that mounts /proc, /dev
+  |       Wraps sandal binary into CPIO archive as /init
+  |       Adds /dev/console char dev so kernel wires fds 0/1/2
   |       Appends to base initrd (kernel modules)
   |
   +-- 13. vmconfig.SaveConfig(name, cfg) -> persist ephemeral VM config
