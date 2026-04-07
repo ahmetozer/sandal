@@ -181,9 +181,22 @@ func pullToDir(ctx context.Context, imageRef string) (string, error) {
 // IsImageReference returns true if the string looks like a container image
 // reference rather than a local file path. It checks if it contains a
 // registry host (has dots) or looks like a Docker Hub short name.
+//
+// A bare relative filename like "ll.sqfs" is ambiguous: the dot makes it
+// parse as an OCI registry reference, but if a real file with that name
+// exists on disk the user almost certainly means the file. The local-file
+// check below resolves that ambiguity in favour of the filesystem.
 func IsImageReference(s string) bool {
 	// Must not start with / or ./ (clearly a file path)
 	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") {
+		return false
+	}
+
+	// If a file with this name exists on disk, treat it as a local path
+	// even when the string would otherwise parse as an image reference.
+	// This is what makes `sandal run -lw ll.sqfs` use ./ll.sqfs instead of
+	// trying to pull "ll.sqfs" from a registry.
+	if _, err := os.Stat(s); err == nil {
 		return false
 	}
 

@@ -66,6 +66,9 @@ func RunInKVM(c *config.Config) error {
 	// Pre-pull OCI images on the host
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
+	// Rewrite relative -lw paths to absolute so the in-VM controller can
+	// find them via the virtiofs share at /mnt/<abspath>.
+	cleanArgs = AbsolutizeLowerPaths(cleanArgs)
 	hostPaths = append(hostPaths, ScanLowerPaths(cleanArgs)...)
 
 	// Build VM config: try loading a named config for this container, fall back to defaults
