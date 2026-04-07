@@ -199,6 +199,69 @@ func RewriteSocketVolumes(args []string, sockets []SocketMount) []string {
 	return result
 }
 
+// AbsolutizeLowerPaths rewrites -lw values that refer to existing relative
+// paths on the host into absolute paths. This is needed for VM mode: the
+// host CLI shares the parent directory via virtiofs at /mnt/<abspath>, and
+// the in-VM controller's cmount.ResolvePath only matches absolute prefixes
+// from SANDAL_VM_MOUNTS. A bare "ll.sqfs" would otherwise fall through and
+// be misinterpreted as an OCI image reference inside the guest.
+//
+// Image references and non-existent paths are left untouched.
+func AbsolutizeLowerPaths(args []string) []string {
+	result := make([]string, len(args))
+	copy(result, args)
+
+	for i := 0; i < len(result); i++ {
+		if result[i] == "--" {
+			break
+		}
+		if result[i] == "-lw" && i+1 < len(result) {
+			i++
+			val := result[i]
+
+			// Strip :=sub suffix and remember it for re-attachment.
+			subSuffix := ""
+			if strings.HasSuffix(val, ":=sub") {
+				subSuffix = ":=sub"
+				val = strings.TrimSuffix(val, ":=sub")
+			}
+
+			// Split off optional ":/target".
+			source := val
+			target := ""
+			if idx := strings.LastIndex(val, ":/"); idx > 0 {
+				source = val[:idx]
+				target = val[idx:]
+			}
+
+			// Strip disk options like ":part=2" from the stat path.
+			basePath := source
+			diskOpts := ""
+			if idx := strings.Index(source, ":"); idx > 0 {
+				basePath = source[:idx]
+				diskOpts = source[idx:]
+			}
+
+			// Already absolute or an image ref — leave alone.
+			if filepath.IsAbs(basePath) {
+				continue
+			}
+			if squash.IsImageReference(basePath) {
+				continue
+			}
+			if _, err := os.Stat(basePath); err != nil {
+				continue
+			}
+			abs, err := filepath.Abs(basePath)
+			if err != nil {
+				continue
+			}
+			result[i] = abs + diskOpts + target + subSuffix
+		}
+	}
+	return result
+}
+
 // ScanLowerPaths scans args for -lw flag values and returns the host paths
 // that need to be shared into the VM via VirtioFS so that the in-VM
 // mountRootfs() can locate the same source file or directory.
