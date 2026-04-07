@@ -66,6 +66,7 @@ func RunInKVM(c *config.Config) error {
 	// Pre-pull OCI images on the host
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
+	hostPaths = append(hostPaths, ScanLowerPaths(cleanArgs)...)
 
 	// Build VM config: try loading a named config for this container, fall back to defaults
 	cfg, err := vmconfig.LoadConfig(c.Name)

@@ -85,6 +85,7 @@ func RunInVZ(c *config.Config) error {
 	// Pre-pull OCI images on the host and convert to squashfs.
 	imageDir := filepath.Join(env.LibDir, "image")
 	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir)
+	hostPaths = append(hostPaths, ScanLowerPaths(cleanArgs)...)
 
 	// Build VirtioFS mounts from collected host paths.
 	mounts, mountEntries, err := BuildVirtioFSMounts(hostPaths, env.LibDir)
