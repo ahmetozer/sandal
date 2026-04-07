@@ -11,12 +11,17 @@ import (
 
 type snapshotRequest struct {
 	Container string   `json:"container"`
-	FilePath  string   `json:"filePath"`
 	Includes  []string `json:"includes"`
 	Excludes  []string `json:"excludes"`
 }
 
 // snapshotHandler creates a snapshot of the container's changes.
+//
+// The output path is always the canonical default
+// (${env.BaseSnapshotDir}/<name>.sqfs), which lives under env.LibDir and is
+// therefore visible on the host through the sandal-lib virtiofs share. The
+// host CLI is responsible for moving the file to a user-supplied -f
+// destination after this handler returns.
 func snapshotHandler(w http.ResponseWriter, r *http.Request) {
 	var req snapshotRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -30,7 +35,7 @@ func snapshotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	outPath, err := snapshot.Create(c, req.FilePath, snapshot.FilterOptions{
+	outPath, err := snapshot.Create(c, "", snapshot.FilterOptions{
 		Includes: req.Includes,
 		Excludes: req.Excludes,
 	})

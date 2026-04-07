@@ -34,15 +34,53 @@ type VirtioVsockDevice struct {
 	callFds  [2]int
 }
 
-// NewVirtioVsockDevice creates a new vsock device with the given guest CID.
-func NewVirtioVsockDevice(guestCID uint64) *VirtioVsockDevice {
+// NewVirtioVsockDevice opens /dev/vhost-vsock and allocates a unique guest
+// CID by retrying VHOST_VSOCK_SET_GUEST_CID from 3 upward until one succeeds
+// (vhost-vsock rejects duplicates with EADDRINUSE). The opened fd is retained
+// on the device and reused by SetupVhost, so SetupVhost never has to
+// re-negotiate the CID. This is what allows multiple concurrent VMs to have
+// non-colliding vsock routes.
+func NewVirtioVsockDevice() (*VirtioVsockDevice, error) {
+	fd, err := unix.Open("/dev/vhost-vsock", unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		fd, err = unix.Open("/devtmpfs/vhost-vsock", unix.O_RDWR|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return nil, fmt.Errorf("open vhost-vsock: %w", err)
+		}
+	}
+
+	// Set owner once so the CID ioctl is accepted.
+	if _, err := ioctlPtr(fd, vhostSetOwner, nil); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("VHOST_SET_OWNER: %w", err)
+	}
+
+	// CIDs 0-2 are reserved (hypervisor/local/host). Probe upward until the
+	// kernel accepts one. 128 is a generous ceiling for concurrent VMs.
+	var chosen uint64
+	for candidate := uint64(3); candidate < 3+128; candidate++ {
+		cid := candidate
+		if _, err := ioctlPtr(fd, vhostVsockSetCID, unsafe.Pointer(&cid)); err == nil {
+			chosen = candidate
+			break
+		}
+	}
+	if chosen == 0 {
+		unix.Close(fd)
+		return nil, fmt.Errorf("no free vhost-vsock CID in [3, 131)")
+	}
+
 	return &VirtioVsockDevice{
-		guestCID: guestCID,
-		vhostFd:  -1,
+		guestCID: chosen,
+		vhostFd:  fd,
 		kickFds:  [2]int{-1, -1},
 		callFds:  [2]int{-1, -1},
-	}
+	}, nil
 }
+
+// GuestCID returns the vsock CID assigned to this VM. Used by the host
+// management socket relay to dial the correct guest.
+func (d *VirtioVsockDevice) GuestCID() uint64 { return d.guestCID }
 
 func (d *VirtioVsockDevice) DeviceID() uint32 { return virtioDevVsock }
 func (d *VirtioVsockDevice) Tag() string       { return "" }
@@ -77,22 +115,14 @@ func (d *VirtioVsockDevice) HandleQueue(queueIdx int, dev *virtioMMIODev) {
 	unix.Write(d.kickFds[queueIdx], buf[:])
 }
 
-// SetupVhost opens /dev/vhost-vsock and configures the vhost backend.
+// SetupVhost configures the vhost backend's memory table and vrings on the
+// fd that was already opened (and bound to a unique CID with VHOST_SET_OWNER
+// + VHOST_VSOCK_SET_GUEST_CID) by NewVirtioVsockDevice.
 func (d *VirtioVsockDevice) SetupVhost(dev *virtioMMIODev, mem []byte, memBase uint64, memSize uint64) error {
-	// Try /dev/vhost-vsock first, then /devtmpfs/vhost-vsock.
-	fd, err := unix.Open("/dev/vhost-vsock", unix.O_RDWR|unix.O_CLOEXEC, 0)
-	if err != nil {
-		fd, err = unix.Open("/devtmpfs/vhost-vsock", unix.O_RDWR|unix.O_CLOEXEC, 0)
-		if err != nil {
-			return fmt.Errorf("open vhost-vsock: %w", err)
-		}
+	if d.vhostFd < 0 {
+		return fmt.Errorf("vhost-vsock fd not allocated")
 	}
-	d.vhostFd = fd
-
-	// Set owner.
-	if _, err := ioctlPtr(fd, vhostSetOwner, nil); err != nil {
-		return fmt.Errorf("VHOST_SET_OWNER: %w", err)
-	}
+	fd := d.vhostFd
 
 	// Get and set features.
 	var features uint64
@@ -212,12 +242,6 @@ func (d *VirtioVsockDevice) SetupVhost(dev *virtioMMIODev, mem []byte, memBase u
 				dev.injectIRQ()
 			}
 		}(callFd)
-	}
-
-	// Set guest CID.
-	cid := d.guestCID
-	if _, err := ioctlPtr(fd, vhostVsockSetCID, unsafe.Pointer(&cid)); err != nil {
-		return fmt.Errorf("VHOST_VSOCK_SET_GUEST_CID: %w", err)
 	}
 
 	// Start vhost.

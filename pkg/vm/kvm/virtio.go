@@ -282,7 +282,11 @@ func (v *virtioMMIODev) writeReg(offset uint32, val uint32) {
 			case *VirtioVsockDevice:
 				go func() {
 					if err := dev.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
-						slog.Warn("vhost-vsock setup failed", slog.Any("err", err))
+						// Promoted from Warn to Error: a failure here means
+						// the management socket cannot reach the guest, so
+						// `sandal exec`/`snapshot`/`export` will all hang or
+						// route to the wrong VM. Surface it loudly.
+						slog.Error("vhost-vsock setup failed", slog.Uint64("cid", dev.GuestCID()), slog.Any("err", err))
 					}
 				}()
 			case *VirtioNetDevice:

@@ -82,7 +82,10 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 
 	// Start the management socket relay so host commands (e.g. sandal exec)
 	// can reach the embedded controller inside the VM via AF_VSOCK.
-	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: 3, Port: 4000})
+	// Use this VM's actual vsock CID (allocated dynamically in NewVM) so
+	// that with multiple concurrent VMs the per-container Unix socket relays
+	// to the correct guest instead of always racing for CID 3.
+	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: uint32(vm.VsockGuestCID()), Port: 4000})
 	defer mgmtCleanup()
 
 	// Wait for VM to stop

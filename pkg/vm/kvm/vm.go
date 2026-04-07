@@ -302,8 +302,21 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
-	// Virtio-vsock device for host<->guest socket communication.
-	vsockDev := NewVirtioVsockDevice(3) // CID=3 (guest)
+	// Virtio-vsock device for host<->guest socket communication. The
+	// constructor allocates a unique guest CID by holding a vhost-vsock fd
+	// that the kernel has accepted via VHOST_VSOCK_SET_GUEST_CID, so two
+	// concurrent VMs cannot end up routing to the same CID.
+	vsockDev, err := NewVirtioVsockDevice()
+	if err != nil {
+		for i := range vcpuFds {
+			unix.Munmap(vcpuRun[i])
+			unix.Close(vcpuFds[i])
+		}
+		unix.Munmap(mem)
+		unix.Close(int(vmFd))
+		unix.Close(kvmFd)
+		return nil, fmt.Errorf("vsock device: %w", err)
+	}
 	{
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 		irqNum := uint32(16 + devIdx)
@@ -373,6 +386,16 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		vsockDev:     vsockDev,
 		tap:          tap,
 	}, nil
+}
+
+// VsockGuestCID returns the AF_VSOCK guest CID that this VM's virtio-vsock
+// device was bound to. The host management socket relay uses this to dial
+// the correct guest when there are multiple concurrent VMs.
+func (vm *VM) VsockGuestCID() uint64 {
+	if vm.vsockDev == nil {
+		return 0
+	}
+	return vm.vsockDev.GuestCID()
 }
 
 func (vm *VM) Start() error {

@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/coreutils"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 )
 
@@ -28,9 +31,11 @@ func snapshotViaMgmt(contName, filePath string, includes, excludes []string) (st
 		return "", fmt.Errorf("management socket for %q: %w", contName, err)
 	}
 
+	// Never forward filePath — the in-VM handler would resolve it against
+	// the VM's filesystem. Instead let it write to the canonical
+	// virtiofs-shared location, then move on the host.
 	reqBody, _ := json.Marshal(map[string]any{
 		"container": contName,
-		"filePath":  filePath,
 		"includes":  includes,
 		"excludes":  excludes,
 	})
@@ -46,7 +51,19 @@ func snapshotViaMgmt(contName, filePath string, includes, excludes []string) (st
 		return "", fmt.Errorf("snapshot failed: %s", string(body))
 	}
 
+	// Drain body for wire compat; we compute the staging path ourselves
+	// from the known mapping between /var/lib/sandal (VM) and env.LibDir
+	// (host) set up by BuildVirtioFSMounts.
 	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result["path"], nil
+	_ = json.NewDecoder(resp.Body).Decode(&result)
+
+	stagingPath := filepath.Join(env.BaseSnapshotDir, contName+".sqfs")
+
+	if filePath == "" {
+		return stagingPath, nil
+	}
+	if err := coreutils.Mv(stagingPath, filePath); err != nil {
+		return "", fmt.Errorf("move snapshot to %s: %w", filePath, err)
+	}
+	return filePath, nil
 }
