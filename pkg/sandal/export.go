@@ -11,9 +11,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
+	"github.com/ahmetozer/sandal/pkg/lib/coreutils"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 )
@@ -63,11 +66,15 @@ func exportViaMgmt(contName, outputPath string, includes, excludes []string) (st
 		return "", fmt.Errorf("management socket for %q: %w", contName, err)
 	}
 
+	if outputPath == "" {
+		os.MkdirAll(env.BaseSnapshotDir, 0o755)
+		outputPath = filepath.Join(env.BaseSnapshotDir, contName+"-export.sqfs")
+	}
+
 	reqBody, _ := json.Marshal(map[string]any{
-		"container":  contName,
-		"outputPath": outputPath,
-		"includes":   includes,
-		"excludes":   excludes,
+		"container": contName,
+		"includes":  includes,
+		"excludes":  excludes,
 	})
 
 	resp, err := client.Post("http://unix/export", "application/json", bytes.NewReader(reqBody))
@@ -82,8 +89,25 @@ func exportViaMgmt(contName, outputPath string, includes, excludes []string) (st
 	}
 
 	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result["path"], nil
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode export response: %w", err)
+	}
+	name := result["name"]
+	if name == "" {
+		return "", fmt.Errorf("export response missing name")
+	}
+
+	// The in-VM handler wrote to /var/lib/sandal/export/<name> which is the
+	// same physical path as ${env.LibDir}/export/<name> on the host because
+	// that directory is virtiofs-shared via the sandal-lib mount (see
+	// pkg/sandal/vm.go BuildVirtioFSMounts).
+	stagingPath := filepath.Join(env.LibDir, "export", name)
+
+	if err := coreutils.Mv(stagingPath, outputPath); err != nil {
+		os.Remove(stagingPath)
+		return "", fmt.Errorf("move export to %s: %w", outputPath, err)
+	}
+	return outputPath, nil
 }
 
 func exportImage(imageRef, outputPath string, tarGz bool) (string, error) {
