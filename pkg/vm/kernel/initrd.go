@@ -3,6 +3,8 @@ package kernel
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -132,18 +134,44 @@ func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 // because the kernel's initramfs unpacker stops processing at the first TRAILER
 // entry within a CPIO stream.
 //
-// Returns the path to a temporary file (caller must remove it).
+// The returned path is content-addressed: identical (binary, base initrd) pairs
+// always resolve to the same file under cacheDir() and are reused across runs.
+// On a cache hit no archive is built and no I/O happens beyond hashing the
+// inputs. The returned path is owned by the cache and MUST NOT be removed by
+// the caller.
 func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) {
-	binData, err := os.ReadFile(binaryPath)
-	if err != nil {
-		return "", fmt.Errorf("reading binary %s: %w", binaryPath, err)
-	}
-
-	tmp, err := os.CreateTemp("", "sandal-initrd-*.img")
+	key, err := initrdCacheKey(binaryPath, baseInitrdPath)
 	if err != nil {
 		return "", err
 	}
-	defer tmp.Close()
+	cDir := cacheDir()
+	cachePath := filepath.Join(cDir, "initramfs-sandal-"+key+".img")
+	if st, err := os.Stat(cachePath); err == nil && st.Size() > 0 {
+		return cachePath, nil
+	}
+
+	if err := os.MkdirAll(cDir, 0755); err != nil {
+		return "", fmt.Errorf("creating kernel cache dir: %w", err)
+	}
+
+	// Build into a temp file in the SAME directory as the final cache path so
+	// the rename below is atomic. Concurrent builders racing on the same key
+	// produce identical content; whichever rename runs last wins harmlessly.
+	tmp, err := os.CreateTemp(cDir, ".initramfs-sandal-*.img.tmp")
+	if err != nil {
+		return "", err
+	}
+	tmpPath := tmp.Name()
+	cleanup := func() {
+		tmp.Close()
+		os.Remove(tmpPath)
+	}
+
+	binData, err := os.ReadFile(binaryPath)
+	if err != nil {
+		cleanup()
+		return "", fmt.Errorf("reading binary %s: %w", binaryPath, err)
+	}
 
 	gz := gzip.NewWriter(tmp)
 
@@ -152,17 +180,17 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	if baseInitrdPath != "" {
 		baseData, err := os.ReadFile(baseInitrdPath)
 		if err != nil {
-			os.Remove(tmp.Name())
+			cleanup()
 			return "", fmt.Errorf("reading base initrd %s: %w", baseInitrdPath, err)
 		}
 		baseCPIO, err := decompressInitrd(baseData)
 		if err != nil {
-			os.Remove(tmp.Name())
+			cleanup()
 			return "", fmt.Errorf("decompressing base initrd: %w", err)
 		}
 		baseCPIO = stripCPIOTrailer(baseCPIO)
 		if _, err := gz.Write(baseCPIO); err != nil {
-			os.Remove(tmp.Name())
+			cleanup()
 			return "", err
 		}
 	}
@@ -189,16 +217,57 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	writeCPIOFile(&initCPIO, "init", binData, 0100755, 0xFFF2)
 	writeCPIOFile(&initCPIO, "TRAILER!!!", nil, 0, 0)
 	if _, err := gz.Write(initCPIO.Bytes()); err != nil {
-		os.Remove(tmp.Name())
+		cleanup()
 		return "", err
 	}
 
 	if err := gz.Close(); err != nil {
-		os.Remove(tmp.Name())
+		cleanup()
 		return "", fmt.Errorf("finalizing gzip: %w", err)
 	}
+	if err := tmp.Sync(); err != nil {
+		cleanup()
+		return "", fmt.Errorf("syncing initrd: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("closing initrd: %w", err)
+	}
+	if err := os.Rename(tmpPath, cachePath); err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("publishing initrd cache entry: %w", err)
+	}
+	return cachePath, nil
+}
 
-	return tmp.Name(), nil
+// initrdCacheKey computes a content-address cache key from the sandal binary
+// and (optional) base initrd. Returns the first 16 bytes of sha256 as a hex
+// string — 64 bits of entropy, plenty to avoid collisions across the handful
+// of entries a single host accumulates.
+func initrdCacheKey(binaryPath, baseInitrdPath string) (string, error) {
+	h := sha256.New()
+	if err := hashFileInto(h, binaryPath); err != nil {
+		return "", fmt.Errorf("hashing binary %s: %w", binaryPath, err)
+	}
+	// Length-prefix separator so concat(a,b) can never collide with concat(a',b').
+	h.Write([]byte{0})
+	if baseInitrdPath != "" {
+		if err := hashFileInto(h, baseInitrdPath); err != nil {
+			return "", fmt.Errorf("hashing base initrd %s: %w", baseInitrdPath, err)
+		}
+	}
+	sum := h.Sum(nil)
+	return hex.EncodeToString(sum[:16]), nil
+}
+
+func hashFileInto(h io.Writer, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = io.Copy(h, f)
+	return err
 }
 
 // CreateContainerOverlay is like CreateOverlay but replaces all exec switch_root

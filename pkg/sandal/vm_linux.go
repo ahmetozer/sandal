@@ -190,9 +190,9 @@ func RunInKVM(c *config.Config) error {
 	// The daemon health check will detect the container has no running PID
 	// and call sandal.Run(HostArgs) to boot the VM.
 	if c.Background && c.Startup && !env.IsDaemon && controller.GetControllerType() == controller.ControllerTypeServer {
-		// Delegation path: daemon will rebuild everything via sandal.Run(),
-		// so clean up the ephemeral VM config and initrd now.
-		os.Remove(initrdPath)
+		// Delegation path: daemon will rebuild everything via sandal.Run().
+		// The initrd is content-addressed in the kernel cache, so we leave
+		// it in place; only the ephemeral VM config needs cleanup.
 		vmconfig.DeleteVM(vmName)
 		c.HostPid = os.Getpid()
 		c.VM = "kvm"
@@ -211,8 +211,8 @@ func RunInKVM(c *config.Config) error {
 		return forkVMProcess(c, vmName, cfg, socketMounts, initrdPath)
 	}
 
-	// Foreground mode: clean up on exit
-	defer os.Remove(initrdPath)
+	// Foreground mode: clean up on exit. The initrd is owned by the kernel
+	// cache and persists across runs.
 	defer vmconfig.DeleteVM(vmName)
 
 	// Foreground mode: register and boot directly in this process
@@ -247,7 +247,7 @@ func RunInKVM(c *config.Config) error {
 }
 
 // forkVMProcess starts the VM in a child process so the daemon/CLI isn't blocked.
-func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socketMounts []SocketMount, initrdPath string) error {
+func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socketMounts []SocketMount, _ string) error {
 	// The child process will boot the VM using "sandal vm start <name>"
 	// which loads the saved VM config and calls boot.Boot().
 	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName)
@@ -290,7 +290,7 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 			c.Status = "exit 0"
 		}
 		controller.SetContainer(c)
-		os.Remove(initrdPath)
+		// Initrd is owned by the kernel cache; do not remove.
 		vmconfig.DeleteVM(vmName)
 		if c.Remove {
 			controller.DeleteContainer(c.Name)

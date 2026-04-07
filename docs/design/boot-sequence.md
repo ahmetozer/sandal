@@ -113,10 +113,13 @@ sandal.RunInKVM(config)
   |
   +-- 11. resolveVMBinary() -> get sandal binary path for /init
   |
-  +-- 12. kernel.CreateFromBinary(binary, baseInitrd) -> build initrd
-  |       Wraps sandal binary into CPIO archive as /init
-  |       Adds /dev/console char dev so kernel wires fds 0/1/2
-  |       Appends to base initrd (kernel modules)
+  +-- 12. kernel.CreateFromBinary(binary, baseInitrd) -> cached initrd
+  |       Content-addressed by sha256(binary, baseInitrd).
+  |       Cache hit -> returns existing path with no I/O.
+  |       Cache miss -> wraps sandal binary into CPIO archive as
+  |       /init, adds /dev/console char dev for stdio fds, merges
+  |       base initrd modules, atomically publishes to
+  |       <BaseKernelDir>/initramfs-sandal-<hash>.img
   |
   +-- 13. vmconfig.SaveConfig(name, cfg) -> persist ephemeral VM config
   |       Path: ~/.sandal-vm/machines/<name>/config.json
