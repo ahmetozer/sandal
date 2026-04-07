@@ -58,7 +58,6 @@ func ContainerInitProc() {
 			return fmt.Errorf("no executable is provided")
 		}
 
-
 		if err := unix.Sethostname([]byte(c.Name)); err != nil {
 			return fmt.Errorf("unable to set hostname %s", err)
 		}
@@ -67,7 +66,6 @@ func ContainerInitProc() {
 		if err == nil {
 			netlink.LinkSetUp(k)
 		}
-
 
 		if !c.NS.Get("net").IsHost {
 
@@ -118,7 +116,6 @@ func ContainerInitProc() {
 			}
 		}
 
-
 		err = childSysMounts(c)
 		if err != nil {
 			return err
@@ -137,7 +134,6 @@ func ContainerInitProc() {
 			return err
 		}
 		cruntime.RunCommands(c.RunPreExec, "", "")
-
 
 		if len(c.ContArgs) == 0 {
 			return fmt.Errorf("no container arg provided, malformed container file")
@@ -164,10 +160,11 @@ func ContainerInitProc() {
 		// sandal invocations.  User-defined variables that happen
 		// to start with SANDAL_ are preserved.
 		internalVars := map[string]struct{}{
-			"SANDAL_CHILD": {},
-			"SANDAL_VM":    {},
+			"SANDAL_CHILD":     {},
+			"SANDAL_VM":        {},
 			"SANDAL_VM_MOUNTS": {},
 			"SANDAL_VM_ARGS":   {},
+			"SANDAL_VM_NET":    {},
 		}
 		for _, d := range env.GetDefaults() {
 			internalVars[d.Name] = struct{}{}

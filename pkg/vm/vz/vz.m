@@ -196,6 +196,31 @@ void vzSocketListen(void *vmHandle, uint32_t port) {
     });
 }
 
+// Forward declaration for Go-exported vsock connect callback
+extern void goVsockConnectResult(int fd, const char *err);
+
+void vzSocketConnect(void *vmHandle, uint32_t port) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        VZVirtualMachine *vm = (__bridge VZVirtualMachine *)vmHandle;
+
+        NSArray *socketDevices = vm.socketDevices;
+        if (socketDevices.count == 0) {
+            goVsockConnectResult(-1, "no socket devices available");
+            return;
+        }
+        VZVirtioSocketDevice *dev = (VZVirtioSocketDevice *)socketDevices[0];
+
+        [dev connectToPort:port completionHandler:^(VZVirtioSocketConnection *connection, NSError *error) {
+            if (error) {
+                goVsockConnectResult(-1, [[error localizedDescription] UTF8String]);
+            } else {
+                int fd = dup((int)connection.fileDescriptor);
+                goVsockConnectResult(fd, NULL);
+            }
+        }];
+    });
+}
+
 // --- VM Configuration ---
 
 void* createVMConfig(

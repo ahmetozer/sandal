@@ -376,6 +376,16 @@ func buildDTB(boot bootConfig, dtbAddr uint64, cpuCompat string) []byte {
 	fdt.propU32Array("clocks", []uint32{2, 2})
 	fdt.endNode()
 
+	// PL031 RTC.
+	fdt.beginNode("pl031@9010000")
+	fdt.propStringList("compatible", []string{"arm,pl031", "arm,primecell"})
+	fdt.propU32Array("reg", []uint32{0, 0x09010000, 0, 0x1000})
+	fdt.propU32Array("interrupts", []uint32{0, 2, 4}) // SPI 2, level-high
+	fdt.propU32("interrupt-parent", 1)
+	fdt.propStringList("clock-names", []string{"apb_pclk"})
+	fdt.propU32Array("clocks", []uint32{2})
+	fdt.endNode()
+
 	// Virtio-MMIO devices.
 	for i, vdev := range boot.virtioDevices {
 		nodeName := fmt.Sprintf("virtio_mmio@%x", vdev.baseAddr)

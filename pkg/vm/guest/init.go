@@ -15,11 +15,9 @@ import (
 	"strings"
 	"time"
 
-	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
-	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -262,97 +260,20 @@ func VMInit() error {
 		}
 	}
 
+	// Copy host /etc/resolv.conf into the VM via the host-etc VirtioFS share
+	if data, err := os.ReadFile("/mnt/host-etc/resolv.conf"); err == nil {
+		os.WriteFile("/etc/resolv.conf", data, 0644)
+	}
+
 	// Start vsock socket relay for SANDAL_VM_SOCKETS
 	if sockSpec := os.Getenv("SANDAL_VM_SOCKETS"); sockSpec != "" {
 		startGuestSocketRelay(sockSpec)
 	}
 
-	// Configure guest network from SANDAL_VM_NET (JSON-encoded Link from host).
-	// The host allocated an IP from the sandal0 bridge subnet and passed it here.
-	if netSpec := os.Getenv("SANDAL_VM_NET"); netSpec != "" {
-		if err := vmConfigureNetwork(netSpec); err != nil {
-			slog.Warn("guest network setup failed", slog.Any("err", err))
-		}
-	}
+	// SANDAL_VM_NET stays in the environment for the container process.
+	// The container's link.defaults() reads it to populate IP/routes
+	// and moves eth0 directly into the container's network namespace.
 
-	return nil
-}
-
-// vmConfigureNetwork configures the guest network interface from a JSON-encoded
-// sandalnet.Link. The host allocated an IP and gateway from the sandal0 bridge.
-func vmConfigureNetwork(netSpec string) error {
-	var link sandalnet.Link
-	if err := json.Unmarshal([]byte(netSpec), &link); err != nil {
-		return fmt.Errorf("parsing SANDAL_VM_NET: %w", err)
-	}
-
-	// Wait for the virtio-net interface to appear (loaded via virtio_net module).
-	// The interface may take a moment to register after modprobe.
-	var nLink netlink.Link
-	ifName := link.Name
-	if ifName == "" {
-		ifName = "eth0"
-	}
-	for i := 0; i < 50; i++ {
-		var err error
-		nLink, err = netlink.LinkByName(ifName)
-		if err == nil {
-			break
-		}
-		// Also try finding any virtio net interface
-		links, _ := netlink.LinkList()
-		for _, l := range links {
-			if l.Attrs().Name != "lo" && l.Type() == "device" {
-				nLink = l
-				ifName = l.Attrs().Name
-				break
-			}
-		}
-		if nLink != nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if nLink == nil {
-		return fmt.Errorf("network interface %s not found", ifName)
-	}
-
-	// Assign IP addresses
-	for _, addr := range link.Addr {
-		nlAddr := &netlink.Addr{
-			IPNet: &net.IPNet{
-				IP:   addr.IP,
-				Mask: addr.IPNet.Mask,
-			},
-		}
-		if err := netlink.AddrAdd(nLink, nlAddr); err != nil {
-			slog.Warn("failed to add address", slog.String("ip", addr.IP.String()), slog.String("iface", ifName), slog.Any("err", err))
-		}
-	}
-
-	// Bring interface up
-	if err := netlink.LinkSetUp(nLink); err != nil {
-		return fmt.Errorf("bringing up %s: %w", ifName, err)
-	}
-
-	// Set default routes from gateway (same pattern as init.go)
-	gw4, gw6 := sandalnet.Links{link}.FindGateways()
-	if gw4.IP != nil {
-		netlink.RouteAdd(&netlink.Route{
-			LinkIndex: nLink.Attrs().Index,
-			Gw:        gw4.IP,
-			Dst:       gw4.IPNet,
-		})
-	}
-	if gw6.IP != nil {
-		netlink.RouteAdd(&netlink.Route{
-			LinkIndex: nLink.Attrs().Index,
-			Gw:        gw6.IP,
-			Dst:       gw6.IPNet,
-		})
-	}
-
-	slog.Info("network configured", slog.String("iface", ifName), slog.Any("addr", link.Addr))
 	return nil
 }
 
@@ -438,4 +359,96 @@ func vsockDial(cid, port uint32) (*os.File, error) {
 		return nil, fmt.Errorf("vsock connect: %w", err)
 	}
 	return os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", cid, port)), nil
+}
+
+// ControllerVsockPort is the well-known vsock port for the embedded controller API.
+const ControllerVsockPort = 4000
+
+// ControllerSocketPath is the Unix socket where the embedded controller listens inside the VM.
+const ControllerSocketPath = "/var/run/sandal/controller.sock"
+
+// StartControllerVsockListener listens on vsock port 4000 and relays each
+// connection to the embedded controller Unix socket inside the VM.
+// Must be called as a goroutine — blocks forever.
+func StartControllerVsockListener() {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		slog.Warn("controller vsock: socket", slog.Any("err", err))
+		return
+	}
+
+	err = unix.Bind(fd, &unix.SockaddrVM{
+		CID:  unix.VMADDR_CID_ANY,
+		Port: ControllerVsockPort,
+	})
+	if err != nil {
+		unix.Close(fd)
+		slog.Warn("controller vsock: bind", slog.Any("err", err))
+		return
+	}
+
+	err = unix.Listen(fd, 8)
+	if err != nil {
+		unix.Close(fd)
+		slog.Warn("controller vsock: listen", slog.Any("err", err))
+		return
+	}
+
+	slog.Info("controller vsock listener ready", slog.Uint64("port", ControllerVsockPort))
+
+	for {
+		nfd, _, err := unix.Accept(fd)
+		if err != nil {
+			slog.Warn("controller vsock: accept", slog.Any("err", err))
+			continue
+		}
+		go controllerVsockRelay(nfd)
+	}
+}
+
+// readerOnly hides WriteTo so io.Copy can't use splice/sendfile.
+type readerOnly struct{ io.Reader }
+
+// writerOnly hides ReadFrom so io.Copy can't use splice/sendfile.
+type writerOnly struct{ io.Writer }
+
+// controllerVsockRelay relays a single vsock connection to the embedded
+// controller Unix socket. When one direction finishes (e.g., exec output
+// complete), connections are closed to unblock the other direction.
+//
+// AF_VSOCK fds are not registered with Go's runtime netpoller, so reads on
+// vsockFile fall back to a blocking syscall on a dedicated OS thread. On
+// Linux, calling Close() on such an fd while another thread is parked in
+// read() does NOT unblock that read, AND does not propagate FIN to the
+// peer until the orphaned read finally returns. We must call shutdown(2)
+// before Close() to immediately wake the parked read with EOF and to
+// flush FIN to the peer. Without this, an interactive `sandal exec`
+// session hangs after the child exits until the user presses a key,
+// because that keystroke is what finally unblocks the parked read here.
+func controllerVsockRelay(vsockFD int) {
+	vsockFile := os.NewFile(uintptr(vsockFD), "vsock-controller")
+
+	closeVsock := func() {
+		// Force-shutdown both directions: wakes any parked Read on this
+		// fd and sends FIN to the host immediately.
+		unix.Shutdown(vsockFD, unix.SHUT_RDWR)
+		vsockFile.Close()
+	}
+
+	ctrlConn, err := net.Dial("unix", ControllerSocketPath)
+	if err != nil {
+		slog.Warn("controller dial failed", slog.Any("err", err))
+		closeVsock()
+		return
+	}
+
+	// Wrap to prevent splice/sendfile which can batch interactive keystrokes.
+	// host→controller (request + stdin)
+	go func() {
+		io.Copy(writerOnly{ctrlConn}, readerOnly{vsockFile})
+		ctrlConn.Close()
+	}()
+	// controller→host (response + stdout)
+	io.Copy(writerOnly{vsockFile}, readerOnly{ctrlConn})
+	closeVsock()
 }

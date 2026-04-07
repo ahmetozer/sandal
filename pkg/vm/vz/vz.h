@@ -31,6 +31,7 @@ void* createVirtioFileSystemDevice(const char *tag, const char *dirPath, bool re
 // Vsock (virtio socket for host<->guest communication)
 void* createVirtioSocketDevice(void);
 void vzSocketListen(void *vmHandle, uint32_t port);
+void vzSocketConnect(void *vmHandle, uint32_t port);
 
 // VM Configuration
 void* createVMConfig(

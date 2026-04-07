@@ -29,6 +29,7 @@ const (
 	kvmSetGSIRouting       = 0x4008AE6A // _IOW(0xAE, 0x6A, 8) - header size only; data is variable
 	kvmCreateIRQChip       = 0xAE60     // _IO(0xAE, 0x60)
 	kvmSetTSSAddr          = 0xAE47     // _IO(0xAE, 0x47)
+	kvmSetClock            = 0x4030AE7B // _IOW(0xAE, 0x7b, 48)
 
 	// VCPU ioctls.
 	kvmRun         = 0xAE80     // _IO(0xAE, 0x80)
@@ -93,6 +94,12 @@ const (
 )
 
 // kvmUserspaceMemoryRegion corresponds to struct kvm_userspace_memory_region (32 bytes).
+type kvmClockData struct {
+	Clock uint64
+	Flags uint32
+	Pad   [9]uint32
+}
+
 type kvmUserspaceMemoryRegion struct {
 	Slot          uint32
 	Flags         uint32

@@ -12,7 +12,9 @@ import (
 	"syscall"
 
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
+	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
+	"golang.org/x/sys/unix"
 )
 
 // Boot boots a VM using KVM with the given name and configuration.
@@ -78,6 +80,14 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 	}
 	slog.Debug("Boot", slog.String("action", "started"), slog.String("state", vm.State().String()))
 
+	// Start the management socket relay so host commands (e.g. sandal exec)
+	// can reach the embedded controller inside the VM via AF_VSOCK.
+	// Use this VM's actual vsock CID (allocated dynamically in NewVM) so
+	// that with multiple concurrent VMs the per-container Unix socket relays
+	// to the correct guest instead of always racing for CID 3.
+	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: uint32(vm.VsockGuestCID()), Port: 4000})
+	defer mgmtCleanup()
+
 	// Wait for VM to stop
 	if err := vm.WaitUntilStopped(); err != nil {
 		slog.Error("Boot", slog.String("action", "stopped"), slog.Any("error", err))
@@ -86,4 +96,16 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 	}
 
 	return nil
+}
+
+// vsockAvailable returns true if the host can communicate with KVM guests
+// via AF_VSOCK. This requires /dev/vhost-vsock which provides the vhost
+// backend for virtio-vsock devices in KVM VMs.
+func vsockAvailable() bool {
+	fd, err := unix.Open("/dev/vhost-vsock", unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return false
+	}
+	unix.Close(fd)
+	return true
 }

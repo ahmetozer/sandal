@@ -1,11 +1,8 @@
-//go:build linux
-
 package controller
 
 import (
 	"encoding/json"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,7 +10,6 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/env"
-	"golang.org/x/sys/unix"
 )
 
 func Server() {
@@ -87,20 +83,9 @@ func Server() {
 		mux.ServeHTTP(w, r)
 	})
 
-	// Set umask to restrict socket file permissions before Listen creates it.
-	// net.Listen("unix", ...) creates the socket file inheriting the process
-	// umask — without this, the socket could be world-accessible.
-	oldMask := unix.Umask(0o177)
-	unixListener, err := net.Listen("unix", env.DaemonSocket)
-	unix.Umask(oldMask)
+	unixListener, err := secureSocketListen(env.DaemonSocket)
 	if err != nil {
 		panic(err)
-	}
-
-	// Explicitly set socket to root-only as defense-in-depth,
-	// in case umask was not effective (e.g. filesystem ignoring it).
-	if err := os.Chmod(env.DaemonSocket, 0o600); err != nil {
-		slog.Warn("Server", slog.String("action", "chmod socket"), slog.Any("error", err))
 	}
 
 	slog.Info("Server", slog.String("socket", unixListener.Addr().String()))

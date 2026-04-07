@@ -18,7 +18,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/console"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -31,6 +33,10 @@ import (
 // RunInKVM boots a KVM VM with the current sandal binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
 func RunInKVM(c *config.Config) error {
+	if running, _ := crt.IsContainerRunning(c.Name); running {
+		return fmt.Errorf("container %s is already running", c.Name)
+	}
+
 	// Build clean args from HostArgs, stripping the binary name and "run" prefix.
 	// HostArgs is ["/path/to/sandal", "run", ...flags..., "--", ...cmd...]
 	var rawArgs []string
@@ -39,7 +45,7 @@ func RunInKVM(c *config.Config) error {
 	}
 
 	// Remove -vm flag from args -- it's consumed here, not forwarded to guest
-	_, cleanArgs := ExtractFlag(rawArgs, "vm", "")
+	cleanArgs := RemoveBoolFlag(rawArgs, "vm")
 
 	// Remove -cpu and -memory from forwarded args -- they apply to the VM, not guest cgroups
 	_, cleanArgs = ExtractFlag(cleanArgs, "cpu", "")
@@ -48,10 +54,11 @@ func RunInKVM(c *config.Config) error {
 	// Remove host-only flags from forwarded args. These apply to the host VM process,
 	// not the container inside the guest:
 	// - -d/-startup: would cause guest to background/delegate, causing immediate exit
-	// - --name: would cause guest container to overwrite host's state file (same name)
+	// --name is kept so the container inside the VM inherits the correct name
+	// (used for hostname via Sethostname). State files don't collide because
+	// main_linux.go redirects SANDAL_STATE_DIR to /tmp/sandal-state inside the VM.
 	cleanArgs = RemoveBoolFlag(cleanArgs, "d")
 	cleanArgs = RemoveBoolFlag(cleanArgs, "startup")
-	_, cleanArgs = ExtractFlag(cleanArgs, "name", "")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
@@ -59,11 +66,15 @@ func RunInKVM(c *config.Config) error {
 	// Pre-pull OCI images on the host
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
+	hostPaths = append(hostPaths, ScanLowerPaths(cleanArgs)...)
 
-	// Build VM config with defaults, override from parsed config fields
-	cfg := vmconfig.VMConfig{
-		CPUCount:    vmconfig.DefaultCPUCount,
-		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+	// Build VM config: try loading a named config for this container, fall back to defaults
+	cfg, err := vmconfig.LoadConfig(c.Name)
+	if err != nil {
+		cfg = vmconfig.VMConfig{
+			CPUCount:    vmconfig.DefaultCPUCount,
+			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+		}
 	}
 
 	// Use -cpu and -memory values for VM resources
@@ -94,6 +105,14 @@ func RunInKVM(c *config.Config) error {
 		return err
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
+
+	// Share host /etc read-only so the VM can access resolv.conf, hosts, etc.
+	cfg.Mounts = append(cfg.Mounts, vmconfig.MountConfig{
+		Tag:      "host-etc",
+		HostPath: "/etc",
+		ReadOnly: true,
+	})
+	mountEntries = append(mountEntries, "host-etc=/etc=/mnt/host-etc")
 
 	// Build socket relay entries for SANDAL_VM_SOCKETS
 	var socketEntries []string
@@ -173,6 +192,7 @@ func RunInKVM(c *config.Config) error {
 		os.Remove(initrdPath)
 		vmconfig.DeleteVM(vmName)
 		c.HostPid = os.Getpid()
+		c.VM = "kvm"
 		if err := controller.SetContainer(c); err != nil {
 			return fmt.Errorf("registering VM container: %w", err)
 		}
@@ -194,6 +214,8 @@ func RunInKVM(c *config.Config) error {
 
 	// Foreground mode: register and boot directly in this process
 	c.HostPid = os.Getpid()
+	c.VM = "kvm"
+	c.Status = "running"
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
@@ -227,14 +249,23 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	// which loads the saved VM config and calls boot.Boot().
 	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	// Set up FIFO console so `sandal attach` can read VM output.
+	var consoleCleanup func()
+	if err := console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup); err != nil {
+		slog.Warn("forkVMProcess", slog.String("action", "fifo console"), slog.Any("error", err))
+	}
 
 	if err := cmd.Start(); err != nil {
+		if consoleCleanup != nil {
+			consoleCleanup()
+		}
 		return fmt.Errorf("forking VM process: %w", err)
 	}
 
 	c.HostPid = cmd.Process.Pid
+	c.VM = "kvm"
+	c.Status = "running"
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
@@ -247,6 +278,9 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	// Wait for child to exit and update status
 	go func() {
 		waitErr := cmd.Wait()
+		if consoleCleanup != nil {
+			consoleCleanup()
+		}
 		if waitErr != nil {
 			c.Status = fmt.Sprintf("err %v", waitErr)
 		} else {

@@ -4,10 +4,13 @@ package sandal
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
@@ -15,30 +18,44 @@ import (
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
 )
 
+// stageHostEtc creates a staging directory with host /etc files
+// that the VM needs. On macOS, /etc is a symlink to /private/etc
+// which VirtioFS may not follow, so we stage the files explicitly.
+func stageHostEtc() string {
+	dir := filepath.Join(env.LibDir, "system", "etc")
+	os.MkdirAll(dir, 0755)
+
+	resolvPath := filepath.Join(dir, "resolv.conf")
+	if _, err := os.Stat(resolvPath); err != nil {
+		if data, err := os.ReadFile("/etc/resolv.conf"); err == nil {
+			os.WriteFile(resolvPath, data, 0644)
+		}
+	}
+	return dir
+}
+
 // RunInVZ boots a VZ VM on macOS with the sandal Linux binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
 func RunInVZ(c *config.Config) error {
+	if running, _ := crt.IsContainerRunning(c.Name); running {
+		return fmt.Errorf("container %s is already running", c.Name)
+	}
+
 	// Build args from HostArgs, stripping binary name and "run"
 	var rawArgs []string
 	if len(c.HostArgs) > 2 {
 		rawArgs = c.HostArgs[2:]
 	}
 
-	// Extract -vm flag (darwin-only, not forwarded to VM).
-	vmFlag, cleanArgs := ExtractFlag(rawArgs, "vm", "")
+	// Remove -vm flag from args -- it's consumed here, not forwarded to VM.
+	cleanArgs := RemoveBoolFlag(rawArgs, "vm")
 
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
-	// Build VM config: load from template if -vm was specified, otherwise use defaults
-	var cfg vmconfig.VMConfig
-	if vmFlag != "" {
-		var err error
-		cfg, err = vmconfig.LoadConfig(vmFlag)
-		if err != nil {
-			return fmt.Errorf("loading VM config '%s': %w", vmFlag, err)
-		}
-	} else {
+	// Build VM config: try loading a named config for this container, fall back to defaults
+	cfg, err := vmconfig.LoadConfig(c.Name)
+	if err != nil {
 		cfg = vmconfig.VMConfig{
 			CPUCount:    vmconfig.DefaultCPUCount,
 			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
@@ -66,17 +83,27 @@ func RunInVZ(c *config.Config) error {
 	}
 
 	// Pre-pull OCI images on the host and convert to squashfs.
-	home, _ := os.UserHomeDir()
-	sandalLibDir := filepath.Join(home, ".sandal", "lib")
-	imageDir := filepath.Join(sandalLibDir, "image")
+	imageDir := filepath.Join(env.LibDir, "image")
 	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir)
+	hostPaths = append(hostPaths, ScanLowerPaths(cleanArgs)...)
 
 	// Build VirtioFS mounts from collected host paths.
-	mounts, mountEntries, err := BuildVirtioFSMounts(hostPaths, sandalLibDir)
+	mounts, mountEntries, err := BuildVirtioFSMounts(hostPaths, env.LibDir)
 	if err != nil {
 		return err
 	}
 	cfg.Mounts = append(cfg.Mounts, mounts...)
+
+	// Share generated /etc files so the VM can access resolv.conf, etc.
+	// macOS /etc/resolv.conf is empty; DNS is managed by mDNSResponder.
+	// Stage a generated resolv.conf from scutil --dns instead.
+	etcDir := stageHostEtc()
+	cfg.Mounts = append(cfg.Mounts, vmconfig.MountConfig{
+		Tag:      "host-etc",
+		HostPath: etcDir,
+		ReadOnly: true,
+	})
+	mountEntries = append(mountEntries, "host-etc="+etcDir+"=/mnt/host-etc")
 
 	// Build socket relay entries for SANDAL_VM_SOCKETS
 	var socketEntries []string
@@ -116,5 +143,32 @@ func RunInVZ(c *config.Config) error {
 	}
 	defer vmconfig.DeleteVM(vmName)
 
-	return vz.Boot(vmName, cfg, vsockRelays...)
+	// Register container in state files (mirror RunInKVM behavior)
+	c.HostPid = os.Getpid()
+	c.VM = "vz"
+	c.Status = "running"
+	if err := controller.SetContainer(c); err != nil {
+		slog.Warn("RunInVZ", slog.String("action", "register container"), slog.Any("error", err))
+	}
+	defer func() {
+		if c.Remove {
+			controller.DeleteContainer(c.Name)
+			os.Remove(c.ConfigFileLoc())
+		}
+	}()
+
+	err = vz.Boot(vmName, cfg, vsockRelays...)
+
+	// Clean up staged etc directory
+	os.RemoveAll(filepath.Join(env.LibDir, "system", "etc"))
+
+	// Update status after VM exits
+	if err != nil {
+		c.Status = fmt.Sprintf("err %v", err)
+	} else {
+		c.Status = "exit 0"
+	}
+	controller.SetContainer(c)
+
+	return err
 }

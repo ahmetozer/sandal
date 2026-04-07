@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package cmd
 
@@ -40,7 +40,7 @@ func Stop(args []string) error {
 			return fmt.Errorf("unable to list containers: %w", err)
 		}
 		for _, cont := range conts {
-			isRunning, _ := crt.IsPidRunning(cont.ContPid)
+			isRunning, _ := crt.IsContainerRunning(cont.Name)
 			if isRunning {
 				names = append(names, cont.Name)
 			}

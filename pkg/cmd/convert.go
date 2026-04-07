@@ -81,8 +81,6 @@ func Convert(args []string) error {
 	return err
 }
 
-// type ps {}
-
 func inspectContainer(contianerPlatform, containerId string) (containerInspect, error) {
 	i := containerInspect{}
 	if contianerPlatform == "" {

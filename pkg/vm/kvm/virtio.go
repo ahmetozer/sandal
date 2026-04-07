@@ -278,11 +278,23 @@ func (v *virtioMMIODev) writeReg(offset uint32, val uint32) {
 		}
 		// When the driver signals DRIVER_OK, initialize vhost backends
 		if val&virtioStatusDriverOK != 0 {
-			if vsock, ok := v.device.(*VirtioVsockDevice); ok {
+			switch dev := v.device.(type) {
+			case *VirtioVsockDevice:
 				go func() {
-					if err := vsock.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
-						slog.Warn("vhost-vsock setup failed", slog.Any("err", err))
+					if err := dev.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
+						// Promoted from Warn to Error: a failure here means
+						// the management socket cannot reach the guest, so
+						// `sandal exec`/`snapshot`/`export` will all hang or
+						// route to the wrong VM. Surface it loudly.
+						slog.Error("vhost-vsock setup failed", slog.Uint64("cid", dev.GuestCID()), slog.Any("err", err))
 					}
+				}()
+			case *VirtioNetDevice:
+				go func() {
+					if err := dev.SetupVhost(v, v.mem, guestMemBase, uint64(len(v.mem))); err != nil {
+						slog.Warn("vhost-net not available, using userspace fallback", slog.Any("err", err))
+					}
+					dev.StartIO(v)
 				}()
 			}
 		}
@@ -350,6 +362,70 @@ func (v *virtioMMIODev) injectIRQ() {
 	} else {
 		slog.Warn("injectIRQ: no eventfd", slog.Uint64("devID", uint64(v.device.DeviceID())))
 	}
+}
+
+// ProcessSingleAvailNoIRQ processes exactly one available descriptor chain
+// without injecting an IRQ. The caller is responsible for calling injectIRQ()
+// after batching. Returns false if no descriptor was available.
+func (v *virtioMMIODev) ProcessSingleAvailNoIRQ(queueIdx int, handler func(readBufs, writeBufs [][]byte) uint32) bool {
+	if queueIdx >= len(v.queues) {
+		return false
+	}
+	q := &v.queues[queueIdx]
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if !q.ready || q.num == 0 {
+		return false
+	}
+
+	availIdx := v.readGuestU16(q.drvAddr + 2)
+	if q.lastAvail == availIdx {
+		return false
+	}
+
+	ringOff := 4 + uint64(q.lastAvail%uint16(q.num))*2
+	descIdx := v.readGuestU16(q.drvAddr + ringOff)
+
+	var readBufs, writeBufs [][]byte
+	idx := descIdx
+	for {
+		desc := v.readDescriptor(q, idx)
+		gpa := desc.Addr
+		buf := v.guestSlice(gpa, uint64(desc.Len))
+		if buf != nil {
+			if desc.Flags&vringDescFWrite != 0 {
+				writeBufs = append(writeBufs, buf)
+			} else {
+				readBufs = append(readBufs, buf)
+			}
+		}
+		if desc.Flags&vringDescFNext == 0 {
+			break
+		}
+		idx = desc.Next
+	}
+
+	written := handler(readBufs, writeBufs)
+
+	usedIdx := v.readGuestU16(q.devAddr + 2)
+	usedRingOff := 4 + uint64(usedIdx%uint16(q.num))*8
+	v.writeGuestU32(q.devAddr+usedRingOff, uint32(descIdx))
+	v.writeGuestU32(q.devAddr+usedRingOff+4, written)
+	v.writeGuestU16(q.devAddr+2, usedIdx+1)
+
+	q.lastAvail++
+	return true
+}
+
+// ProcessSingleAvail processes one descriptor chain and injects an IRQ.
+func (v *virtioMMIODev) ProcessSingleAvail(queueIdx int, handler func(readBufs, writeBufs [][]byte) uint32) bool {
+	if v.ProcessSingleAvailNoIRQ(queueIdx, handler) {
+		v.injectIRQ()
+		return true
+	}
+	return false
 }
 
 // ProcessAvailRing processes all available descriptors in a queue.

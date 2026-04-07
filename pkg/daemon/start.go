@@ -12,6 +12,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
 )
 
 type DaemonConfig struct {
@@ -42,6 +43,12 @@ func (dc DaemonConfig) Start() error {
 	os.MkdirAll(env.BaseRootfsDir, 0o0660)
 
 	net.CreateDefaultBridge()
+
+	for _, mod := range []string{"vhost_net", "vhost_vsock"} {
+		if err := modprobe.Load(mod); err != nil {
+			slog.Warn("modprobe", slog.String("module", mod), slog.Any("err", err))
+		}
+	}
 
 	wg.Add(2)
 	daemonKillRequested := make(chan bool)

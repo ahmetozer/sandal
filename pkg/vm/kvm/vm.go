@@ -68,6 +68,7 @@ type VM struct {
 	stopCh     chan struct{}
 	stoppedCh  chan error
 	uart       *uart
+	rtc        *rtc
 	virtioDevs []*virtioMMIODev
 	consoleDev *VirtioConsoleDevice
 	netDevs    []*VirtioNetDevice
@@ -161,6 +162,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 	}
 
 	u := newUART(stdinReader, stdoutWriter, int(vmFd))
+	rtcDev := newRTC()
 
 	// Get vCPU mmap size.
 	vcpuMmapSize, err := getVCPUMmapSize(kvmFd)
@@ -268,17 +270,8 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		}
 	}
 
-	// VirtioFS devices for each mount.
-	for _, mount := range cfg.Mounts {
-		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
-		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
-		irqNum := uint32(16 + devIdx)
-		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
-		virtioDevs = append(virtioDevs, vDev)
-		devIdx++
-	}
-
 	// Virtio-net device backed by TAP interface.
+	// Placed before VirtioFS so the kernel assigns eth0 to it.
 	tapName := fmt.Sprintf("sandal%d", os.Getpid()%10000)
 	tap, err := createTAP(tapName)
 	if err != nil {
@@ -299,8 +292,31 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
-	// Virtio-vsock device for host<->guest socket communication.
-	vsockDev := NewVirtioVsockDevice(3) // CID=3 (guest)
+	// VirtioFS devices for each mount.
+	for _, mount := range cfg.Mounts {
+		fsDev := NewVirtioFSDevice(mount.Tag, mount.HostPath, mount.ReadOnly)
+		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
+		irqNum := uint32(16 + devIdx)
+		vDev := newVirtioMMIODev(baseAddr, irqNum, int(vmFd), mem, fsDev)
+		virtioDevs = append(virtioDevs, vDev)
+		devIdx++
+	}
+
+	// Virtio-vsock device for host<->guest socket communication. The
+	// constructor allocates a unique guest CID by holding a vhost-vsock fd
+	// that the kernel has accepted via VHOST_VSOCK_SET_GUEST_CID, so two
+	// concurrent VMs cannot end up routing to the same CID.
+	vsockDev, err := NewVirtioVsockDevice()
+	if err != nil {
+		for i := range vcpuFds {
+			unix.Munmap(vcpuRun[i])
+			unix.Close(vcpuFds[i])
+		}
+		unix.Munmap(mem)
+		unix.Close(int(vmFd))
+		unix.Close(kvmFd)
+		return nil, fmt.Errorf("vsock device: %w", err)
+	}
 	{
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 		irqNum := uint32(16 + devIdx)
@@ -362,6 +378,7 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		stopCh:       make(chan struct{}),
 		stoppedCh:    make(chan error, 1),
 		uart:         u,
+		rtc:          rtcDev,
 		virtioDevs:   virtioDevs,
 		consoleDev:   consoleDev,
 		netDevs:      netDevs,
@@ -369,6 +386,16 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		vsockDev:     vsockDev,
 		tap:          tap,
 	}, nil
+}
+
+// VsockGuestCID returns the AF_VSOCK guest CID that this VM's virtio-vsock
+// device was bound to. The host management socket relay uses this to dial
+// the correct guest when there are multiple concurrent VMs.
+func (vm *VM) VsockGuestCID() uint64 {
+	if vm.vsockDev == nil {
+		return 0
+	}
+	return vm.vsockDev.GuestCID()
 }
 
 func (vm *VM) Start() error {
@@ -390,12 +417,11 @@ func (vm *VM) Start() error {
 		}(i)
 	}
 
-	// Start RX loops for virtio devices.
+	// Start I/O loops for virtio devices.
+	// Note: VirtioNetDevice I/O is started from the DRIVER_OK handler
+	// (after vhost-net setup is attempted), not here.
 	for _, vd := range vm.virtioDevs {
-		switch dev := vd.device.(type) {
-		case *VirtioConsoleDevice:
-			dev.StartRX(vd)
-		case *VirtioNetDevice:
+		if dev, ok := vd.device.(*VirtioConsoleDevice); ok {
 			dev.StartRX(vd)
 		}
 	}
@@ -525,6 +551,11 @@ func (vm *VM) handleExitMMIO(run []byte) {
 		if vdev.HandleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:]) {
 			return
 		}
+	}
+
+	// Try RTC.
+	if vm.rtc.handleMMIO(exitMMIO.PhysAddr, exitMMIO.Len, exitMMIO.IsWrite, exitMMIO.Data[:]) {
+		return
 	}
 
 	// Fall back to UART.

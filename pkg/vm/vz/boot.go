@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
+	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
 )
 
@@ -83,6 +84,10 @@ func Boot(name string, cfg vmconfig.VMConfig, relays ...SocketRelay) error {
 			return
 		}
 		slog.Debug("Boot", slog.String("action", "started"), slog.String("state", vm.State().String()))
+
+		// Start the management socket relay so macOS commands can reach the
+		// embedded controller inside the VM via vsock port 4000.
+		mgmt.StartManagementSocket(name, mgmt.VZConnector{VM: vm, Port: 4000})
 	}()
 
 	// Wait for VM to stop

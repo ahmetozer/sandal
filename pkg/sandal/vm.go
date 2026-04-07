@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
+	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 )
@@ -196,6 +197,56 @@ func RewriteSocketVolumes(args []string, sockets []SocketMount) []string {
 		result = append(result, args[i])
 	}
 	return result
+}
+
+// ScanLowerPaths scans args for -lw flag values and returns the host paths
+// that need to be shared into the VM via VirtioFS so that the in-VM
+// mountRootfs() can locate the same source file or directory.
+//
+// Image references (e.g. "alpine:latest") are skipped: PullFromArgs has
+// already rewritten them to a path under env.BaseImageDir, which is shared
+// via the sandal-lib mount.
+func ScanLowerPaths(args []string) []string {
+	var paths []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			break
+		}
+		if args[i] == "-lw" && i+1 < len(args) {
+			i++
+			val := args[i]
+
+			// Strip :=sub suffix.
+			val = strings.TrimSuffix(val, ":=sub")
+
+			// Strip optional ":/target" suffix using last ":/" (matches parseLowerArg).
+			source := val
+			if idx := strings.LastIndex(val, ":/"); idx > 0 {
+				source = val[:idx]
+			}
+
+			// Strip disk options like ":part=2".
+			basePath := source
+			if p := strings.SplitN(source, ":", 2); len(p) > 0 {
+				basePath = p[0]
+			}
+
+			// Skip image references — handled by squash.PullFromArgs.
+			if squash.IsImageReference(source) {
+				continue
+			}
+
+			// Only share things that actually exist on the host. Anything
+			// that doesn't stat will either be an image ref (already
+			// handled) or a user typo we want to surface inside the VM.
+			if _, err := os.Stat(basePath); err != nil {
+				continue
+			}
+
+			paths = append(paths, basePath)
+		}
+	}
+	return paths
 }
 
 // ScanMountPaths scans args for -v flag values and returns the host paths

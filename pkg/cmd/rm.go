@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package cmd
 
@@ -36,7 +36,11 @@ func Rm(args []string) error {
 
 	if all {
 		for _, c := range conts {
-			isRunning, _ := crt.IsPidRunning(c.ContPid)
+			pid := c.ContPid
+			if pid == 0 && c.VM != "" {
+				pid = c.HostPid
+			}
+			isRunning, _ := crt.IsPidRunning(pid)
 			if !isRunning {
 				names = append(names, c.Name)
 			}
@@ -52,7 +56,11 @@ RequestedContainers:
 	for _, name := range names {
 		for _, c := range conts {
 			if c.Name == name {
-				isRunning, err := crt.IsPidRunning(c.ContPid)
+				pid := c.ContPid
+				if pid == 0 && c.VM != "" {
+					pid = c.HostPid
+				}
+				isRunning, err := crt.IsPidRunning(pid)
 
 				if err != nil {
 					errs = append(errs, fmt.Errorf("unable to check existence of '%s' container: %v", c.Name, err))

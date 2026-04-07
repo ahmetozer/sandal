@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package cmd
 
@@ -56,13 +56,23 @@ func Ps(args []string) error {
 }
 
 func printVerified(c *config.Config, t *tabwriter.Writer) {
-	if c.Status == crt.ContainerStatusRunning {
-		isRunning, err := crt.IsPidRunning(c.ContPid)
-		if err != nil {
-			slog.Warn("unable to get container status,", "error", err.Error())
+	if c.Status == crt.ContainerStatusRunning || c.Status == "" {
+		// For VM containers, ContPid is inside the VM (not visible from host).
+		// Check HostPid instead.
+		pid := c.ContPid
+		if pid == 0 && c.VM != "" {
+			pid = c.HostPid
 		}
-		if !isRunning {
-			c.Status = crt.ContainerStatusHang
+		if pid > 0 {
+			isRunning, err := crt.IsPidRunning(pid)
+			if err != nil {
+				slog.Warn("unable to get container status,", "error", err.Error())
+			}
+			if isRunning {
+				c.Status = crt.ContainerStatusRunning
+			} else {
+				c.Status = crt.ContainerStatusHang
+			}
 		}
 	}
 	printDry(c, t)
@@ -74,7 +84,12 @@ func printDry(c *config.Config, t *tabwriter.Writer) {
 	if len(c.ContArgs) >= 1 {
 		executable = c.ContArgs[0]
 	}
-	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.Lower.String(), executable, created, c.Status, c.ContPid)
+	// For VM containers, show HostPid since ContPid is inside the VM.
+	pid := c.ContPid
+	if pid == 0 && c.VM != "" {
+		pid = c.HostPid
+	}
+	fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%d\n", c.Name, c.Lower.String(), executable, created, c.Status, pid)
 }
 
 func printNamespaces(c *config.Config, t *tabwriter.Writer) {
