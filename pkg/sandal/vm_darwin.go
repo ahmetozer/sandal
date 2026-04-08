@@ -36,7 +36,17 @@ func stageHostEtc() string {
 
 // RunInVZ boots a VZ VM on macOS with the sandal Linux binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
-func RunInVZ(c *config.Config) error {
+//
+// netFlags carries the user's `-net` flags. On darwin, VZ currently only
+// attaches a single NAT'd virtio-net device (see pkg/vm/vz/vm.go), so
+// multiple `-net` flags are rejected here rather than silently hanging
+// inside the guest waiting for an eth1 that does not exist. Single-NIC
+// config still travels via SANDAL_VM_ARGS and the in-guest container init
+// applies it to eth0 (defaulting to DHCP when no addresses are specified).
+func RunInVZ(c *config.Config, netFlags []string) error {
+	if len(netFlags) > 1 {
+		return fmt.Errorf("-vm on darwin supports a single -net flag (VZ attaches one NAT NIC); got %d", len(netFlags))
+	}
 	if running, _ := crt.IsContainerRunning(c.Name); running {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}

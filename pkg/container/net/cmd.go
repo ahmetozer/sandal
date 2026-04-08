@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyz"
@@ -31,10 +32,18 @@ func randomString(length int) string {
 	return stringWithCharset(length, charset)
 }
 
-func parseCmd(cmd string, conts *[]*config.Config) (Link, error) {
+func parseCmd(cmd string, conts *[]*config.Config, idx int) (Link, error) {
 
 	myar := strings.Split(cmd, ";")
 	myIf := Link{Id: randomString(10)}
+	// Inside the VM guest, the host has already pre-created the virtio-net
+	// devices in the same order as the user's -net flags. Pin Id/Name to the
+	// matching ethN so Link.defaults() and the in-guest configurator address
+	// the right interface.
+	if isVM, _ := env.IsVM(); isVM {
+		myIf.Id = fmt.Sprintf("eth%d", idx)
+		myIf.Name = fmt.Sprintf("eth%d", idx)
+	}
 	var err error
 
 	for v := range myar {
@@ -131,7 +140,7 @@ func ParseFlag(flags []string, conts []*config.Config, cont *config.Config) (Lin
 	})
 
 	for i := range flags {
-		link, err := parseCmd(flags[i], &conts)
+		link, err := parseCmd(flags[i], &conts, i)
 		if err != nil {
 			return nil, err
 		}
