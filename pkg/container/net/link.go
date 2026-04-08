@@ -8,12 +8,48 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
 )
+
+// loadVMNetLinks decodes SANDAL_VM_NET (set on the kernel cmdline by the host
+// in RunInKVM) into a slice of Link descriptors. The host writes a JSON array,
+// one entry per host -net flag. For backwards compatibility with VMs booted by
+// older sandal builds that wrote a single Link object, the helper falls back
+// to decoding a single object and wrapping it in a one-element slice.
+func loadVMNetLinks() []Link {
+	spec := os.Getenv("SANDAL_VM_NET")
+	if spec == "" {
+		return nil
+	}
+	var arr []Link
+	if err := json.Unmarshal([]byte(spec), &arr); err == nil && arr != nil {
+		return arr
+	}
+	var one Link
+	if err := json.Unmarshal([]byte(spec), &one); err == nil {
+		return []Link{one}
+	}
+	return nil
+}
+
+// vmLinkIndex extracts the numeric suffix from an interface name like "eth3".
+// Returns -1 if the name does not match the expected ethN pattern.
+func vmLinkIndex(name string) int {
+	if !strings.HasPrefix(name, "eth") {
+		return -1
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(name, "eth"))
+	if err != nil || n < 0 {
+		return -1
+	}
+	return n
+}
 
 type Link struct {
 	Mtu    int
@@ -35,23 +71,35 @@ type Links []Link
 func (l Link) defaults(conts *[]*config.Config) Link {
 
 	if isVM, _ := env.IsVM(); isVM {
-		// VM mode: move eth0 directly into the container netns.
-		// No bridge or veth needed. Override veth default.
+		// VM mode: the VMM has already pre-attached one virtio-net device
+		// per -net flag. We don't create a veth — we just adopt the matching
+		// ethN that the kernel enumerated.
 		if l.Type == "" || l.Type == LinkTypeVeth {
 			l.Type = LinkTypePassthru
 		}
 		if l.Type == LinkTypePassthru {
 			l.Master = ""
-			l.Id = "eth0"
-			l.Name = "eth0"
-			// KVM: host allocates static IP via SANDAL_VM_NET
-			// VZ:  no SANDAL_VM_NET, container will DHCP on eth0
+			// ParseFlag stamps Id/Name to ethN by index in VM mode; only
+			// fall back to eth0 if for some reason that didn't happen
+			// (e.g. a Link constructed by code outside the parser).
+			if l.Id == "" {
+				l.Id = "eth0"
+			}
+			if l.Name == "" {
+				l.Name = l.Id
+			}
+			// KVM: host pre-allocates per-NIC addrs into SANDAL_VM_NET (a
+			// JSON array of Links — index N corresponds to ethN).
+			// VZ:  no SANDAL_VM_NET, container will DHCP on eth0.
 			if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
-				if netSpec := os.Getenv("SANDAL_VM_NET"); netSpec != "" {
-					var vmLink Link
-					if err := json.Unmarshal([]byte(netSpec), &vmLink); err == nil {
-						l.Addr = vmLink.Addr
-						l.Route = vmLink.Route
+				if vmLinks := loadVMNetLinks(); len(vmLinks) > 0 {
+					idx := vmLinkIndex(l.Id)
+					if idx >= 0 && idx < len(vmLinks) {
+						l.Addr = vmLinks[idx].Addr
+						l.Route = vmLinks[idx].Route
+						if l.Ether == nil && len(vmLinks[idx].Ether) > 0 {
+							l.Ether = vmLinks[idx].Ether
+						}
 					}
 				} else {
 					l.DHCPv4 = true

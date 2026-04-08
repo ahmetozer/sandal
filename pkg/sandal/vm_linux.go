@@ -32,7 +32,13 @@ import (
 
 // RunInKVM boots a KVM VM with the current sandal binary as /init,
 // then re-executes `sandal run` inside the VM with the original args.
-func RunInKVM(c *config.Config) error {
+//
+// netFlags carries the raw `-net` flag values exactly as received on the host
+// CLI. They are parsed once on the host (so each NIC gets its own host TAP and
+// virtio-net device wired to the requested bridge), and then forwarded to the
+// guest inside SANDAL_VM_ARGS so the in-guest container init can apply the
+// same configuration to the matching ethN inside the VM.
+func RunInKVM(c *config.Config, netFlags []string) error {
 	if running, _ := crt.IsContainerRunning(c.Name); running {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
@@ -135,33 +141,47 @@ func RunInKVM(c *config.Config) error {
 		return err
 	}
 
-	// Allocate a network configuration for the VM from the sandal0 bridge
-	var vmNetEncoded string
-	bridge, bridgeErr := sandalnet.CreateDefaultBridge()
-	if bridgeErr != nil && bridgeErr != os.ErrExist {
+	// Allocate per-link network configuration for the VM. We reuse the
+	// container-mode parser so a single -net flag means one NIC, two means
+	// two, etc. — symmetric with non-VM mode. ParseFlag runs Link.defaults()
+	// which (because we're on the host, not inside a VM) takes the container
+	// branch and allocates IPs from each link's master bridge.
+	if _, bridgeErr := sandalnet.CreateDefaultBridge(); bridgeErr != nil && bridgeErr != os.ErrExist {
 		slog.Warn("runInKVM", slog.String("action", "create bridge"), slog.Any("error", bridgeErr))
 	}
-	if bridge != nil {
-		hostAddrs, err := sandalnet.GetAddrsByName(sandalnet.DefaultBridgeInterface)
-		if err == nil && len(hostAddrs) > 0 {
-			conts, _ := controller.Containers()
-			link := sandalnet.Link{Name: "eth0"}
-			for _, ha := range hostAddrs {
-				ip, err := sandalnet.IPRequest(&conts, ha.IPNet)
-				if err != nil {
-					slog.Warn("runInKVM", slog.String("action", "ip allocation"), slog.Any("error", err))
-					continue
-				}
-				link.Addr = append(link.Addr, sandalnet.Addr{IP: ip, IPNet: ha.IPNet})
-				link.Route = append(link.Route, ha)
-			}
-			if len(link.Addr) > 0 {
-				netJSON, err := json.Marshal(link)
-				if err == nil {
-					vmNetEncoded = base64.StdEncoding.EncodeToString(netJSON)
-				}
-			}
+	conts, _ := controller.Containers()
+	parsedLinks, err := sandalnet.ParseFlag(netFlags, conts, c)
+	if err != nil {
+		return fmt.Errorf("parsing -net for VM: %w", err)
+	}
+	c.Net = parsedLinks
+
+	// Build the kvm.NewVM device list (just bridge + MAC per NIC) and the
+	// SANDAL_VM_NET cmdline payload (full Link slice with addrs/routes).
+	cfg.NetLinks = nil
+	for i, l := range parsedLinks {
+		bridgeName := l.Master
+		if bridgeName == "" {
+			bridgeName = sandalnet.DefaultBridgeInterface
 		}
+		nlc := vmconfig.NetLinkConfig{Master: bridgeName}
+		if len(l.Ether) == 6 {
+			nlc.Ether = []byte(l.Ether)
+		} else {
+			// Locally-administered MAC: 0x52:0x54:0x00:<pid hi>:<pid lo>:<i+1>
+			pid := os.Getpid()
+			nlc.Ether = []byte{0x52, 0x54, 0x00, byte(pid >> 8), byte(pid), byte(i + 1)}
+		}
+		cfg.NetLinks = append(cfg.NetLinks, nlc)
+	}
+
+	var vmNetEncoded string
+	if len(parsedLinks) > 0 {
+		netJSON, err := json.Marshal(parsedLinks)
+		if err != nil {
+			return fmt.Errorf("marshal vm net links: %w", err)
+		}
+		vmNetEncoded = base64.StdEncoding.EncodeToString(netJSON)
 	}
 
 	// Build kernel command line

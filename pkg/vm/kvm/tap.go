@@ -83,13 +83,31 @@ func (t *tapDevice) Close() error {
 	return t.file.Close()
 }
 
-// attachToBridge attaches the TAP device to the sandal0 bridge,
-// the same way container veth pairs are connected.
+// attachToBridge attaches the TAP device to the default sandal0 bridge.
+// Kept for backwards compatibility; new callers should prefer
+// attachToBridgeNamed which takes an explicit bridge name.
 func (t *tapDevice) attachToBridge() error {
-	// Ensure sandal0 bridge exists (idempotent — returns os.ErrExist if already created)
-	bridge, err := sandalnet.CreateDefaultBridge()
-	if err != nil && err != os.ErrExist {
-		return fmt.Errorf("creating bridge: %w", err)
+	return t.attachToBridgeNamed(sandalnet.DefaultBridgeInterface)
+}
+
+// attachToBridgeNamed attaches the TAP device to the named host bridge,
+// the same way container veth pairs are connected. The default sandal0
+// bridge is auto-created on demand; other bridges must already exist.
+func (t *tapDevice) attachToBridgeNamed(bridgeName string) error {
+	var bridge netlink.Link
+	if bridgeName == "" || bridgeName == sandalnet.DefaultBridgeInterface {
+		// Ensure sandal0 exists (idempotent — returns os.ErrExist if already created)
+		b, err := sandalnet.CreateDefaultBridge()
+		if err != nil && err != os.ErrExist {
+			return fmt.Errorf("creating bridge: %w", err)
+		}
+		bridge = b
+	} else {
+		b, err := netlink.LinkByName(bridgeName)
+		if err != nil {
+			return fmt.Errorf("finding bridge %s: %w", bridgeName, err)
+		}
+		bridge = b
 	}
 
 	// Get TAP link by name
@@ -98,9 +116,9 @@ func (t *tapDevice) attachToBridge() error {
 		return fmt.Errorf("finding TAP %s: %w", t.name, err)
 	}
 
-	// Attach TAP to sandal0 bridge (same as veth host-side attachment)
+	// Attach TAP to bridge (same as veth host-side attachment)
 	if err := netlink.LinkSetMaster(tapLink, bridge); err != nil {
-		return fmt.Errorf("attaching %s to bridge: %w", t.name, err)
+		return fmt.Errorf("attaching %s to bridge %s: %w", t.name, bridgeName, err)
 	}
 
 	// Bring TAP interface up

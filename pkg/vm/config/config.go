@@ -25,15 +25,25 @@ type MountConfig struct {
 	ReadOnly bool   `json:"read_only,omitempty"`
 }
 
+// NetLinkConfig is the minimal NIC description needed to wire a virtio-net
+// device on VM boot: which host bridge the TAP attaches to, and the MAC the
+// guest will see. Full IP/route configuration travels via the SANDAL_VM_NET
+// kernel cmdline so the guest container init can apply it.
+type NetLinkConfig struct {
+	Master string `json:"master,omitempty"`
+	Ether  []byte `json:"ether,omitempty"`
+}
+
 type VMConfig struct {
-	KernelPath  string        `json:"kernel_path"`
-	InitrdPath  string        `json:"initrd_path,omitempty"`
-	CommandLine string        `json:"command_line"`
-	DiskPath    string        `json:"disk_path"`
-	ISOPath     string        `json:"iso_path,omitempty"`
-	Mounts      []MountConfig `json:"mounts,omitempty"`
-	CPUCount    uint          `json:"cpu_count"`
-	MemoryBytes uint64        `json:"memory_bytes"`
+	KernelPath  string          `json:"kernel_path"`
+	InitrdPath  string          `json:"initrd_path,omitempty"`
+	CommandLine string          `json:"command_line"`
+	DiskPath    string          `json:"disk_path"`
+	ISOPath     string          `json:"iso_path,omitempty"`
+	Mounts      []MountConfig   `json:"mounts,omitempty"`
+	NetLinks    []NetLinkConfig `json:"net_links,omitempty"`
+	CPUCount    uint            `json:"cpu_count"`
+	MemoryBytes uint64          `json:"memory_bytes"`
 }
 
 func (c *VMConfig) Validate() error {

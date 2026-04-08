@@ -74,7 +74,6 @@ type VM struct {
 	netDevs    []*VirtioNetDevice
 	blkDevs    []*VirtioBlkDevice
 	vsockDev   *VirtioVsockDevice
-	tap        *tapDevice
 }
 
 func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
@@ -270,19 +269,40 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		}
 	}
 
-	// Virtio-net device backed by TAP interface.
-	// Placed before VirtioFS so the kernel assigns eth0 to it.
-	tapName := fmt.Sprintf("sandal%d", os.Getpid()%10000)
-	tap, err := createTAP(tapName)
-	if err != nil {
-		slog.Warn("failed to create TAP device, networking disabled", slog.Any("err", err))
-	} else {
-		// Attach TAP to the sandal0 bridge (same network as containers).
-		if err := tap.attachToBridge(); err != nil {
-			slog.Warn("bridge attachment failed, networking may not work", slog.Any("err", err))
+	// Virtio-net devices, one per -net flag. These are created BEFORE
+	// VirtioFS devices so the kernel assigns ethN in this order
+	// (virtio-mmio probes by ascending MMIO address). The Nth device here
+	// matches the Nth Link in SANDAL_VM_NET on the kernel cmdline.
+	netSpecs := cfg.NetLinks
+	if len(netSpecs) == 0 {
+		// Defensive default for code paths that boot a VM without going
+		// through RunInKVM (e.g. legacy `sandal vm start` configs that
+		// pre-date NetLinks). One NIC on sandal0 with a PID-derived MAC.
+		netSpecs = []vmconfig.NetLinkConfig{{
+			Master: "",
+			Ether:  []byte{0x52, 0x54, 0x00, byte(os.Getpid() >> 8), byte(os.Getpid()), 0x01},
+		}}
+	}
+	for i, spec := range netSpecs {
+		tapName := fmt.Sprintf("sandal%d-%d", os.Getpid()%10000, i)
+		tap, err := createTAP(tapName)
+		if err != nil {
+			slog.Warn("failed to create TAP device, NIC disabled",
+				slog.Int("idx", i), slog.Any("err", err))
+			continue
+		}
+		if err := tap.attachToBridgeNamed(spec.Master); err != nil {
+			slog.Warn("bridge attachment failed, NIC may not work",
+				slog.Int("idx", i), slog.String("bridge", spec.Master), slog.Any("err", err))
 		}
 
-		mac := [6]byte{0x52, 0x54, 0x00, byte(os.Getpid() >> 8), byte(os.Getpid()), 0x01}
+		var mac [6]byte
+		if len(spec.Ether) == 6 {
+			copy(mac[:], spec.Ether)
+		} else {
+			mac = [6]byte{0x52, 0x54, 0x00, byte(os.Getpid() >> 8), byte(os.Getpid()), byte(i + 1)}
+		}
+
 		netDev := NewVirtioNetDevice(tap, mac)
 		baseAddr := uint64(0x0a000000) + uint64(devIdx)*virtioMMIORegionSize
 		irqNum := uint32(16 + devIdx)
@@ -384,7 +404,6 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		netDevs:      netDevs,
 		blkDevs:      blkDevs,
 		vsockDev:     vsockDev,
-		tap:          tap,
 	}, nil
 }
 
@@ -633,8 +652,10 @@ func (vm *VM) Close() {
 	if vm.vsockDev != nil {
 		vm.vsockDev.Close()
 	}
-	if vm.tap != nil {
-		vm.tap.Close()
+	for _, nd := range vm.netDevs {
+		if nd != nil && nd.tap != nil {
+			nd.tap.Close()
+		}
 	}
 }
 

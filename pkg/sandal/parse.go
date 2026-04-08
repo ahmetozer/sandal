@@ -111,7 +111,7 @@ func parseAndRunContainer(args []string) error {
 	// If -vm is set and we're not already inside a VM, dispatch to VM boot path.
 	// On macOS (darwin), always use VM path since native containers aren't supported.
 	if !guest.IsVMInit() && (useVM || requiresVM()) {
-		return RunInVM(&c)
+		return RunInVM(&c, []string(networkInterfacesCmd))
 	}
 
 	return RunContainer(&c, []string(networkInterfacesCmd))

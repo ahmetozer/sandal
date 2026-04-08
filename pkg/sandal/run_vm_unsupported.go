@@ -9,6 +9,7 @@ import (
 )
 
 // RunInVM is not supported on this platform.
-func RunInVM(c *config.Config) error {
+func RunInVM(c *config.Config, netFlags []string) error {
+	_ = netFlags
 	return fmt.Errorf("VM is not supported on this platform")
 }
