@@ -11,8 +11,7 @@ import (
 
 // VirtioConsoleDevice implements a virtio-console device.
 // This provides /dev/hvc0 in the guest, which the kernel uses as
-// the initial console — solving the "/dev/console not found" problem
-// that requires the preinit hack with PL011-only setups.
+// the initial console.
 //
 // Device ID: 3 (VIRTIO_ID_CONSOLE)
 // Queue 0: RX (device writes, driver reads — guest input)

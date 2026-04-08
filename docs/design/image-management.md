@@ -144,33 +144,44 @@ EnsureKernel() -> kernelPath
 
 **File**: `kernel/initrd.go`
 
-The initrd contains the sandal binary and kernel modules needed for the VM to boot and mount VirtioFS shares.
+The initrd contains the sandal binary and kernel modules needed for the VM
+to boot and mount VirtioFS shares. The result is **content-addressed**: the
+cache key is `sha256(sandal binary || base initrd)` truncated to 16 bytes
+hex, and the file lives at `<BaseKernelDir>/initramfs-sandal-<hash>.img`.
+Identical inputs always resolve to the same path; on a cache hit no archive
+is built.
 
 ```
-CreateFromBinary(binaryPath, baseInitrd) -> initrdPath
+CreateFromBinary(binaryPath, baseInitrd) -> cachePath
   |
-  +-- Start with base initrd (kernel modules as CPIO archive):
-  |     buildModulesInitrd(modulesDir) -> base.cpio.gz
-  |     Contains: virtio, fuse, virtiofs, overlay, net modules
+  +-- Compute cache key:
+  |     sha256(binary) || 0x00 || sha256(baseInitrd)
+  |     -> first 16 bytes hex -> "439a75c21ae9...".img
   |
-  +-- Strip CPIO trailer from base initrd (to allow appending)
+  +-- If <BaseKernelDir>/initramfs-sandal-<hash>.img exists -> return it
   |
-  +-- Append pre-init binary (ARM64 only):
-  |     /init -> tiny ARM64 ELF that:
-  |       mount -t proc proc /proc
-  |       mount -t devtmpfs devtmpfs /dev
-  |       open /dev/console as stdin/stdout/stderr
-  |       exec /sandal-init
+  +-- Build into a temp file in <BaseKernelDir> (same dir for atomic rename):
+  |     - Decompress base initrd, strip CPIO trailer, append
+  |     - Append /dev/console char device (5,1) so the kernel
+  |       wires fds 0/1/2 when init is exec'd
+  |     - Append /etc/{nsswitch.conf,resolv.conf,hosts} for Go runtime
+  |     - Append sandal binary as /init
+  |       (mounts /dev devtmpfs + /proc procfs itself in
+  |        importKernelCmdlineEnv before any code that needs them)
+  |     - Write CPIO trailer
+  |     - Gzip compress
+  |     - fsync
   |
-  +-- Append sandal binary:
-  |     /sandal-init -> the full sandal binary
+  +-- Atomic rename to final cache path
   |
-  +-- Write CPIO trailer
-  |
-  +-- Gzip compress the combined archive
-  |
-  +-- Return initrdPath
+  +-- Return cachePath (owned by cache, NOT removed by caller)
 ```
+
+The cache entry is reused across every VM start that uses the same sandal
+binary and base initrd — typically every run on a stable host. Updating
+sandal or upgrading the kernel produces a new entry; old entries stay on
+disk and can be pruned manually with
+`rm <BaseKernelDir>/initramfs-sandal-*.img`.
 
 #### CPIO Format
 
@@ -216,25 +227,6 @@ CreateOverlay(baseInitrd, mounts) -> modifiedInitrd
   |
   +-- Return combined initrd
 ```
-
-### Preinit (ARM64)
-
-**File**: `kernel/preinit.go`
-
-ARM64 kernels require `/proc` and `/dev` to be mounted before the Go runtime can function (it needs `/proc/self/exe` and file descriptors). A tiny static ELF binary handles this:
-
-```go
-//go:embed preinit_arm64
-var preinitBinary []byte
-```
-
-The preinit binary (compiled from assembly/C, embedded in Go):
-1. `mount("proc", "/proc", "proc", 0, "")`
-2. `mount("devtmpfs", "/dev", "devtmpfs", 0, "")`
-3. `open("/dev/console", O_RDWR)` -> fd 0 (stdin)
-4. `dup2(0, 1)` -> fd 1 (stdout)
-5. `dup2(0, 2)` -> fd 2 (stderr)
-6. `execve("/sandal-init", ...)` -> the actual sandal binary
 
 ### ZBOOT Extraction
 

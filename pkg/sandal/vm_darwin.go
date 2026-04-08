@@ -131,12 +131,12 @@ func RunInVZ(c *config.Config) error {
 	// Build kernel command line (no network allocation on darwin)
 	cfg.CommandLine = BuildKernelCmdLine("mac", argsJSON, mountEntries, "", socketEntries)
 
-	// Create initrd with sandal binary as /init
+	// Create initrd with sandal binary as /init. Path is owned by the
+	// kernel cache (content-addressed) and persists across runs.
 	initrdPath, err := PrepareInitrd(cfg.KernelPath, env.VMBinPath)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(initrdPath)
 	cfg.InitrdPath = initrdPath
 
 	// Each run gets an ephemeral VM that is cleaned up on exit.

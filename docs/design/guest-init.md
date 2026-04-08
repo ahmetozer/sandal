@@ -19,26 +19,25 @@ Three conditions identify VM init mode:
 
 ## Boot Stages
 
-### Stage 0: Preinit (ARM64 only)
-
-Before the Go binary can run, a tiny static ELF (`preinit_arm64`) handles minimal setup:
-
-```
-Kernel boots -> /init (preinit binary)
-  1. mount("proc", "/proc", "proc")
-  2. mount("devtmpfs", "/dev", "devtmpfs")
-  3. open("/dev/console") -> fd 0,1,2
-  4. execve("/sandal-init")  -> sandal Go binary takes over
-```
-
-This is needed because Go runtime requires `/proc/self/exe` and valid stdio file descriptors.
-
-On x86-64, the kernel's built-in devtmpfs and console setup makes this unnecessary.
-
 ### Stage 1: Environment Import
+
+The Go binary runs directly as `/init` on both KVM and VZ. The kernel
+opens `/dev/console` (provided as a cpio char device in the initramfs)
+for fds 0/1/2 when init is exec'd, so the Go runtime starts with valid
+stdio. `importKernelCmdlineEnv()` then mounts `devtmpfs` on `/dev` and
+`procfs` on `/proc` before reading `/proc/cmdline`:
 
 ```go
 func importKernelCmdlineEnv() {
+    // Mount /dev and /proc if not already present (KVM initramfs path).
+    if _, err := os.Stat("/dev/null"); err != nil {
+        os.MkdirAll("/dev", 0755)
+        mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+    }
+    if _, err := os.Stat("/proc/cmdline"); err != nil {
+        os.MkdirAll("/proc", 0755)
+        mount("proc", "/proc", "proc", 0, "")
+    }
     cmdline, _ := os.ReadFile("/proc/cmdline")
     // Parse space-separated key=value pairs
     // For SANDAL_* keys: base64-decode the value
