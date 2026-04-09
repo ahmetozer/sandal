@@ -6,12 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
+	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 )
 
 func Clear(args []string) error {
@@ -121,8 +125,61 @@ func Clear(args []string) error {
 	}
 
 	// Build the usage set from the containers that will survive
-	// phase 1. This is what the scanners diff against.
+	// phase 1. This enables chain-reclamation in a single pass:
+	// when `sandal clear -all` removes mytest, an image referenced
+	// only by mytest becomes eligible for removal in the same run.
+	// The reason line on each action below is enriched with the
+	// names of the containers being removed that referenced it, so
+	// the report stays accurate ("only referenced by container(s)
+	// being removed: mytest" rather than the misleading "not
+	// referenced by any container").
 	usage := clean.BuildUsageSet(toKeep)
+
+	// Map image/snapshot path -> list of to-be-removed containers
+	// that referenced it, so we can explain *why* it became
+	// eligible after phase 1.
+	refsByPath := map[string][]string{}
+	for _, c := range conts {
+		if !toRemove[c.Name] {
+			continue
+		}
+		for _, im := range c.ImmutableImages {
+			if im.File == "" {
+				continue
+			}
+			refsByPath[im.File] = append(refsByPath[im.File], c.Name)
+		}
+		for _, ref := range c.Lower {
+			p := filepath.Join(env.BaseImageDir, squash.SanitizeRef(ref)+".sqfs")
+			refsByPath[p] = append(refsByPath[p], c.Name)
+		}
+		if c.Snapshot != "" {
+			refsByPath[c.Snapshot] = append(refsByPath[c.Snapshot], c.Name)
+		}
+		refsByPath[filepath.Join(env.BaseSnapshotDir, c.Name+".sqfs")] = append(
+			refsByPath[filepath.Join(env.BaseSnapshotDir, c.Name+".sqfs")], c.Name)
+	}
+	// enrichReason mutates Action.Reason in place so the report
+	// explains which removed container(s) used to reference it.
+	enrichReason := func(as []clean.Action) []clean.Action {
+		for i := range as {
+			names := refsByPath[as[i].Path]
+			if len(names) == 0 {
+				continue
+			}
+			seen := map[string]bool{}
+			uniq := names[:0]
+			for _, n := range names {
+				if seen[n] {
+					continue
+				}
+				seen[n] = true
+				uniq = append(uniq, n)
+			}
+			as[i].Reason = "only referenced by: " + strings.Join(uniq, ", ")
+		}
+		return as
+	}
 
 	// For the real run, perform phase-1 removals now via
 	// DeRunContainer so it can also tear down mounts, cgroups, and
@@ -169,10 +226,10 @@ func Clear(args []string) error {
 		actions = append(actions, dedup(clean.PlanOrphans(usage))...)
 	}
 	if doImages {
-		actions = append(actions, dedup(clean.PlanImages(usage))...)
+		actions = append(actions, dedup(enrichReason(clean.PlanImages(usage)))...)
 	}
 	if doSnapshots {
-		actions = append(actions, dedup(clean.PlanSnapshots(usage))...)
+		actions = append(actions, dedup(enrichReason(clean.PlanSnapshots(usage)))...)
 	}
 	if doKernel {
 		actions = append(actions, dedup(clean.PlanKernelCache())...)
