@@ -3,10 +3,12 @@
 package host
 
 import (
+	"log/slog"
 	"os"
 	"path"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -22,9 +24,26 @@ func DeRunContainer(c *config.Config) {
 	CleanupResources(c)
 	Kill(c, 9, 5)
 	if c.Remove {
-		os.RemoveAll(c.RootfsDir)
-		os.RemoveAll(c.ChangeDir)
-		os.Remove(c.ChangeDir + ".img")
-		os.Remove(c.ConfigFileLoc())
+		removeAll := func(name string) {
+			if name == "" {
+				return
+			}
+			ok, err := clean.IsInsideSandalArea(name)
+			if err != nil {
+				slog.Warn("deRunContainer: safety check failed", "path", name, "err", err)
+				return
+			}
+			if !ok {
+				slog.Warn("deRunContainer: refusing to delete path outside sandal dirs", "path", name)
+				return
+			}
+			os.RemoveAll(name)
+		}
+		removeAll(c.RootfsDir)
+		removeAll(c.ChangeDir)
+		if c.ChangeDir != "" {
+			removeAll(c.ChangeDir + ".img")
+		}
+		removeAll(c.ConfigFileLoc())
 	}
 }

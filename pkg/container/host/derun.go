@@ -8,6 +8,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
+	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/vishvananda/netlink"
@@ -58,8 +59,19 @@ func DeRunContainer(c *config.Config) {
 	Kill(c, 9, 5)
 
 	if c.Remove {
-
 		removeAll := func(name string) {
+			if name == "" {
+				return
+			}
+			ok, err := clean.IsInsideSandalArea(name)
+			if err != nil {
+				slog.Warn("deRunContainer: safety check failed", "path", name, "err", err)
+				return
+			}
+			if !ok {
+				slog.Warn("deRunContainer: refusing to delete path outside sandal dirs", "path", name)
+				return
+			}
 			if err := os.RemoveAll(name); err != nil {
 				slog.Debug("deRunContainer", "removeall", slog.String("file", name), slog.Any("error", err))
 			}
@@ -67,7 +79,9 @@ func DeRunContainer(c *config.Config) {
 
 		removeAll(c.RootfsDir)
 		removeAll(c.ChangeDir)
-		removeAll(c.ChangeDir + ".img") // VM disk image for change dir
+		if c.ChangeDir != "" {
+			removeAll(c.ChangeDir + ".img") // VM disk image for change dir
+		}
 		removeAll(c.ConfigFileLoc())
 	}
 
