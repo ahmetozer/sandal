@@ -212,6 +212,13 @@ func IsImageReference(s string) bool {
 	return strings.Contains(ref.Registry, ".")
 }
 
+// SanitizeRef converts an image reference to the cache filename (without
+// the .sqfs extension) used by Pull. Exported so housekeeping code can map
+// raw references (e.g. container config Lower entries) back to cached files.
+func SanitizeRef(ref string) string {
+	return sanitizeRef(ref)
+}
+
 // sanitizeRef converts an image reference to a safe filename.
 func sanitizeRef(ref string) string {
 	h := sha256.Sum256([]byte(ref))
