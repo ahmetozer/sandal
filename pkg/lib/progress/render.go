@@ -25,6 +25,10 @@ func StartRenderer(ch <-chan Event, out io.Writer) <-chan struct{} {
 			r.update(ev)
 		}
 		r.clearLine()
+		if r.isTTY {
+			restoreEcho()
+			fmt.Fprint(r.out, "\033[?25h") // show cursor
+		}
 	}()
 	return done
 }
@@ -51,9 +55,16 @@ type renderer struct {
 	order            []string
 	lastLen          int
 	downloadFinished bool
+	cursorHidden     bool
 }
 
 func (r *renderer) update(ev Event) {
+	if r.isTTY && !r.cursorHidden {
+		fmt.Fprint(r.out, "\033[?25l") // hide cursor
+		disableEcho()
+		r.cursorHidden = true
+	}
+
 	if _, exists := r.tasks[ev.TaskID]; !exists {
 		r.order = append(r.order, ev.TaskID)
 	}

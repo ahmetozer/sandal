@@ -11,3 +11,9 @@ func isTerminal(_ *os.File) bool {
 func terminalWidth(_ *os.File) int {
 	return 80
 }
+
+func disableEcho() {
+}
+
+func restoreEcho() {
+}
