@@ -43,9 +43,6 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 	if err := os.MkdirAll(imageDir, 0755); err != nil {
 		return "", fmt.Errorf("creating image directory: %w", err)
 	}
-	if err := os.MkdirAll(env.BaseTempDir, 0755); err != nil {
-		return "", fmt.Errorf("creating temp directory: %w", err)
-	}
 
 	srcRef, err := registry.ParseReference(imageRef)
 	if err != nil {

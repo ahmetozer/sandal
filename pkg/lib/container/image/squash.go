@@ -285,6 +285,10 @@ func downloadLayers(ctx context.Context, client *registry.Client, repo string, d
 
 	slog.Info("downloadLayers", slog.String("action", "downloading"), slog.Int("layers", len(fsLayers)))
 
+	if err := os.MkdirAll(env.BaseTempDir, 0755); err != nil {
+		return nil, fmt.Errorf("creating temp directory: %w", err)
+	}
+
 	// Download and decompress each layer to a temp file to avoid
 	// holding all uncompressed data in RAM simultaneously.
 	// Limit concurrency to avoid memory pressure from many parallel
