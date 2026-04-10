@@ -77,6 +77,9 @@ type Writer struct {
 	// Returns true to include the entry, false to skip it.
 	pathFilter func(relPath string, isDir bool) bool
 
+	// Optional progress callback invoked after each file's data is written.
+	progressFn func(bytesWritten int64)
+
 	dataPos int64
 }
 
@@ -115,6 +118,12 @@ func WithCompression(c SquashfsCompression) WriterOption {
 
 func WithMkfsTime(t time.Time) WriterOption {
 	return func(w *Writer) { w.mkfsTime = t }
+}
+
+// WithProgressFunc sets a callback invoked after each file's data is written.
+// bytesWritten is the cumulative data bytes written so far.
+func WithProgressFunc(fn func(bytesWritten int64)) WriterOption {
+	return func(w *Writer) { w.progressFn = fn }
 }
 
 // WithPathFilter sets a filter function that controls which paths are included.
@@ -729,6 +738,9 @@ func (w *Writer) buildFileInode(path string, info fs.FileInfo) (uint32, error) {
 	}
 
 	w.appendInode(inodeNum, buf.Bytes())
+	if w.progressFn != nil {
+		w.progressFn(w.dataPos)
+	}
 	return inodeNum, nil
 }
 

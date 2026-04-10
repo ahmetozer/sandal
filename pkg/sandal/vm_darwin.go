@@ -13,6 +13,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/vz"
@@ -94,7 +95,11 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 
 	// Pre-pull OCI images on the host and convert to squashfs.
 	imageDir := filepath.Join(env.LibDir, "image")
-	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir)
+	progressCh := make(chan progress.Event, 16)
+	renderDone := progress.StartRenderer(progressCh, os.Stderr)
+	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir, progressCh)
+	close(progressCh)
+	<-renderDone
 	// Rewrite relative -lw paths to absolute so the in-VM controller can
 	// find them via the virtiofs share at /mnt/<abspath>.
 	cleanArgs = AbsolutizeLowerPaths(cleanArgs)

@@ -13,13 +13,18 @@ import (
 	"strings"
 
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"golang.org/x/sys/unix"
 )
 
 // mergeLayers merges OCI image layers into a single directory.
 // It first tries overlayfs (kernel handles whiteouts natively, fastest),
 // then falls back to manual disk-based extraction with whiteout processing.
-func mergeLayers(layers []io.Reader, dir string) error {
+func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) error {
+	var pch chan<- progress.Event
+	if len(progressCh) > 0 {
+		pch = progressCh[0]
+	}
 	// Extract each layer to its own directory.
 	layerDirs := make([]string, len(layers))
 	baseDir, err := os.MkdirTemp("", "sandal-layers-*")
@@ -34,10 +39,23 @@ func mergeLayers(layers []io.Reader, dir string) error {
 			return fmt.Errorf("creating layer %d dir: %w", i, err)
 		}
 		slog.Debug("mergeLayers", slog.String("action", "extracting"), slog.Int("layer", i+1), slog.Int("total", len(layers)))
+		if pch != nil {
+			select {
+			case pch <- progress.Event{Phase: progress.PhaseExtract, TaskID: "extract", Current: int64(i), Total: int64(len(layers))}:
+			default:
+			}
+		}
 		if err := extractLayerRaw(layer, layerDir); err != nil {
 			return fmt.Errorf("extracting layer %d: %w", i, err)
 		}
 		layerDirs[i] = layerDir
+	}
+
+	if pch != nil {
+		select {
+		case pch <- progress.Event{Phase: progress.PhaseExtract, TaskID: "extract", Current: int64(len(layers)), Total: int64(len(layers)), Done: true}:
+		default:
+		}
 	}
 
 	// Try overlayfs merge: stack layers as lowerdir (last layer = highest priority).

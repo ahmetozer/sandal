@@ -17,6 +17,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"golang.org/x/sys/unix"
 )
 
@@ -67,7 +68,14 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 		// Path doesn't exist on disk — check if it's a container image reference.
 		if squash.IsImageReference(fullSource) {
 			slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", fullSource))
-			sqfsPath, pullErr := squash.Pull(context.Background(), fullSource, env.BaseImageDir)
+
+			progressCh := make(chan progress.Event, 16)
+			renderDone := progress.StartRenderer(progressCh, os.Stderr)
+
+			sqfsPath, pullErr := squash.Pull(context.Background(), fullSource, env.BaseImageDir, progressCh)
+			close(progressCh)
+			<-renderDone
+
 			if pullErr != nil {
 				return "", fmt.Errorf("pulling image %s: %s", fullSource, pullErr)
 			}

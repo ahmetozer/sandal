@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/lib/container/registry"
-
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"github.com/ahmetozer/sandal/pkg/lib/zstd"
 )
 
@@ -47,7 +47,7 @@ func Run(ctx context.Context, src, dst string, platform registry.Platform) error
 	}
 
 	// Download and decompress all layers.
-	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers)
+	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, nil)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func Export(ctx context.Context, src string, platform registry.Platform, w io.Wr
 		return err
 	}
 
-	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers)
+	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, nil)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func isZstdLayer(mediaType string) bool {
 // downloadLayers fetches all filesystem layer blobs, decompresses them
 // (gzip or raw), and returns them as in-memory readers for Flatten.
 // Non-filesystem layers (e.g. cosign signatures) are skipped with a warning.
-func downloadLayers(ctx context.Context, client *registry.Client, repo string, descriptors []registry.Descriptor) ([]io.Reader, error) {
+func downloadLayers(ctx context.Context, client *registry.Client, repo string, descriptors []registry.Descriptor, progressCh chan<- progress.Event) ([]io.Reader, error) {
 	// Filter to only filesystem layers.
 	var fsLayers []registry.Descriptor
 	for _, l := range descriptors {
@@ -307,16 +307,23 @@ func downloadLayers(ctx context.Context, client *registry.Client, repo string, d
 				return
 			}
 
+			// Wrap with progress tracking if a channel is provided.
+			var src io.ReadCloser = rc
+			if progressCh != nil {
+				src = progress.NewReadCloser(rc, progressCh, progress.PhaseDownload,
+					fmt.Sprintf("layer %d", i+1), l.Size)
+			}
+
 			// Stream download → decompress → temp file (no full layer in RAM).
 			tmpFile, err := os.CreateTemp("", "mybuild-layer-*.tar")
 			if err != nil {
-				rc.Close()
+				src.Close()
 				errs[i] = fmt.Errorf("create temp file for layer %d: %w", i, err)
 				return
 			}
 
-			err = decompressLayerStream(rc, tmpFile, l.MediaType)
-			rc.Close()
+			err = decompressLayerStream(src, tmpFile, l.MediaType)
+			src.Close()
 			if err != nil {
 				tmpFile.Close()
 				os.Remove(tmpFile.Name())

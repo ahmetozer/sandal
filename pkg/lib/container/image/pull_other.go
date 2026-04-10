@@ -11,12 +11,14 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 )
 
 // mergeLayers merges OCI image layers into a single directory.
 // On non-Linux platforms, layers are extracted and merged with direct
 // OCI whiteout processing (no overlayfs available).
-func mergeLayers(layers []io.Reader, dir string) error {
+func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) error {
 	for i, layer := range layers {
 		slog.Debug("mergeLayers", slog.String("action", "applying"), slog.Int("layer", i+1), slog.Int("total", len(layers)))
 		if err := applyLayerTar(layer, dir); err != nil {
