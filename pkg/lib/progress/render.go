@@ -16,18 +16,15 @@ func StartRenderer(ch <-chan Event, out io.Writer) <-chan struct{} {
 	go func() {
 		defer close(done)
 		r := renderer{
-			out:      out,
-			isTTY:    isTTY(out),
+			out:       out,
+			isTTY:     isTTY(out),
 			termWidth: getTermWidth(out),
-			tasks:    make(map[string]*Event),
+			tasks:     make(map[string]*Event),
 		}
+		defer r.cleanup()
+
 		for ev := range ch {
 			r.update(ev)
-		}
-		r.clearLine()
-		if r.isTTY {
-			restoreEcho()
-			fmt.Fprint(r.out, "\033[?25h") // show cursor
 		}
 	}()
 	return done
@@ -60,7 +57,6 @@ type renderer struct {
 
 func (r *renderer) update(ev Event) {
 	if r.isTTY && !r.cursorHidden {
-		fmt.Fprint(r.out, "\033[?25l") // hide cursor
 		disableEcho()
 		r.cursorHidden = true
 	}
@@ -197,6 +193,14 @@ func (r *renderer) renderLine(phase Phase) {
 	r.lastLen = len(line)
 
 	fmt.Fprintf(r.out, "\r%s", line)
+}
+
+func (r *renderer) cleanup() {
+	r.clearLine()
+	if r.isTTY && r.cursorHidden {
+		restoreEcho()
+		r.cursorHidden = false
+	}
 }
 
 func (r *renderer) clearLine() {
