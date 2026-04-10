@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"golang.org/x/sys/unix"
 )
@@ -27,7 +28,7 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 	}
 	// Extract each layer to its own directory.
 	layerDirs := make([]string, len(layers))
-	baseDir, err := os.MkdirTemp("", "sandal-layers-*")
+	baseDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-layers-*")
 	if err != nil {
 		return fmt.Errorf("creating layers base dir: %w", err)
 	}
@@ -78,7 +79,7 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 
 	// Create a tmpfs for upper/work dirs — overlayfs requires these on a
 	// real filesystem, and tmpfs auto-cleans on unmount.
-	tmpfsDir, err := os.MkdirTemp("", "sandal-ovl-tmpfs-*")
+	tmpfsDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-ovl-tmpfs-*")
 	if err != nil {
 		return fmt.Errorf("creating tmpfs dir: %w", err)
 	}
@@ -94,7 +95,7 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 	os.MkdirAll(upperDir, 0755)
 	os.MkdirAll(workDir, 0755)
 
-	mountDir, err := os.MkdirTemp("", "sandal-ovl-mount-*")
+	mountDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-ovl-mount-*")
 	if err != nil {
 		return fmt.Errorf("creating overlay mount dir: %w", err)
 	}

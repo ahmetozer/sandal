@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/container/registry"
 	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
@@ -42,6 +43,9 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 	if err := os.MkdirAll(imageDir, 0755); err != nil {
 		return "", fmt.Errorf("creating image directory: %w", err)
 	}
+	if err := os.MkdirAll(env.BaseTempDir, 0755); err != nil {
+		return "", fmt.Errorf("creating temp directory: %w", err)
+	}
 
 	srcRef, err := registry.ParseReference(imageRef)
 	if err != nil {
@@ -69,7 +73,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 
 	slog.Debug("Pull", slog.String("action", "extracting-layers"), slog.String("image", imageRef))
 
-	tmpDir, err := os.MkdirTemp("", "sandal-image-*")
+	tmpDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-image-*")
 	if err != nil {
 		return "", fmt.Errorf("creating temp directory: %w", err)
 	}
@@ -206,7 +210,7 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	slog.Debug("pullToDir", slog.String("action", "extracting-layers"), slog.String("image", imageRef))
 
-	tmpDir, err := os.MkdirTemp("", "sandal-image-*")
+	tmpDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-image-*")
 	if err != nil {
 		return "", fmt.Errorf("creating temp directory: %w", err)
 	}

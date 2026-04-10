@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/container/registry"
 	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"github.com/ahmetozer/sandal/pkg/lib/zstd"
@@ -315,7 +316,7 @@ func downloadLayers(ctx context.Context, client *registry.Client, repo string, d
 			}
 
 			// Stream download → decompress → temp file (no full layer in RAM).
-			tmpFile, err := os.CreateTemp("", "mybuild-layer-*.tar")
+			tmpFile, err := os.CreateTemp(env.BaseTempDir, "mybuild-layer-*.tar")
 			if err != nil {
 				src.Close()
 				errs[i] = fmt.Errorf("create temp file for layer %d: %w", i, err)
