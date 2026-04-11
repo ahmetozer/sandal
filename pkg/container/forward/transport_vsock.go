@@ -5,7 +5,6 @@ package forward
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"time"
@@ -143,6 +142,7 @@ func vsockAcceptLoop(ctx context.Context, m PortMapping, l *vsockListener, trans
 
 // vsockProxy copies bytes bidirectionally between an accepted vsock
 // connection and a container-side connection obtained from transport.
+// Uses pipe() so a half-close on either end unblocks the other direction.
 func vsockProxy(ctx context.Context, m PortMapping, vconn net.Conn, transport Transport) {
 	defer vconn.Close()
 	target, err := transport.DialMapping(ctx, m.ID)
@@ -150,12 +150,6 @@ func vsockProxy(ctx context.Context, m PortMapping, vconn net.Conn, transport Tr
 		return
 	}
 	defer target.Close()
-	done := make(chan struct{})
-	go func() {
-		io.Copy(target, vconn)
-		done <- struct{}{}
-	}()
-	io.Copy(vconn, target)
-	<-done
+	pipe(vconn, target)
 }
 

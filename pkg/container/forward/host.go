@@ -131,13 +131,22 @@ func proxyStream(ctx context.Context, m PortMapping, transport Transport, c net.
 		return
 	}
 	defer target.Close()
+	pipe(c, target)
+}
 
-	done := make(chan struct{})
-	go func() {
-		io.Copy(target, c)
-		done <- struct{}{}
-	}()
-	io.Copy(c, target)
+// pipe copies bytes bidirectionally between two stream connections and
+// returns as soon as EITHER direction sees EOF or an error. Before
+// returning it closes both connections, which forcibly unblocks any read
+// that is still parked on the other direction — without this, a container
+// process closing its end leaves the client hanging because our second
+// io.Copy is still waiting on the client to send.
+func pipe(a, b net.Conn) {
+	done := make(chan struct{}, 2)
+	go func() { io.Copy(a, b); done <- struct{}{} }()
+	go func() { io.Copy(b, a); done <- struct{}{} }()
+	<-done
+	a.Close()
+	b.Close()
 	<-done
 }
 
