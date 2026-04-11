@@ -17,6 +17,7 @@ const (
 	KindOrphanChangeDir Kind = "orphan-changedir"
 	KindOrphanChangeImg Kind = "orphan-img"
 	KindKernelCache     Kind = "kernel-cache"
+	KindTemp            Kind = "temp"
 )
 
 // Action describes one reclaimable artifact. Plan* functions return a

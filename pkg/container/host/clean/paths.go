@@ -20,17 +20,23 @@ func IsInsideLibDir(target string) (bool, error) {
 	return isInside(target, env.LibDir)
 }
 
-// IsInsideSandalArea reports whether target is inside LibDir OR
-// RunDir. Rootfs mount points live under RunDir, so deletions that
-// touch them also need to be validated against that root.
+// IsInsideSandalArea reports whether target is inside LibDir, RunDir,
+// or BaseStateDir. Rootfs mount points live under RunDir; state files
+// may live under a redirected BaseStateDir (e.g. /tmp/sandal-state
+// inside a VM).
 func IsInsideSandalArea(target string) (bool, error) {
 	if ok, err := isInside(target, env.LibDir); ok || err != nil {
 		return ok, err
 	}
-	if env.RunDir == "" {
-		return false, nil
+	if env.RunDir != "" {
+		if ok, err := isInside(target, env.RunDir); ok || err != nil {
+			return ok, err
+		}
 	}
-	return isInside(target, env.RunDir)
+	if env.BaseStateDir != "" {
+		return isInside(target, env.BaseStateDir)
+	}
+	return false, nil
 }
 
 func isInside(target, root string) (bool, error) {

@@ -10,15 +10,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/container/registry"
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"github.com/ahmetozer/sandal/pkg/lib/squashfs"
 )
 
 // Pull downloads a container image, flattens its layers, and creates a
 // squashfs image cached under imageDir. Returns the path to the squashfs file.
 // If a cached image already exists for the reference, it is returned directly.
-func Pull(ctx context.Context, imageRef string, imageDir string) (string, error) {
+func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan<- progress.Event) (string, error) {
 	platform := registry.Platform{
 		OS:           "linux",
 		Architecture: runtime.GOARCH,
@@ -48,6 +51,10 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 
 	slog.Info("Pull", slog.String("action", "pulling"), slog.String("image", imageRef), slog.String("os", platform.OS), slog.String("arch", platform.Architecture))
 
+	if progressCh != nil {
+		fmt.Fprintf(os.Stderr, "Pulling %s (%s/%s)\n", imageRef, platform.OS, platform.Architecture)
+	}
+
 	client := registry.NewClient(srcRef.Registry)
 
 	manifest, err := resolveManifest(ctx, client, srcRef, platform)
@@ -55,7 +62,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 		return "", err
 	}
 
-	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers)
+	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, progressCh)
 	if err != nil {
 		return "", err
 	}
@@ -63,7 +70,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 
 	slog.Debug("Pull", slog.String("action", "extracting-layers"), slog.String("image", imageRef))
 
-	tmpDir, err := os.MkdirTemp("", "sandal-image-*")
+	tmpDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-image-*")
 	if err != nil {
 		return "", fmt.Errorf("creating temp directory: %w", err)
 	}
@@ -72,7 +79,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 	// Extract layers directly to disk instead of loading all file bodies
 	// into RAM via Flatten(). This keeps memory usage O(1) and prevents
 	// OOM on memory-constrained devices (e.g. Raspberry Pi).
-	if err := mergeLayers(layers, tmpDir); err != nil {
+	if err := mergeLayers(layers, tmpDir, progressCh); err != nil {
 		return "", fmt.Errorf("merging layers: %w", err)
 	}
 
@@ -85,7 +92,30 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 	}
 	tmpPath := tmpFile.Name()
 
-	w, err := squashfs.NewWriter(tmpFile, squashfs.WithCompression(squashfs.CompGzip))
+	// Bridge squashfs writer progress to the event channel.
+	var sqfsProgressFn func(int64)
+	if progressCh != nil {
+		totalBytes, _ := dirSize(tmpDir)
+		var lastSend time.Time
+		sqfsProgressFn = func(written int64) {
+			now := time.Now()
+			if now.Sub(lastSend) < 500*time.Millisecond {
+				return
+			}
+			lastSend = now
+			select {
+			case progressCh <- progress.Event{Phase: progress.PhaseSquashfs, TaskID: "squashfs", Current: written, Total: totalBytes}:
+			default:
+			}
+		}
+	}
+
+	opts := []squashfs.WriterOption{squashfs.WithCompression(squashfs.CompGzip)}
+	if sqfsProgressFn != nil {
+		opts = append(opts, squashfs.WithProgressFunc(sqfsProgressFn))
+	}
+
+	w, err := squashfs.NewWriter(tmpFile, opts...)
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
@@ -99,6 +129,18 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 	}
 	tmpFile.Close()
 
+	if progressCh != nil {
+		fi, _ := os.Stat(tmpPath)
+		var finalSize int64
+		if fi != nil {
+			finalSize = fi.Size()
+		}
+		select {
+		case progressCh <- progress.Event{Phase: progress.PhaseSquashfs, TaskID: "squashfs", Current: finalSize, Total: finalSize, Done: true}:
+		default:
+		}
+	}
+
 	if err := os.Rename(tmpPath, cacheFile); err != nil {
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("caching squashfs image: %w", err)
@@ -111,7 +153,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string) (string, error)
 // ExportImageSquashfs downloads a container image, flattens its layers,
 // and writes a squashfs image to the given file.
 func ExportImageSquashfs(ctx context.Context, imageRef string, outFile *os.File) error {
-	tmpDir, err := pullToDir(ctx, imageRef)
+	tmpDir, err := pullToDir(ctx, imageRef, nil)
 	if err != nil {
 		return err
 	}
@@ -137,7 +179,7 @@ func ExportImageTarGz(ctx context.Context, imageRef string, w io.Writer) error {
 
 // pullToDir downloads and flattens an image into a temporary directory.
 // Caller is responsible for removing the returned directory.
-func pullToDir(ctx context.Context, imageRef string) (string, error) {
+func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.Event) (string, error) {
 	platform := registry.Platform{
 		OS:           "linux",
 		Architecture: runtime.GOARCH,
@@ -157,7 +199,7 @@ func pullToDir(ctx context.Context, imageRef string) (string, error) {
 		return "", err
 	}
 
-	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers)
+	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, progressCh)
 	if err != nil {
 		return "", err
 	}
@@ -165,7 +207,7 @@ func pullToDir(ctx context.Context, imageRef string) (string, error) {
 
 	slog.Debug("pullToDir", slog.String("action", "extracting-layers"), slog.String("image", imageRef))
 
-	tmpDir, err := os.MkdirTemp("", "sandal-image-*")
+	tmpDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-image-*")
 	if err != nil {
 		return "", fmt.Errorf("creating temp directory: %w", err)
 	}
@@ -307,10 +349,26 @@ func removeDirectoryContents(dir string) error {
 	return nil
 }
 
+// dirSize returns the total size of regular files in a directory tree.
+// It only calls Lstat, so no file data is read.
+func dirSize(path string) (int64, error) {
+	var total int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.Mode().IsRegular() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total, err
+}
+
 // PullFromArgs scans command args for -lw values that look like OCI image references,
 // pulls them on the host, converts to squashfs, and rewrites the args to use
 // the local sqfs path. Returns the modified args.
-func PullFromArgs(args []string, imageDir string) []string {
+func PullFromArgs(args []string, imageDir string, progressCh chan<- progress.Event) []string {
 	result := make([]string, len(args))
 	copy(result, args)
 
@@ -325,7 +383,7 @@ func PullFromArgs(args []string, imageDir string) []string {
 				continue
 			}
 			slog.Info("pull", slog.String("action", "pulling-on-host"), slog.String("image", ref))
-			sqfsPath, err := Pull(context.Background(), ref, imageDir)
+			sqfsPath, err := Pull(context.Background(), ref, imageDir, progressCh)
 			if err != nil {
 				slog.Error("pull", slog.String("image", ref), slog.Any("error", err))
 				continue

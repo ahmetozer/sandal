@@ -30,15 +30,17 @@ func Clear(args []string) error {
 		doSnapshots bool
 		doOrphans   bool
 		doKernel    bool
+		doTemp      bool
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
-	f.BoolVar(&deleteAll, "all", false, "reclaim everything: stopped containers, unused images and snapshots, orphan changedirs, stale kernel cache")
+	f.BoolVar(&deleteAll, "all", false, "reclaim everything: stopped containers, unused images and snapshots, orphan changedirs, stale kernel cache, temp files")
 	f.BoolVar(&dryRun, "dry-run", false, "print what would be removed without deleting anything")
 	f.BoolVar(&doImages, "images", false, "remove downloaded images under SANDAL_IMAGE_DIR that no container references")
 	f.BoolVar(&doSnapshots, "snapshots", false, "remove snapshots under SANDAL_SNAPSHOT_DIR that no container references")
 	f.BoolVar(&doOrphans, "orphans", false, "remove changedir files/dirs and ext4 .img files whose container state file is missing")
 	f.BoolVar(&doKernel, "kernel-cache", false, "remove stale initramfs-sandal-*.img entries in SANDAL_KERNEL_DIR (keeps the most recent)")
+	f.BoolVar(&doTemp, "temp", false, "remove leftover temp files under SANDAL_TEMP_DIR from interrupted pulls")
 
 	if err := f.Parse(args); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -56,6 +58,7 @@ func Clear(args []string) error {
 		doSnapshots = true
 		doOrphans = true
 		doKernel = true
+		doTemp = true
 	}
 
 	conts, _ := controller.Containers()
@@ -233,6 +236,9 @@ func Clear(args []string) error {
 	}
 	if doKernel {
 		actions = append(actions, dedup(clean.PlanKernelCache())...)
+	}
+	if doTemp {
+		actions = append(actions, dedup(clean.PlanTemp())...)
 	}
 
 	// Report container removals that already happened in the real

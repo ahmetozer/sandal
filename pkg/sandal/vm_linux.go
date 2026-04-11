@@ -25,6 +25,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
+	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/kvm"
@@ -69,9 +70,13 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
-	// Pre-pull OCI images on the host
+	// Pre-pull OCI images on the host with progress reporting.
+	progressCh := make(chan progress.Event, 16)
+	renderDone := progress.StartRenderer(progressCh, os.Stderr)
 	sandalLibDir := env.LibDir
-	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir)
+	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir, progressCh)
+	close(progressCh)
+	<-renderDone
 	// Rewrite relative -lw paths to absolute so the in-VM controller can
 	// find them via the virtiofs share at /mnt/<abspath>.
 	cleanArgs = AbsolutizeLowerPaths(cleanArgs)
