@@ -125,10 +125,10 @@ func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 	return tmp.Name(), nil
 }
 
-// CreateFromBinary creates an initramfs CPIO archive with the given binary as /init.
-// If baseInitrdPath is non-empty, the base initrd's CPIO entries are merged into
-// a single CPIO archive so kernel modules remain available. The binary is added
-// as /init after the base entries.
+// CreateFromBinary creates an initramfs CPIO archive with the given binary
+// bytes as /init. If baseInitrdPath is non-empty, the base initrd's CPIO
+// entries are merged into a single CPIO archive so kernel modules remain
+// available. The binary is added as /init after the base entries.
 //
 // The result is a single gzip-compressed CPIO archive (not concatenated archives)
 // because the kernel's initramfs unpacker stops processing at the first TRAILER
@@ -139,8 +139,8 @@ func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 // On a cache hit no archive is built and no I/O happens beyond hashing the
 // inputs. The returned path is owned by the cache and MUST NOT be removed by
 // the caller.
-func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) {
-	key, err := initrdCacheKey(binaryPath, baseInitrdPath)
+func CreateFromBinary(binData []byte, baseInitrdPath string) (string, error) {
+	key, err := initrdCacheKey(binData, baseInitrdPath)
 	if err != nil {
 		return "", err
 	}
@@ -165,12 +165,6 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 	cleanup := func() {
 		tmp.Close()
 		os.Remove(tmpPath)
-	}
-
-	binData, err := os.ReadFile(binaryPath)
-	if err != nil {
-		cleanup()
-		return "", fmt.Errorf("reading binary %s: %w", binaryPath, err)
 	}
 
 	gz := gzip.NewWriter(tmp)
@@ -241,14 +235,12 @@ func CreateFromBinary(binaryPath string, baseInitrdPath string) (string, error) 
 }
 
 // initrdCacheKey computes a content-address cache key from the sandal binary
-// and (optional) base initrd. Returns the first 16 bytes of sha256 as a hex
-// string — 64 bits of entropy, plenty to avoid collisions across the handful
-// of entries a single host accumulates.
-func initrdCacheKey(binaryPath, baseInitrdPath string) (string, error) {
+// bytes and (optional) base initrd. Returns the first 16 bytes of sha256 as a
+// hex string — 64 bits of entropy, plenty to avoid collisions across the
+// handful of entries a single host accumulates.
+func initrdCacheKey(binData []byte, baseInitrdPath string) (string, error) {
 	h := sha256.New()
-	if err := hashFileInto(h, binaryPath); err != nil {
-		return "", fmt.Errorf("hashing binary %s: %w", binaryPath, err)
-	}
+	h.Write(binData)
 	// Length-prefix separator so concat(a,b) can never collide with concat(a',b').
 	h.Write([]byte{0})
 	if baseInitrdPath != "" {

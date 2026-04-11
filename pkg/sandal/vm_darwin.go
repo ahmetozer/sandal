@@ -95,11 +95,6 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 		cfg.KernelPath = p
 	}
 
-	// Resolve Linux sandal binary
-	if _, err := os.Stat(env.VMBinPath); err != nil {
-		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", env.VMBinPath, env.VMBinPath)
-	}
-
 	// Pre-pull OCI images on the host and convert to squashfs.
 	imageDir := filepath.Join(env.LibDir, "image")
 	progressCh := make(chan progress.Event, 16)
@@ -155,7 +150,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 
 	// Create initrd with sandal binary as /init. Path is owned by the
 	// kernel cache (content-addressed) and persists across runs.
-	initrdPath, err := PrepareInitrd(cfg.KernelPath, env.VMBinPath)
+	initrdPath, err := PrepareInitrd(cfg.KernelPath)
 	if err != nil {
 		return err
 	}

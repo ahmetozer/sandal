@@ -152,7 +152,7 @@ Identical inputs always resolve to the same path; on a cache hit no archive
 is built.
 
 ```
-CreateFromBinary(binaryPath, baseInitrd) -> cachePath
+CreateFromBinary(binData, baseInitrd) -> cachePath
   |
   +-- Compute cache key:
   |     sha256(binary) || 0x00 || sha256(baseInitrd)

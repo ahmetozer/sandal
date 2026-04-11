@@ -5,12 +5,13 @@ VERSION := $(shell git rev-parse --short HEAD)
 LDFLAGS := -s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion=$(VERSION)
 UNAME_S := $(shell uname -s)
 
-.PHONY: build build-darwin build-linux build-linux-vm sign clean
+.PHONY: build build-darwin build-linux generate sign clean
 
-# macOS: build darwin binary + cross-compile linux binary (for VM init) + codesign
-# Linux: build linux binary only
+# macOS: generate the embedded linux binary, build the darwin binary
+# (which embeds it via go:embed), then codesign.
+# Linux: build linux binary only.
 ifeq ($(UNAME_S),Darwin)
-build: build-darwin build-linux-vm sign
+build: generate build-darwin sign
 else
 build: build-linux
 endif
@@ -21,9 +22,10 @@ build-darwin:
 build-linux:
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY) .
 
-# Cross-compile Linux binary from macOS (used as /init inside VZ VM)
-build-linux-vm:
-	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(HOME)/.sandal/lib/bin/sandal .
+# Cross-compile the linux sandal binary into pkg/sandal/vmbin/linux-sandal
+# via the //go:generate directive in that package.
+generate:
+	go generate ./pkg/sandal/vmbin
 
 sign:
 	codesign --entitlements $(ENTITLEMENTS) --force -s "$(CODESIGN_IDENTITY)" $(BINARY)

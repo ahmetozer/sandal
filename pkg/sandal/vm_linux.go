@@ -199,14 +199,8 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// Build kernel command line
 	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
 
-	// Resolve sandal binary for initrd
-	selfBin, err := ResolveVMBinary()
-	if err != nil {
-		return err
-	}
-
 	// Create initrd with sandal binary as /init
-	initrdPath, err := PrepareInitrd(cfg.KernelPath, selfBin)
+	initrdPath, err := PrepareInitrd(cfg.KernelPath)
 	if err != nil {
 		return err
 	}
