@@ -102,6 +102,16 @@ func (l *vsockListener) Close() error {
 	return unix.Close(l.fd)
 }
 
+// protoOf maps a flag Scheme to the wire protocol used inside the container
+// when dialing the target. TLS is terminated on the host; the tunnel carries
+// plaintext stream.
+func protoOf(s Scheme) string {
+	if s == SchemeUDP {
+		return "udp"
+	}
+	return "tcp"
+}
+
 // BuildVsockEntries converts PortMapping list into RelayEntry list for the
 // VM guest relay. The vsock port is allocated sequentially from VsockBasePort.
 func BuildVsockEntries(mappings []PortMapping) RelayEntries {

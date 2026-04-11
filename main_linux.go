@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
-	"github.com/ahmetozer/sandal/pkg/container/forward"
 	containerguest "github.com/ahmetozer/sandal/pkg/container/guest"
 	"github.com/ahmetozer/sandal/pkg/controller/embedded"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -20,20 +19,6 @@ func platformMain() {
 	// IsChild must be checked before IsVMInit: container child processes
 	// in PID namespaces also see PID 1 and can read SANDAL_VM_ARGS from
 	// /proc/cmdline, which would incorrectly trigger the VMInit path.
-	if forward.IsHelper() {
-		if err := forward.HelperMain(); err != nil {
-			fmt.Fprintf(os.Stderr, "forward helper: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-	if forward.IsRelayRunner() {
-		if err := forward.RelayRunnerMain(); err != nil {
-			fmt.Fprintf(os.Stderr, "forward relay: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
 	if containerguest.IsChild() {
 		containerguest.ContainerInitProc()
 	} else if guest.IsVMInit() {

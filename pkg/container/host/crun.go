@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -206,44 +205,29 @@ func crun(c *config.Config) (int, error) {
 		return 0, err
 	}
 
-	// Start port-forwarding for -p flags. The helper process setns-es into
-	// the container and binds per-mapping unix sockets inside the container's
-	// mount namespace; the host listener dials through /proc/<contPid>/root.
+	// Start port-forwarding for -p flags. A dedicated goroutine pinned to
+	// one OS thread is setns'd into the container's network+mount namespaces
+	// and serves net.Dial requests over a channel; host listeners run on
+	// normal goroutines in the host netns and forward bytes to/from the
+	// returned connections.
 	stopForward := func() {}
-	var helperCmd *exec.Cmd
 	if len(c.Ports) > 0 {
 		forward.AssignIDs(c.Ports)
-		entries := forward.BuildNativeEntries(c.Ports)
-		encoded, encErr := forward.EncodeEntries(entries)
-		if encErr != nil {
-			slog.Warn("forward: encode entries", "err", encErr)
+		dialer, dErr := forward.StartNetnsDialer(c.ContPid, c.Ports)
+		if dErr != nil {
+			slog.Warn("forward: start netns dialer", "err", dErr)
 		} else {
-			helperCmd = exec.Command(env.BinLoc, "sandal-forward-helper", c.Name)
-			helperCmd.Env = append(os.Environ(),
-				forward.HelperEnvVar+"="+c.Name,
-				forward.HelperPidEnvVar+"="+strconv.Itoa(c.ContPid),
-				forward.RelayEnvVar+"="+encoded,
-			)
-			helperCmd.Stdout = os.Stderr
-			helperCmd.Stderr = os.Stderr
-			if hErr := helperCmd.Start(); hErr != nil {
-				slog.Warn("forward: start helper", "err", hErr)
-				helperCmd = nil
+			ctx, cancel := context.WithCancel(context.Background())
+			stop, sErr := forward.Start(ctx, c.Name, c.Ports, dialer)
+			if sErr != nil {
+				slog.Warn("forward: start host listeners", "err", sErr)
+				cancel()
+				dialer.Close()
 			} else {
-				ctx, cancel := context.WithCancel(context.Background())
-				stop, hErr := forward.Start(ctx, c.Name, c.Ports,
-					forward.NativeTransport{ContPid: c.ContPid})
-				if hErr != nil {
-					slog.Warn("forward: start host listeners", "err", hErr)
+				stopForward = func() {
+					stop()
 					cancel()
-				} else {
-					stopForward = func() {
-						stop()
-						cancel()
-						if helperCmd != nil && helperCmd.Process != nil {
-							helperCmd.Process.Signal(syscall.SIGTERM)
-						}
-					}
+					dialer.Close()
 				}
 			}
 		}
