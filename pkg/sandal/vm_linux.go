@@ -19,6 +19,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
@@ -196,8 +197,22 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		vmNetEncoded = base64.StdEncoding.EncodeToString(netJSON)
 	}
 
+	// Build port-forwarding entries for SANDAL_VM_FORWARDS. The vsock port
+	// for each mapping is derived from its id, so the host listener and
+	// guest relay agree on the rendezvous without out-of-band state.
+	var forwardsEncoded string
+	if len(c.Ports) > 0 {
+		forward.AssignIDs(c.Ports)
+		entries := forward.BuildVsockEntries(c.Ports)
+		if enc, err := forward.EncodeEntries(entries); err == nil {
+			forwardsEncoded = base64.StdEncoding.EncodeToString([]byte(enc))
+		} else {
+			slog.Warn("runInKVM", slog.String("action", "encode forwards"), slog.Any("err", err))
+		}
+	}
+
 	// Build kernel command line
-	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
+	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries, forwardsEncoded)
 
 	// Create initrd with sandal binary as /init
 	initrdPath, err := PrepareInitrd(cfg.KernelPath)
@@ -259,7 +274,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		go StartHostSocketRelay(socketMounts)
 	}
 
-	err = kvm.Boot(vmName, cfg, nil, nil)
+	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports)
 
 	// Update status after VM exits
 	if err != nil {

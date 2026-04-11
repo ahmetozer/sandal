@@ -3,15 +3,18 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
@@ -202,6 +205,50 @@ func crun(c *config.Config) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Start port-forwarding for -p flags. The helper process setns-es into
+	// the container and binds per-mapping unix sockets inside the container's
+	// mount namespace; the host listener dials through /proc/<contPid>/root.
+	stopForward := func() {}
+	var helperCmd *exec.Cmd
+	if len(c.Ports) > 0 {
+		forward.AssignIDs(c.Ports)
+		entries := forward.BuildNativeEntries(c.Ports)
+		encoded, encErr := forward.EncodeEntries(entries)
+		if encErr != nil {
+			slog.Warn("forward: encode entries", "err", encErr)
+		} else {
+			helperCmd = exec.Command(env.BinLoc, "sandal-forward-helper", c.Name)
+			helperCmd.Env = append(os.Environ(),
+				forward.HelperEnvVar+"="+c.Name,
+				forward.HelperPidEnvVar+"="+strconv.Itoa(c.ContPid),
+				forward.RelayEnvVar+"="+encoded,
+			)
+			helperCmd.Stdout = os.Stderr
+			helperCmd.Stderr = os.Stderr
+			if hErr := helperCmd.Start(); hErr != nil {
+				slog.Warn("forward: start helper", "err", hErr)
+				helperCmd = nil
+			} else {
+				ctx, cancel := context.WithCancel(context.Background())
+				stop, hErr := forward.Start(ctx, c.Name, c.Ports,
+					forward.NativeTransport{ContPid: c.ContPid})
+				if hErr != nil {
+					slog.Warn("forward: start host listeners", "err", hErr)
+					cancel()
+				} else {
+					stopForward = func() {
+						stop()
+						cancel()
+						if helperCmd != nil && helperCmd.Process != nil {
+							helperCmd.Process.Signal(syscall.SIGTERM)
+						}
+					}
+				}
+			}
+		}
+	}
+	defer stopForward()
 
 	// Start PTY relay for interactive (foreground) containers only.
 	// Background containers with socket console have their own PTY reader.

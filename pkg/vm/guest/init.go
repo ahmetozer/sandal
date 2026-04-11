@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
@@ -63,8 +64,9 @@ func importKernelCmdlineEnv() {
 	// On VZ, the kernel auto-exports cmdline params as env vars but keeps
 	// them encoded. Always decode and re-set these even if already present.
 	b64Keys := map[string]bool{
-		"SANDAL_VM_ARGS": true,
-		"SANDAL_VM_NET":  true,
+		"SANDAL_VM_ARGS":     true,
+		"SANDAL_VM_NET":      true,
+		"SANDAL_VM_FORWARDS": true,
 	}
 
 	for _, param := range parseCmdlineParams(cmdline) {
@@ -270,6 +272,17 @@ func VMInit() error {
 	// Start vsock socket relay for SANDAL_VM_SOCKETS
 	if sockSpec := os.Getenv("SANDAL_VM_SOCKETS"); sockSpec != "" {
 		startGuestSocketRelay(sockSpec)
+	}
+
+	// Start port-forwarding guest relay. Host encoded the mapping list in
+	// SANDAL_VM_FORWARDS; importKernelCmdlineEnv already b64-decoded it.
+	if fwdSpec := os.Getenv("SANDAL_VM_FORWARDS"); fwdSpec != "" {
+		entries, err := forward.DecodeEntries(fwdSpec)
+		if err != nil {
+			slog.Warn("forward: decode SANDAL_VM_FORWARDS", slog.Any("err", err))
+		} else if err := forward.RunRelay(entries, forward.VsockListen); err != nil {
+			slog.Warn("forward: run relay", slog.Any("err", err))
+		}
 	}
 
 	// SANDAL_VM_NET stays in the environment for the container process.

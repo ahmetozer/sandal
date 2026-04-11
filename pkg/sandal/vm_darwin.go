@@ -146,7 +146,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	}
 
 	// Build kernel command line (no network allocation on darwin)
-	cfg.CommandLine = BuildKernelCmdLine("mac", argsJSON, mountEntries, "", socketEntries)
+	cfg.CommandLine = BuildKernelCmdLine("mac", argsJSON, mountEntries, "", socketEntries, "")
 
 	// Create initrd with sandal binary as /init. Path is owned by the
 	// kernel cache (content-addressed) and persists across runs.

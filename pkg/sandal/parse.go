@@ -54,6 +54,9 @@ func parseAndRunContainer(args []string) error {
 	networkInterfacesCmd := wrapper.StringFlags{}
 	f.Var(&networkInterfacesCmd, "net", "configure network interfaces")
 
+	portFlags := &portMappingFlag{cfg: &c}
+	f.Var(portFlags, "p", "publish a container port (repeatable); see .docs/port-forwarding.md for full grammar")
+
 	f.UintVar(&c.TmpSize, "tmp", 0, "allocate changes at memory instead of disk. Unit is in MB, when set to 0 (default) which means it's disabled")
 	f.StringVar(&c.ChangeDirSize, "csize", "", "change dir disk image size, e.g. 128m, 1g (default 128m)")
 	f.StringVar(&c.ChangeDirType, "chdir-type", "auto", "change dir type: auto, folder, image")
