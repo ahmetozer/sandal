@@ -37,6 +37,57 @@ jobs:
         with:
           args: release --config .github/goreleaser.yml
 
+  release_darwin:
+    name: Release Darwin
+    # Run after goreleaser so the draft release already exists; softprops
+    # then attaches the darwin binaries to that same draft.
+    needs: [test, release_binaries]
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest   # Apple Silicon (arm64)
+            arch: arm64
+          - runner: macos-13       # Intel (amd64)
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Generate embedded Linux sandal binary
+        # go:generate cross-compiles the linux sandal for the runner's
+        # native GOARCH into pkg/sandal/vmbin/linux-sandal, which the
+        # darwin build then embeds via go:embed.
+        run: go generate ./pkg/sandal/vmbin
+      - name: Build darwin binary
+        env:
+          CGO_ENABLED: "1"
+          GOOS: darwin
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion=${{ steps.version.outputs.VERSION }}" \
+            -o sandal-darwin-${{ matrix.arch }} .
+      - name: Codesign (adhoc)
+        run: codesign --entitlements entitlements.plist --force -s - sandal-darwin-${{ matrix.arch }}
+      - name: Verify signature
+        run: codesign --verify --verbose sandal-darwin-${{ matrix.arch }}
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sandal-darwin-${{ matrix.arch }}
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   mkdocs:
     runs-on: ubuntu-latest
     steps:

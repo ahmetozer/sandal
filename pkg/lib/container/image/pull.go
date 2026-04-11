@@ -229,6 +229,10 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 // exists on disk the user almost certainly means the file. The local-file
 // check below resolves that ambiguity in favour of the filesystem.
 func IsImageReference(s string) bool {
+	// Bare "." or ".." always means a local path.
+	if s == "." || s == ".." {
+		return false
+	}
 	// Must not start with / or ./ (clearly a file path)
 	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") {
 		return false
@@ -378,18 +382,29 @@ func PullFromArgs(args []string, imageDir string, progressCh chan<- progress.Eve
 		}
 		if result[i] == "-lw" && i+1 < len(result) {
 			i++
-			ref := result[i]
-			if !IsImageReference(ref) {
+			argv := result[i]
+			// Strip -lw target suffix (:/target) and :=sub modifier so
+			// we check only the source part against IsImageReference.
+			// This mirrors parseLowerArg in pkg/container/host/rootfs.go.
+			src := argv
+			src = strings.TrimSuffix(src, ":=sub")
+			if idx := strings.LastIndex(src, ":/"); idx > 0 {
+				src = src[:idx]
+			}
+			if !IsImageReference(src) {
 				continue
 			}
-			slog.Info("pull", slog.String("action", "pulling-on-host"), slog.String("image", ref))
-			sqfsPath, err := Pull(context.Background(), ref, imageDir, progressCh)
+			slog.Info("pull", slog.String("action", "pulling-on-host"), slog.String("image", src))
+			sqfsPath, err := Pull(context.Background(), src, imageDir, progressCh)
 			if err != nil {
-				slog.Error("pull", slog.String("image", ref), slog.Any("error", err))
+				slog.Error("pull", slog.String("image", src), slog.Any("error", err))
 				continue
 			}
-			slog.Info("pull", slog.String("action", "cached"), slog.String("image", ref), slog.String("path", sqfsPath))
-			result[i] = sqfsPath
+			slog.Info("pull", slog.String("action", "cached"), slog.String("image", src), slog.String("path", sqfsPath))
+			// Rewrite the arg, preserving any target suffix the user
+			// supplied so -lw image:latest:/mnt still mounts at /mnt.
+			suffix := argv[len(src):]
+			result[i] = sqfsPath + suffix
 		}
 	}
 	return result

@@ -111,9 +111,10 @@ sandal.RunInKVM(config)
   |       console=ttyAMA0 (ARM64) or console=ttyS0 (x86)
   |       loglevel=0
   |
-  +-- 11. resolveVMBinary() -> get sandal binary path for /init
+  +-- 11. vmbin.Linux() -> bytes of sandal binary for /init
+  |       (self-executable on linux, embedded via go:embed on darwin)
   |
-  +-- 12. kernel.CreateFromBinary(binary, baseInitrd) -> cached initrd
+  +-- 12. kernel.CreateFromBinary(binData, baseInitrd) -> cached initrd
   |       Content-addressed by sha256(binary, baseInitrd).
   |       Cache hit -> returns existing path with no I/O.
   |       Cache miss -> wraps sandal binary into CPIO archive as

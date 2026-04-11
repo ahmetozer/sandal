@@ -67,6 +67,13 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	cleanArgs = RemoveBoolFlag(cleanArgs, "d")
 	cleanArgs = RemoveBoolFlag(cleanArgs, "startup")
 
+	// If TTY was auto-detected (or explicitly set) on the host but -t
+	// isn't in the original args, inject it so the guest container
+	// inside the VM allocates a PTY.
+	if c.TTY && !HasFlag(cleanArgs, "t") {
+		cleanArgs = append([]string{"-t"}, cleanArgs...)
+	}
+
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
@@ -192,14 +199,8 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// Build kernel command line
 	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
 
-	// Resolve sandal binary for initrd
-	selfBin, err := ResolveVMBinary()
-	if err != nil {
-		return err
-	}
-
 	// Create initrd with sandal binary as /init
-	initrdPath, err := PrepareInitrd(cfg.KernelPath, selfBin)
+	initrdPath, err := PrepareInitrd(cfg.KernelPath)
 	if err != nil {
 		return err
 	}

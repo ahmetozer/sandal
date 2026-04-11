@@ -61,6 +61,13 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// Remove -vm flag from args -- it's consumed here, not forwarded to VM.
 	cleanArgs := RemoveBoolFlag(rawArgs, "vm")
 
+	// If TTY was auto-detected (or explicitly set) on the host but -t
+	// isn't in the original args, inject it so the guest container
+	// inside the VM allocates a PTY.
+	if c.TTY && !HasFlag(cleanArgs, "t") {
+		cleanArgs = append([]string{"-t"}, cleanArgs...)
+	}
+
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
@@ -86,11 +93,6 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 			return fmt.Errorf("kernel %s not found and auto-download failed: %w", cfg.KernelPath, err)
 		}
 		cfg.KernelPath = p
-	}
-
-	// Resolve Linux sandal binary
-	if _, err := os.Stat(env.VMBinPath); err != nil {
-		return fmt.Errorf("Linux sandal binary not found at %s (cross-compile with: GOOS=linux CGO_ENABLED=0 go build -o %s .)", env.VMBinPath, env.VMBinPath)
 	}
 
 	// Pre-pull OCI images on the host and convert to squashfs.
@@ -148,7 +150,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 
 	// Create initrd with sandal binary as /init. Path is owned by the
 	// kernel cache (content-addressed) and persists across runs.
-	initrdPath, err := PrepareInitrd(cfg.KernelPath, env.VMBinPath)
+	initrdPath, err := PrepareInitrd(cfg.KernelPath)
 	if err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
+	"github.com/ahmetozer/sandal/pkg/sandal/vmbin"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 )
@@ -108,8 +109,14 @@ func BuildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, n
 }
 
 // PrepareInitrd discovers an initrd alongside the kernel and creates an
-// initrd containing the sandal binary as /init.
-func PrepareInitrd(kernelPath string, binPath string) (string, error) {
+// initrd containing the sandal binary as /init. The sandal binary bytes
+// come from vmbin.Linux() (self on linux, embedded on darwin).
+func PrepareInitrd(kernelPath string) (string, error) {
+	binData, err := vmbin.Linux()
+	if err != nil {
+		return "", fmt.Errorf("loading vm sandal binary: %w", err)
+	}
+
 	baseInitrd := ""
 	kernelDir := filepath.Dir(kernelPath)
 
@@ -138,26 +145,11 @@ func PrepareInitrd(kernelPath string, binPath string) (string, error) {
 		}
 	}
 
-	initrdPath, err := kernel.CreateFromBinary(binPath, baseInitrd)
+	initrdPath, err := kernel.CreateFromBinary(binData, baseInitrd)
 	if err != nil {
 		return "", fmt.Errorf("creating initrd from sandal binary: %w", err)
 	}
 	return initrdPath, nil
-}
-
-// ResolveVMBinary returns the path to the sandal binary that will be
-// embedded in the VM initrd.
-func ResolveVMBinary() (string, error) {
-	selfBin := env.VMBinPath
-	if _, err := os.Stat(selfBin); err != nil {
-		var exeErr error
-		selfBin, exeErr = os.Executable()
-		if exeErr != nil {
-			return "", fmt.Errorf("resolving self binary: %w", exeErr)
-		}
-		selfBin, _ = filepath.EvalSymlinks(selfBin)
-	}
-	return selfBin, nil
 }
 
 // MarshalVMArgs encodes the cleaned args into a JSON byte slice

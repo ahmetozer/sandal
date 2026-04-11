@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 )
 
 var (
@@ -32,8 +31,6 @@ var (
 	IsDaemon bool
 
 	DefaultHostNet string
-
-	VMBinPath string
 
 	Get func(EnvName, DefaultValue string) string
 
@@ -93,8 +90,6 @@ func init() {
 		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))
 
 		IsDaemon = os.Getenv("SANDAL_DAEMON_PID") != ""
-
-		VMBinPath = Get("SANDAL_VM_BIN", filepath.Join(LibDir, "bin", "sandal"))
 
 		PATH = Get("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 

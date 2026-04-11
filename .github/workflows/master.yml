@@ -1,0 +1,56 @@
+on:
+  push:
+    branches:
+      - master
+name: Master Build
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            cgo: "0"
+          - runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            cgo: "1"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+      - name: Short SHA
+        id: sha
+        run: echo "SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Generate embedded Linux sandal (darwin only)
+        # Cross-compiles the linux sandal for the runner's native GOARCH
+        # into pkg/sandal/vmbin/linux-sandal so the darwin build can
+        # embed it via go:embed. Skipped on the linux runner.
+        if: runner.os == 'macOS'
+        run: go generate ./pkg/sandal/vmbin
+      - name: Build binary
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion=master-${{ steps.sha.outputs.SHORT }}" \
+            -o sandal-${{ matrix.goos }}-${{ matrix.goarch }} .
+      - name: Codesign darwin binary (adhoc)
+        if: runner.os == 'macOS'
+        run: codesign --entitlements entitlements.plist --force -s - sandal-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandal-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: sandal-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 30
+          if-no-files-found: error

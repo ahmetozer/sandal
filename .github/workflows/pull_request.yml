@@ -1,12 +1,13 @@
 on: [pull_request]
-name: CI
+name: PullRequest
 jobs:
   build:
-    name: Build
+    name: Build (${{ matrix.platform }})
     strategy:
+      fail-fast: false
       matrix:
         go-version: [1.26.x]
-        platform: [ubuntu-latest]
+        platform: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Install Go
@@ -14,7 +15,14 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+      - name: Generate embedded Linux sandal (darwin only)
+        # The darwin build path embeds a linux sandal via go:embed.
+        # Running go generate here verifies the cross-compile step and
+        # replaces the committed text placeholder with a real ELF so the
+        # subsequent `go build` exercises the full embed flow.
+        if: runner.os == 'macOS'
+        run: go generate ./pkg/sandal/vmbin
       - name: Build
         run: go build -v -o /dev/null .
 
