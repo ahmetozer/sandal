@@ -84,7 +84,7 @@ func BuildVirtioFSMounts(hostPaths []string, sandalLibDir string) ([]vmconfig.Mo
 }
 
 // BuildKernelCmdLine constructs the kernel command line for a sandal VM.
-func BuildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, netEncoded string, socketEntries []string, forwardsEncoded string) string {
+func BuildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, netEncoded string, socketEntries []string) string {
 	argsEncoded := base64.StdEncoding.EncodeToString(argsJSON)
 
 	var cmdLineParts []string
@@ -99,9 +99,6 @@ func BuildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, n
 	}
 	if len(socketEntries) > 0 {
 		cmdLineParts = append(cmdLineParts, "SANDAL_VM_SOCKETS="+strings.Join(socketEntries, ","))
-	}
-	if forwardsEncoded != "" {
-		cmdLineParts = append(cmdLineParts, "SANDAL_VM_FORWARDS="+forwardsEncoded)
 	}
 	for _, e := range env.GetDefaults() {
 		if val := os.Getenv(e.Name); val != "" {

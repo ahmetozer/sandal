@@ -5,6 +5,7 @@ package forward
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"time"
@@ -62,27 +63,6 @@ type vsockAddr struct{}
 func (vsockAddr) Network() string { return "vsock" }
 func (vsockAddr) String() string  { return "vsock" }
 
-// VsockListen is the ListenFunc used by the VM guest relay.
-func VsockListen(e RelayEntry) (Listener, error) {
-	port := e.VsockPort
-	if port == 0 {
-		port = uint32(VsockBasePort + e.ID)
-	}
-	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
-	if err != nil {
-		return nil, fmt.Errorf("vsock socket: %w", err)
-	}
-	if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: port}); err != nil {
-		unix.Close(fd)
-		return nil, fmt.Errorf("vsock bind port=%d: %w", port, err)
-	}
-	if err := unix.Listen(fd, 8); err != nil {
-		unix.Close(fd)
-		return nil, fmt.Errorf("vsock listen port=%d: %w", port, err)
-	}
-	return &vsockListener{fd: fd, port: port}, nil
-}
-
 type vsockListener struct {
 	fd   int
 	port uint32
@@ -102,34 +82,80 @@ func (l *vsockListener) Close() error {
 	return unix.Close(l.fd)
 }
 
-// protoOf maps a flag Scheme to the wire protocol used inside the container
-// when dialing the target. TLS is terminated on the host; the tunnel carries
-// plaintext stream.
-func protoOf(s Scheme) string {
-	if s == SchemeUDP {
-		return "udp"
+// StartVsock creates one AF_VSOCK listener per mapping on VMADDR_CID_ANY
+// at port VsockBasePort+id and relays each accepted connection through
+// transport.DialMapping. Used inside a VM guest where the incoming side is
+// vsock (from the physical host) and the target side is reached through
+// a NetnsDialer setns'd into the in-VM container.
+//
+// It is the VM-guest counterpart of host.Start: same relay semantics, only
+// the listener type differs.
+func StartVsock(ctx context.Context, _ string, mappings []PortMapping, transport Transport) (func(), error) {
+	if len(mappings) == 0 {
+		return func() {}, nil
 	}
-	return "tcp"
+	ctx, cancel := context.WithCancel(ctx)
+
+	var listeners []*vsockListener
+	stop := func() {
+		cancel()
+		for _, l := range listeners {
+			l.Close()
+		}
+	}
+
+	for _, m := range mappings {
+		m := m
+		port := uint32(VsockBasePort + m.ID)
+		fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+		if err != nil {
+			stop()
+			return nil, fmt.Errorf("vsock socket: %w", err)
+		}
+		if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: port}); err != nil {
+			unix.Close(fd)
+			stop()
+			return nil, fmt.Errorf("vsock bind port=%d: %w", port, err)
+		}
+		if err := unix.Listen(fd, 8); err != nil {
+			unix.Close(fd)
+			stop()
+			return nil, fmt.Errorf("vsock listen port=%d: %w", port, err)
+		}
+		l := &vsockListener{fd: fd, port: port}
+		listeners = append(listeners, l)
+		go vsockAcceptLoop(ctx, m, l, transport)
+	}
+	return stop, nil
 }
 
-// BuildVsockEntries converts PortMapping list into RelayEntry list for the
-// VM guest relay. The vsock port is allocated sequentially from VsockBasePort.
-func BuildVsockEntries(mappings []PortMapping) RelayEntries {
-	entries := make(RelayEntries, 0, len(mappings))
-	for _, m := range mappings {
-		e := RelayEntry{
-			ID:        m.ID,
-			Proto:     protoOf(m.Scheme),
-			VsockPort: uint32(VsockBasePort + m.ID),
+// vsockAcceptLoop drains accepts from a single vsock listener and hands
+// each accepted fd off to a per-connection relay goroutine.
+func vsockAcceptLoop(ctx context.Context, m PortMapping, l *vsockListener, transport Transport) {
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			return
 		}
-		if m.Cont.Kind == KindNet {
-			e.Kind = "port"
-			e.Port = m.Cont.Port
-		} else {
-			e.Kind = "unix"
-			e.Path = m.Cont.Path
-		}
-		entries = append(entries, e)
+		go vsockProxy(ctx, m, c, transport)
 	}
-	return entries
 }
+
+// vsockProxy copies bytes bidirectionally between an accepted vsock
+// connection and a container-side connection obtained from transport.
+func vsockProxy(ctx context.Context, m PortMapping, vconn net.Conn, transport Transport) {
+	defer vconn.Close()
+	target, err := transport.DialMapping(ctx, m.ID)
+	if err != nil {
+		return
+	}
+	defer target.Close()
+	done := make(chan struct{})
+	go func() {
+		io.Copy(target, vconn)
+		done <- struct{}{}
+	}()
+	io.Copy(vconn, target)
+	<-done
+}
+

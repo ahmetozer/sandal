@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/container/forward"
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
@@ -64,9 +63,8 @@ func importKernelCmdlineEnv() {
 	// On VZ, the kernel auto-exports cmdline params as env vars but keeps
 	// them encoded. Always decode and re-set these even if already present.
 	b64Keys := map[string]bool{
-		"SANDAL_VM_ARGS":     true,
-		"SANDAL_VM_NET":      true,
-		"SANDAL_VM_FORWARDS": true,
+		"SANDAL_VM_ARGS": true,
+		"SANDAL_VM_NET":  true,
 	}
 
 	for _, param := range parseCmdlineParams(cmdline) {
@@ -274,16 +272,12 @@ func VMInit() error {
 		startGuestSocketRelay(sockSpec)
 	}
 
-	// Start port-forwarding guest relay. Host encoded the mapping list in
-	// SANDAL_VM_FORWARDS; importKernelCmdlineEnv already b64-decoded it.
-	if fwdSpec := os.Getenv("SANDAL_VM_FORWARDS"); fwdSpec != "" {
-		entries, err := forward.DecodeEntries(fwdSpec)
-		if err != nil {
-			slog.Warn("forward: decode SANDAL_VM_FORWARDS", slog.Any("err", err))
-		} else if err := forward.RunRelay(entries, forward.VsockListen); err != nil {
-			slog.Warn("forward: run relay", slog.Any("err", err))
-		}
-	}
+	// NOTE: SANDAL_VM_FORWARDS is intentionally NOT consumed here. The
+	// in-VM container runs inside its own network namespace, which does
+	// not yet exist at VMInit time. The port-forwarding vsock listeners
+	// are started later from crun (pkg/container/host/crun.go) via
+	// forward.StartVsock, once c.ContPid is known and a NetnsDialer is
+	// setns'd into the container.
 
 	// SANDAL_VM_NET stays in the environment for the container process.
 	// The container's link.defaults() reads it to populate IP/routes
