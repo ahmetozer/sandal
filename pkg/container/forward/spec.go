@@ -26,11 +26,18 @@ const (
 )
 
 // Endpoint is either a network address (ip:port) or a unix socket path.
+//
+// Proto, when set on a net-kind endpoint, overrides the protocol implied
+// by the parent mapping's Scheme. That is what enables cross-protocol
+// forwarding like "udp host → tcp container" written as
+// -p udp://0.0.0.0:53:tcp://53. When Proto is empty the parser fills it
+// from Scheme ("tcp" for tcp/tls, "udp" for udp).
 type Endpoint struct {
-	Kind EndpointKind
-	IP   string
-	Port int
-	Path string
+	Kind  EndpointKind
+	IP    string
+	Port  int
+	Path  string
+	Proto string
 }
 
 func (e Endpoint) String() string {
@@ -94,12 +101,39 @@ func ParseFlag(raw string) (PortMapping, error) {
 		}
 		pm.Cont = Endpoint{Kind: KindNet, IP: "127.0.0.1", Port: pm.Host.Port}
 	} else {
+		// The container endpoint may carry its own scheme prefix to
+		// override the host-side protocol, e.g. udp://0.0.0.0:53:tcp://53
+		// forwards incoming UDP datagrams to a TCP listener in-container.
+		var contProto string
+		for _, p := range []struct {
+			prefix string
+			proto  string
+		}{
+			{"tcp://", "tcp"},
+			{"udp://", "udp"},
+		} {
+			if rest, ok := strings.CutPrefix(contPart, p.prefix); ok {
+				contPart = rest
+				contProto = p.proto
+				break
+			}
+		}
 		pm.Cont, err = parseEndpoint(contPart, false)
 		if err != nil {
 			return pm, fmt.Errorf("container endpoint: %w", err)
 		}
 		if pm.Cont.Kind == KindNet && pm.Cont.IP == "" {
 			pm.Cont.IP = "127.0.0.1"
+		}
+		pm.Cont.Proto = contProto
+	}
+
+	// Default container Proto from the host Scheme when not explicit.
+	if pm.Cont.Kind == KindNet && pm.Cont.Proto == "" {
+		if pm.Scheme == SchemeUDP {
+			pm.Cont.Proto = "udp"
+		} else {
+			pm.Cont.Proto = "tcp"
 		}
 	}
 
@@ -129,11 +163,20 @@ func splitHostCont(s string) (string, string, error) {
 		host, rest := splitAfterUnix(s)
 		return host, rest, nil
 	}
-	// Host is net. Find ":unix://" or split at last ":" pair.
-	if i := strings.Index(s, ":unix://"); i >= 0 {
-		return s[:i], s[i+1:], nil
+	// Host is net. If the container side carries its own scheme prefix
+	// (unix://, tcp://, udp://) split at the first one we find. This is
+	// what makes cross-proto mappings parse, e.g.
+	// udp://0.0.0.0:53:tcp://53.
+	best := -1
+	for _, marker := range []string{":unix://", ":tcp://", ":udp://"} {
+		if i := strings.Index(s, marker); i >= 0 && (best == -1 || i < best) {
+			best = i
+		}
 	}
-	// No unix in container side — use raw tokens.
+	if best >= 0 {
+		return s[:best], s[best+1:], nil
+	}
+	// Plain numeric tokens only.
 	parts := strings.Split(s, ":")
 	switch len(parts) {
 	case 1:

@@ -3,7 +3,6 @@ package forward
 import (
 	"context"
 	"crypto/tls"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
@@ -150,8 +149,17 @@ func pipe(a, b net.Conn) {
 	<-done
 }
 
-// startDgram sets up a UDP or unix-dgram listener and per-source flow table.
-// Each flow opens a dedicated transport stream and length-prefixes datagrams.
+// startDgram sets up a UDP or unix-dgram listener and per-source flow
+// table. Each source peer gets its own target net.Conn obtained from the
+// Transport. No length-prefix framing is used: exactly one Write per
+// received datagram maps naturally to both possible target types:
+//
+//   - UDP target: one Write == one packet, preserving message boundaries.
+//   - TCP / unix-stream target: Write appends bytes to the stream, which
+//     is what a cross-protocol (udp→tcp) mapping is expected to do.
+//
+// The reverse direction symmetrically treats every target Read as one
+// datagram back to the source peer.
 func startDgram(ctx context.Context, m PortMapping, transport Transport, add func(io.Closer)) error {
 	var (
 		pc  net.PacketConn
@@ -172,7 +180,7 @@ func startDgram(ctx context.Context, m PortMapping, transport Transport, add fun
 	add(pc)
 
 	type flow struct {
-		stream   net.Conn
+		conn     net.Conn
 		lastSeen time.Time
 	}
 	var (
@@ -197,37 +205,31 @@ func startDgram(ctx context.Context, m PortMapping, transport Transport, add fun
 					slog.Warn("forward: dgram dial", slog.Int("id", m.ID), slog.Any("err", derr))
 					continue
 				}
-				f = &flow{stream: target, lastSeen: time.Now()}
+				f = &flow{conn: target, lastSeen: time.Now()}
 				flows[key] = f
-				// reader: frame reply -> pc.WriteTo(peer)
 				go func(f *flow, peer net.Addr, key string) {
 					defer func() {
-						f.stream.Close()
+						f.conn.Close()
 						mu.Lock()
 						delete(flows, key)
 						mu.Unlock()
 					}()
-					var hdr [2]byte
+					rbuf := make([]byte, 65536)
 					for {
-						if _, err := io.ReadFull(f.stream, hdr[:]); err != nil {
+						n, err := f.conn.Read(rbuf)
+						if n > 0 {
+							pc.WriteTo(rbuf[:n], peer)
+						}
+						if err != nil {
 							return
 						}
-						n := int(binary.BigEndian.Uint16(hdr[:]))
-						b := make([]byte, n)
-						if _, err := io.ReadFull(f.stream, b); err != nil {
-							return
-						}
-						pc.WriteTo(b, peer)
 					}
 				}(f, peer, key)
 			}
 			f.lastSeen = time.Now()
 			mu.Unlock()
 
-			var hdr [2]byte
-			binary.BigEndian.PutUint16(hdr[:], uint16(n))
-			f.stream.Write(hdr[:])
-			f.stream.Write(buf[:n])
+			f.conn.Write(buf[:n])
 		}
 	}()
 	return nil

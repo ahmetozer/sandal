@@ -94,12 +94,15 @@ func (d *NetnsDialer) worker(contPid int, ready chan<- error) {
 }
 
 // dialEntry dials the container-side target for one mapping. Runs on the
-// setns'd worker thread.
+// setns'd worker thread. Container protocol is taken from m.Cont.Proto,
+// which the parser fills — either explicitly from a tcp://port/udp://port
+// override on the container endpoint, or implicitly from m.Scheme when no
+// override is given. This is what enables cross-protocol mappings.
 func dialEntry(m PortMapping) net.Conn {
 	if m.Cont.Kind == KindNet {
-		proto := "tcp"
-		if m.Scheme == SchemeUDP {
-			proto = "udp"
+		proto := m.Cont.Proto
+		if proto == "" {
+			proto = "tcp"
 		}
 		c, err := net.Dial(proto, fmt.Sprintf("127.0.0.1:%d", m.Cont.Port))
 		if err != nil {
