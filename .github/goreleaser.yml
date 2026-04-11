@@ -1,5 +1,10 @@
+before:
+  hooks:
+    - go generate ./pkg/sandal/vmbin
+
 builds:
-  - env:
+  - id: linux
+    env:
       - CGO_ENABLED=0
     ldflags:
       - -s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion={{.Version}}
@@ -8,24 +13,57 @@ builds:
     goos:
       - linux
     goarch:
-      - 386
+      - "386"
       - amd64
       - arm
       - arm64
     goarm:
-      - 6
-      - 7
+      - "6"
+      - "7"
     gomips:
       - hardfloat
       - softfloat
+
+  - id: darwin
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w -X github.com/ahmetozer/sandal/pkg/cmd.BuildVersion={{.Version}}
+    flags:
+      - -trimpath
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    hooks:
+      post:
+        - codesign --entitlements entitlements.plist --force -s - {{ .Path }}
+
 archives:
-  - format: binary
+  - id: linux
+    builds:
+      - linux
+    format: binary
     name_template: '{{ .Binary }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
     files:
       - none*
+
+  - id: darwin
+    builds:
+      - darwin
+    format: tar.gz
+    name_template: 'sandal_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
 release:
   draft: true
   prerelease: auto
+
 changelog:
   sort: asc
   filters:
@@ -34,3 +72,26 @@ changelog:
       - "^test:"
       - "^chore:"
       - "^ci:"
+
+brews:
+  - name: sandal
+    ids:
+      - darwin
+    repository:
+      owner: ahmetozer
+      name: sandal
+      branch: master
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: github-actions[bot]
+      email: github-actions[bot]@users.noreply.github.com
+    commit_msg_template: "chore(brew): sandal {{ .Tag }}"
+    homepage: https://github.com/ahmetozer/sandal
+    description: Lightweight portable container environment controller with macOS VM support
+    license: Apache-2.0
+    skip_upload: auto
+    install: |
+      bin.install "sandal"
+    test: |
+      system "#{bin}/sandal", "help"
