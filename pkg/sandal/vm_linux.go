@@ -67,6 +67,13 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	cleanArgs = RemoveBoolFlag(cleanArgs, "d")
 	cleanArgs = RemoveBoolFlag(cleanArgs, "startup")
 
+	// If TTY was auto-detected (or explicitly set) on the host but -t
+	// isn't in the original args, inject it so the guest container
+	// inside the VM allocates a PTY.
+	if c.TTY && !HasFlag(cleanArgs, "t") {
+		cleanArgs = append([]string{"-t"}, cleanArgs...)
+	}
+
 	// Scan args for -v values to determine VirtioFS shares and socket mounts
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 

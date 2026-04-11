@@ -108,6 +108,15 @@ func parseAndRunContainer(args []string) error {
 		return splitErr
 	}
 
+	// Auto-detect TTY: if stdin is a terminal and -t wasn't explicitly set,
+	// enable TTY mode for interactive foreground runs. Only applies on the
+	// host side — inside a VM guest, the flag is already forwarded.
+	if !c.TTY && !c.Background && !guest.IsVMInit() {
+		if fi, statErr := os.Stdin.Stat(); statErr == nil {
+			c.TTY = (fi.Mode() & os.ModeCharDevice) != 0
+		}
+	}
+
 	// If -vm is set and we're not already inside a VM, dispatch to VM boot path.
 	// On macOS (darwin), always use VM path since native containers aren't supported.
 	if !guest.IsVMInit() && (useVM || requiresVM()) {

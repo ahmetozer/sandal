@@ -61,6 +61,13 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// Remove -vm flag from args -- it's consumed here, not forwarded to VM.
 	cleanArgs := RemoveBoolFlag(rawArgs, "vm")
 
+	// If TTY was auto-detected (or explicitly set) on the host but -t
+	// isn't in the original args, inject it so the guest container
+	// inside the VM allocates a PTY.
+	if c.TTY && !HasFlag(cleanArgs, "t") {
+		cleanArgs = append([]string{"-t"}, cleanArgs...)
+	}
+
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
