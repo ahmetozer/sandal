@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -133,33 +134,53 @@ func proxyStream(ctx context.Context, m PortMapping, transport Transport, c net.
 	pipe(c, target)
 }
 
-// pipe copies bytes bidirectionally between two stream connections and
-// returns as soon as EITHER direction sees EOF or an error. Before
-// returning it closes both connections, which forcibly unblocks any read
-// that is still parked on the other direction — without this, a container
-// process closing its end leaves the client hanging because our second
-// io.Copy is still waiting on the client to send.
+// pipe copies bytes bidirectionally between two stream connections.
+//
+// It uses half-close semantics: when one direction sees EOF, it calls
+// CloseWrite on the destination to propagate the shutdown without
+// destroying the fd. This lets io.Copy run uninterrupted for its full
+// duration, which is critical for the splice(2) zero-copy path — the
+// previous implementation closed both connections on first-EOF, which
+// could interrupt an in-flight splice in the other direction.
+//
+// For connection types that don't support CloseWrite (vsock fileConn,
+// some unix sockets), it falls back to a full Close which unblocks the
+// other direction immediately.
 func pipe(a, b net.Conn) {
-	done := make(chan struct{}, 2)
-	go func() { io.Copy(a, b); done <- struct{}{} }()
-	go func() { io.Copy(b, a); done <- struct{}{} }()
+	done := make(chan struct{})
+	go func() {
+		io.Copy(a, b)
+		halfClose(a)
+		close(done)
+	}()
+	io.Copy(b, a)
+	halfClose(b)
 	<-done
 	a.Close()
 	b.Close()
-	<-done
 }
 
-// startDgram sets up a UDP or unix-dgram listener and per-source flow
-// table. Each source peer gets its own target net.Conn obtained from the
-// Transport. No length-prefix framing is used: exactly one Write per
-// received datagram maps naturally to both possible target types:
+// halfClose sends a write-shutdown (FIN for TCP) without closing the
+// read side, so the peer sees EOF while the reverse direction can still
+// drain. Falls back to full Close if the conn doesn't support it.
+func halfClose(c net.Conn) {
+	if cw, ok := c.(interface{ CloseWrite() error }); ok {
+		cw.CloseWrite()
+	} else {
+		c.Close()
+	}
+}
+
+// startDgram sets up a UDP or unix-dgram listener and a sharded flow
+// table that maps each source peer to a container-side connection.
 //
-//   - UDP target: one Write == one packet, preserving message boundaries.
-//   - TCP / unix-stream target: Write appends bytes to the stream, which
-//     is what a cross-protocol (udp→tcp) mapping is expected to do.
-//
-// The reverse direction symmetrically treats every target Read as one
-// datagram back to the source peer.
+// Performance notes:
+//   - The flow table is sharded into flowShards buckets to reduce mutex
+//     contention at high PPS (each bucket has its own lock).
+//   - Read buffers are pooled via sync.Pool to avoid per-packet allocation.
+//   - A background reaper goroutine evicts flows idle for >60s.
+//   - One Write per received datagram; no length-prefix framing. This maps
+//     naturally to UDP targets (one packet) and TCP targets (stream append).
 func startDgram(ctx context.Context, m PortMapping, transport Transport, add func(io.Closer)) error {
 	var (
 		pc  net.PacketConn
@@ -179,15 +200,23 @@ func startDgram(ctx context.Context, m PortMapping, transport Transport, add fun
 	}
 	add(pc)
 
-	type flow struct {
-		conn     net.Conn
-		lastSeen time.Time
-	}
-	var (
-		mu    sync.Mutex
-		flows = map[string]*flow{}
-	)
+	ft := newFlowTable()
 
+	// Reaper: evict idle flows every 30s.
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				ft.evictIdle(flowIdleTimeout)
+			}
+		}
+	}()
+
+	// Read loop.
 	go func() {
 		buf := make([]byte, 65536)
 		for {
@@ -196,43 +225,133 @@ func startDgram(ctx context.Context, m PortMapping, transport Transport, add fun
 				return
 			}
 			key := peer.String()
-			mu.Lock()
-			f, ok := flows[key]
-			if !ok {
+			f := ft.get(key)
+			if f == nil {
 				target, derr := transport.DialMapping(ctx, m.ID)
 				if derr != nil {
-					mu.Unlock()
 					slog.Warn("forward: dgram dial", slog.Int("id", m.ID), slog.Any("err", derr))
 					continue
 				}
-				f = &flow{conn: target, lastSeen: time.Now()}
-				flows[key] = f
-				go func(f *flow, peer net.Addr, key string) {
-					defer func() {
-						f.conn.Close()
-						mu.Lock()
-						delete(flows, key)
-						mu.Unlock()
-					}()
-					rbuf := make([]byte, 65536)
+				f = ft.getOrCreate(key, target, func() {
+					// Reply reader goroutine: target → source peer.
+					readBuf := bufPool.Get().([]byte)
+					defer bufPool.Put(readBuf)
 					for {
-						n, err := f.conn.Read(rbuf)
-						if n > 0 {
-							pc.WriteTo(rbuf[:n], peer)
+						rn, rerr := target.Read(readBuf)
+						if rn > 0 {
+							pc.WriteTo(readBuf[:rn], peer)
 						}
-						if err != nil {
+						if rerr != nil {
 							return
 						}
 					}
-				}(f, peer, key)
+				})
+				if f == nil {
+					// Another goroutine raced us; the conn we dialed is unused.
+					target.Close()
+					f = ft.get(key)
+					if f == nil {
+						continue
+					}
+				}
 			}
-			f.lastSeen = time.Now()
-			mu.Unlock()
-
+			f.touch()
 			f.conn.Write(buf[:n])
 		}
 	}()
 	return nil
+}
+
+// ---------- sharded flow table ----------
+
+const (
+	flowShards      = 64
+	flowIdleTimeout = 60 * time.Second
+)
+
+var bufPool = sync.Pool{
+	New: func() any { return make([]byte, 65536) },
+}
+
+type udpFlow struct {
+	conn     net.Conn
+	lastSeen atomic.Int64 // unix nano
+}
+
+func (f *udpFlow) touch() { f.lastSeen.Store(time.Now().UnixNano()) }
+
+type flowShard struct {
+	mu    sync.Mutex
+	flows map[string]*udpFlow
+}
+
+type flowTable struct {
+	shards [flowShards]flowShard
+}
+
+func newFlowTable() *flowTable {
+	ft := &flowTable{}
+	for i := range ft.shards {
+		ft.shards[i].flows = make(map[string]*udpFlow)
+	}
+	return ft
+}
+
+func (ft *flowTable) shard(key string) *flowShard {
+	h := uint32(0)
+	for i := 0; i < len(key); i++ {
+		h = h*31 + uint32(key[i])
+	}
+	return &ft.shards[h%flowShards]
+}
+
+func (ft *flowTable) get(key string) *udpFlow {
+	s := ft.shard(key)
+	s.mu.Lock()
+	f := s.flows[key]
+	s.mu.Unlock()
+	return f
+}
+
+// getOrCreate atomically inserts a new flow if the key doesn't exist yet.
+// If it was inserted, it spawns readFn as a goroutine. Returns nil if the
+// key was already present (caller should discard its pre-dialed conn).
+func (ft *flowTable) getOrCreate(key string, conn net.Conn, readFn func()) *udpFlow {
+	s := ft.shard(key)
+	s.mu.Lock()
+	if existing, ok := s.flows[key]; ok {
+		s.mu.Unlock()
+		return existing
+	}
+	f := &udpFlow{conn: conn}
+	f.touch()
+	s.flows[key] = f
+	s.mu.Unlock()
+	go func() {
+		defer func() {
+			conn.Close()
+			s.mu.Lock()
+			delete(s.flows, key)
+			s.mu.Unlock()
+		}()
+		readFn()
+	}()
+	return nil // signals "we created it"
+}
+
+func (ft *flowTable) evictIdle(maxIdle time.Duration) {
+	cutoff := time.Now().Add(-maxIdle).UnixNano()
+	for i := range ft.shards {
+		s := &ft.shards[i]
+		s.mu.Lock()
+		for key, f := range s.flows {
+			if f.lastSeen.Load() < cutoff {
+				f.conn.Close()
+				delete(s.flows, key)
+			}
+		}
+		s.mu.Unlock()
+	}
 }
 
 // AssignIDs assigns stable sequential IDs to a mapping slice in place.

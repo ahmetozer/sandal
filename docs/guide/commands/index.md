@@ -337,6 +337,23 @@ Allocation configuration of /etc/hosts file.
     **Host endpoint**: `<port>`, `<ip>:<port>`, or `unix://<path>`.
     **Container endpoint**: `<port>`, `unix://<path>`, or `tcp://<port>` / `udp://<port>` for cross-protocol forwarding. Defaults to the same port as the host when omitted.
 
+    **Grammar reference:**
+
+    ```
+    -p 443                                       tcp 127.0.0.1:443  -> cont 127.0.0.1:443
+    -p 0.0.0.0:443                               tcp 0.0.0.0:443    -> cont 127.0.0.1:443
+    -p 0.0.0.0:443:8443                          tcp 0.0.0.0:443    -> cont 127.0.0.1:8443
+    -p 0.0.0.0:443:unix:///tmp/l.sock            tcp 0.0.0.0:443    -> cont unix socket
+    -p udp://0.0.0.0:443:unix:///tmp/l.sock      udp 0.0.0.0:443    -> cont unix dgram
+    -p tls://0.0.0.0:443:8080                    TLS 0.0.0.0:443    -> cont 127.0.0.1:8080
+    -p tls://0.0.0.0:443:unix:///tmp/l.sock      TLS 0.0.0.0:443    -> cont unix socket
+    -p unix:///run/host.sock:8080                host unix stream   -> cont 127.0.0.1:8080
+    -p unix:///run/host.sock:unix:///run/c.sock  host unix stream   -> cont unix stream
+    -p udp://unix:///run/host.sock:53            host unix dgram    -> cont 127.0.0.1:53 udp
+    ```
+
+    **Examples:**
+
     ```bash
     # TCP: expose container port 8080 on host 0.0.0.0:8080
     sandal run -lw alpine -p 0.0.0.0:8080 -- nc -lp 8080

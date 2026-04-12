@@ -28,19 +28,21 @@ func containerNetMntNS(pid int) namespace.Namespaces {
 
 // NetnsDialer is a Transport implementation for native (non-VM) containers.
 //
-// It pins a single goroutine to a dedicated OS thread, setns-es that thread
-// into the target container's network and mount namespaces, and then serves
-// DialMapping requests over a channel. Because only socket(2)/connect(2)
-// consult the calling thread's namespaces, subsequent read/write on the
-// returned net.Conn runs on any thread without issue.
+// It pins N goroutines to dedicated OS threads (one per worker), each
+// setns'd into the target container's network and mount namespaces. All
+// workers share a single request channel so DialMapping calls are
+// distributed across the pool. Because only socket(2)/connect(2) consult
+// the calling thread's namespaces, subsequent read/write on the returned
+// net.Conn runs on any thread without issue.
 //
-// Lifecycle: the worker goroutine runs until Close() is called. It never
-// calls UnlockOSThread, so when the goroutine returns the Go runtime
-// destroys the (now-tainted) thread instead of reusing it.
+// Lifecycle: workers run until Close() is called. They never call
+// UnlockOSThread, so when a worker returns the Go runtime destroys the
+// tainted thread instead of reusing it.
 type NetnsDialer struct {
-	mappings []PortMapping
-	reqCh    chan netnsDialReq
-	doneCh   chan struct{}
+	mappings  []PortMapping
+	reqCh     chan netnsDialReq
+	doneCh    chan struct{}
+	poolSize  int
 }
 
 type netnsDialReq struct {
@@ -53,26 +55,56 @@ type netnsDialReply struct {
 	err  error
 }
 
+// dialerPoolSize returns the number of setns'd worker threads to use.
+func dialerPoolSize() int {
+	n := runtime.NumCPU()
+	if n > 8 {
+		n = 8
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
 // StartNetnsDialer creates a NetnsDialer that can reach the container whose
-// init process is at contPid. Blocks until the worker has successfully
-// entered the container namespaces or failed to do so.
+// init process is at contPid. It starts a pool of worker goroutines, each
+// pinned to its own OS thread and setns'd into the container. Blocks until
+// at least one worker has successfully entered the namespaces.
 func StartNetnsDialer(contPid int, mappings []PortMapping) (*NetnsDialer, error) {
+	poolSize := dialerPoolSize()
 	d := &NetnsDialer{
 		mappings: mappings,
-		reqCh:    make(chan netnsDialReq),
+		reqCh:    make(chan netnsDialReq, poolSize),
 		doneCh:   make(chan struct{}),
+		poolSize: poolSize,
 	}
-	ready := make(chan error, 1)
-	go d.worker(contPid, ready)
-	if err := <-ready; err != nil {
-		return nil, err
+	// Start all workers. We need at least one to succeed.
+	ready := make(chan error, poolSize)
+	for i := 0; i < poolSize; i++ {
+		go d.worker(contPid, ready)
+	}
+	// Wait for at least one successful worker.
+	var firstErr error
+	started := 0
+	for i := 0; i < poolSize; i++ {
+		if err := <-ready; err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			started++
+		}
+	}
+	if started == 0 {
+		return nil, firstErr
 	}
 	return d, nil
 }
 
 // worker runs on a dedicated OS thread that is setns'd into the target
-// container. All namespace-sensitive syscalls (net.Dial in particular) are
-// serialized through this goroutine.
+// container. Multiple workers share d.reqCh so DialMapping calls are
+// distributed across the pool.
 func (d *NetnsDialer) worker(contPid int, ready chan<- error) {
 	runtime.LockOSThread()
 	// No UnlockOSThread: the thread is retired after use.

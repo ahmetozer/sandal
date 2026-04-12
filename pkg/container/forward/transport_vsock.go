@@ -34,12 +34,21 @@ func (t VsockTransport) DialMapping(_ context.Context, id int) (net.Conn, error)
 		return nil, fmt.Errorf("vsock connect cid=%d port=%d: %w", t.GuestCID, port, err)
 	}
 	f := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", t.GuestCID, port))
+	// Try net.FileConn which integrates with Go's netpoller and enables
+	// splice(2) for io.Copy if the kernel supports it on vsock fds.
+	if nc, err := net.FileConn(f); err == nil {
+		f.Close() // net.FileConn dups the fd; close our original
+		return nc, nil
+	}
+	// Fallback to the raw wrapper with manual deadline support.
 	return &fileConn{f: f, fd: fd}, nil
 }
 
 func (t VsockTransport) Close() error { return nil }
 
-// fileConn wraps an *os.File as a net.Conn so io.Copy works.
+// fileConn wraps an *os.File as a net.Conn. It implements deadlines via
+// SO_RCVTIMEO/SO_SNDTIMEO so that a stuck container unblocks the relay
+// goroutine instead of leaking it forever.
 type fileConn struct {
 	f  *os.File
 	fd int
@@ -51,11 +60,36 @@ func (c *fileConn) Close() error {
 	unix.Shutdown(c.fd, unix.SHUT_RDWR)
 	return c.f.Close()
 }
-func (c *fileConn) LocalAddr() net.Addr                { return vsockAddr{} }
-func (c *fileConn) RemoteAddr() net.Addr               { return vsockAddr{} }
-func (c *fileConn) SetDeadline(_ time.Time) error      { return nil }
-func (c *fileConn) SetReadDeadline(_ time.Time) error  { return nil }
-func (c *fileConn) SetWriteDeadline(_ time.Time) error { return nil }
+func (c *fileConn) LocalAddr() net.Addr  { return vsockAddr{} }
+func (c *fileConn) RemoteAddr() net.Addr { return vsockAddr{} }
+
+func (c *fileConn) SetDeadline(t time.Time) error {
+	if err := c.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return c.SetWriteDeadline(t)
+}
+
+func (c *fileConn) SetReadDeadline(t time.Time) error {
+	return c.setSockTimeout(unix.SO_RCVTIMEO, t)
+}
+
+func (c *fileConn) SetWriteDeadline(t time.Time) error {
+	return c.setSockTimeout(unix.SO_SNDTIMEO, t)
+}
+
+func (c *fileConn) setSockTimeout(opt int, t time.Time) error {
+	var tv unix.Timeval
+	if !t.IsZero() {
+		d := time.Until(t)
+		if d <= 0 {
+			d = 1 // minimum 1µs to force immediate timeout
+		}
+		tv = unix.NsecToTimeval(d.Nanoseconds())
+	}
+	// Zero tv clears the timeout (blocks indefinitely).
+	return unix.SetsockoptTimeval(c.fd, unix.SOL_SOCKET, opt, &tv)
+}
 
 type vsockAddr struct{}
 
@@ -73,6 +107,11 @@ func (l *vsockListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 	f := os.NewFile(uintptr(nfd), fmt.Sprintf("vsock-accepted:%d", l.port))
+	// Prefer net.FileConn for netpoller integration + splice support.
+	if nc, err := net.FileConn(f); err == nil {
+		f.Close()
+		return nc, nil
+	}
 	return &fileConn{f: f, fd: nfd}, nil
 }
 
