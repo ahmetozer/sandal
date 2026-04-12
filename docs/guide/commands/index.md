@@ -324,6 +324,48 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
+### `-p value`
+
+:   publish a container port to the host (repeatable).
+  Binds a listener on the host and forwards traffic into the container. Works in both native and VM (`-vm`) mode. The general form is:
+
+    ```
+    [scheme://]<host-endpoint>[:<container-endpoint>]
+    ```
+
+    **Scheme** (optional, default `tcp`): `tcp://`, `udp://`, `tls://`.
+    **Host endpoint**: `<port>`, `<ip>:<port>`, or `unix://<path>`.
+    **Container endpoint**: `<port>`, `unix://<path>`, or `tcp://<port>` / `udp://<port>` for cross-protocol forwarding. Defaults to the same port as the host when omitted.
+
+    ```bash
+    # TCP: expose container port 8080 on host 0.0.0.0:8080
+    sandal run -lw alpine -p 0.0.0.0:8080 -- nc -lp 8080
+
+    # TCP with port remapping: host 443 -> container 8443
+    sandal run -lw alpine -p 0.0.0.0:443:8443 -- my-server
+
+    # TLS termination: host terminates TLS, container receives plaintext
+    sandal run -lw alpine -p tls://0.0.0.0:443:8080 -- my-server
+
+    # UDP on host -> TCP inside container (cross-protocol)
+    sandal run -lw alpine -p udp://0.0.0.0:9000:tcp://9000 -- nc -lp 9000
+
+    # Forward to a unix socket inside the container
+    sandal run -lw alpine -p 0.0.0.0:8080:unix:///tmp/app.sock -- my-app
+
+    # Host-side unix socket listener
+    sandal run -lw alpine -p unix:///run/my.sock:8080 -- my-app
+
+    # VM mode: same flags, traffic tunnels over vsock
+    sandal run -lw alpine -vm -p 0.0.0.0:8080 -- nc -lp 8080
+    ```
+
+    **TLS**: a self-signed certificate is generated per container. The fingerprint is printed to stderr for pinning.
+
+    **VM mode**: the host listener tunnels traffic through AF_VSOCK to a relay inside the VM guest that dials the container target. No TAP/bridge routing is used.
+
+---
+
 ### `-rci value`
 
 :   run command before init
