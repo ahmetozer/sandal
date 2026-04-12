@@ -72,7 +72,10 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
-	// Build VM config: try loading a named config for this container, fall back to defaults
+	// Build VM config: try loading a named config for this container, fall back to defaults.
+	// Only keep CPU/memory/kernel from a saved config — mounts are rebuilt every run
+	// because RunInVZ generates them from the current args. A stale config left by a
+	// killed process would otherwise cause duplicate VirtioFS tags.
 	cfg, err := vmconfig.LoadConfig(c.Name)
 	if err != nil {
 		cfg = vmconfig.VMConfig{
@@ -80,6 +83,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
 		}
 	}
+	cfg.Mounts = nil
 
 	// Auto-download kernel if not configured or missing
 	if cfg.KernelPath == "" {

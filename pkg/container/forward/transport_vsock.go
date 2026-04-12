@@ -5,6 +5,7 @@ package forward
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -34,13 +35,9 @@ func (t VsockTransport) DialMapping(_ context.Context, id int) (net.Conn, error)
 		return nil, fmt.Errorf("vsock connect cid=%d port=%d: %w", t.GuestCID, port, err)
 	}
 	f := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", t.GuestCID, port))
-	// Try net.FileConn which integrates with Go's netpoller and enables
-	// splice(2) for io.Copy if the kernel supports it on vsock fds.
-	if nc, err := net.FileConn(f); err == nil {
-		f.Close() // net.FileConn dups the fd; close our original
-		return nc, nil
-	}
-	// Fallback to the raw wrapper with manual deadline support.
+	// Always use blocking fileConn. AF_VSOCK fds do not reliably generate
+	// epoll readiness events, so net.FileConn (non-blocking + epoll) causes
+	// io.Copy to fail with EAGAIN and zero bytes transferred.
 	return &fileConn{f: f, fd: fd}, nil
 }
 
@@ -107,11 +104,11 @@ func (l *vsockListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 	f := os.NewFile(uintptr(nfd), fmt.Sprintf("vsock-accepted:%d", l.port))
-	// Prefer net.FileConn for netpoller integration + splice support.
-	if nc, err := net.FileConn(f); err == nil {
-		f.Close()
-		return nc, nil
-	}
+	// Always use blocking fileConn. net.FileConn sets non-blocking mode
+	// and registers with epoll, but AF_VSOCK fds do not generate epoll
+	// readiness events on many kernel versions. This causes io.Copy to
+	// fail immediately with EAGAIN ("resource temporarily unavailable")
+	// and zero bytes transferred.
 	return &fileConn{f: f, fd: nfd}, nil
 }
 
@@ -186,6 +183,7 @@ func vsockProxy(ctx context.Context, m PortMapping, vconn net.Conn, transport Tr
 	defer vconn.Close()
 	target, err := transport.DialMapping(ctx, m.ID)
 	if err != nil {
+		slog.Warn("forward: vsock proxy dial", slog.Int("id", m.ID), slog.Any("err", err))
 		return
 	}
 	defer target.Close()

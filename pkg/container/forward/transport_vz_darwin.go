@@ -30,12 +30,10 @@ func (t VZTransport) DialMapping(_ context.Context, id int) (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("vz vsock connect port=%d: %w", port, err)
 	}
-	// Try net.FileConn for netpoller integration + potential splice.
-	if nc, err := net.FileConn(f); err == nil {
-		f.Close()
-		return nc, nil
-	}
-	// Fallback: wrap the raw file as a net.Conn.
+	// Always use vzFileConn with blocking I/O. VZ framework vsock fds
+	// are not regular sockets — net.FileConn sets non-blocking mode and
+	// registers with kqueue, but the fd may not trigger kqueue readiness
+	// events, causing io.Copy to hang indefinitely.
 	return &vzFileConn{f: f}, nil
 }
 

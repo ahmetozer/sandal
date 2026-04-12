@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/forward"
@@ -84,6 +85,14 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 		StopMainRunLoop()
 	}()
 
+	// stopForward is set once the host-side port-forwarding listeners
+	// are running. Called during VM shutdown to close listeners and
+	// cancel in-flight relays.
+	var (
+		stopForwardMu   sync.Mutex
+		stopForwardFunc func()
+	)
+
 	// Start VM asynchronously
 	go func() {
 		if err := vm.Start(); err != nil {
@@ -108,11 +117,12 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 				slog.Warn("Boot", slog.String("action", "start forwards"), slog.Any("error", err))
 				cancel()
 			} else {
-				go func() {
-					<-ctx.Done()
+				stopForwardMu.Lock()
+				stopForwardFunc = func() {
+					cancel()
 					stop()
-				}()
-				_ = cancel // cleaned up when VM stops
+				}
+				stopForwardMu.Unlock()
 			}
 		}
 	}()
@@ -125,6 +135,12 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 		} else {
 			slog.Debug("Boot", slog.String("action", "stopped"))
 		}
+		// Clean up port-forwarding listeners before stopping the run loop.
+		stopForwardMu.Lock()
+		if stopForwardFunc != nil {
+			stopForwardFunc()
+		}
+		stopForwardMu.Unlock()
 		StopMainRunLoop()
 	}()
 
