@@ -35,9 +35,13 @@ func (t VsockTransport) DialMapping(_ context.Context, id int) (net.Conn, error)
 		return nil, fmt.Errorf("vsock connect cid=%d port=%d: %w", t.GuestCID, port, err)
 	}
 	f := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", t.GuestCID, port))
-	// Always use blocking fileConn. AF_VSOCK fds do not reliably generate
-	// epoll readiness events, so net.FileConn (non-blocking + epoll) causes
-	// io.Copy to fail with EAGAIN and zero bytes transferred.
+	// Try net.FileConn for netpoller integration + splice(2) zero-copy.
+	// This runs on the KVM host with a real Linux kernel that typically
+	// supports vsock epoll. Falls back to blocking fileConn if it fails.
+	if nc, err := net.FileConn(f); err == nil {
+		f.Close() // net.FileConn dups the fd; close our original
+		return nc, nil
+	}
 	return &fileConn{f: f, fd: fd}, nil
 }
 
