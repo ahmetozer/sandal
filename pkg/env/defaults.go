@@ -91,15 +91,12 @@ func init() {
 
 		IsDaemon = os.Getenv("SANDAL_DAEMON_PID") != ""
 
-		PATH = Get("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-
 		Get("SANDAL_LOG_LEVEL", "warn")
 
 		Get = getCurrents
 	}
 	Get = getMain
 
-	os.Setenv("PATH", Get("PATH", PATH))
 	os.Setenv("TERM", Get("TERM", TERM))
 
 }

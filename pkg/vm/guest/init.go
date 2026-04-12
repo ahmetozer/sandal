@@ -272,6 +272,13 @@ func VMInit() error {
 		startGuestSocketRelay(sockSpec)
 	}
 
+	// NOTE: SANDAL_VM_FORWARDS is intentionally NOT consumed here. The
+	// in-VM container runs inside its own network namespace, which does
+	// not yet exist at VMInit time. The port-forwarding vsock listeners
+	// are started later from crun (pkg/container/host/crun.go) via
+	// forward.StartVsock, once c.ContPid is known and a NetnsDialer is
+	// setns'd into the container.
+
 	// SANDAL_VM_NET stays in the environment for the container process.
 	// The container's link.defaults() reads it to populate IP/routes
 	// and moves eth0 directly into the container's network namespace.

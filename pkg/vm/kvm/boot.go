@@ -3,6 +3,7 @@
 package kvm
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
@@ -22,6 +24,13 @@ import (
 // the VM stops or a signal is received.
 // If stdin/stdout are nil, os.Stdin/os.Stdout are used with raw terminal mode.
 func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer) error {
+	return BootWithForwards(name, cfg, stdin, stdout, nil)
+}
+
+// BootWithForwards is Boot plus a port-forwarding mapping list. When forwards
+// is non-empty, the host starts per-mapping listeners that tunnel to the guest
+// via AF_VSOCK. Cleanup is deferred to VM stop.
+func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer, forwards []forward.PortMapping) error {
 	// Write PID file
 	if err := vmconfig.WritePidFile(name); err != nil {
 		slog.Warn("Boot", slog.String("action", "write pid file"), slog.Any("error", err))
@@ -87,6 +96,21 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 	// to the correct guest instead of always racing for CID 3.
 	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: uint32(vm.VsockGuestCID()), Port: 4000})
 	defer mgmtCleanup()
+
+	// Port-forwarding listeners — host side only. The guest relay is started
+	// from SANDAL_VM_FORWARDS during guest init. Matching vsock ports are
+	// derived from each mapping's id via VsockBasePort.
+	if len(forwards) > 0 {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		stop, err := forward.Start(ctx, name, forwards,
+			forward.VsockTransport{GuestCID: uint32(vm.VsockGuestCID())})
+		if err != nil {
+			slog.Warn("Boot", slog.String("action", "start forwards"), slog.Any("error", err))
+		} else {
+			defer stop()
+		}
+	}
 
 	// Wait for VM to stop
 	if err := vm.WaitUntilStopped(); err != nil {

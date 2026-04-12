@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -71,7 +72,10 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// Scan args for -v values to determine VirtioFS shares and socket mounts.
 	hostPaths, socketMounts := ScanMountPaths(cleanArgs)
 
-	// Build VM config: try loading a named config for this container, fall back to defaults
+	// Build VM config: try loading a named config for this container, fall back to defaults.
+	// Only keep CPU/memory/kernel from a saved config — mounts are rebuilt every run
+	// because RunInVZ generates them from the current args. A stale config left by a
+	// killed process would otherwise cause duplicate VirtioFS tags.
 	cfg, err := vmconfig.LoadConfig(c.Name)
 	if err != nil {
 		cfg = vmconfig.VMConfig{
@@ -79,6 +83,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 			MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
 		}
 	}
+	cfg.Mounts = nil
 
 	// Auto-download kernel if not configured or missing
 	if cfg.KernelPath == "" {
@@ -177,7 +182,12 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 		}
 	}()
 
-	err = vz.Boot(vmName, cfg, vsockRelays...)
+	// Assign stable IDs so host vsock ports match guest-side listeners.
+	if len(c.Ports) > 0 {
+		forward.AssignIDs(c.Ports)
+	}
+
+	err = vz.BootWithForwards(vmName, cfg, c.Ports, vsockRelays...)
 
 	// Clean up staged etc directory
 	os.RemoveAll(filepath.Join(env.LibDir, "system", "etc"))

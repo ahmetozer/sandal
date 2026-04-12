@@ -50,57 +50,16 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 	// after we enter the container's namespaces (no UnlockOSThread).
 	runtime.LockOSThread()
 
-	// Build the namespace set for this container.
-	ns := c.NS
-	if len(ns) == 0 {
-		ns = namespace.DefaultsForPid(c.ContPid)
-	} else {
-		ns = ns.SetEmptyToPid(c.ContPid)
-	}
-
-	// Open a dirfd to the container's root BEFORE switching namespaces.
-	// The /proc/<pid>/root magic symlink resolves to the target task's
-	// root dentry in its mount namespace. We need this fd because after
-	// setns(CLONE_NEWNS) the kernel does NOT update our task->fs->root —
-	// our thread's "/" still points at the old (VM-init) root dentry,
-	// which isn't reachable in the container's mount namespace, so paths
-	// like /dev/ptmx and /bin/ash fail to resolve. We fchdir to this fd
-	// and chroot(".") below to re-anchor fs->root to the container's root.
-	rootFd, err := os.Open(fmt.Sprintf("/proc/%d/root", c.ContPid))
-	if err != nil {
-		return fmt.Errorf("open container root: %w", err)
-	}
-	defer rootFd.Close()
-
-	// Unshare against the same set first. This gives this thread its own
-	// fs_struct and a fresh mount namespace, which is the precondition for
-	// setns(CLONE_NEWNS) on the container's mnt ns (kernel requires
-	// fs->users == 1).
-	if err := ns.Unshare(); err != nil {
-		return fmt.Errorf("unshare: %w", err)
-	}
-
 	// Enter the container's namespaces (pid, net, ipc, uts, cgroup, mnt).
-	if err := ns.SetNS(); err != nil {
-		return fmt.Errorf("setns: %w", err)
-	}
-
-	// Re-anchor fs->root to the container's root via the dirfd opened
-	// above. Without this, the thread's "/" remains the stale VM-init
-	// dentry and nothing under the container mnt ns is reachable.
-	if err := unix.Fchdir(int(rootFd.Fd())); err != nil {
-		return fmt.Errorf("fchdir container root: %w", err)
-	}
-	if err := unix.Chroot("."); err != nil {
-		return fmt.Errorf("chroot container root: %w", err)
+	// namespace.Enter handles the full sequence: open root fd, unshare,
+	// setns (honouring per-entry user-defined targets in c.NS), and
+	// re-anchor fs->root via fchdir+chroot when mnt was entered.
+	if err := namespace.Enter(c.ContPid, c.NS); err != nil {
+		return err
 	}
 
 	// Set hostname from container name (UTS namespace).
 	unix.Sethostname([]byte(c.Name))
-
-	if err := unix.Chdir("/"); err != nil {
-		return fmt.Errorf("chdir /: %w", err)
-	}
 
 	os.Setenv("PATH", env.PATH)
 

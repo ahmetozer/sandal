@@ -19,6 +19,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
@@ -196,6 +197,14 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		vmNetEncoded = base64.StdEncoding.EncodeToString(netJSON)
 	}
 
+	// Assign stable ids to port mappings so host-side vsock ports
+	// (VsockBasePort+id) match the guest-side listener ports. The mapping
+	// list itself is forwarded to the in-VM sandal via SANDAL_VM_ARGS;
+	// there is no separate kernel cmdline entry for port forwarding.
+	if len(c.Ports) > 0 {
+		forward.AssignIDs(c.Ports)
+	}
+
 	// Build kernel command line
 	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
 
@@ -259,7 +268,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		go StartHostSocketRelay(socketMounts)
 	}
 
-	err = kvm.Boot(vmName, cfg, nil, nil)
+	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports)
 
 	// Update status after VM exits
 	if err != nil {

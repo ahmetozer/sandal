@@ -10,6 +10,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/capabilities"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -53,6 +54,7 @@ type Config struct {
 	RunPrePivot     wrapper.StringFlags
 	PassEnv         wrapper.StringFlags
 	Net             any
+	Ports           []forward.PortMapping
 
 	// VM execution context (empty string means no VM)
 	VM string // "" = no VM, "kvm" = KVM, "vz" = VZ

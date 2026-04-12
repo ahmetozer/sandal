@@ -3,6 +3,7 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
@@ -202,6 +204,48 @@ func crun(c *config.Config) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Start port-forwarding for -p flags. A dedicated goroutine pinned to
+	// one OS thread is setns'd into the container's network+mount namespaces
+	// and serves net.Dial requests over a channel.
+	//
+	// The frontend differs by mode:
+	//   - native:   host-side net.Listeners (tcp/unix/udp) bound in the host
+	//               netns, dialing into the container via the NetnsDialer.
+	//   - inside VM: AF_VSOCK listeners bound in the VM root netns, accepting
+	//               connections from the physical host's BootWithForwards
+	//               host listeners and dialing into the in-VM container.
+	stopForward := func() {}
+	if len(c.Ports) > 0 {
+		forward.AssignIDs(c.Ports)
+		dialer, dErr := forward.StartNetnsDialer(c.ContPid, c.Ports)
+		if dErr != nil {
+			slog.Warn("forward: start netns dialer", "err", dErr)
+		} else {
+			ctx, cancel := context.WithCancel(context.Background())
+			var (
+				stop func()
+				sErr error
+			)
+			if os.Getenv("SANDAL_VM") != "" {
+				stop, sErr = forward.StartVsock(ctx, c.Name, c.Ports, dialer)
+			} else {
+				stop, sErr = forward.Start(ctx, c.Name, c.Ports, dialer)
+			}
+			if sErr != nil {
+				slog.Warn("forward: start listeners", "err", sErr)
+				cancel()
+				dialer.Close()
+			} else {
+				stopForward = func() {
+					stop()
+					cancel()
+					dialer.Close()
+				}
+			}
+		}
+	}
+	defer stopForward()
 
 	// Start PTY relay for interactive (foreground) containers only.
 	// Background containers with socket console have their own PTY reader.
