@@ -247,12 +247,16 @@ func startDgram(ctx context.Context, m PortMapping, transport Transport, add fun
 					}
 				})
 				if f == nil {
-					// Another goroutine raced us; the conn we dialed is unused.
-					target.Close()
+					// We created the entry. target is now owned by the
+					// flow table and read by the reply goroutine.
+					// Retrieve the flow for the Write below.
 					f = ft.get(key)
 					if f == nil {
 						continue
 					}
+				} else {
+					// Key already existed; our dialed target is unused.
+					target.Close()
 				}
 			}
 			f.touch()
