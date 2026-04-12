@@ -88,7 +88,7 @@ func BuildKernelCmdLine(vmType string, argsJSON []byte, mountEntries []string, n
 	argsEncoded := base64.StdEncoding.EncodeToString(argsJSON)
 
 	var cmdLineParts []string
-	cmdLineParts = append(cmdLineParts, vmconfig.DefaultConsole(), "loglevel="+kernelLogLevel())
+	cmdLineParts = append(cmdLineParts, vmconfig.DefaultConsole(), "loglevel="+kernelLogLevel(), "init=/init")
 	cmdLineParts = append(cmdLineParts, "SANDAL_VM="+vmType)
 	cmdLineParts = append(cmdLineParts, "SANDAL_VM_ARGS="+argsEncoded)
 	if netEncoded != "" {
