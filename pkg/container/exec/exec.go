@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	osExec "os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"runtime"
@@ -139,7 +140,14 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 	}
 
 	if tty {
-		return execWithPTY(cmd, stdin, stdout)
+		// Detect host terminal size if stdin is a real terminal.
+		var rows, cols uint16 = 24, 80
+		if f, ok := stdin.(*os.File); ok {
+			if ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ); err == nil && ws.Row > 0 && ws.Col > 0 {
+				rows, cols = ws.Row, ws.Col
+			}
+		}
+		return execWithPTY(cmd, stdin, stdout, rows, cols)
 	}
 
 	// Non-TTY: pipe directly
@@ -151,7 +159,7 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 
 // execWithPTY allocates a PTY from the container's devpts, connects the
 // child to the slave, and relays the master to stdin/stdout.
-func execWithPTY(cmd *osExec.Cmd, stdin io.Reader, stdout io.Writer) error {
+func execWithPTY(cmd *osExec.Cmd, stdin io.Reader, stdout io.Writer, rows, cols uint16) error {
 	// Open the PTY master from the container's /dev/ptmx. We are already
 	// inside the container's mount namespace, so this resolves to the
 	// container's devpts.
@@ -181,20 +189,41 @@ func execWithPTY(cmd *osExec.Cmd, stdin io.Reader, stdout io.Writer) error {
 	}
 	defer slave.Close()
 
-	// Set default terminal size
-	ws := unix.Winsize{Row: 24, Col: 80}
+	// Set terminal size from host (or defaults)
+	ws := unix.Winsize{Row: rows, Col: cols}
 	unix.IoctlSetWinsize(int(master.Fd()), unix.TIOCSWINSZ, &ws)
 
 	// Connect child to slave PTY
 	cmd.Stdin = slave
 	cmd.Stdout = slave
 	cmd.Stderr = slave
-	cmd.SysProcAttr.Ctty = int(slave.Fd())
+	// Ctty must reference a fd valid in the child. After fork, Go's
+	// os/exec dups stdin/stdout/stderr to fds 0/1/2 and closes extras.
+	// Since cmd.Stdin = slave, fd 0 in the child IS the slave PTY.
+	cmd.SysProcAttr.Ctty = 0
+	cmd.SysProcAttr.Setctty = true
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start: %w", err)
 	}
 	slave.Close() // parent doesn't need the slave
+
+	// Forward SIGWINCH (terminal resize) to the PTY when stdin is a
+	// real terminal. For VM exec over the management socket, stdin is a
+	// net.Conn so this is a no-op — acceptable, the relay doesn't carry
+	// resize events.
+	if f, ok := stdin.(*os.File); ok {
+		sigWinch := make(chan os.Signal, 1)
+		signal.Notify(sigWinch, syscall.SIGWINCH)
+		go func() {
+			for range sigWinch {
+				if ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ); err == nil {
+					unix.IoctlSetWinsize(int(master.Fd()), unix.TIOCSWINSZ, ws)
+				}
+			}
+		}()
+		defer signal.Stop(sigWinch)
+	}
 
 	// Relay: master ↔ stdin/stdout
 	// master → stdout (terminates when child exits → master read returns EIO)
