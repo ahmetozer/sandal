@@ -4,6 +4,7 @@ package vz
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
@@ -23,6 +25,13 @@ import (
 // If relays is non-empty, vsock listeners are set up to relay guest connections
 // to host Unix sockets (used for -v socket sharing).
 func Boot(name string, cfg vmconfig.VMConfig, relays ...SocketRelay) error {
+	return BootWithForwards(name, cfg, nil, relays...)
+}
+
+// BootWithForwards is Boot plus port-forwarding support. When forwards is
+// non-empty, the host starts per-mapping listeners that tunnel to the guest
+// via VZ's vsock API after the VM starts.
+func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.PortMapping, relays ...SocketRelay) error {
 	// Kill stale VM processes holding the disk file
 	if cfg.DiskPath != "" {
 		if killed, err := killStaleDiskHolders(cfg.DiskPath); err != nil {
@@ -88,6 +97,24 @@ func Boot(name string, cfg vmconfig.VMConfig, relays ...SocketRelay) error {
 		// Start the management socket relay so macOS commands can reach the
 		// embedded controller inside the VM via vsock port 4000.
 		mgmt.StartManagementSocket(name, mgmt.VZConnector{VM: vm, Port: 4000})
+
+		// Port-forwarding listeners — host side. The guest relay is started
+		// from crun inside the VM via forward.StartVsock (same as KVM).
+		if len(forwards) > 0 {
+			ctx, cancel := context.WithCancel(context.Background())
+			stop, err := forward.Start(ctx, name, forwards,
+				forward.VZTransport{VM: vm})
+			if err != nil {
+				slog.Warn("Boot", slog.String("action", "start forwards"), slog.Any("error", err))
+				cancel()
+			} else {
+				go func() {
+					<-ctx.Done()
+					stop()
+				}()
+				_ = cancel // cleaned up when VM stops
+			}
+		}
 	}()
 
 	// Wait for VM to stop

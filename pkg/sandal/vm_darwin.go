@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -177,7 +178,12 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 		}
 	}()
 
-	err = vz.Boot(vmName, cfg, vsockRelays...)
+	// Assign stable IDs so host vsock ports match guest-side listeners.
+	if len(c.Ports) > 0 {
+		forward.AssignIDs(c.Ports)
+	}
+
+	err = vz.BootWithForwards(vmName, cfg, c.Ports, vsockRelays...)
 
 	// Clean up staged etc directory
 	os.RemoveAll(filepath.Join(env.LibDir, "system", "etc"))
