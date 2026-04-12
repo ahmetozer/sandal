@@ -9,31 +9,28 @@ sandal exec -env-pass MY_VAR new-york -- env
     MY_VAR=test_var
 ```
 
-## Custom Namespaces
+## Flags
 
-Sandal is flexiable to execute your custom process with in different namespace.
+### `-dir string`
 
-### Host
+:   working directory for the executed command.
 
-To keep nep process on default namespace while environment is in created container.
+### `-user string`
 
-```bash
-sandal exec --env-all --ns-net host test -- ifconfig
-```
+:   run the command as a specific user.
 
-### Proccess ID (PID)
+### `-t bool`
 
-System is capable to provisioning new process from other processes namespaces.
+:   allocate a pseudo-TTY (for interactive shells).
 
-```bash
-sandal exec --env-all --ns-net pid:5321 test -- ifconfig
-```
+### `-env-all bool`
 
-### File
+:   pass all environment variables from the caller to the container.
 
-Jump namespaces which is created from other tools is done by giving path of namespace endpoint.
+### `-env-pass value`
+
+:   pass a specific environment variable by name from the caller (repeatable).
 
 ```bash
-ip netns create test
-sandal exec --env-all --ns-net file:/var/run/netns/test test -- ifconfig
+sandal exec -env-pass MY_VAR -env-pass OTHER_VAR new-york -- env
 ```

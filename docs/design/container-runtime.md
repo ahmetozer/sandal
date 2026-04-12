@@ -276,30 +276,43 @@ switchUser(spec)   // spec = "user:group" or "uid:gid"
 
 ```go
 type Config struct {
-    Name         string                        // Unique identifier
-    Created      int64                         // Unix timestamp
-    HostPid      int                           // Host PID of container process
-    ContPid      int                           // PID inside container (usually 1)
-    ChangeDir    string                        // Overlay upper directory path
-    RootfsDir    string                        // Merged overlay mount point
-    NS           namespace.Namespaces          // Namespace config map
-    Capabilities capabilities.Capabilities     // Allowed Linux capabilities
-    Net          any                           // Network interface specifications
-    Volumes      wrapper.StringFlags           // -v mount specifications
-    ContArgs     []string                      // Command to run in container
-    HostArgs     []string                      // Original host-side args
-    MemoryLimit  string                        // Memory cgroup limit
-    CPULimit     string                        // CPU cgroup limit
-    Env          wrapper.StringFlags           // Environment variables
-    Hostname     string                        // Container hostname
-    User         string                        // User:group to run as
-    Privileged   bool                          // Grant all capabilities
-    WorkDir      string                        // Working directory
-    LowerDirs    wrapper.StringFlags           // Additional overlay lower dirs
-    Tmp          bool                          // Use tmpfs for changes
-    Startup      bool                          // Auto-start on daemon boot
-    Daemon       bool                          // Run in background
-    TTY          bool                          // Allocate PTY
+    Name          string                        // Unique identifier
+    Created       int64                         // Unix timestamp
+    HostPid       int                           // Host PID of container process
+    ContPid       int                           // PID inside container (usually 1)
+    TmpSize       uint                          // Tmpfs size in MB (0 = disabled)
+    ChangeDirSize string                        // Change dir disk image size (e.g. "128m")
+    ChangeDirType string                        // "auto", "folder", "image"
+    ChangeDir     string                        // Overlay upper directory path
+    RootfsDir     string                        // Merged overlay mount point
+    Snapshot      string                        // Snapshot output path
+    ReadOnly      bool                          // Read-only rootfs
+    Remove        bool                          // Remove container files on exit
+    EnvAll        bool                          // Pass all host env vars
+    Background    bool                          // Run in background (-d)
+    Startup       bool                          // Auto-start on daemon boot
+    TTY           bool                          // Allocate PTY
+    NS            namespace.Namespaces          // Namespace config map
+    Capabilities  capabilities.Capabilities     // Allowed Linux capabilities
+    User          string                        // User:group to run as
+    Devtmpfs      string                        // Mount point of devtmpfs
+    Resolv        string                        // Resolver configuration
+    Hosts         string                        // Hosts file handling
+    Status        string                        // Container status
+    Dir           string                        // Working directory
+    Volumes       wrapper.StringFlags           // -v mount specifications
+    ImmutableImages diskimage.ImmutableImages   // Mounted immutable images
+    HostArgs      []string                      // Original host-side args
+    ContArgs      []string                      // Command to run in container
+    Lower         wrapper.StringFlags           // Additional overlay lower dirs
+    RunPreExec    wrapper.StringFlags           // Run commands before init
+    RunPrePivot   wrapper.StringFlags           // Run commands before pivoting
+    PassEnv       wrapper.StringFlags           // Pass specific env vars
+    Net           any                           // Network interface specifications
+    Ports         []forward.PortMapping         // Port forwarding mappings
+    VM            string                        // "" = no VM, "kvm" = KVM, "vz" = VZ
+    MemoryLimit   string                        // Memory cgroup limit
+    CPULimit      string                        // CPU cgroup limit
 }
 ```
 

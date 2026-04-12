@@ -18,6 +18,7 @@ sandal clear
 | `-snapshots`       | `.sqfs` files in `SANDAL_SNAPSHOT_DIR` that no container references.                                            |
 | `-orphans`         | Changedir entries and `.img` files in `SANDAL_CHANGE_DIR` whose container state file is missing.                |
 | `-kernel-cache`    | Stale `initramfs-sandal-*.img` entries in `SANDAL_KERNEL_DIR`; keeps the most recently produced one.            |
+| `-temp`            | Leftover temp files in `SANDAL_TEMP_DIR` from interrupted pulls.                                                |
 | `-all`             | All of the above, plus every stopped container regardless of the `-rm` flag.                                    |
 
 Alpine-provided kernels (`vmlinuz-virt-*`, `initramfs-virt-*`) are never
@@ -96,4 +97,7 @@ Usage of clear:
   -snapshots
         remove snapshots under SANDAL_SNAPSHOT_DIR that no container
         references
+  -temp
+        remove leftover temp files under SANDAL_TEMP_DIR from
+        interrupted pulls
 ```

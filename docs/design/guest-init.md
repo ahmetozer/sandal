@@ -171,8 +171,8 @@ After VirtioFS mounts, the guest can access:
 ```
 Decode SANDAL_VM_NET (JSON):
 {
-  "addr": "172.19.0.5/24",
-  "gateway": "172.19.0.1",
+  "addr": "172.16.0.5/24",
+  "gateway": "172.16.0.1",
   "mac": "52:54:00:12:34:01",
   "mtu": 1500
 }

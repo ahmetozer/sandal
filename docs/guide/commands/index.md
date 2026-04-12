@@ -294,21 +294,9 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
-### `-ns-ns string`
-
-:   ns namespace or host
-
----
-
 ### `-ns-pid string`
 
 :   pid namespace or host
-
----
-
-### `-ns-time string`
-
-:   time namespace or host
 
 ---
 
@@ -398,7 +386,7 @@ Allocation configuration of /etc/hosts file.
 :   run command before pivoting.  
 >
   ```bash
-  sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
+  sandal run -rm -lw / -rcp="ifconfig eth0" -- echo hello
   ```
 
 ---
@@ -554,6 +542,14 @@ Benefical for:
   sandal run -rm --lw / -user adm:10 -- id
   uid=3(adm) gid=10(wheel)
   ```
+
+### `-vm bool`
+
+:   run the container inside a virtual machine.
+  On Linux, uses KVM. On macOS, uses Apple Virtualization framework.
+  Host-only flags (`-d`, `-startup`, `--name`, `--cpu`, `--memory`) are applied on the host side; the remaining flags are forwarded to the VM guest.
+
+---
 
 ### `-v value`
 
