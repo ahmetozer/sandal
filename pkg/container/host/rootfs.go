@@ -116,7 +116,7 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 // mountRootfs mounts the container rootfs from -lw lower sources.
 // Returns the list of squashfs paths for pulled images (in -lw order),
 // which the caller uses to resolve OCI image config defaults.
-func mountRootfs(c *config.Config) ([]string, error) {
+func mountRootfs(c *config.Config) (squashfsImages []string, err error) {
 	changeDir, err := overlayfs.PrepareChangeDir(c)
 	if err != nil {
 		return nil, fmt.Errorf("creating change directory: %s", err)
@@ -130,7 +130,6 @@ func mountRootfs(c *config.Config) ([]string, error) {
 	var LowerDirs []string
 	var hostDirs []string      // track directory lowerdirs for sub-mount discovery (:=sub)
 	var targetedLowers []lowerArg // lowers with a custom container target path
-	var sqfsPaths []string     // sqfs paths for pulled images (for image config resolution)
 
 	if len(c.Lower) == 0 {
 		if len(c.Volumes) == 0 {
@@ -156,7 +155,7 @@ func mountRootfs(c *config.Config) ([]string, error) {
 				return nil, err
 			}
 			if sqfsPath != "" {
-				sqfsPaths = append(sqfsPaths, sqfsPath)
+				squashfsImages = append(squashfsImages, sqfsPath)
 			}
 
 			if la.Target == "/" {
@@ -217,7 +216,7 @@ func mountRootfs(c *config.Config) ([]string, error) {
 		}
 	}
 
-	return sqfsPaths, nil
+	return squashfsImages, nil
 
 }
 
@@ -228,14 +227,14 @@ func mountRootfs(c *config.Config) ([]string, error) {
 //   - env: vars are accumulated in order; on duplicate keys, the later
 //     image's value overrides the earlier one
 //
-// sqfsPaths must be in the same order as the user's -lw flags.
-func resolveImageConfig(sqfsPaths []string) (env, entrypoint, cmd []string, workDir, user string) {
+// squashfsImages must be in the same order as the user's -lw flags.
+func resolveImageConfig(squashfsImages []string) (env, entrypoint, cmd []string, workDir, user string) {
 	// Ordered key list + map for env so we preserve first-seen order
 	// while letting later values override earlier ones.
 	envOrder := []string{}
 	envMap := map[string]string{}
 
-	for _, p := range sqfsPaths {
+	for _, p := range squashfsImages {
 		cfg, err := containerimage.LoadImageConfig(p)
 		if err != nil {
 			slog.Warn("resolveImageConfig", slog.String("path", p), slog.Any("error", err))

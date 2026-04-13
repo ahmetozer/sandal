@@ -23,13 +23,13 @@ func Run(c *config.Config) error {
 	DeRunContainer(c)
 
 	// mount squasfs
-	sqfsPaths, err := mountRootfs(c)
+	squashfsImages, err := mountRootfs(c)
 	if err != nil {
 		return fmt.Errorf("error mount: %v", err)
 	}
 
 	// Resolve OCI image config from all pulled -lw images (last image wins).
-	imgEnv, imgEntrypoint, imgCmd, imgWorkDir, imgUser := resolveImageConfig(sqfsPaths)
+	imgEnv, imgEntrypoint, imgCmd, imgWorkDir, imgUser := resolveImageConfig(squashfsImages)
 
 	// Apply image defaults to fields the user did not override.
 	if c.Dir == "" {
