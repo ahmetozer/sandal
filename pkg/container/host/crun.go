@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -335,8 +336,21 @@ func childEnv(c *config.Config) []string {
 	if c.EnvAll {
 		return appendSandalVariables(os.Environ(), c)
 	}
-	envVars := []string{}
-	pathIsSet := false
+
+	// Start with image ENV as the base layer. User/host overrides
+	// take precedence and are applied on top.
+	envVars := make([]string, 0, len(c.ImageConfig.Env)+len(c.PassEnv)+4)
+	envVars = append(envVars, c.ImageConfig.Env...)
+
+	// Track which variables the image already set.
+	imageHas := make(map[string]bool, len(c.ImageConfig.Env))
+	for _, e := range c.ImageConfig.Env {
+		if name, _, ok := strings.Cut(e, "="); ok {
+			imageHas[name] = true
+		}
+	}
+
+	pathIsSet := imageHas["PATH"]
 	for _, env := range c.PassEnv {
 		if env == "PATH" {
 			pathIsSet = true

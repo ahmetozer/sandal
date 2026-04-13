@@ -83,6 +83,13 @@ func (r *renderer) update(ev Event) {
 		return
 	}
 
+	// When merge is done, print summary.
+	if ev.Phase == PhaseMerge && ev.Done {
+		r.clearLine()
+		fmt.Fprintf(r.out, "  Merged layers (%s)\n", humanBytes(ev.Current))
+		return
+	}
+
 	// When squashfs is done, print summary.
 	if ev.Phase == PhaseSquashfs && ev.Done {
 		r.clearLine()
@@ -141,6 +148,8 @@ func (r *renderer) renderLine(phase Phase) {
 		label = "Downloading"
 	case PhaseExtract:
 		label = "Extracting layers"
+	case PhaseMerge:
+		label = "Merging layers"
 	case PhaseSquashfs:
 		label = "Creating squashfs"
 	default:

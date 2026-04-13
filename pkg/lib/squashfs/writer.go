@@ -32,6 +32,7 @@ const (
 	sqfsTypeDir     = 1
 	sqfsTypeFile    = 2
 	sqfsTypeSymlink = 3
+	sqfsTypeLDir    = 8 // Extended directory inode (file_size is uint32)
 )
 
 // Superblock flags
@@ -600,7 +601,7 @@ func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
 // buildDirEntries writes directory entries to dirRaw with placeholder block references.
 // Entries are grouped by inode metadata block (max 256 per group).
 // Returns raw byte position and total size.
-func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint16) {
+func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint32) {
 	dirRawPos := w.dirRaw.Len()
 
 	if len(children) == 0 {
@@ -661,45 +662,77 @@ func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint16) {
 		groupStart = groupEnd
 	}
 
-	dirSize := uint16(buf.Len())
+	dirSize := uint32(buf.Len())
 	w.dirRaw.Write(buf.Bytes())
 
 	return dirRawPos, dirSize
 }
 
-// buildDirInode creates a basic directory inode (type 1) with placeholder block refs.
-func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos int, dirSize uint16) uint32 {
+// buildDirInode creates a directory inode with placeholder block refs.
+// Uses basic dir inode (type 1) when dirSize fits in uint16, otherwise
+// extended dir inode (type 8) with uint32 file_size.
+func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos int, dirSize uint32) uint32 {
 	inodeNum := w.allocInode()
 	uid := w.lookupID(0)
 	gid := w.lookupID(0)
 
+	fileSize := dirSize + 3 // +3 overhead per squashfs spec
+
 	var buf bytes.Buffer
-	// Common header (16 bytes)
-	binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeDir))
-	binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
-	binary.Write(&buf, binary.LittleEndian, uid)
-	binary.Write(&buf, binary.LittleEndian, gid)
-	binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
-	binary.Write(&buf, binary.LittleEndian, inodeNum)
 
-	// block_index is at byte 16 of the inode data
-	blockIndexOffset := w.inodeRaw.Len() + 16
+	if fileSize <= 0xFFFF {
+		// Basic directory inode (type 1): file_size is uint16
+		binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeDir))
+		binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
+		binary.Write(&buf, binary.LittleEndian, uid)
+		binary.Write(&buf, binary.LittleEndian, gid)
+		binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
+		binary.Write(&buf, binary.LittleEndian, inodeNum)
 
-	// Basic dir fields (16 bytes)
-	binary.Write(&buf, binary.LittleEndian, uint32(0))                // block_index (PLACEHOLDER)
-	binary.Write(&buf, binary.LittleEndian, uint32(len(children)+2))  // link_count
-	binary.Write(&buf, binary.LittleEndian, dirSize+3)                // file_size (+3 overhead)
-	binary.Write(&buf, binary.LittleEndian, uint16(0))                // block_offset (PLACEHOLDER)
-	binary.Write(&buf, binary.LittleEndian, uint32(1))                // parent_inode
+		blockIndexOffset := w.inodeRaw.Len() + 16
 
-	w.appendInode(inodeNum, buf.Bytes())
+		binary.Write(&buf, binary.LittleEndian, uint32(0))               // block_index (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(len(children)+2)) // link_count
+		binary.Write(&buf, binary.LittleEndian, uint16(fileSize))        // file_size
+		binary.Write(&buf, binary.LittleEndian, uint16(0))               // block_offset (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(1))               // parent_inode
 
-	// Only add fixup for non-empty directories
-	if len(children) > 0 {
-		w.dirInodeFixups = append(w.dirInodeFixups, dirInodeFixup{
-			inodeRawOffset: blockIndexOffset,
-			dirRawPos:      dirRawPos,
-		})
+		w.appendInode(inodeNum, buf.Bytes())
+
+		if len(children) > 0 {
+			w.dirInodeFixups = append(w.dirInodeFixups, dirInodeFixup{
+				inodeRawOffset: blockIndexOffset,
+				dirRawPos:      dirRawPos,
+			})
+		}
+	} else {
+		// Extended directory inode (type 8): file_size is uint32
+		binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeLDir))
+		binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
+		binary.Write(&buf, binary.LittleEndian, uid)
+		binary.Write(&buf, binary.LittleEndian, gid)
+		binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
+		binary.Write(&buf, binary.LittleEndian, inodeNum)
+
+		binary.Write(&buf, binary.LittleEndian, uint32(len(children)+2)) // link_count
+		binary.Write(&buf, binary.LittleEndian, uint32(fileSize))        // file_size
+
+		blockIndexOffset := w.inodeRaw.Len() + buf.Len()
+
+		binary.Write(&buf, binary.LittleEndian, uint32(0))               // block_index (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(1))               // parent_inode
+		binary.Write(&buf, binary.LittleEndian, uint16(0))               // i_count (no index)
+		binary.Write(&buf, binary.LittleEndian, uint16(0))               // block_offset (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(0))               // xattr_idx (none)
+
+		w.appendInode(inodeNum, buf.Bytes())
+
+		if len(children) > 0 {
+			w.dirInodeFixups = append(w.dirInodeFixups, dirInodeFixup{
+				inodeRawOffset: blockIndexOffset,
+				dirRawPos:      dirRawPos,
+			})
+		}
 	}
 
 	return inodeNum

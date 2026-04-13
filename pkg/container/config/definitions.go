@@ -11,6 +11,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/forward"
+	"github.com/ahmetozer/sandal/pkg/container/image"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -62,6 +63,12 @@ type Config struct {
 	// Resource limits (cgroups v2)
 	MemoryLimit string // Memory limit with units (e.g., "512M", "1G")
 	CPULimit    string // CPU limit as number of CPUs (e.g., "0.5", "2")
+
+	// CLI entrypoint override (like docker --entrypoint)
+	Entrypoint string // Overrides image ENTRYPOINT when set
+
+	// OCI image config defaults (populated from image config sidecar)
+	ImageConfig image.Config
 }
 
 var (

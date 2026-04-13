@@ -59,13 +59,30 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 		}
 	}
 
-	// Try overlayfs merge: stack layers as lowerdir (last layer = highest priority).
-	if err := mergeWithOverlayfs(layerDirs, dir); err != nil {
-		slog.Debug("mergeLayers", slog.String("action", "overlayfs-fallback"), slog.Any("error", err))
-		// Overlayfs not available — fall back to manual merge with whiteout processing.
-		return mergeLayerDirs(layerDirs, dir)
+	if pch != nil {
+		select {
+		case pch <- progress.Event{Phase: progress.PhaseMerge, TaskID: "merge", Current: 0, Total: 0}:
+		default:
+		}
 	}
-	return nil
+
+	// Try overlayfs merge: stack layers as lowerdir (last layer = highest priority).
+	mergeErr := mergeWithOverlayfs(layerDirs, dir)
+	if mergeErr != nil {
+		slog.Debug("mergeLayers", slog.String("action", "overlayfs-fallback"), slog.Any("error", mergeErr))
+		// Overlayfs not available — fall back to manual merge with whiteout processing.
+		mergeErr = mergeLayerDirs(layerDirs, dir)
+	}
+
+	if pch != nil && mergeErr == nil {
+		totalSize, _ := dirSize(dir)
+		select {
+		case pch <- progress.Event{Phase: progress.PhaseMerge, TaskID: "merge", Current: totalSize, Total: totalSize, Done: true}:
+		default:
+		}
+	}
+
+	return mergeErr
 }
 
 // mergeWithOverlayfs mounts an overlayfs with all layer dirs stacked as
@@ -85,7 +102,7 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 	}
 	defer os.RemoveAll(tmpfsDir)
 
-	if err := cmount.Mount("tmpfs", tmpfsDir, "tmpfs", 0, "size=64k"); err != nil {
+	if err := cmount.Mount("tmpfs", tmpfsDir, "tmpfs", 0, "size=16m"); err != nil {
 		return fmt.Errorf("tmpfs mount: %w", err)
 	}
 	defer unix.Unmount(tmpfsDir, 0)
@@ -151,13 +168,18 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 		}
 
 		// Convert OCI file whiteout (.wh.<name>) to overlayfs char device 0/0.
+		// If mknod fails (no CAP_MKNOD), preserve the OCI .wh. marker file
+		// so the manual merge fallback can process it.
 		if strings.HasPrefix(base, ".wh.") {
 			targetName := base[len(".wh."):]
 			target := filepath.Join(dir, filepath.FromSlash(nameDir), targetName)
 			os.MkdirAll(filepath.Dir(target), 0755)
 			os.Remove(target)
-			// Create character device 0/0 — the overlayfs whiteout format.
-			unix.Mknod(target, unix.S_IFCHR|0666, 0)
+			if err := unix.Mknod(target, unix.S_IFCHR|0666, 0); err != nil {
+				// mknod failed — create an OCI-format .wh. marker file instead.
+				whTarget := filepath.Join(dir, filepath.FromSlash(nameDir), base)
+				os.WriteFile(whTarget, nil, 0644)
+			}
 			continue
 		}
 
@@ -254,6 +276,16 @@ func applyLayerDir(layerDir, outDir string) error {
 				os.RemoveAll(dst)
 				return nil
 			}
+		}
+
+		// Check for OCI-format whiteout (.wh.<name> marker files).
+		// These are created when mknod fails (no CAP_MKNOD).
+		base := filepath.Base(srcPath)
+		if strings.HasPrefix(base, ".wh.") {
+			targetName := base[len(".wh."):]
+			targetPath := filepath.Join(filepath.Dir(dst), targetName)
+			os.RemoveAll(targetPath)
+			return nil
 		}
 
 		// Regular file, symlink, etc — copy to outDir.

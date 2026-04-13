@@ -28,6 +28,28 @@ func Run(c *config.Config) error {
 		return fmt.Errorf("error mount: %v", err)
 	}
 
+	// Resolve ContArgs from image ENTRYPOINT/CMD when not provided by CLI.
+	// Docker semantics:
+	//   No user command:              ENTRYPOINT + CMD
+	//   User command:                 ENTRYPOINT + user_args
+	//   --entrypoint X:               [X] + CMD (or user_args)
+	//   --entrypoint X + user command: [X] + user_args
+	entrypoint := c.ImageConfig.Entrypoint
+	if c.Entrypoint != "" {
+		entrypoint = []string{c.Entrypoint}
+	}
+	if len(c.ContArgs) == 0 {
+		c.ContArgs = append(entrypoint, c.ImageConfig.Cmd...)
+	} else if len(entrypoint) > 0 {
+		c.ContArgs = append(entrypoint, c.ContArgs...)
+	}
+	if len(c.ContArgs) == 0 {
+		return fmt.Errorf("no command provided and image has no ENTRYPOINT or CMD")
+	}
+
+	// Persist resolved config so guest process sees final ContArgs.
+	controller.SetContainer(c)
+
 	// Starting proccess
 	exitCode, err := crun(c)
 

@@ -16,7 +16,7 @@ import (
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/env"
-	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
+	containerimage "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/lib/progress"
 	"golang.org/x/sys/unix"
 )
@@ -66,19 +66,38 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 	fileStat, err := os.Stat(basePath)
 	if err != nil {
 		// Path doesn't exist on disk — check if it's a container image reference.
-		if squash.IsImageReference(fullSource) {
+		if containerimage.IsImageReference(fullSource) {
 			slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", fullSource))
 
 			progressCh := make(chan progress.Event, 16)
 			renderDone := progress.StartRenderer(progressCh, os.Stderr)
 
-			sqfsPath, pullErr := squash.Pull(context.Background(), fullSource, env.BaseImageDir, progressCh)
+			sqfsPath, pullErr := containerimage.Pull(context.Background(), fullSource, env.BaseImageDir, progressCh)
 			close(progressCh)
 			<-renderDone
 
 			if pullErr != nil {
 				return "", fmt.Errorf("pulling image %s: %s", fullSource, pullErr)
 			}
+
+			// Load OCI image config (ENV, ENTRYPOINT, CMD, etc.) from sidecar.
+			// Only apply from the first image lower (the "primary" image).
+			if len(c.ImageConfig.Env) == 0 {
+				if imgCfg, err := containerimage.LoadImageConfig(sqfsPath); err == nil && imgCfg != nil {
+					c.ImageConfig.Env = imgCfg.Env
+					c.ImageConfig.Entrypoint = imgCfg.Entrypoint
+					c.ImageConfig.Cmd = imgCfg.Cmd
+					c.ImageConfig.WorkDir = imgCfg.WorkingDir
+					c.ImageConfig.User = imgCfg.User
+					slog.Debug("MountRootfs", slog.String("action", "loaded-image-config"),
+						slog.Int("env-vars", len(imgCfg.Env)),
+						slog.Any("entrypoint", imgCfg.Entrypoint),
+						slog.Any("cmd", imgCfg.Cmd))
+				} else if err != nil {
+					slog.Warn("MountRootfs", slog.String("action", "image-config-load-failed"), slog.Any("error", err))
+				}
+			}
+
 			img, mountErr := diskimage.Mount(sqfsPath)
 			if c.ImmutableImages.Contains(img) {
 				c.ImmutableImages.ReplaceWith(img)

@@ -3,6 +3,7 @@ package squash
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -60,6 +61,13 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 	manifest, err := resolveManifest(ctx, client, srcRef, platform)
 	if err != nil {
 		return "", err
+	}
+
+	// Fetch and persist the OCI image config (ENV, ENTRYPOINT, CMD, etc.)
+	// alongside the squashfs cache file so containers can apply it at runtime.
+	if err := fetchAndStoreImageConfig(ctx, client, srcRef, manifest, cacheFile); err != nil {
+		slog.Warn("Pull", slog.String("action", "image-config-fetch-failed"), slog.Any("error", err))
+		// Non-fatal: container will run without image config defaults
 	}
 
 	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, progressCh)
@@ -367,6 +375,50 @@ func dirSize(path string) (int64, error) {
 		return nil
 	})
 	return total, err
+}
+
+// fetchAndStoreImageConfig fetches the OCI image config from the registry and
+// writes the RuntimeConfig as a JSON sidecar file next to the squashfs cache.
+func fetchAndStoreImageConfig(ctx context.Context, client *registry.Client, ref registry.Reference, manifest *registry.Manifest, cacheFile string) error {
+	configData, err := fetchBlob(ctx, client, ref.Repository, manifest.Config.Digest)
+	if err != nil {
+		return fmt.Errorf("fetch config blob: %w", err)
+	}
+	var imgConfig registry.ImageConfig
+	if err := json.Unmarshal(configData, &imgConfig); err != nil {
+		return fmt.Errorf("decode image config: %w", err)
+	}
+
+	configJSON, err := json.Marshal(imgConfig.Config)
+	if err != nil {
+		return fmt.Errorf("marshal runtime config: %w", err)
+	}
+
+	configFile := cacheFile + ".json"
+	if err := os.WriteFile(configFile, configJSON, 0644); err != nil {
+		return fmt.Errorf("write config sidecar: %w", err)
+	}
+
+	slog.Debug("Pull", slog.String("action", "stored-image-config"), slog.String("path", configFile))
+	return nil
+}
+
+// LoadImageConfig reads the OCI RuntimeConfig sidecar file for a cached
+// squashfs image. Returns nil (no error) if the sidecar doesn't exist.
+func LoadImageConfig(sqfsPath string) (*registry.RuntimeConfig, error) {
+	configFile := sqfsPath + ".json"
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read image config: %w", err)
+	}
+	var cfg registry.RuntimeConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("decode image config: %w", err)
+	}
+	return &cfg, nil
 }
 
 // PullFromArgs scans command args for -lw values that look like OCI image references,
