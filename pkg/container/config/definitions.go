@@ -11,7 +11,6 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/forward"
-	"github.com/ahmetozer/sandal/pkg/container/image"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -66,9 +65,6 @@ type Config struct {
 
 	// CLI entrypoint override (like docker --entrypoint)
 	Entrypoint string // Overrides image ENTRYPOINT when set
-
-	// OCI image config defaults (populated from image config sidecar)
-	ImageConfig image.Config
 }
 
 var (

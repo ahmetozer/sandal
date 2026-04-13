@@ -24,7 +24,7 @@ import (
 )
 
 // Container run time
-func crun(c *config.Config) (int, error) {
+func crun(c *config.Config, imageEnv []string) (int, error) {
 	c.Status = crt.ContainerStatusCreating
 	var err error
 
@@ -55,7 +55,7 @@ func crun(c *config.Config) (int, error) {
 		}
 	}
 
-	cmd.Env = childEnv(c)
+	cmd.Env = childEnv(c, imageEnv)
 	cmd.Dir = c.RootfsDir
 
 	err = c.NS.Defaults()
@@ -332,19 +332,19 @@ func crun(c *config.Config) (int, error) {
 	return sig.ExitCode(), err
 }
 
-func childEnv(c *config.Config) []string {
+func childEnv(c *config.Config, imageEnv []string) []string {
 	if c.EnvAll {
 		return appendSandalVariables(os.Environ(), c)
 	}
 
 	// Start with image ENV as the base layer. User/host overrides
 	// take precedence and are applied on top.
-	envVars := make([]string, 0, len(c.ImageConfig.Env)+len(c.PassEnv)+4)
-	envVars = append(envVars, c.ImageConfig.Env...)
+	envVars := make([]string, 0, len(imageEnv)+len(c.PassEnv)+4)
+	envVars = append(envVars, imageEnv...)
 
 	// Track which variables the image already set.
-	imageHas := make(map[string]bool, len(c.ImageConfig.Env))
-	for _, e := range c.ImageConfig.Env {
+	imageHas := make(map[string]bool, len(imageEnv))
+	for _, e := range imageEnv {
 		if name, _, ok := strings.Cut(e, "="); ok {
 			imageHas[name] = true
 		}

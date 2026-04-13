@@ -6,6 +6,12 @@ This sub command provisiones a new container to the system.
 sandal run -lw / -tmp 10 --rm --  bash
 ```
 
+When `-lw` provides a container image with an `ENTRYPOINT` or `CMD`, the trailing `-- command` is **optional** — the image's default command is used:
+
+``` { .bash .annotate title="Run image default command" }
+sandal run -lw alpine:latest -tmp 10 --rm
+```
+
 ## Flags
 
 | Flag Type   | Description                          |
@@ -68,7 +74,7 @@ example: -devtmpfs /mnt/devtmpfs
 ### `-dir string`
 
 :   working directory  
-Default it is set to root folder `/`
+Default it is set to root folder `/`. When `-lw` provides an OCI image, the image's `WorkingDir` is used as the default if `-dir` is not set. When multiple `-lw` images are provided, the last image that defines `WorkingDir` wins.
 
 ---
 
@@ -84,6 +90,22 @@ Environment variables which currently you are seing at `env` command.
 :   pass only requested enviroment variables to container  
 For example you are set variable with `export FOO=BAR`, and `-env-pass FOO` will read variable from existing environment and passes to container.  
 ***It does not accepts `-env-pass FOO=BAR` for security purposes***
+
+---
+
+### `-entrypoint string`
+
+:   override the OCI image `ENTRYPOINT`.
+  When set, replaces the image's ENTRYPOINT with the given executable. Equivalent to Docker's `--entrypoint` flag.
+  Combine with `--` arguments to compose the full command.
+
+  ```bash
+  # Run /bin/echo instead of the image's ENTRYPOINT
+  sandal run -lw alpine:latest -tmp 64 -entrypoint /bin/echo -- "hello world"
+  # Skip an image's ENTRYPOINT (e.g. to inspect a container that normally runs an init)
+  sandal run -lw ghcr.io/home-assistant/home-assistant:latest -tmp 200 \
+      -entrypoint /bin/sh -- -c "ls /usr/local/lib/python3.14/site-packages | head"
+  ```
 
 ---
 
@@ -108,6 +130,16 @@ Allocation configuration of /etc/hosts file.
   By default, lower directories are mounted at the root (`/`) of the container. Use `source:/container/path` syntax to mount at a custom path.
 
   In addition to local paths and image files, `-lw` accepts **container image references** from OCI registries. When the value is not a local path, sandal automatically pulls the image, flattens its layers into a squashfs image, and caches it under `SANDAL_IMAGE_DIR` for future use.
+
+  **Multiple images.** When multiple `-lw` images are provided, the **last** image that defines a value wins for `ENTRYPOINT`, `CMD`, `WorkingDir`, and `User`. `ENV` vars accumulate from all images in `-lw` order, with later images overriding earlier ones on duplicate keys. This matches the intuition that the right-most `-lw` is the "outer" layer:
+
+    ```bash
+    # python:3-slim's PATH and PYTHON_VERSION win, alpine's unique ENV vars are kept
+    sandal run -lw alpine:latest -lw python:3-slim -tmp 200 -- env
+
+    # Run image's default CMD without providing `--`
+    sandal run -lw alpine:latest -tmp 64
+    ```
 
 ??? info "More"
 
@@ -527,7 +559,8 @@ Benefical for:
 
 ### `-user string`
 
-:   Start container as custom user or user:group configuration.  
+:   Start container as custom user or user:group configuration.
+  When `-lw` provides an OCI image, the image's `User` is used as the default if `-user` is not set. When multiple `-lw` images are provided, the last image that defines `User` wins.
 >
   ```bash
   # chroot to given path

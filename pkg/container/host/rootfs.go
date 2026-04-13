@@ -62,7 +62,10 @@ func parseLowerArg(argv string) lowerArg {
 // resolveLowerSource resolves a -lw source to a mountable directory.
 // basePath is the path used for stat (disk options stripped).
 // fullSource is the original source string passed to diskimage.Mount (may include :part=2).
-func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, error) {
+// resolveLowerSource resolves a -lw source to a mountable directory.
+// Returns (mountDir, sqfsPath, error). sqfsPath is non-empty only when
+// the source was a container image reference (for image config resolution).
+func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, string, error) {
 	fileStat, err := os.Stat(basePath)
 	if err != nil {
 		// Path doesn't exist on disk — check if it's a container image reference.
@@ -77,25 +80,7 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 			<-renderDone
 
 			if pullErr != nil {
-				return "", fmt.Errorf("pulling image %s: %s", fullSource, pullErr)
-			}
-
-			// Load OCI image config (ENV, ENTRYPOINT, CMD, etc.) from sidecar.
-			// Only apply from the first image lower (the "primary" image).
-			if len(c.ImageConfig.Env) == 0 {
-				if imgCfg, err := containerimage.LoadImageConfig(sqfsPath); err == nil && imgCfg != nil {
-					c.ImageConfig.Env = imgCfg.Env
-					c.ImageConfig.Entrypoint = imgCfg.Entrypoint
-					c.ImageConfig.Cmd = imgCfg.Cmd
-					c.ImageConfig.WorkDir = imgCfg.WorkingDir
-					c.ImageConfig.User = imgCfg.User
-					slog.Debug("MountRootfs", slog.String("action", "loaded-image-config"),
-						slog.Int("env-vars", len(imgCfg.Env)),
-						slog.Any("entrypoint", imgCfg.Entrypoint),
-						slog.Any("cmd", imgCfg.Cmd))
-				} else if err != nil {
-					slog.Warn("MountRootfs", slog.String("action", "image-config-load-failed"), slog.Any("error", err))
-				}
+				return "", "", fmt.Errorf("pulling image %s: %s", fullSource, pullErr)
 			}
 
 			img, mountErr := diskimage.Mount(sqfsPath)
@@ -105,14 +90,14 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 				c.ImmutableImages = append(c.ImmutableImages, img)
 			}
 			if mountErr != nil {
-				return "", fmt.Errorf("mounting pulled image: %s", mountErr)
+				return "", "", fmt.Errorf("mounting pulled image: %s", mountErr)
 			}
-			return img.MountDir, nil
+			return img.MountDir, sqfsPath, nil
 		}
-		return "", fmt.Errorf("path %s is not exist: %s", basePath, err)
+		return "", "", fmt.Errorf("path %s is not exist: %s", basePath, err)
 	}
 	if fileStat.IsDir() {
-		return basePath, nil
+		return basePath, "", nil
 	}
 	// Detect file type (squashfs, ext4 image, etc.)
 	img, err := diskimage.Mount(fullSource)
@@ -123,29 +108,33 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 	}
 	if err != nil {
 		slog.Debug("MountRootfs", slog.Any("img", img))
-		return "", fmt.Errorf("mounting file: %s", err)
+		return "", "", fmt.Errorf("mounting file: %s", err)
 	}
-	return img.MountDir, nil
+	return img.MountDir, "", nil
 }
 
-func mountRootfs(c *config.Config) error {
+// mountRootfs mounts the container rootfs from -lw lower sources.
+// Returns the list of squashfs paths for pulled images (in -lw order),
+// which the caller uses to resolve OCI image config defaults.
+func mountRootfs(c *config.Config) ([]string, error) {
 	changeDir, err := overlayfs.PrepareChangeDir(c)
 	if err != nil {
-		return fmt.Errorf("creating change directory: %s", err)
+		return nil, fmt.Errorf("creating change directory: %s", err)
 	}
 	slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir), slog.String("upper", changeDir.GetUpper()), slog.String("work", changeDir.GetWork()))
 
 	if err := os.MkdirAll(c.RootfsDir, 0755); err != nil {
-		return fmt.Errorf("creating workdir: %s", err)
+		return nil, fmt.Errorf("creating workdir: %s", err)
 	}
 
 	var LowerDirs []string
 	var hostDirs []string      // track directory lowerdirs for sub-mount discovery (:=sub)
 	var targetedLowers []lowerArg // lowers with a custom container target path
+	var sqfsPaths []string     // sqfs paths for pulled images (for image config resolution)
 
 	if len(c.Lower) == 0 {
 		if len(c.Volumes) == 0 {
-			return fmt.Errorf("no lower dir or volume is provided")
+			return nil, fmt.Errorf("no lower dir or volume is provided")
 		}
 	} else {
 		for _, argv := range c.Lower {
@@ -162,9 +151,12 @@ func mountRootfs(c *config.Config) error {
 
 			// Resolve the source to a mountable directory.
 			// Pass full source (with disk options) so diskimage.Mount can parse them.
-			resolvedDir, err := resolveLowerSource(c, basePath, source)
+			resolvedDir, sqfsPath, err := resolveLowerSource(c, basePath, source)
 			if err != nil {
-				return err
+				return nil, err
+			}
+			if sqfsPath != "" {
+				sqfsPaths = append(sqfsPaths, sqfsPath)
 			}
 
 			if la.Target == "/" {
@@ -189,7 +181,7 @@ func mountRootfs(c *config.Config) error {
 			c.ImmutableImages = append(c.ImmutableImages, img)
 		}
 		if err != nil {
-			return fmt.Errorf("mounting snapshot: %s", err)
+			return nil, fmt.Errorf("mounting snapshot: %s", err)
 		}
 		LowerDirs = append(LowerDirs, img.MountDir)
 		slog.Debug("MountRootfs", slog.String("snapshot", snapshotFile), slog.String("mountDir", img.MountDir))
@@ -198,10 +190,10 @@ func mountRootfs(c *config.Config) error {
 	if len(LowerDirs) > 0 {
 		if s, err := changeDir.IsOverlayFS(); err == nil {
 			if s {
-				return fmt.Errorf("upper (%s) is pointed to overlayfs. Kernel does not supports creating overlayfs under overlayfs. To overcome this, you can execute your container with temporary environment '-tmp', or you can point upper directory to real disk with '-udir' flag", changeDir.GetUpper())
+				return nil, fmt.Errorf("upper (%s) is pointed to overlayfs. Kernel does not supports creating overlayfs under overlayfs. To overcome this, you can execute your container with temporary environment '-tmp', or you can point upper directory to real disk with '-udir' flag", changeDir.GetUpper())
 			}
 		} else {
-			return fmt.Errorf("unable to check overlayfs %s", err)
+			return nil, fmt.Errorf("unable to check overlayfs %s", err)
 		}
 
 		options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(LowerDirs, ":"), changeDir.GetUpper(), changeDir.GetWork())
@@ -209,28 +201,88 @@ func mountRootfs(c *config.Config) error {
 		slog.Debug("MountRootfs", slog.String("rootfs", c.RootfsDir), slog.Any("options", options))
 		if err != nil {
 			slog.Info("MountRootfs", slog.String("aciton", "mount"), slog.String("type", "overlay"), slog.String("options", options), slog.String("name", c.Name), slog.Any("error", err))
-			return fmt.Errorf("overlay: %s", err)
+			return nil, fmt.Errorf("overlay: %s", err)
 		}
 
-		// Mount mini-overlays for sub-mounts (e.g. /root on a separate
-		// partition when -lw /:=sub is used). Each gets its own upper/work
-		// dirs under the main change dir for COW behavior.
 		if len(hostDirs) > 0 {
 			if err := mountSubMountOverlays(c, hostDirs, c.ChangeDir); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
-	// Mount targeted lowers at custom container paths as mini-overlays.
 	if len(targetedLowers) > 0 {
 		if err := mountTargetedLowerOverlays(c, targetedLowers, c.ChangeDir); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return sqfsPaths, nil
 
+}
+
+// resolveImageConfig loads OCI image configs from each pulled image's
+// .sqfs.json sidecar and merges them with last-image-wins semantics:
+//   - entrypoint, cmd, workDir, user: each field is set to the last image
+//     that provides a non-empty value
+//   - env: vars are accumulated in order; on duplicate keys, the later
+//     image's value overrides the earlier one
+//
+// sqfsPaths must be in the same order as the user's -lw flags.
+func resolveImageConfig(sqfsPaths []string) (env, entrypoint, cmd []string, workDir, user string) {
+	// Ordered key list + map for env so we preserve first-seen order
+	// while letting later values override earlier ones.
+	envOrder := []string{}
+	envMap := map[string]string{}
+
+	for _, p := range sqfsPaths {
+		cfg, err := containerimage.LoadImageConfig(p)
+		if err != nil {
+			slog.Warn("resolveImageConfig", slog.String("path", p), slog.Any("error", err))
+			continue
+		}
+		if cfg == nil {
+			continue
+		}
+
+		if len(cfg.Entrypoint) > 0 {
+			entrypoint = cfg.Entrypoint
+		}
+		if len(cfg.Cmd) > 0 {
+			cmd = cfg.Cmd
+		}
+		if cfg.WorkingDir != "" {
+			workDir = cfg.WorkingDir
+		}
+		if cfg.User != "" {
+			user = cfg.User
+		}
+
+		for _, e := range cfg.Env {
+			name, val, ok := strings.Cut(e, "=")
+			if !ok {
+				continue
+			}
+			if _, exists := envMap[name]; !exists {
+				envOrder = append(envOrder, name)
+			}
+			envMap[name] = val
+		}
+	}
+
+	env = make([]string, 0, len(envOrder))
+	for _, name := range envOrder {
+		env = append(env, name+"="+envMap[name])
+	}
+
+	slog.Debug("resolveImageConfig",
+		slog.Int("env-vars", len(env)),
+		slog.Any("entrypoint", entrypoint),
+		slog.Any("cmd", cmd),
+		slog.String("workDir", workDir),
+		slog.String("user", user))
+
+	return env, entrypoint, cmd, workDir, user
 }
 
 func UmountRootfs(c *config.Config) []error {

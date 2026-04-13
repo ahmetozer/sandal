@@ -144,14 +144,8 @@ func ContainerInitProc() {
 			return fmt.Errorf("unable to find %s: %s", c.ContArgs[0], err)
 		}
 
-		// Apply image defaults for user and workdir when not set by CLI flags.
-		userSpec := c.User
-		if userSpec == "" && c.ImageConfig.User != "" {
-			userSpec = c.ImageConfig.User
-		}
-
 		var environ []string
-		user, err := cruntime.GetUser(userSpec)
+		user, err := cruntime.GetUser(c.User)
 		if err != nil {
 			return err
 		}
@@ -200,12 +194,8 @@ func ContainerInitProc() {
 			return fmt.Errorf("unable to restore effective capabilities: %s", err)
 		}
 
-		workDir := c.Dir
-		if workDir == "" && c.ImageConfig.WorkDir != "" {
-			workDir = c.ImageConfig.WorkDir
-		}
-		if workDir != "" {
-			os.Chdir(workDir)
+		if c.Dir != "" {
+			os.Chdir(c.Dir)
 		}
 
 		// Jump to real process

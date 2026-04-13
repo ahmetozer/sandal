@@ -23,9 +23,20 @@ func Run(c *config.Config) error {
 	DeRunContainer(c)
 
 	// mount squasfs
-	err := mountRootfs(c)
+	sqfsPaths, err := mountRootfs(c)
 	if err != nil {
 		return fmt.Errorf("error mount: %v", err)
+	}
+
+	// Resolve OCI image config from all pulled -lw images (last image wins).
+	imgEnv, imgEntrypoint, imgCmd, imgWorkDir, imgUser := resolveImageConfig(sqfsPaths)
+
+	// Apply image defaults to fields the user did not override.
+	if c.Dir == "" {
+		c.Dir = imgWorkDir
+	}
+	if c.User == "" {
+		c.User = imgUser
 	}
 
 	// Resolve ContArgs from image ENTRYPOINT/CMD when not provided by CLI.
@@ -34,12 +45,12 @@ func Run(c *config.Config) error {
 	//   User command:                 ENTRYPOINT + user_args
 	//   --entrypoint X:               [X] + CMD (or user_args)
 	//   --entrypoint X + user command: [X] + user_args
-	entrypoint := c.ImageConfig.Entrypoint
+	entrypoint := imgEntrypoint
 	if c.Entrypoint != "" {
 		entrypoint = []string{c.Entrypoint}
 	}
 	if len(c.ContArgs) == 0 {
-		c.ContArgs = append(entrypoint, c.ImageConfig.Cmd...)
+		c.ContArgs = append(entrypoint, imgCmd...)
 	} else if len(entrypoint) > 0 {
 		c.ContArgs = append(entrypoint, c.ContArgs...)
 	}
@@ -51,7 +62,7 @@ func Run(c *config.Config) error {
 	controller.SetContainer(c)
 
 	// Starting proccess
-	exitCode, err := crun(c)
+	exitCode, err := crun(c, imgEnv)
 
 	if !c.Remove && !c.Background {
 		c.Status = fmt.Sprintf("exit %d", exitCode)
