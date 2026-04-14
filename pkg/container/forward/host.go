@@ -3,6 +3,7 @@ package forward
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -54,10 +55,12 @@ func Start(ctx context.Context, containerName string, mappings []PortMapping, tr
 		mu.Unlock()
 	}
 
+	var startErrs []error
 	for _, m := range mappings {
 		m := m
 		if err := startMapping(ctx, m, transport, tlsCert, add); err != nil {
 			slog.Warn("forward: start mapping", slog.String("raw", m.Raw), slog.Any("err", err))
+			startErrs = append(startErrs, fmt.Errorf("%s: %w", m.Raw, err))
 		}
 	}
 
@@ -68,6 +71,11 @@ func Start(ctx context.Context, containerName string, mappings []PortMapping, tr
 		for _, c := range closers {
 			c.Close()
 		}
+	}
+	if len(startErrs) > 0 {
+		// Roll back any partial listeners so we don't leave orphan binds.
+		stop()
+		return func() {}, errors.Join(startErrs...)
 	}
 	return stop, nil
 }
