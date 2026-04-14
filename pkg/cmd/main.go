@@ -48,6 +48,8 @@ func Main() {
 			executeSubCommand(Snapshot)
 		case "export":
 			executeSubCommand(Export)
+		case "build":
+			executeSubCommand(Build)
 		case "attach":
 			executeSubCommand(Attach)
 		case "vm":

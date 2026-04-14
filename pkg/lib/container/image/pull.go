@@ -262,8 +262,10 @@ func IsImageReference(s string) bool {
 		return false
 	}
 
-	// After parsing, Docker Hub refs get normalized to registry-1.docker.io
-	return strings.Contains(ref.Registry, ".")
+	// After parsing, Docker Hub refs get normalized to registry-1.docker.io.
+	// Also accept hostnames with an explicit port (e.g. localhost:5000)
+	// which is the common convention for local/dev registries.
+	return strings.Contains(ref.Registry, ".") || strings.Contains(ref.Registry, ":")
 }
 
 // SanitizeRef converts an image reference to the cache filename (without

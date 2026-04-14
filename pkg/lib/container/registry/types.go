@@ -72,6 +72,7 @@ type RootFS struct {
 
 // History describes the history of a layer.
 type History struct {
+	Created    string `json:"created,omitempty"` // RFC3339 timestamp
 	CreatedBy  string `json:"created_by,omitempty"`
 	Comment    string `json:"comment,omitempty"`
 	EmptyLayer bool   `json:"empty_layer,omitempty"`
