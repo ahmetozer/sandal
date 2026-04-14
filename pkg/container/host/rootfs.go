@@ -110,7 +110,15 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 		slog.Debug("MountRootfs", slog.Any("img", img))
 		return "", "", fmt.Errorf("mounting file: %s", err)
 	}
-	return img.MountDir, "", nil
+	// If the file has a .sqfs.json sidecar, return its base path so the
+	// caller can load the OCI image config. This covers two cases:
+	//   1. VM mode: PullFromArgs has rewritten -lw image:tag to the cached
+	//      sqfs path on the host before the VM boots; the sidecar travels
+	//      with the sqfs via VirtioFS.
+	//   2. User-provided -lw /path/to/my.sqfs that happens to have a sidecar.
+	// LoadImageConfig returns (nil, nil) when no sidecar exists, so passing
+	// the path is safe even for sqfs files without a sidecar.
+	return img.MountDir, basePath, nil
 }
 
 // mountRootfs mounts the container rootfs from -lw lower sources.
