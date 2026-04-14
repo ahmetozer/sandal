@@ -1,18 +1,17 @@
-//go:build !linux && !darwin
+//go:build darwin
 
 package sandal
 
 import (
-	"fmt"
-
 	"github.com/ahmetozer/sandal/pkg/lib/container/build"
 )
 
-// runBuild is a stub for platforms without a build backend.
+// runBuild on darwin always dispatches to the VZ VM. Native container
+// builds require Linux namespaces + overlayfs, so macOS must always
+// go through a VZ VM. The `-vm` flag is implicit here.
 func runBuild(opts BuildOpts, dfPath string, globalArgs []build.Instruction, stages []*build.Stage) (string, error) {
-	_ = opts
 	_ = dfPath
 	_ = globalArgs
 	_ = stages
-	return "", fmt.Errorf("sandal build is not supported on this platform")
+	return buildInVZ(opts)
 }

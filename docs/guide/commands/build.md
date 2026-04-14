@@ -52,6 +52,28 @@ Supply values for Dockerfile `ARG` declarations. Overrides any default value in 
 
 Parse the Dockerfile and print the plan without building. Useful for validating syntax.
 
+### `-vm`
+
+Run the build inside a virtual machine. The VM boots sandal as `/init`, the build context and Dockerfile are shared read-only via VirtioFS, and the image cache directory is shared read-write so the output `.sqfs` + sidecar appear on the host immediately. Required on macOS; optional on Linux.
+
+```bash
+# Linux: optional VM isolation for the build
+sandal build -vm -t myapp:1.0 .
+
+# macOS: VM is implicit — -vm is accepted but always assumed
+sandal build -t myapp:1.0 .
+```
+
+### `--cpu` / `--memory`
+
+Tune the build VM's resources. Only effective with `-vm`.
+
+```bash
+sandal build -vm --cpu 4 --memory 2G -t myapp:1.0 .
+```
+
+`--cpu` accepts a decimal number of CPUs (rounded up). `--memory` accepts human-readable sizes: `K`/`M`/`G`/`T` (1000-based) or `Ki`/`Mi`/`Gi`/`Ti` (1024-based); a bare number is bytes.
+
 ## Supported instructions
 
 | Instruction | Notes |
@@ -111,7 +133,6 @@ sandal run -lw registry.example.com/team/svc:v3
 
 ## Limitations
 
-- **Linux only.** macOS support via VM is planned.
 - **Single layer output.** Per-instruction layers are not preserved. This keeps images simple and matches the sandal cache format.
 - **No build-time layer cache.** Re-running `sandal build` re-executes every step from scratch. A content-addressed cache by instruction hash is on the roadmap.
 - **No BuildKit features.** `--mount=type=cache`, secrets, SSH forwarding, and parser directives other than `# escape=` are not supported.

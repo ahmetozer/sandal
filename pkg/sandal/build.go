@@ -20,6 +20,9 @@ type BuildOpts struct {
 	Target         string
 	BuildArgs      map[string]string
 	DryRun         bool
+	VM             bool   // run build inside a VM (required on darwin, optional on linux)
+	CPULimit       string // CPUs for build VM (e.g. "0.5", "2") — VM mode only
+	MemoryLimit    string // memory for build VM (e.g. "512M", "1G") — VM mode only
 }
 
 // Build orchestrates a Dockerfile-based image build.

@@ -23,13 +23,16 @@ func Build(args []string) error {
 	flags := flag.NewFlagSet("build", flag.ExitOnError)
 
 	var (
-		help        bool
-		tag         string
-		dockerfile  string
-		push        bool
-		target      string
-		buildArgs   wrapper.StringFlags
-		dryRun      bool
+		help       bool
+		tag        string
+		dockerfile string
+		push       bool
+		target     string
+		buildArgs  wrapper.StringFlags
+		dryRun     bool
+		useVM      bool
+		cpuLimit   string
+		memory     string
 	)
 
 	flags.BoolVar(&help, "help", false, "show this help message")
@@ -39,6 +42,9 @@ func Build(args []string) error {
 	flags.StringVar(&target, "target", "", "build only up to the named stage (multi-stage)")
 	flags.Var(&buildArgs, "build-arg", "build-time variable KEY=VALUE (repeatable)")
 	flags.BoolVar(&dryRun, "dry-run", false, "parse Dockerfile and print the plan only")
+	flags.BoolVar(&useVM, "vm", false, "run the build inside a virtual machine (required on macOS)")
+	flags.StringVar(&cpuLimit, "cpu", "", "CPUs for the build VM (e.g. 0.5, 2) — only used with -vm")
+	flags.StringVar(&memory, "memory", "", "memory for the build VM (e.g. 512M, 1G) — only used with -vm")
 	flags.Parse(args)
 
 	if help || len(flags.Args()) < 1 {
@@ -69,6 +75,9 @@ func Build(args []string) error {
 		Target:         target,
 		BuildArgs:      parsedArgs,
 		DryRun:         dryRun,
+		VM:             useVM,
+		CPULimit:       cpuLimit,
+		MemoryLimit:    memory,
 	}
 
 	out, err := sandal.Build(opts)

@@ -11,9 +11,12 @@ import (
 	"github.com/ahmetozer/sandal/pkg/lib/container/registry"
 )
 
-// runBuild dispatches to the linux builder.
+// runBuild dispatches to the linux builder (or a VM when -vm is set).
 func runBuild(opts BuildOpts, dfPath string, globalArgs []libbuild.Instruction, stages []*libbuild.Stage) (string, error) {
 	_ = dfPath // path already opened by caller; kept for future caching
+	if opts.VM {
+		return buildInKVM(opts)
+	}
 	req := containerbuild.BuildRequest{
 		GlobalArgs: globalArgs,
 		Stages:     stages,
