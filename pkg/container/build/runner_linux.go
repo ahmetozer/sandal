@@ -21,13 +21,15 @@ import (
 
 // RunOpts configures one RUN instruction execution.
 type RunOpts struct {
-	StageRoot string            // on-disk stage rootfs (read as overlay lower)
-	BuildID   string            // for unique container name
-	StepIdx   int               // for unique container name
-	Args      []string          // command + args (exec form) OR ["sh","-c",cmd] (shell form)
-	WorkDir   string            // CWD inside the container
-	User      string            // user spec (e.g. "root" or "1000:1000")
-	Env       []string          // KEY=VALUE pairs to inject
+	StageRoot     string   // on-disk stage rootfs (read as overlay lower)
+	BuildID       string   // for unique container name
+	StepIdx       int      // for unique container name
+	Args          []string // command + args (exec form) OR ["sh","-c",cmd] (shell form)
+	WorkDir       string   // CWD inside the container
+	User          string   // user spec (e.g. "root" or "1000:1000")
+	Env           []string // KEY=VALUE pairs to inject
+	TmpSize       uint     // see BuildRequest / BuildOpts
+	ChangeDirSize string   // see BuildRequest / BuildOpts
 }
 
 // ExecRun runs a single RUN instruction inside an ephemeral sandal
@@ -52,18 +54,18 @@ func ExecRun(opts RunOpts) error {
 	// We want to read the upper-dir AFTER host.Run returns. UmountRootfs
 	// only touches the change dir for "image" mode (loop unmount + delete)
 	// or when TmpSize>0 (unmounts tmpfs). With "folder" it leaves the
-	// directory alone, so we can harvest its contents. We must mount our
-	// own tmpfs at ChangeDir to avoid "overlay-on-overlay" failure when
-	// /var/lib/sandal sits on overlayfs (devcontainers, sandal-in-sandal).
+	// directory alone, so we can harvest its contents. We prepare the
+	// backing ourselves (MountStageBacking) so the upper dir survives
+	// derun cleanup. Backing kind follows the same rules as stageRoot:
+	// tmpfs if -tmp is set, ext4 loop image if /var/lib/sandal is on
+	// overlayfs, plain dir otherwise.
 	c.ChangeDirType = "folder"
-	if err := os.MkdirAll(c.ChangeDir, 0755); err != nil {
-		return fmt.Errorf("create change dir: %w", err)
-	}
-	if err := mountStageRootTmpfs(c.ChangeDir); err != nil {
-		return fmt.Errorf("mount change dir tmpfs: %w", err)
+	cleanupChange, err := MountStageBacking(c.ChangeDir, opts.TmpSize, opts.ChangeDirSize)
+	if err != nil {
+		return fmt.Errorf("change dir backing: %w", err)
 	}
 	defer func() {
-		_ = UnmountStageRoot(c.ChangeDir)
+		_ = cleanupChange()
 		_ = os.Remove(c.ChangeDir)
 	}()
 	c.ContArgs = opts.Args
@@ -73,6 +75,10 @@ func ExecRun(opts RunOpts) error {
 	c.Dir = opts.WorkDir
 	c.User = opts.User
 	c.Status = "running"
+	// Copy the host's /etc/resolv.conf into the container so RUN steps
+	// can resolve hostnames (pip/apt/apk all need this).
+	c.Resolv = "cp"
+	c.Hosts = "cp"
 	// Build container: isolate mount/pid/uts/ipc/cgroup, but use host
 	// network (so RUN can fetch packages) and host user (creating a new
 	// user namespace requires uid_map configuration we don't do here).

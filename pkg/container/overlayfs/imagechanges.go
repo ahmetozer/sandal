@@ -45,7 +45,17 @@ func UnregisterImageChangeMount(changeDir string) {
 // and returns the mount state for later cleanup.
 // If the image already exists with an ext4 filesystem, it reuses it
 // (preserving container changes across restarts).
+//
+// Deprecated: use PrepareImageChangeDir.
 func prepareImageChangeDir(changeDir string, sizeStr string) (*ImageChangeMount, error) {
+	return PrepareImageChangeDir(changeDir, sizeStr)
+}
+
+// PrepareImageChangeDir is the exported form of prepareImageChangeDir,
+// used by `sandal build` to back stage rootfs and per-step change dirs
+// with loop-mounted ext4 when tmpfs is not requested and the host
+// filesystem cannot support nested overlayfs.
+func PrepareImageChangeDir(changeDir string, sizeStr string) (*ImageChangeMount, error) {
 	var sizeBytes int64
 	if sizeStr == "" {
 		sizeBytes = defaultChangeDirImageSize

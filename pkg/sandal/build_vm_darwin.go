@@ -58,6 +58,12 @@ func buildInVZ(opts BuildOpts) (string, error) {
 	if opts.Target != "" {
 		buildArgs = append(buildArgs, "--target", opts.Target)
 	}
+	if opts.TmpSize > 0 {
+		buildArgs = append(buildArgs, "-tmp", fmt.Sprintf("%d", opts.TmpSize))
+	}
+	if opts.ChangeDirSize != "" {
+		buildArgs = append(buildArgs, "-csize", opts.ChangeDirSize)
+	}
 	for k, v := range opts.BuildArgs {
 		buildArgs = append(buildArgs, "--build-arg", k+"="+v)
 	}

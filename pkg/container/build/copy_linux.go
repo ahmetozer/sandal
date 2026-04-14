@@ -59,7 +59,16 @@ func Apply(p CopyParams) error {
 		}
 	}
 
-	for _, src := range p.SrcPaths {
+	// Expand each source against the filesystem for glob support (Docker
+	// COPY honours `*`, `?`, `[...]`). Patterns that match nothing are
+	// silently skipped unless the pattern contains no glob metacharacters
+	// — a literal missing path is still an error.
+	expanded, err := expandSrcGlobs(p.SrcRoot, p.SrcPaths)
+	if err != nil {
+		return err
+	}
+
+	for _, src := range expanded {
 		srcAbs, err := safeJoin(p.SrcRoot, src)
 		if err != nil {
 			return err
@@ -141,6 +150,37 @@ func copyTree(src, dst, filterRoot string, excluded func(string) bool) error {
 		}
 		return copyOne(p, target, info)
 	})
+}
+
+// expandSrcGlobs resolves each src against root. For entries with glob
+// metacharacters (`*`, `?`, `[`), matching paths are returned (zero
+// matches is not an error — matches Docker COPY semantics). For literal
+// paths, the entry is returned as-is (missing literals surface later as
+// an Lstat error at copy time, which IS an error).
+func expandSrcGlobs(root string, srcs []string) ([]string, error) {
+	out := make([]string, 0, len(srcs))
+	for _, src := range srcs {
+		if !strings.ContainsAny(src, "*?[") {
+			out = append(out, src)
+			continue
+		}
+		// Use filepath.Glob rooted at SrcRoot. Convert matches back to
+		// root-relative paths so downstream safeJoin stays correct.
+		pattern := filepath.Join(root, src)
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("glob %q: %w", src, err)
+		}
+		for _, m := range matches {
+			rel, err := filepath.Rel(root, m)
+			if err != nil {
+				continue
+			}
+			out = append(out, rel)
+		}
+		// No matches → silently skip (Docker semantics).
+	}
+	return out, nil
 }
 
 // copyOne copies a single non-directory entry.

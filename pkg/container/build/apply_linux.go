@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	"golang.org/x/sys/unix"
 )
 
@@ -92,22 +93,71 @@ func applyOverlayUpper(upper, dst string) error {
 	})
 }
 
-// mountStageRootTmpfs mounts a tmpfs at dir so the stage rootfs is on a
-// real, non-overlay filesystem. Without this, RUN's overlay would exceed
-// the kernel's max stacking depth on hosts where /var/lib/sandal sits on
-// overlayfs (devcontainers, nested sandal, Docker-in-Docker).
+// BackingCleanup releases storage set up by MountStageBacking.
+// Calling it more than once is a no-op.
+type BackingCleanup func() error
+
+// MountStageBacking prepares storage at dir for the stage rootfs or a
+// per-RUN change dir. Backing is chosen in this order:
 //
-// Size is generous (no built-in limit) — tmpfs is sparse, only consumes
-// RAM as data is written.
-func mountStageRootTmpfs(dir string) error {
-	return unix.Mount("tmpfs", dir, "tmpfs", 0, "")
+//  1. tmpSize > 0 → tmpfs of tmpSize MB (explicit opt-in).
+//  2. Otherwise check whether the system supports nesting a new
+//     overlayfs at dir. The test: is dir's parent filesystem already
+//     overlayfs? If so, the kernel rejects a nested overlay with
+//     EINVAL ("max stacking depth exceeded"), so we MUST fall back.
+//       - supports overlayfs  → plain directory (no mount)
+//       - does not support    → loop-mounted ext4 image (size = csize,
+//                                default 8g); same mechanism `sandal
+//                                run -chdir-type image` uses.
+//
+// dir is created if missing. Returns a cleanup function that undoes
+// whatever mount was made (no-op for the plain-directory case).
+func MountStageBacking(dir string, tmpSize uint, csize string) (BackingCleanup, error) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+
+	// 1. Explicit tmpfs request.
+	if tmpSize > 0 {
+		opts := fmt.Sprintf("size=%dm", tmpSize)
+		if err := unix.Mount("tmpfs", dir, "tmpfs", 0, opts); err != nil {
+			return nil, fmt.Errorf("tmpfs at %s: %w", dir, err)
+		}
+		return func() error { return unmountIgnoreENOENT(dir) }, nil
+	}
+
+	// 2. Does the system support stacking a new overlayfs here?
+	if supportsOverlayfs(dir) {
+		return func() error { return nil }, nil
+	}
+
+	// 3. Fall back to loop-mounted ext4 image (csize-sized).
+	if csize == "" {
+		csize = "8g"
+	}
+	mount, err := overlayfs.PrepareImageChangeDir(dir, csize)
+	if err != nil {
+		return nil, fmt.Errorf("image backing at %s: %w", dir, err)
+	}
+	return func() error { return mount.Cleanup() }, nil
 }
 
-// UnmountStageRoot detaches the tmpfs (or whatever was mounted) at dir.
-// Safe to call even if nothing is mounted — returns nil in that case.
-func UnmountStageRoot(dir string) error {
+// supportsOverlayfs reports whether a new overlayfs can be mounted with
+// dir as upperdir. The test is "is dir's parent already overlayfs?" —
+// because the kernel refuses to nest overlayfs beyond its max stacking
+// depth, which is the only practical blocker we've seen. If detection
+// itself errors, assume no support (safer to use the disk fallback).
+func supportsOverlayfs(dir string) bool {
+	parent := filepath.Dir(dir)
+	parentIsOverlay, err := overlayfs.IsOverlayFS(parent)
+	if err != nil {
+		return false
+	}
+	return !parentIsOverlay
+}
+
+func unmountIgnoreENOENT(dir string) error {
 	if err := unix.Unmount(dir, 0); err != nil {
-		// EINVAL = nothing mounted there; treat as no-op.
 		if err == unix.EINVAL {
 			return nil
 		}

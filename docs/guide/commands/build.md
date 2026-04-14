@@ -64,6 +64,34 @@ sandal build -vm -t myapp:1.0 .
 sandal build -t myapp:1.0 .
 ```
 
+### `-tmp` / `-csize`
+
+Control the backing storage for stage rootfs and per-RUN change dirs.
+
+**Default (no `-tmp`)**: the builder first checks whether the host
+filesystem supports stacking a new overlayfs (i.e. `/var/lib/sandal` is
+not itself overlayfs).
+
+- **Supported** → use a plain directory. Fastest path, direct disk I/O.
+- **Not supported** (devcontainers, Docker-in-Docker, nested sandal) →
+  fall back to a loop-mounted ext4 image of size `-csize` (default
+  `8g`). This is the same mechanism `sandal run -chdir-type image`
+  uses when the kernel rejects nested overlays.
+
+**`-tmp N`**: tmpfs of `N` MB per backing. Fast, RAM-only — useful for
+small builds where you want to avoid disk writes entirely.
+
+```bash
+# Default: disk-backed; good for large builds like Home Assistant
+sandal build -t ha:test --build-arg BUILD_FROM=ghcr.io/.../base:X .
+
+# Explicit small tmpfs: for quick iteration on tiny Dockerfiles
+sandal build -tmp 200 -t foo:1 .
+
+# Bigger disk image (override 8g default) for very large package installs
+sandal build -csize 16g -t huge:1 .
+```
+
 ### `--cpu` / `--memory`
 
 Tune the build VM's resources. Only effective with `-vm`.

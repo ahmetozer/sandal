@@ -18,13 +18,15 @@ func runBuild(opts BuildOpts, dfPath string, globalArgs []libbuild.Instruction, 
 		return buildInKVM(opts)
 	}
 	req := containerbuild.BuildRequest{
-		GlobalArgs: globalArgs,
-		Stages:     stages,
-		BuildArgs:  opts.BuildArgs,
-		ContextDir: opts.ContextDir,
-		Tag:        opts.Tag,
-		Target:     opts.Target,
-		Push:       opts.Push,
+		GlobalArgs:    globalArgs,
+		Stages:        stages,
+		BuildArgs:     opts.BuildArgs,
+		ContextDir:    opts.ContextDir,
+		Tag:           opts.Tag,
+		Target:        opts.Target,
+		Push:          opts.Push,
+		TmpSize:       opts.TmpSize,
+		ChangeDirSize: opts.ChangeDirSize,
 		Platform: registry.Platform{
 			OS:           "linux",
 			Architecture: runtime.GOARCH,

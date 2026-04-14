@@ -23,6 +23,14 @@ type BuildOpts struct {
 	VM             bool   // run build inside a VM (required on darwin, optional on linux)
 	CPULimit       string // CPUs for build VM (e.g. "0.5", "2") — VM mode only
 	MemoryLimit    string // memory for build VM (e.g. "512M", "1G") — VM mode only
+
+	// Backing storage for stage rootfs and per-RUN change dirs:
+	//   TmpSize > 0          → tmpfs of that size (MB) — fast, RAM-limited
+	//   TmpSize == 0         → folder mode when the host fs supports nested
+	//                          overlayfs; otherwise ext4 loop image sized
+	//                          by ChangeDirSize.
+	TmpSize       uint   // MB; 0 disables tmpfs
+	ChangeDirSize string // e.g. "4g", "8g" — only used for image-backed mode
 }
 
 // Build orchestrates a Dockerfile-based image build.

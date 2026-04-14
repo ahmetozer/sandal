@@ -31,8 +31,13 @@ type BuildRequest struct {
 	Push       bool
 	Platform   registry.Platform
 
-	buildID string // generated; used for unique container names
-	stepIdx int    // monotonic counter for naming RUN containers
+	// Backing selection (see BuildOpts for semantics).
+	TmpSize       uint
+	ChangeDirSize string
+
+	buildID         string           // generated; used for unique container names
+	stepIdx         int              // monotonic counter for naming RUN containers
+	cleanupBackings []BackingCleanup // stage rootfs backings, released at end of build
 }
 
 // Run executes the build and returns the local sqfs cache path of the
@@ -113,23 +118,28 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 			History:   target.History,
 			Platform:  req.Platform,
 		}); err != nil {
-			cleanupStageRoots(req.Stages)
+			cleanupStageRoots(&req)
 			return "", fmt.Errorf("push %s: %w", req.Tag, err)
 		}
 	}
 
-	cleanupStageRoots(req.Stages)
+	cleanupStageRoots(&req)
 	return outPath, nil
 }
 
-// cleanupStageRoots unmounts and removes each stage's working rootfs.
-func cleanupStageRoots(stages []*libbuild.Stage) {
-	for _, s := range stages {
-		if s.RootfsDir == "" {
-			continue
+// cleanupStageRoots releases each stage's backing storage (tmpfs, ext4
+// loop image, or plain dir) and removes the mount point.
+func cleanupStageRoots(req *BuildRequest) {
+	for _, c := range req.cleanupBackings {
+		if c != nil {
+			_ = c()
 		}
-		_ = UnmountStageRoot(s.RootfsDir)
-		os.RemoveAll(s.RootfsDir)
+	}
+	req.cleanupBackings = nil
+	for _, s := range req.Stages {
+		if s.RootfsDir != "" {
+			os.RemoveAll(s.RootfsDir)
+		}
 	}
 }
 
@@ -163,17 +173,20 @@ func buildStage(ctx context.Context, s *libbuild.Stage, req *BuildRequest, bc *l
 	// Stage rootfs: a directory we own that will accumulate all
 	// instruction results. It MUST NOT be on overlayfs — the kernel
 	// rejects nested overlay stacks, and each RUN step layers another
-	// overlay on top. Use a freshly-mounted tmpfs to guarantee a real
-	// filesystem regardless of the host's choice for /var/lib/sandal.
+	// overlay on top. MountStageBacking picks the right backing:
+	// tmpfs when -tmp is set, a loop-mounted ext4 image when the host
+	// is already on overlayfs, else a plain directory.
 	stageRoot, err := os.MkdirTemp(env.BaseTempDir, fmt.Sprintf("sandal-build-stage-%d-*", s.Index))
 	if err != nil {
 		return err
 	}
-	if err := mountStageRootTmpfs(stageRoot); err != nil {
+	cleanup, err := MountStageBacking(stageRoot, req.TmpSize, req.ChangeDirSize)
+	if err != nil {
 		os.Remove(stageRoot)
-		return fmt.Errorf("mounting stage tmpfs: %w", err)
+		return fmt.Errorf("preparing stage backing: %w", err)
 	}
 	s.RootfsDir = stageRoot
+	req.cleanupBackings = append(req.cleanupBackings, cleanup)
 
 	// Snapshot base into the stage rootfs.
 	if err := snapshotBase(baseDir, stageRoot); err != nil {
@@ -289,13 +302,15 @@ func applyInstruction(ctx context.Context, in libbuild.Instruction, s *libbuild.
 		req.stepIdx++
 		args := instructionArgs(in, nil) // SHELL override deferred
 		if err := ExecRun(RunOpts{
-			StageRoot: s.RootfsDir,
-			BuildID:   req.buildID,
-			StepIdx:   req.stepIdx,
-			Args:      args,
-			WorkDir:   s.Config.WorkingDir,
-			User:      s.Config.User,
-			Env:       s.Config.Env,
+			StageRoot:     s.RootfsDir,
+			BuildID:       req.buildID,
+			StepIdx:       req.stepIdx,
+			Args:          args,
+			WorkDir:       s.Config.WorkingDir,
+			User:          s.Config.User,
+			Env:           s.Config.Env,
+			TmpSize:       req.TmpSize,
+			ChangeDirSize: req.ChangeDirSize,
 		}); err != nil {
 			return err
 		}
@@ -466,18 +481,26 @@ func applyCopy(in libbuild.Instruction, s *libbuild.Stage, bc *libbuild.BuildCon
 	srcRoot := bc.Root
 	var excluded func(string) bool = bc.IsExcluded
 	if from, ok := in.Flags["from"]; ok && from != "" {
-		// Multi-stage source: resolve to that stage's rootfs.
-		other := libbuild.FindStage(req.Stages, from)
-		if other == nil {
-			return fmt.Errorf("COPY --from=%q: stage not found", from)
+		// Resolve --from: first check for a matching previous stage, then
+		// fall back to pulling it as an OCI image reference (BuildKit feature,
+		// e.g. COPY --from=ghcr.io/org/tool@sha256:... /bin/tool /bin/tool).
+		if other := libbuild.FindStage(req.Stages, from); other != nil {
+			if other.Index >= s.Index {
+				return fmt.Errorf("COPY --from=%q: stage %q is defined after the current stage", from, from)
+			}
+			if other.RootfsDir == "" {
+				return fmt.Errorf("COPY --from=%q: stage rootfs not available (not built?)", from)
+			}
+			srcRoot = other.RootfsDir
+		} else if containerimage.IsImageReference(from) {
+			imgDir, err := resolveCopyFromImage(from)
+			if err != nil {
+				return fmt.Errorf("COPY --from=%q: %w", from, err)
+			}
+			srcRoot = imgDir
+		} else {
+			return fmt.Errorf("COPY --from=%q: no matching stage and not a valid image reference", from)
 		}
-		if other.Index >= s.Index {
-			return fmt.Errorf("COPY --from=%q: stage %q is defined after the current stage", from, from)
-		}
-		if other.RootfsDir == "" {
-			return fmt.Errorf("COPY --from=%q: stage rootfs not available (not built?)", from)
-		}
-		srcRoot = other.RootfsDir
 		excluded = nil // .dockerignore only applies to the build context
 	}
 
@@ -543,4 +566,26 @@ func writeConfigSidecar(sqfsPath string, cfg registry.RuntimeConfig) error {
 
 func nowRFC3339() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// resolveCopyFromImage pulls (or cache-hits) the given image reference and
+// returns a directory on the host whose contents are the image's rootfs.
+// Used for BuildKit-style `COPY --from=<image> src dst`.
+func resolveCopyFromImage(ref string) (string, error) {
+	progressCh := make(chan progress.Event, 16)
+	renderDone := progress.StartRenderer(progressCh, os.Stderr)
+	sqfsPath, err := containerimage.Pull(context.Background(), ref, env.BaseImageDir, progressCh)
+	close(progressCh)
+	<-renderDone
+	if err != nil {
+		return "", fmt.Errorf("pulling image: %w", err)
+	}
+	img, err := diskimage.Mount(sqfsPath)
+	if err != nil {
+		return "", fmt.Errorf("mounting image: %w", err)
+	}
+	// img.MountDir is under /var/run/sandal/immutable/N — read-only, fine
+	// for COPY sources. It is unmounted at process exit by the normal
+	// immutable-image cleanup.
+	return img.MountDir, nil
 }

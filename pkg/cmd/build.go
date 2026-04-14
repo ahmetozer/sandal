@@ -33,6 +33,8 @@ func Build(args []string) error {
 		useVM      bool
 		cpuLimit   string
 		memory     string
+		tmpSize    uint
+		csize      string
 	)
 
 	flags.BoolVar(&help, "help", false, "show this help message")
@@ -45,6 +47,8 @@ func Build(args []string) error {
 	flags.BoolVar(&useVM, "vm", false, "run the build inside a virtual machine (required on macOS)")
 	flags.StringVar(&cpuLimit, "cpu", "", "CPUs for the build VM (e.g. 0.5, 2) — only used with -vm")
 	flags.StringVar(&memory, "memory", "", "memory for the build VM (e.g. 512M, 1G) — only used with -vm")
+	flags.UintVar(&tmpSize, "tmp", 0, "back stage rootfs and RUN change dirs with a tmpfs of the given size in MB (default: use disk)")
+	flags.StringVar(&csize, "csize", "", "disk image size for ext4-backed build (e.g. 4g, 8g). Default 8g.")
 	flags.Parse(args)
 
 	if help || len(flags.Args()) < 1 {
@@ -78,6 +82,8 @@ func Build(args []string) error {
 		VM:             useVM,
 		CPULimit:       cpuLimit,
 		MemoryLimit:    memory,
+		TmpSize:        tmpSize,
+		ChangeDirSize:  csize,
 	}
 
 	out, err := sandal.Build(opts)
