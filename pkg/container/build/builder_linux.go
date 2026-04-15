@@ -51,11 +51,11 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 		req.buildID = genBuildID()
 	}
 
-	// When running inside a VM (sandal build -vm, always implicit on
-	// macOS), bring eth0 up via DHCP. The container-network setup that
-	// normally configures eth0 only runs for `sandal run`; the build
-	// otherwise has no default route or DNS and every FROM pull fails
-	// with "network is unreachable". No-op outside a VM.
+	// On macOS VZ VMs, bring eth0 up via DHCP so the native `FROM`
+	// pull in the guest (which runs *outside* any container, before
+	// sandal run's per-container network setup fires) can reach OCI
+	// registries. No-op on Linux/KVM (SANDAL_VM != "mac") and outside
+	// a VM.
 	if err := EnsureVMHostNetwork(ctx); err != nil {
 		return "", fmt.Errorf("setting up VM guest network: %w", err)
 	}

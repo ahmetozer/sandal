@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
@@ -33,9 +35,11 @@ type RunOpts struct {
 }
 
 // ExecRun runs a single RUN instruction inside an ephemeral sandal
-// container that has StageRoot as its overlayfs lower. After the command
-// exits, the upper-dir changes are applied to StageRoot in-place so they
-// are visible to subsequent build steps.
+// container by delegating to the standard sandal.RunContainer() path —
+// the same entry point `sandal run` uses. The container has StageRoot
+// as its overlayfs lower; after it exits, the upper-dir changes are
+// applied to StageRoot in-place so they are visible to subsequent
+// build steps.
 //
 // Failure of the command (non-zero exit) is propagated as an error.
 func ExecRun(opts RunOpts) error {
@@ -51,14 +55,13 @@ func ExecRun(opts RunOpts) error {
 	c.Lower = wrapper.StringFlags{opts.StageRoot}
 	c.RootfsDir = filepath.Join(env.BaseRootfsDir, name)
 	c.ChangeDir = filepath.Join(env.BaseChangeDir, name)
-	// We want to read the upper-dir AFTER host.Run returns. UmountRootfs
-	// only touches the change dir for "image" mode (loop unmount + delete)
-	// or when TmpSize>0 (unmounts tmpfs). With "folder" it leaves the
-	// directory alone, so we can harvest its contents. We prepare the
-	// backing ourselves (MountStageBacking) so the upper dir survives
-	// derun cleanup. Backing kind follows the same rules as stageRoot:
-	// tmpfs if -tmp is set, ext4 loop image if /var/lib/sandal is on
-	// overlayfs, plain dir otherwise.
+	// We want to read the upper-dir AFTER RunContainer returns. With
+	// ChangeDirType=folder the change dir is a plain directory that
+	// survives container teardown, so we can harvest its contents.
+	// We prepare the backing ourselves (MountStageBacking) so backing
+	// kind follows the same rules as stageRoot: tmpfs if -tmp is set,
+	// ext4 loop image if /var/lib/sandal is on overlayfs, plain dir
+	// otherwise.
 	c.ChangeDirType = "folder"
 	cleanupChange, err := MountStageBacking(c.ChangeDir, opts.TmpSize, opts.ChangeDirSize)
 	if err != nil {
@@ -75,34 +78,47 @@ func ExecRun(opts RunOpts) error {
 	c.Dir = opts.WorkDir
 	c.User = opts.User
 	c.Status = "running"
-	// Copy the host's /etc/resolv.conf into the container so RUN steps
-	// can resolve hostnames (pip/apt/apk all need this).
+	// Copy the host's /etc/resolv.conf and /etc/hosts into the container
+	// so RUN steps can resolve hostnames (pip/apt/apk all need this).
 	c.Resolv = "cp"
 	c.Hosts = "cp"
-	// Build container: isolate mount/pid/uts/ipc/cgroup, but use host
-	// network (so RUN can fetch packages) and host user (creating a new
-	// user namespace requires uid_map configuration we don't do here).
+	// Namespace setup: match `sandal run`'s default (user=host). sandal
+	// run normally initializes c.NS via namespace.ParseFlagSet during
+	// CLI parsing; build has no flag set, so we populate it manually.
+	// Leaving user unset would make NS.Defaults() mark it IsHost=false,
+	// which causes Cloneflags to include CLONE_NEWUSER without a
+	// uid_map — the child exec then fails with EACCES. All other
+	// namespaces (net, mnt, pid, ipc, uts, cgroup) default the same
+	// way `sandal run` defaults them.
 	hostStr := "host"
 	c.NS = namespace.Namespaces{
-		"net":  namespace.NamespaceConf{UserValue: &hostStr, IsHost: true, IsUserDefined: true},
-		"user": namespace.NamespaceConf{UserValue: &hostStr, IsHost: true, IsUserDefined: true},
+		"user": namespace.NamespaceConf{UserValue: &hostStr},
 	}
-	if err := c.NS.Defaults(); err != nil {
-		return fmt.Errorf("namespace defaults: %w", err)
-	}
-	c.HostArgs = []string{env.BinLoc, "run", "-name", name, "-lw", opts.StageRoot, "--"}
-	c.HostArgs = append(c.HostArgs, opts.Args...)
 
-	// host.RunWithExtraEnv mounts overlay, runs, unmounts; returns when
-	// the command exits.
-	runErr := host.RunWithExtraEnv(c, opts.Env)
+	// Forward stage ENV (from Dockerfile ENV directives and the image
+	// base ENV) into the container via the officially-supported
+	// -env-pass mechanism: set each KEY on the host process, list the
+	// keys in c.PassEnv, and host/crun.go:childEnv will read them at
+	// spawn time via os.Getenv.
+	unsetEnv := applyStageEnv(c, opts.Env)
+	defer unsetEnv()
+
+	// RunContainer will:
+	//  - validate c.Name
+	//  - check no existing container with this name is running
+	//  - parse networkFlags (nil here means "no explicit -net")
+	//  - call c.NS.Defaults()
+	//  - persist the container (controller.SetContainer)
+	//  - invoke host.Run which mounts rootfs + spawns the process
+	runErr := host.RunContainer(c, nil)
 
 	// Reload to pick up final status/exit code persisted by host.Run.
 	if reloaded, err := controller.GetContainer(name); err == nil {
 		c = reloaded
 	}
 
-	// Always clean up state file and temp dirs once we've harvested the upper.
+	// Always clean up state file and temp dirs once we've harvested
+	// the upper.
 	defer func() {
 		os.RemoveAll(c.RootfsDir)
 		os.RemoveAll(c.ChangeDir + ".img")
@@ -126,6 +142,58 @@ func ExecRun(opts RunOpts) error {
 	}
 	os.RemoveAll(c.ChangeDir)
 	return nil
+}
+
+// applyStageEnv forwards Dockerfile ENV into the container via the
+// `-env-pass` path without modifying pkg/sandal, pkg/container/config,
+// or pkg/container/host. It works by:
+//   1. Locking the goroutine to its OS thread so the process-wide
+//      env snapshot taken by host.crun.childEnv runs on this thread.
+//   2. Snapshotting the previous values for each key we touch.
+//   3. Setting each KEY=VALUE on the host process environment.
+//   4. Populating c.PassEnv with the key list — host/crun.go:childEnv
+//      reads each key via os.Getenv() at container-spawn time.
+//
+// The returned closure restores the previous env and unlocks the
+// thread. Callers MUST invoke it via defer.
+//
+// Concurrency: because os.Setenv is process-global, this helper
+// assumes only one RUN step at a time is in the env-mutation window.
+// Build is currently serial across stages and instructions
+// (builder_linux.go loops sequentially), so this holds. If parallel
+// stages are ever added, gate calls to this helper behind a
+// package-level sync.Mutex.
+func applyStageEnv(c *config.Config, stageEnv []string) func() {
+	runtime.LockOSThread()
+
+	prev := make(map[string]*string, len(stageEnv))
+	keys := make([]string, 0, len(stageEnv))
+	for _, kv := range stageEnv {
+		k, v, _ := strings.Cut(kv, "=")
+		if k == "" {
+			continue
+		}
+		if old, ok := os.LookupEnv(k); ok {
+			p := old
+			prev[k] = &p
+		} else {
+			prev[k] = nil
+		}
+		_ = os.Setenv(k, v)
+		keys = append(keys, k)
+	}
+	c.PassEnv = wrapper.StringFlags(keys)
+
+	return func() {
+		for _, k := range keys {
+			if p := prev[k]; p != nil {
+				_ = os.Setenv(k, *p)
+			} else {
+				_ = os.Unsetenv(k)
+			}
+		}
+		runtime.UnlockOSThread()
+	}
 }
 
 // genBuildID returns a short random hex string for naming build containers.
