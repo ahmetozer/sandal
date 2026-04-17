@@ -13,12 +13,13 @@ import (
 
 const (
 	// https://github.com/util-linux/util-linux/blob/master/include/loopdev.h#L46
-	LOOP_SET_FD       = 0x4C00
-	LOOP_CLR_FD       = 0x4C01
-	LOOP_SET_STATUS64 = 0x4C04
-	LOOP_CTL_ADD      = 0x4C80
-	LOOP_CTL_REMOVE   = 0x4C81
-	LOOP_CTL_GET_FREE = 0x4C82
+	LOOP_SET_FD        = 0x4C00
+	LOOP_CLR_FD        = 0x4C01
+	LOOP_SET_STATUS64  = 0x4C04
+	LOOP_SET_DIRECT_IO = 0x4C08
+	LOOP_CTL_ADD       = 0x4C80
+	LOOP_CTL_REMOVE    = 0x4C81
+	LOOP_CTL_GET_FREE  = 0x4C82
 )
 
 var (

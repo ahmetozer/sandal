@@ -33,6 +33,14 @@ func (lc Config) Attach(imagePath string) error {
 		return fmt.Errorf("could not associate loop device with file: %v", os.NewSyscallError("ioctl", errno))
 	}
 
+	// Enable direct I/O on the loop device so the kernel bypasses the
+	// page cache for the backing file. Without this, loop-over-FUSE
+	// (virtiofs) double-buffers data through the guest page cache AND
+	// the FUSE cache, leading to stale reads and ext4 "structure needs
+	// cleaning" corruption. Non-fatal if unsupported (older kernels or
+	// non-FUSE backing).
+	unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), LOOP_SET_DIRECT_IO, 1)
+
 	_, _, errno = unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), 0x4C00+7, 0)
 	if errno != 0 {
 		unix.Syscall(unix.SYS_IOCTL, loopFile.Fd(), LOOP_CLR_FD, 0)
