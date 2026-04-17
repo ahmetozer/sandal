@@ -116,7 +116,17 @@ func (s *StageContainer) ExecRun(args []string, stageEnv []string, workDir, user
 	c.User = user
 	c.Status = "running"
 
-	unset := exportStageEnv(c, stageEnv)
+	// Docker build runs with TERM unset / empty so tools (uv, pip,
+	// apt) emit plain, line-oriented progress instead of fancy
+	// TTY redraws. sandal's env.Init unconditionally sets
+	// TERM=xterm-256color on every sandal process (including the
+	// guest-init re-exec inside the container), which leaks into the
+	// RUN command's env. Override by injecting TERM=dumb via PassEnv
+	// — "dumb" is the POSIX-standard non-interactive terminal value
+	// that every progress-reporting tool honours. Stage ENV keys the
+	// user set in the Dockerfile still win (they're appended after).
+	stageEnvWithTerm := append([]string{"TERM=dumb"}, stageEnv...)
+	unset := exportStageEnv(c, stageEnvWithTerm)
 	defer unset()
 
 	if err := host.RunContainer(c, nil); err != nil {

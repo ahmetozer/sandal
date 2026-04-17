@@ -173,7 +173,13 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	defer vmconfig.DeleteVM(vmName)
 
 	slog.Info("buildInKVM", "action", "booting", "tag", opts.Tag, "context", absCtx)
-	if err := kvm.BootWithForwards(vmName, cfg, nil, nil, nil); err != nil {
+	// Pass explicit stdin/stdout so kvm.BootWithForwards treats this as
+	// a custom-I/O boot and skips raw terminal mode. Raw mode intercepts
+	// Ctrl+C as a 0x03 byte (forwarding it into the VM's serial console)
+	// instead of delivering SIGINT to the host — which means the user
+	// can't cancel a build with Ctrl+C. Build is non-interactive, so
+	// line-mode is correct.
+	if err := kvm.BootWithForwards(vmName, cfg, os.Stdin, os.Stdout, nil); err != nil {
 		return "", fmt.Errorf("vm boot: %w", err)
 	}
 
