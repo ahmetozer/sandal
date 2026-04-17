@@ -31,6 +31,15 @@ type Config struct {
 	RootfsDir string
 	Snapshot  string
 
+	// ChangeDirManaged signals that the caller (typically `sandal build`)
+	// owns the change-dir backing across multiple host.RunContainer
+	// invocations. When true, host.mountRootfs assumes the change dir is
+	// already mounted and host.UmountRootfs leaves the change-dir backing
+	// in place at container teardown. This lets build accumulate state in
+	// the upper directory across successive RUN steps without losing data
+	// to the unmount-remount cycle host normally performs per run.
+	ChangeDirManaged bool
+
 	ReadOnly        bool
 	Remove          bool
 	EnvAll          bool

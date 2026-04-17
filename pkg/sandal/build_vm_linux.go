@@ -17,6 +17,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
+	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
 	"strings"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
@@ -137,13 +138,16 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	}
 	cfg.NetLinks = []vmconfig.NetLinkConfig{nlc}
 
-	// Build the same DHCP-configured Link that run-in-VM uses so the
-	// guest knows to fire up DHCP on eth0. ParseFlag needs a synthetic
-	// container Config to register against the bridge's IP pool.
+	// Allocate a static IP from the bridge pool for the VM NIC, matching
+	// how RunInKVM works for `sandal run -vm`. Using the default flag
+	// (type=veth) causes ParseFlag to allocate an address from the
+	// bridge's subnet. The pre-allocated address travels in SANDAL_VM_NET
+	// so the guest container can configure eth0 statically — no DHCP
+	// server needed on the bridge.
 	conts, _ := controller.Containers()
 	buildName := "sandal-build-vm-" + strings.Join(wordgenerator.NameGenerate(4), "-")
 	synthCfg := &config.Config{Name: buildName}
-	parsedLinks, err := sandalnet.ParseFlag([]string{"ip=dhcp"}, conts, synthCfg)
+	parsedLinks, err := sandalnet.ParseFlag(nil, conts, synthCfg)
 	if err != nil {
 		return "", fmt.Errorf("build vm net: %w", err)
 	}
@@ -173,9 +177,14 @@ func buildInKVM(opts BuildOpts) (string, error) {
 		return "", fmt.Errorf("vm boot: %w", err)
 	}
 
-	// Output path is where the guest wrote it — the image cache is shared
-	// via the sandal-lib VirtioFS tag, so host and guest see the same file.
-	return "", nil
+	// Guest wrote the squashfs (and .json sidecar) to the shared
+	// sandal-lib image cache. Derive the host path so callers can find
+	// the built image without parsing guest logs.
+	outPath := filepath.Join(env.BaseImageDir, squash.SanitizeRef(opts.Tag)+".sqfs")
+	if _, err := os.Stat(outPath); err != nil {
+		return "", fmt.Errorf("guest build completed but image not found at %s: %w", outPath, err)
+	}
+	return outPath, nil
 }
 
 // pathUnder reports whether child is inside parent (both must be absolute).

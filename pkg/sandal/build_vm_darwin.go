@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
+	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
@@ -131,7 +132,14 @@ func buildInVZ(opts BuildOpts) (string, error) {
 		return "", fmt.Errorf("vm boot: %w", err)
 	}
 
-	return "", nil
+	// Guest wrote the squashfs (and .json sidecar) to the shared
+	// sandal-lib image cache. Derive the host path so callers can find
+	// the built image without parsing guest logs.
+	outPath := filepath.Join(env.BaseImageDir, squash.SanitizeRef(opts.Tag)+".sqfs")
+	if _, err := os.Stat(outPath); err != nil {
+		return "", fmt.Errorf("guest build completed but image not found at %s: %w", outPath, err)
+	}
+	return outPath, nil
 }
 
 // parseMemSize parses a memory size string like "512M", "1G", "1Gi" into bytes.
