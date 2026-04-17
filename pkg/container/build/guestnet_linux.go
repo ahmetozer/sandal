@@ -13,7 +13,6 @@ import (
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 // EnsureGuestNet configures eth0 on the VM host netns so the build
@@ -48,18 +47,6 @@ func EnsureGuestNet(ctx context.Context) error {
 		slog.Warn("guest net: expose CA certs", "err", err)
 	}
 
-	// Overlay a tmpfs on the guest-side temp dir. The default temp
-	// path (env.BaseTempDir = /var/lib/sandal/tmp) lives under the
-	// virtiofs-shared sandal-lib mount, and virtiofs does not support
-	// symlink() or several other POSIX ops — which breaks OCI layer
-	// extraction (many base images contain busybox-style symlinks).
-	// A tmpfs overlay keeps the image cache (/var/lib/sandal/image)
-	// on virtiofs (so the squashfs result reaches the host) while
-	// extraction scratch space lives on a fully-featured local fs.
-	if err := mountGuestTempTmpfs(); err != nil {
-		slog.Warn("guest net: tmp tmpfs", "err", err)
-	}
-
 	link, err := netlink.LinkByName("eth0")
 	if err != nil {
 		return fmt.Errorf("guest net: eth0: %w", err)
@@ -88,40 +75,17 @@ func EnsureGuestNet(ctx context.Context) error {
 		return fmt.Errorf("guest net: configure eth0: %w", err)
 	}
 
-	// Configure() doesn't install a default route for statically-
-	// allocated links (KVM), so add one now using the bridge-pool
-	// gateway that sandalnet pre-populated into Route. For DHCPv4,
-	// the DHCP client already installed the default route.
-	if !links[0].DHCPv4 && !links[0].DHCPv6 {
-		for _, r := range links[0].Route {
-			if r.IP == nil {
-				continue
-			}
-			_ = netlink.RouteAdd(&netlink.Route{Gw: r.IP})
+	// Configure() assigns IPs (and runs the DHCP client for VZ), but
+	// neither path installs a kernel default route. Install one now
+	// from the Route entries that defaults() (KVM static) or
+	// configureDHCPv4() (VZ lease) populated.
+	for _, r := range links[0].Route {
+		if r.IP == nil {
+			continue
 		}
+		_ = netlink.RouteAdd(&netlink.Route{Gw: r.IP})
 	}
 	slog.Info("guest net configured", slog.String("vm", os.Getenv("SANDAL_VM")))
-	return nil
-}
-
-// mountGuestTempTmpfs tmpfs-mounts env.BaseTempDir so OCI layer
-// extraction (which needs symlink() support) works inside a VM guest
-// whose /var/lib/sandal is virtiofs-backed.
-func mountGuestTempTmpfs() error {
-	if err := os.MkdirAll(env.BaseTempDir, 0755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", env.BaseTempDir, err)
-	}
-	// Idempotency: if it's already a tmpfs, skip.
-	var st unix.Statfs_t
-	if err := unix.Statfs(env.BaseTempDir, &st); err == nil {
-		// TMPFS_MAGIC = 0x01021994
-		if st.Type == 0x01021994 {
-			return nil
-		}
-	}
-	if err := unix.Mount("tmpfs", env.BaseTempDir, "tmpfs", 0, ""); err != nil {
-		return fmt.Errorf("tmpfs mount: %w", err)
-	}
 	return nil
 }
 

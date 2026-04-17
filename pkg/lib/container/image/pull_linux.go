@@ -86,29 +86,27 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 }
 
 // mergeWithOverlayfs mounts an overlayfs with all layer dirs stacked as
-// lowerdir entries and a tmpfs-backed upperdir/workdir, then copies the
-// merged result to outDir. The tmpfs ensures upperdir/workdir are on a real
-// filesystem (required by overlayfs) and keeps everything in memory.
+// lowerdir entries and a temporary upperdir/workdir, then copies the
+// merged result to outDir.
+//
+// The upper/work dirs are created on BaseTempDir which is ext4-backed
+// when -csize is set. No tmpfs is used — inside a VM every tmpfs byte
+// comes from guest RAM. If the underlying filesystem does not support
+// overlayfs (e.g. virtiofs without -csize), the mount fails and the
+// caller falls back to manual merge.
 func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 	if len(layerDirs) == 0 {
 		return fmt.Errorf("no layers")
 	}
 
-	// Create a tmpfs for upper/work dirs — overlayfs requires these on a
-	// real filesystem, and tmpfs auto-cleans on unmount.
-	tmpfsDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-ovl-tmpfs-*")
+	ovlDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-ovl-upper-*")
 	if err != nil {
-		return fmt.Errorf("creating tmpfs dir: %w", err)
+		return fmt.Errorf("creating overlay upper dir: %w", err)
 	}
-	defer os.RemoveAll(tmpfsDir)
+	defer os.RemoveAll(ovlDir)
 
-	if err := cmount.Mount("tmpfs", tmpfsDir, "tmpfs", 0, "size=16m"); err != nil {
-		return fmt.Errorf("tmpfs mount: %w", err)
-	}
-	defer unix.Unmount(tmpfsDir, 0)
-
-	upperDir := filepath.Join(tmpfsDir, "upper")
-	workDir := filepath.Join(tmpfsDir, "work")
+	upperDir := filepath.Join(ovlDir, "upper")
+	workDir := filepath.Join(ovlDir, "work")
 	os.MkdirAll(upperDir, 0755)
 	os.MkdirAll(workDir, 0755)
 

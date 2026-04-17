@@ -87,10 +87,18 @@ func NewStageContainer(stageIdx int, buildID string, lowerSqfs string, tmpSize u
 	c.Hosts = "cp"
 	// Match `sandal run` defaults. user=host avoids a CLONE_NEWUSER
 	// without a uid_map (which would fail EACCES in the child exec).
+	// Inside a VM, net=host shares the single virtio-net eth0 that
+	// EnsureGuestNet already configured — there is no bridge to veth
+	// against, and moving eth0 between namespaces would leave the VM
+	// host netns without network between RUN steps.
 	hostStr := "host"
-	c.NS = namespace.Namespaces{
+	nsMap := namespace.Namespaces{
 		"user": namespace.NamespaceConf{UserValue: &hostStr},
 	}
+	if isVM, _ := env.IsVM(); isVM {
+		nsMap["net"] = namespace.NamespaceConf{UserValue: &hostStr}
+	}
+	c.NS = nsMap
 
 	return &StageContainer{Cfg: &c, buildID: buildID, stageIdx: stageIdx}
 }
@@ -187,7 +195,10 @@ func (s *StageContainer) Finish(outPath string) error {
 	}
 	defer diskimage.Umount(&img)
 
-	mergedDir, err := os.MkdirTemp("", "sandal-build-merged-*")
+	// Use BaseTempDir (ext4-backed when -csize is set) instead of
+	// os.TempDir(). Inside a VM, /tmp is a small tmpfs — using it for
+	// the overlay mount point would waste guest RAM.
+	mergedDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-build-merged-*")
 	if err != nil {
 		return fmt.Errorf("merged tmpdir: %w", err)
 	}

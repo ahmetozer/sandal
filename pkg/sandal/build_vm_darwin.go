@@ -86,7 +86,8 @@ func buildInVZ(opts BuildOpts) (string, error) {
 	}
 	if opts.MemoryLimit != "" {
 		if n, err := parseMemSize(opts.MemoryLimit); err == nil && n > 0 {
-			cfg.MemoryBytes = (n + 4095) &^ 4095
+			// VZ requires memory to be a multiple of 1 MB.
+			cfg.MemoryBytes = (n + vmconfig.MB - 1) / vmconfig.MB * vmconfig.MB
 		}
 	}
 

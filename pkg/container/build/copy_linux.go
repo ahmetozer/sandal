@@ -217,3 +217,13 @@ func copyOne(src, dst string, info os.FileInfo) error {
 	}
 	return df.Close()
 }
+
+// stageContext copies the build context from src (typically a virtiofs
+// mount) to dst (local ext4), applying .dockerignore filtering so only
+// files that COPY instructions could reference are staged.
+func stageContext(src, dst string, excluded func(string) bool) error {
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+	return copyTree(src, dst, src, excluded)
+}

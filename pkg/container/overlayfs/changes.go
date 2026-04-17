@@ -93,7 +93,14 @@ func PrepareChangeDir(c *config.Config) (ChangesDir, error) {
 		upper: path.Join(c.ChangeDir, "upper"),
 	}
 
-	// tmpfs overrides everything
+	// tmpfs overrides everything — except inside VMs where all tmpfs
+	// is backed by guest RAM. A -tmp flag in a VM build would exhaust
+	// memory during large builds; silently fall through to ext4 image
+	// mode instead.
+	if isVM, _ := env.IsVM(); isVM && c.TmpSize != 0 {
+		slog.Warn("PrepareChangeDir", slog.String("msg", "-tmp ignored inside VM (would exhaust guest RAM); using ext4 image"))
+		c.TmpSize = 0
+	}
 	if c.TmpSize != 0 {
 		tmpdir := Tmpdir(c)
 

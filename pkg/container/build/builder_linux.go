@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/env"
 	libbuild "github.com/ahmetozer/sandal/pkg/lib/container/build"
 	containerimage "github.com/ahmetozer/sandal/pkg/lib/container/image"
@@ -65,10 +66,44 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 		return "", fmt.Errorf("setting up VM guest network: %w", err)
 	}
 
+	// Inside a VM, env.BaseTempDir lives on virtiofs which does not
+	// support symlinks — breaking OCI layer extraction. When -csize
+	// is specified, back the temp dir with a loop-mounted ext4 image
+	// that provides full POSIX support and real disk space.
+	if isVM, _ := env.IsVM(); isVM && req.ChangeDirSize != "" {
+		mount, err := overlayfs.PrepareImageChangeDir(env.BaseTempDir, req.ChangeDirSize)
+		if err != nil {
+			return "", fmt.Errorf("preparing VM temp dir: %w", err)
+		}
+		defer mount.Cleanup()
+	}
+
 	// Open build context (loads .dockerignore).
 	bc, err := libbuild.NewBuildContext(req.ContextDir)
 	if err != nil {
 		return "", err
+	}
+
+	// Inside a VM the build context lives on virtiofs. Every
+	// filepath.Walk + Lstat + Open is a FUSE roundtrip — thousands of
+	// them for a large context like Home Assistant core. After RUN
+	// steps fill memory (pip install, apt, …), the kernel can't even
+	// service readdirent anymore (ENOMEM).
+	//
+	// Stage the context to local storage (ext4 from -csize) NOW, while
+	// memory is plentiful. One sequential virtiofs read replaces
+	// thousands of random FUSE calls in later COPY instructions.
+	if isVM, _ := env.IsVM(); isVM {
+		localCtx := filepath.Join(env.BaseTempDir, "build-context-"+req.buildID)
+		if err := stageContext(req.ContextDir, localCtx, bc.IsExcluded); err != nil {
+			return "", fmt.Errorf("staging build context: %w", err)
+		}
+		defer os.RemoveAll(localCtx)
+		req.ContextDir = localCtx
+		bc, err = libbuild.NewBuildContext(localCtx)
+		if err != nil {
+			return "", fmt.Errorf("loading staged context: %w", err)
+		}
 	}
 
 	// Build-arg scope: --build-arg overrides ARG defaults declared in
