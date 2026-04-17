@@ -58,6 +58,13 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 	}
 	req.stageSqfs = map[int]string{}
 
+	// Inside a VM, configure eth0 at the VM-host level so the FROM
+	// pull (which runs in this process, OUTSIDE any container) has
+	// network access. No-op outside a VM.
+	if err := EnsureGuestNet(ctx); err != nil {
+		return "", fmt.Errorf("setting up VM guest network: %w", err)
+	}
+
 	// Open build context (loads .dockerignore).
 	bc, err := libbuild.NewBuildContext(req.ContextDir)
 	if err != nil {
@@ -265,12 +272,37 @@ func resolveBase(ctx context.Context, ref string, req *BuildRequest, currentIdx 
 	if err != nil {
 		return "", registry.RuntimeConfig{}, err
 	}
+	// Inside a VM, env.BaseImageDir is virtiofs-backed and the
+	// rename() from the .tmp file to the final cache path can take a
+	// moment to propagate into the guest's own view (FUSE metadata
+	// cache). Poll briefly so the immediate Lower mount that follows
+	// sees the file.
+	if err := waitForFile(sqfsPath, 5*time.Second); err != nil {
+		return "", registry.RuntimeConfig{}, fmt.Errorf("waiting for pulled image to appear: %w", err)
+	}
 	cfg, _ := containerimage.LoadImageConfig(sqfsPath)
 	var rt registry.RuntimeConfig
 	if cfg != nil {
 		rt = *cfg
 	}
 	return sqfsPath, rt, nil
+}
+
+// waitForFile polls for a file to become stat-able. Used after
+// container-image Pull to bridge the virtiofs cache-propagation gap:
+// the host sees the renamed file immediately, the guest sometimes
+// takes a few hundred ms to catch up on FUSE metadata invalidation.
+func waitForFile(path string, max time.Duration) error {
+	deadline := time.Now().Add(max)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("stat %s: still missing after %s", path, max)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // emptyScratchSqfs creates (or returns cached) an empty squashfs image
