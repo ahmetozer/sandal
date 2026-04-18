@@ -15,8 +15,15 @@ import (
 const (
 	DefaultCPUCount   = 2
 	DefaultMemoryMB   = 512
-	DefaultDiskSizeMB = 4096
-	MB                = 1024 * 1024
+	// DefaultBuildMemoryMB is the VM memory allocated to `sandal build -vm`
+	// when the user does not pass -memory. 512 MB (the generic VM default) is
+	// not enough headroom for large Python dependency graphs: uv/pip can
+	// exhaust guest RAM while installing many wheels, which produced
+	// intermittent truncated-file corruption (empty METADATA / RECORD files)
+	// in the ext4 overlay upperdir.
+	DefaultBuildMemoryMB = 2048
+	DefaultDiskSizeMB    = 4096
+	MB                   = 1024 * 1024
 )
 
 type MountConfig struct {

@@ -192,17 +192,21 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 		case tar.TypeDir:
 			os.MkdirAll(target, os.FileMode(hdr.Mode))
 		case tar.TypeReg:
-			os.MkdirAll(filepath.Dir(target), 0755)
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", filepath.Dir(target), err)
+			}
 			os.Remove(target)
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
 			if err != nil {
-				return err
+				return fmt.Errorf("open %s: %w", target, err)
 			}
 			if _, err := io.Copy(f, tr); err != nil {
 				f.Close()
-				return err
+				return fmt.Errorf("write %s: %w", target, err)
 			}
-			f.Close()
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close %s: %w", target, err)
+			}
 		case tar.TypeSymlink:
 			os.MkdirAll(filepath.Dir(target), 0755)
 			os.Remove(target)
@@ -290,14 +294,22 @@ func applyLayerDir(layerDir, outDir string) error {
 		if info.Mode()&os.ModeSymlink != 0 {
 			linkTarget, err := os.Readlink(srcPath)
 			if err != nil {
-				return err
+				return fmt.Errorf("readlink %s: %w", srcPath, err)
 			}
 			os.Remove(dst)
-			return os.Symlink(linkTarget, dst)
+			if err := os.Symlink(linkTarget, dst); err != nil {
+				return fmt.Errorf("symlink %s -> %s: %w", linkTarget, dst, err)
+			}
+			return nil
 		}
 
-		os.MkdirAll(filepath.Dir(dst), 0755)
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", filepath.Dir(dst), err)
+		}
 		os.Remove(dst)
-		return copyFile(srcPath, dst, info.Mode())
+		if err := copyFile(srcPath, dst, info.Mode()); err != nil {
+			return fmt.Errorf("copy %s -> %s: %w", srcPath, dst, err)
+		}
+		return nil
 	})
 }

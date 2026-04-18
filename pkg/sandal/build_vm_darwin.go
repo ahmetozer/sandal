@@ -77,7 +77,7 @@ func buildInVZ(opts BuildOpts) (string, error) {
 
 	cfg := vmconfig.VMConfig{
 		CPUCount:    vmconfig.DefaultCPUCount,
-		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+		MemoryBytes: vmconfig.DefaultBuildMemoryMB * vmconfig.MB,
 	}
 	if opts.CPULimit != "" {
 		if n, err := strconv.ParseFloat(opts.CPULimit, 64); err == nil && n > 0 {

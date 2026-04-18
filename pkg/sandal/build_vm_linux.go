@@ -92,7 +92,7 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	// VM config — reuse defaults; -cpu / -memory override.
 	cfg := vmconfig.VMConfig{
 		CPUCount:    vmconfig.DefaultCPUCount,
-		MemoryBytes: vmconfig.DefaultMemoryMB * vmconfig.MB,
+		MemoryBytes: vmconfig.DefaultBuildMemoryMB * vmconfig.MB,
 	}
 	if opts.CPULimit != "" {
 		if n, err := strconv.ParseFloat(opts.CPULimit, 64); err == nil && n > 0 {

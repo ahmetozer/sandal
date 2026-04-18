@@ -137,6 +137,26 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 	}
 	tmpFile.Close()
 
+	// Validate the freshly written squashfs covers every regular file
+	// from the merged tmpDir. A silent short-merge (overlayfs/readdir
+	// inconsistency seen on nested overlayfs) would otherwise get
+	// cached and poison every subsequent sandal run.
+	srcCount, err := countRegularFiles(tmpDir)
+	if err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("counting merged files: %w", err)
+	}
+	sqfsCount, err := squashfs.CountRegularFiles(tmpPath)
+	if err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("counting squashfs files: %w", err)
+	}
+	if srcCount != sqfsCount {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("squashfs integrity check failed: merged dir has %d regular files, squashfs has %d (image=%s)", srcCount, sqfsCount, imageRef)
+	}
+	slog.Debug("Pull", slog.String("action", "integrity-ok"), slog.Int("files", srcCount))
+
 	if progressCh != nil {
 		fi, _ := os.Stat(tmpPath)
 		var finalSize int64
@@ -377,6 +397,25 @@ func dirSize(path string) (int64, error) {
 		return nil
 	})
 	return total, err
+}
+
+// countRegularFiles returns the number of regular files under root.
+// Symlinks, devices, and directories are excluded — matching what
+// squashfs.CountRegularFiles reports for the written image. Unlike
+// dirSize, walk errors are propagated so a silently truncated readdir
+// on a misbehaving filesystem is caught.
+func countRegularFiles(root string) (int, error) {
+	count := 0
+	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.Mode().IsRegular() {
+			count++
+		}
+		return nil
+	})
+	return count, err
 }
 
 // fetchAndStoreImageConfig fetches the OCI image config from the registry and
