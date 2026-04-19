@@ -17,15 +17,17 @@ import (
 
 // mergeLayers merges OCI image layers into a single directory.
 // On non-Linux platforms, layers are extracted and merged with direct
-// OCI whiteout processing (no overlayfs available).
-func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) error {
+// OCI whiteout processing (no overlayfs available). The returned
+// pathIndex is always empty on non-Linux; the non-Linux flow does not
+// yet use tar-header-derived path validation.
+func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) (*pathIndex, error) {
 	for i, layer := range layers {
 		slog.Debug("mergeLayers", slog.String("action", "applying"), slog.Int("layer", i+1), slog.Int("total", len(layers)))
 		if err := applyLayerTar(layer, dir); err != nil {
-			return fmt.Errorf("applying layer %d: %w", i, err)
+			return nil, fmt.Errorf("applying layer %d: %w", i, err)
 		}
 	}
-	return nil
+	return newPathIndex(), nil
 }
 
 // applyLayerTar extracts a tar layer directly into dir, processing OCI

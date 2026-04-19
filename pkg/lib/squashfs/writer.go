@@ -81,6 +81,12 @@ type Writer struct {
 	// Optional progress callback invoked after each file's data is written.
 	progressFn func(bytesWritten int64)
 
+	// listDir returns the child names of dirPath, sorted ascending.
+	// Defaults to os.ReadDir. CreateFromPaths overrides this to use a
+	// caller-supplied path list so a short os.ReadDir on overlayfs cannot
+	// silently drop entries.
+	listDir func(dirPath string) ([]string, error)
+
 	dataPos int64
 }
 
@@ -399,6 +405,63 @@ func (w *Writer) writeMetadataBlocksTracked(raw []byte) ([]int64, error) {
 
 // CreateFromDir creates a squashfs image from a directory tree.
 func (w *Writer) CreateFromDir(rootPath string) error {
+	w.listDir = func(dirPath string) ([]string, error) {
+		entries, err := os.ReadDir(dirPath)
+		if err != nil {
+			return nil, err
+		}
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		return names, nil
+	}
+	return w.build(rootPath)
+}
+
+// CreateFromPaths creates a squashfs image containing exactly the entries
+// listed in paths (relative to rootPath). Intermediate directories implied
+// by the list are included automatically. Unlike CreateFromDir, this API
+// never calls os.ReadDir, which on overlayfs can silently truncate — it
+// trusts the caller-supplied list as ground truth.
+func (w *Writer) CreateFromPaths(rootPath string, paths []string) error {
+	children := make(map[string]map[string]struct{})
+	add := func(parent, name string) {
+		if children[parent] == nil {
+			children[parent] = map[string]struct{}{}
+		}
+		children[parent][name] = struct{}{}
+	}
+	rootClean := filepath.Clean(rootPath)
+	for _, rel := range paths {
+		rel = filepath.Clean(rel)
+		if rel == "." || rel == "/" {
+			continue
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		cur := rootClean
+		for _, part := range parts {
+			if part == "" {
+				continue
+			}
+			add(cur, part)
+			cur = filepath.Join(cur, part)
+		}
+	}
+	w.listDir = func(dirPath string) ([]string, error) {
+		set := children[filepath.Clean(dirPath)]
+		names := make([]string, 0, len(set))
+		for n := range set {
+			names = append(names, n)
+		}
+		return names, nil
+	}
+	return w.build(rootPath)
+}
+
+// build is the shared tail of CreateFromDir/CreateFromPaths that runs once
+// w.listDir has been configured.
+func (w *Writer) build(rootPath string) error {
 	// Phase 1: Walk tree bottom-up, write file data, build raw inodes and dir entries
 	// All block references are stored as PLACEHOLDERS and fixed up later.
 	_, err := w.processDir(rootPath, rootPath)
@@ -527,20 +590,26 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 
 // processDir recursively processes a directory bottom-up.
 func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
-	entries, err := os.ReadDir(dirPath)
+	names, err := w.listDir(dirPath)
 	if err != nil {
 		return 0, err
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
+	sort.Strings(names)
 
 	var children []inodeInfo
 
-	for _, entry := range entries {
-		childPath := filepath.Join(dirPath, entry.Name())
+	for _, name := range names {
+		childPath := filepath.Join(dirPath, name)
 		info, err := os.Lstat(childPath)
 		if err != nil {
+			// A path supplied via CreateFromPaths that isn't on disk means
+			// the upstream merge (e.g. copyDir over an overlayfs mount)
+			// dropped a file that the tar index expected. Skip it here;
+			// the caller's integrity check will see the count mismatch
+			// and fail the build before caching.
+			if os.IsNotExist(err) {
+				continue
+			}
 			return 0, err
 		}
 
@@ -571,21 +640,21 @@ func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
 				return 0, err
 			}
 			inum := w.buildSymlinkInode(info, target)
-			children = append(children, inodeInfo{inum, sqfsTypeSymlink, entry.Name()})
+			children = append(children, inodeInfo{inum, sqfsTypeSymlink, name})
 
 		case info.IsDir():
 			childInum, err := w.processDir(childPath, rootPath)
 			if err != nil {
 				return 0, err
 			}
-			children = append(children, inodeInfo{childInum, sqfsTypeDir, entry.Name()})
+			children = append(children, inodeInfo{childInum, sqfsTypeDir, name})
 
 		case info.Mode().IsRegular():
 			inum, err := w.buildFileInode(childPath, info)
 			if err != nil {
 				return 0, err
 			}
-			children = append(children, inodeInfo{inum, sqfsTypeFile, entry.Name()})
+			children = append(children, inodeInfo{inum, sqfsTypeFile, name})
 		}
 	}
 

@@ -87,7 +87,8 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 	// Extract layers directly to disk instead of loading all file bodies
 	// into RAM via Flatten(). This keeps memory usage O(1) and prevents
 	// OOM on memory-constrained devices (e.g. Raspberry Pi).
-	if err := mergeLayers(layers, tmpDir, progressCh); err != nil {
+	idx, err := mergeLayers(layers, tmpDir, progressCh)
+	if err != nil {
 		return "", fmt.Errorf("merging layers: %w", err)
 	}
 
@@ -130,17 +131,21 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 		return "", fmt.Errorf("creating squashfs writer: %w", err)
 	}
 
-	if err := w.CreateFromDir(tmpDir); err != nil {
+	// Feed the squashfs writer the tar-derived path list so a short
+	// os.ReadDir on overlayfs cannot silently drop entries.
+	if err := w.CreateFromPaths(tmpDir, idx.sortedPaths()); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("creating squashfs image: %w", err)
 	}
 	tmpFile.Close()
 
-	// Validate the freshly written squashfs covers every regular file
-	// from the merged tmpDir. A silent short-merge (overlayfs/readdir
-	// inconsistency seen on nested overlayfs) would otherwise get
-	// cached and poison every subsequent sandal run.
+	// Validate the squashfs against three independent counts:
+	//   1. tar-derived path set (idx) — ground truth from layer headers
+	//   2. merged tmpDir walk — what's actually on disk after overlayfs
+	//   3. squashfs read-back — what we just wrote
+	// Disagreement between any two means a silent drop happened, so we
+	// delete the temp sqfs and fail so the next sandal run re-pulls.
 	srcCount, err := countRegularFiles(tmpDir)
 	if err != nil {
 		os.Remove(tmpPath)
@@ -151,11 +156,15 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("counting squashfs files: %w", err)
 	}
-	if srcCount != sqfsCount {
+	idxCount := idx.countRegularFiles(tmpDir)
+	if srcCount != sqfsCount || idxCount != sqfsCount {
 		os.Remove(tmpPath)
-		return "", fmt.Errorf("squashfs integrity check failed: merged dir has %d regular files, squashfs has %d (image=%s)", srcCount, sqfsCount, imageRef)
+		return "", fmt.Errorf("squashfs integrity check failed: tar-index=%d merged-dir=%d squashfs=%d (image=%s)", idxCount, srcCount, sqfsCount, imageRef)
 	}
-	slog.Debug("Pull", slog.String("action", "integrity-ok"), slog.Int("files", srcCount))
+	slog.Debug("Pull", slog.String("action", "integrity-ok"),
+		slog.Int("tar-index", idxCount),
+		slog.Int("merged-dir", srcCount),
+		slog.Int("squashfs", sqfsCount))
 
 	if progressCh != nil {
 		fi, _ := os.Stat(tmpPath)
@@ -181,7 +190,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 // ExportImageSquashfs downloads a container image, flattens its layers,
 // and writes a squashfs image to the given file.
 func ExportImageSquashfs(ctx context.Context, imageRef string, outFile *os.File) error {
-	tmpDir, err := pullToDir(ctx, imageRef, nil)
+	tmpDir, idx, err := pullToDir(ctx, imageRef, nil)
 	if err != nil {
 		return err
 	}
@@ -191,6 +200,9 @@ func ExportImageSquashfs(ctx context.Context, imageRef string, outFile *os.File)
 	w, err := squashfs.NewWriter(outFile, squashfs.WithCompression(squashfs.CompGzip))
 	if err != nil {
 		return fmt.Errorf("creating squashfs writer: %w", err)
+	}
+	if idx != nil && idx.len() > 0 {
+		return w.CreateFromPaths(tmpDir, idx.sortedPaths())
 	}
 	return w.CreateFromDir(tmpDir)
 }
@@ -206,8 +218,10 @@ func ExportImageTarGz(ctx context.Context, imageRef string, w io.Writer) error {
 }
 
 // pullToDir downloads and flattens an image into a temporary directory.
-// Caller is responsible for removing the returned directory.
-func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.Event) (string, error) {
+// Caller is responsible for removing the returned directory. Also returns
+// the tar-derived post-whiteout path index so squashfs callers can
+// enumerate entries without relying on os.ReadDir over the merged dir.
+func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.Event) (string, *pathIndex, error) {
 	platform := registry.Platform{
 		OS:           "linux",
 		Architecture: runtime.GOARCH,
@@ -215,7 +229,7 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	srcRef, err := registry.ParseReference(imageRef)
 	if err != nil {
-		return "", fmt.Errorf("parse image reference: %w", err)
+		return "", nil, fmt.Errorf("parse image reference: %w", err)
 	}
 
 	slog.Info("pullToDir", slog.String("action", "pulling"), slog.String("image", imageRef), slog.String("os", platform.OS), slog.String("arch", platform.Architecture))
@@ -224,12 +238,12 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	manifest, err := resolveManifest(ctx, client, srcRef, platform)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, progressCh)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer cleanupLayers(layers)
 
@@ -237,15 +251,16 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	tmpDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-image-*")
 	if err != nil {
-		return "", fmt.Errorf("creating temp directory: %w", err)
+		return "", nil, fmt.Errorf("creating temp directory: %w", err)
 	}
 
-	if err := mergeLayers(layers, tmpDir); err != nil {
+	idx, err := mergeLayers(layers, tmpDir)
+	if err != nil {
 		os.RemoveAll(tmpDir)
-		return "", fmt.Errorf("merging layers: %w", err)
+		return "", nil, fmt.Errorf("merging layers: %w", err)
 	}
 
-	return tmpDir, nil
+	return tmpDir, idx, nil
 }
 
 // IsImageReference returns true if the string looks like a container image

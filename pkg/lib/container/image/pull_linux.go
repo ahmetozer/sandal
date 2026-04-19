@@ -18,26 +18,30 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// mergeLayers merges OCI image layers into a single directory.
-// It first tries overlayfs (kernel handles whiteouts natively, fastest),
-// then falls back to manual disk-based extraction with whiteout processing.
-func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) error {
+// mergeLayers merges OCI image layers into a single directory. It first
+// tries overlayfs (kernel handles whiteouts natively, fastest), then
+// falls back to manual disk-based extraction with whiteout processing.
+// It returns the post-whiteout path set built from tar headers. Callers
+// use that set as ground truth when writing the squashfs because
+// os.ReadDir on an overlayfs-backed dir can silently truncate.
+func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) (*pathIndex, error) {
 	var pch chan<- progress.Event
 	if len(progressCh) > 0 {
 		pch = progressCh[0]
 	}
+	idx := newPathIndex()
 	// Extract each layer to its own directory.
 	layerDirs := make([]string, len(layers))
 	baseDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-layers-*")
 	if err != nil {
-		return fmt.Errorf("creating layers base dir: %w", err)
+		return nil, fmt.Errorf("creating layers base dir: %w", err)
 	}
 	defer os.RemoveAll(baseDir)
 
 	for i, layer := range layers {
 		layerDir := filepath.Join(baseDir, fmt.Sprintf("layer-%d", i))
 		if err := os.MkdirAll(layerDir, 0755); err != nil {
-			return fmt.Errorf("creating layer %d dir: %w", i, err)
+			return nil, fmt.Errorf("creating layer %d dir: %w", i, err)
 		}
 		slog.Debug("mergeLayers", slog.String("action", "extracting"), slog.Int("layer", i+1), slog.Int("total", len(layers)))
 		if pch != nil {
@@ -46,8 +50,8 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 			default:
 			}
 		}
-		if err := extractLayerRaw(layer, layerDir); err != nil {
-			return fmt.Errorf("extracting layer %d: %w", i, err)
+		if err := extractLayerRaw(layer, layerDir, idx); err != nil {
+			return nil, fmt.Errorf("extracting layer %d: %w", i, err)
 		}
 		layerDirs[i] = layerDir
 	}
@@ -82,7 +86,10 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 		}
 	}
 
-	return mergeErr
+	if mergeErr != nil {
+		return nil, mergeErr
+	}
+	return idx, nil
 }
 
 // mergeWithOverlayfs mounts an overlayfs with all layer dirs stacked as
@@ -137,7 +144,10 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 // extractLayerRaw extracts a tar layer to a directory, converting OCI
 // whiteout files to overlayfs-native whiteouts (char device 0/0).
 // Does NOT process whiteouts — just converts the format for overlayfs.
-func extractLayerRaw(layer io.Reader, dir string) error {
+// If idx is non-nil, each header is also recorded so the caller can
+// assemble a post-whiteout path set across layers without re-reading
+// the tarball.
+func extractLayerRaw(layer io.Reader, dir string, idx *pathIndex) error {
 	tr := tar.NewReader(layer)
 	for {
 		hdr, err := tr.Next()
@@ -151,6 +161,10 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 		name := cleanPath(hdr.Name)
 		if name == "" {
 			continue
+		}
+
+		if idx != nil {
+			idx.record(name, hdr.Typeflag)
 		}
 
 		nameDir := path.Dir(name)

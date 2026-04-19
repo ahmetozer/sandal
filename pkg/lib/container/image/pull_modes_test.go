@@ -73,7 +73,7 @@ func TestExtractLayerRawPreservesSpecialModeBits(t *testing.T) {
 		"grpwrite.sh": grpBody,
 	})
 
-	if err := extractLayerRaw(buf, dir); err != nil {
+	if err := extractLayerRaw(buf, dir, nil); err != nil {
 		t.Fatalf("extractLayerRaw: %v", err)
 	}
 
