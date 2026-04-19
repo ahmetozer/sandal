@@ -23,6 +23,14 @@ Sandal creates intermediate layer between host operating system and containers w
 
 - Additionally, these features create easy to manage embedded-Linux work environments or development surface without requiring to build own distribution ([Yocto](https://www.yoctoproject.org/), [Buildroot](https://buildroot.org/)) from scratch for each change.
 
+<!--
+  Homepage explainer. Loaded only on /. Script order is load-bearing:
+  Icons → Sources → LiveDiagram → Explainer provide globals consumed by
+  later files. `explainer.js` is a plain script with a retry loop because
+  the `type="text/babel"` scripts transpile async via @babel/standalone;
+  it also subscribes to mkdocs-material's `document$` observable to
+  re-mount on `navigation.instant` page swaps. Don't reorder.
+-->
 <div id="sandal-explainer"></div>
 
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
