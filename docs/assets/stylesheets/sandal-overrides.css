@@ -1,0 +1,116 @@
+/* ===================================================================
+   Sandal Design System — mkdocs-material overrides
+   Bridges tokens from sandal-tokens.css into mkdocs-material's
+   --md-* variables, and tweaks the slate (dark) scheme to match
+   the design bundle's night-mode spec.
+   =================================================================== */
+
+/* -----------------------------------------------------------------
+   LIGHT SCHEME — map Sandal tokens into mkdocs-material variables.
+   ----------------------------------------------------------------- */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color:          var(--bone);
+  --md-default-fg-color:          var(--ink-soft);
+  --md-default-fg-color--light:   var(--mute);
+  --md-default-fg-color--lighter: var(--mute);
+  --md-primary-fg-color:          var(--ink);
+  --md-accent-fg-color:           var(--wood-deep);
+  --md-code-bg-color:             var(--paper);
+  --md-code-fg-color:             var(--ink);
+  --md-typeset-a-color:           var(--ink);
+}
+
+/* -----------------------------------------------------------------
+   DARK SCHEME (mkdocs-material's `slate`) — ported from the
+   UI kit's night mode block in ui_kits/docs_site/index.html.
+   Redefining Sandal tokens here cascades into any rule below
+   that uses them; redefining --md-* maps into mkdocs chrome.
+   ----------------------------------------------------------------- */
+[data-md-color-scheme="slate"] {
+  --bone:       #13161c;
+  --paper:      #1a1e26;
+  --rule:       rgba(255, 255, 255, 0.08);
+  --ink:        #f2ede0;
+  --ink-soft:   #d8d2c3;
+  --mute:       #8892a0;
+  --white:      #22262f;
+  --wood:       #d9a870;
+  --wood-deep:  #a4763f;
+  --wood-light: #e8c896;
+
+  --md-default-bg-color:         var(--bone);
+  --md-default-fg-color:         var(--ink-soft);
+  --md-default-fg-color--light:  var(--mute);
+  --md-code-bg-color:            var(--paper);
+  --md-typeset-a-color:          var(--water);
+  --md-accent-fg-color:          var(--wood);
+}
+
+/* Night-mode header — deeper than body so it recedes,
+   matches the UI kit's `.site-header` night override. */
+[data-md-color-scheme="slate"] .md-header {
+  background:    #0c0f14;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:    0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* -----------------------------------------------------------------
+   CODE BLOCKS — terminal palette on both schemes. `pre` already
+   contrasts in light mode; dark code on light bg is intentional
+   per the design spec ("Code is present on almost every surface").
+   ----------------------------------------------------------------- */
+.md-typeset pre > code,
+.md-typeset .highlight > pre {
+  background: var(--term-bg);
+  color:      var(--term-fg);
+}
+
+.md-typeset code {
+  font-family: var(--font-mono);
+}
+
+/* -----------------------------------------------------------------
+   CALLOUTS — align accent borders with the semantic palette.
+   Mkdocs-material's admonition icons/titles stay as-is; only the
+   left-edge accent shifts.
+   ----------------------------------------------------------------- */
+.md-typeset .admonition.info,
+.md-typeset .admonition.note,
+.md-typeset details.info,
+.md-typeset details.note {
+  border-color: var(--water);
+}
+
+.md-typeset .admonition.warning,
+.md-typeset .admonition.caution,
+.md-typeset details.warning,
+.md-typeset details.caution {
+  border-color: var(--warn);
+}
+
+.md-typeset .admonition.danger,
+.md-typeset .admonition.error,
+.md-typeset .admonition.failure,
+.md-typeset details.danger,
+.md-typeset details.error,
+.md-typeset details.failure {
+  border-color: var(--err);
+}
+
+/* -----------------------------------------------------------------
+   HOMEPAGE EXPLAINER — the .explainer class is used by the
+   SandalExplainer React component to give its sticky grid room
+   to breathe. Ported from the UI kit's index.html inline style.
+   ----------------------------------------------------------------- */
+.explainer {
+  max-width: 1200px;
+  margin:    0 auto;
+  padding:   24px 28px 40vh;
+}
+
+/* Homepage has `hide: navigation` and `hide: toc` in its front-matter,
+   but mkdocs-material still constrains main-content to --md-grid-max-width
+   (61rem by default). Give the explainer breathing room. */
+.md-main__inner.md-grid:has(.explainer) {
+  max-width: none;
+}
