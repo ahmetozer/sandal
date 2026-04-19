@@ -668,6 +668,23 @@ func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint32) {
 	return dirRawPos, dirSize
 }
 
+// unixMode converts an fs.FileMode to the 16-bit on-disk Unix mode
+// including setuid/setgid/sticky. Go's FileMode places those bits
+// outside the low 12, so .Perm() alone loses them.
+func unixMode(m fs.FileMode) uint16 {
+	out := uint16(m.Perm())
+	if m&fs.ModeSetuid != 0 {
+		out |= 0o4000
+	}
+	if m&fs.ModeSetgid != 0 {
+		out |= 0o2000
+	}
+	if m&fs.ModeSticky != 0 {
+		out |= 0o1000
+	}
+	return out
+}
+
 // buildDirInode creates a directory inode with placeholder block refs.
 // Uses basic dir inode (type 1) when dirSize fits in uint16, otherwise
 // extended dir inode (type 8) with uint32 file_size.
@@ -683,7 +700,7 @@ func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos
 	if fileSize <= 0xFFFF {
 		// Basic directory inode (type 1): file_size is uint16
 		binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeDir))
-		binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
+		binary.Write(&buf, binary.LittleEndian, unixMode(info.Mode()))
 		binary.Write(&buf, binary.LittleEndian, uid)
 		binary.Write(&buf, binary.LittleEndian, gid)
 		binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
@@ -708,7 +725,7 @@ func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos
 	} else {
 		// Extended directory inode (type 8): file_size is uint32
 		binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeLDir))
-		binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
+		binary.Write(&buf, binary.LittleEndian, unixMode(info.Mode()))
 		binary.Write(&buf, binary.LittleEndian, uid)
 		binary.Write(&buf, binary.LittleEndian, gid)
 		binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
@@ -757,7 +774,7 @@ func (w *Writer) buildFileInode(path string, info fs.FileInfo) (uint32, error) {
 
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeFile))
-	binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
+	binary.Write(&buf, binary.LittleEndian, unixMode(info.Mode()))
 	binary.Write(&buf, binary.LittleEndian, uid)
 	binary.Write(&buf, binary.LittleEndian, gid)
 	binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))

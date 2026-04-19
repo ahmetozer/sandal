@@ -190,13 +190,18 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			os.MkdirAll(target, os.FileMode(hdr.Mode))
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", target, err)
+			}
+			if err := os.Chmod(target, tarMode(hdr.Mode)); err != nil {
+				return fmt.Errorf("chmod %s: %w", target, err)
+			}
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(target), err)
 			}
 			os.Remove(target)
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
 				return fmt.Errorf("open %s: %w", target, err)
 			}
@@ -206,6 +211,9 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 			}
 			if err := f.Close(); err != nil {
 				return fmt.Errorf("close %s: %w", target, err)
+			}
+			if err := os.Chmod(target, tarMode(hdr.Mode)); err != nil {
+				return fmt.Errorf("chmod %s: %w", target, err)
 			}
 		case tar.TypeSymlink:
 			os.MkdirAll(filepath.Dir(target), 0755)
@@ -224,6 +232,23 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 			continue
 		}
 	}
+}
+
+// tarMode translates the 12-bit Unix mode from a tar header into an
+// os.FileMode, preserving setuid/setgid/sticky which occupy different
+// bit positions in Go's FileMode encoding than in on-disk Unix mode.
+func tarMode(m int64) os.FileMode {
+	mode := os.FileMode(m) & os.ModePerm
+	if m&0o4000 != 0 {
+		mode |= os.ModeSetuid
+	}
+	if m&0o2000 != 0 {
+		mode |= os.ModeSetgid
+	}
+	if m&0o1000 != 0 {
+		mode |= os.ModeSticky
+	}
+	return mode
 }
 
 // mergeLayerDirs merges pre-extracted layer directories into outDir using
@@ -267,7 +292,10 @@ func applyLayerDir(layerDir, outDir string) error {
 				// Opaque directory: remove all existing children in outDir.
 				removeDirectoryContents(dst)
 			}
-			return os.MkdirAll(dst, info.Mode())
+			if err := os.MkdirAll(dst, 0755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", dst, err)
+			}
+			return os.Chmod(dst, info.Mode()&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky))
 		}
 
 		// Check for overlayfs whiteout (char device 0/0).

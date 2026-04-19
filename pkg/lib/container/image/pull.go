@@ -326,7 +326,10 @@ func copyDir(src, dst string) error {
 		dstPath := filepath.Join(dst, rel)
 
 		if info.IsDir() {
-			return os.MkdirAll(dstPath, info.Mode())
+			if err := os.MkdirAll(dstPath, 0755); err != nil {
+				return err
+			}
+			return os.Chmod(dstPath, info.Mode()&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky))
 		}
 
 		if info.Mode()&os.ModeSymlink != 0 {
@@ -354,7 +357,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	}
 	defer sf.Close()
 
-	df, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	df, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -362,7 +365,10 @@ func copyFile(src, dst string, mode os.FileMode) error {
 		df.Close()
 		return err
 	}
-	return df.Close()
+	if err := df.Close(); err != nil {
+		return err
+	}
+	return os.Chmod(dst, mode&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky))
 }
 
 // removeDirectoryContents removes all children of a directory without
