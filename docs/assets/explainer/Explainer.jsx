@@ -238,11 +238,8 @@ function IntroBlock({ innerRef }) {
 }
 
 function TriggerSection({ innerRef, index, feature, active, past }) {
-  // Each feature gets a trigger section that takes up scroll real estate and
-  // shows a large visual marker — a numbered label plus the feature title. The
-  // deep explanation lives in the BottomPanel below. This keeps the main
-  // content scrollable for users who prefer reading in flow, and the pinned
-  // panel in sync with whichever feature sits in the reading band.
+  // Each trigger section contains the full feature description (title, cmd,
+  // lede, bullets). The BottomPanel below shows only the morphing diagram.
   const palette = feature.tone === 'water' ? 'var(--water-deep)' : 'var(--wood-deep)';
   return (
     <section
@@ -250,10 +247,8 @@ function TriggerSection({ innerRef, index, feature, active, past }) {
       data-feature-index={index}
       style={{
         minHeight: '60vh',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        paddingBottom: 24,
+        paddingTop: 32,
+        paddingBottom: 32,
         scrollMarginTop: 72,
         opacity: active ? 1 : (past ? 0.55 : 0.85),
         filter: active ? 'none' : 'saturate(0.85)',
@@ -266,50 +261,38 @@ function TriggerSection({ innerRef, index, feature, active, past }) {
         Feature {String(index).padStart(2, '0')}
       </div>
       <h3 style={{
-        margin: 0, fontFamily: 'var(--font-sans)', fontSize: 32,
+        margin: '0 0 18px',
+        fontFamily: 'var(--font-sans)', fontSize: 32,
         fontWeight: 500, color: 'var(--ink)',
-        lineHeight: 1.2, maxWidth: 640, textWrap: 'balance',
+        lineHeight: 1.2, maxWidth: 680, textWrap: 'balance',
       }}>
         {feature.title}
       </h3>
+      {feature.cmd ? (
+        <code style={{
+          display: 'inline-block',
+          fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)',
+          background: 'color-mix(in srgb, var(--oar) 40%, var(--paper))',
+          border: '1px solid var(--wood-light)',
+          padding: '5px 10px', borderRadius: 2,
+          marginBottom: 16,
+          maxWidth: '100%', overflowX: 'auto', whiteSpace: 'nowrap',
+        }}>{feature.cmd}</code>
+      ) : null}
+      <div style={{ maxWidth: 640 }}>
+        <FeatureBody lede={feature.lede} bullets={feature.bullets} tone={feature.tone}/>
+      </div>
     </section>
   );
 }
 
 function BottomPanel({ active }) {
-  // Fixed-bottom panel. Always visible; morphs contents as `active` changes.
-  // For the intro state (active === 0) the diagram shows its idle frame and
-  // the copy side is a brief prompt.
-  const feat = FEATURES[active];
+  // Fixed-bottom panel — contains only the morphing diagram. Text
+  // descriptions for each feature live inline in the trigger sections.
   return (
-    <aside className="explainer-bottom-panel" aria-live="polite">
+    <aside className="explainer-bottom-panel" aria-hidden="false">
       <div className="explainer-bottom-inner">
-        <div className="explainer-bottom-diagram">
-          <LiveDiagram feature={active}/>
-        </div>
-        <div className="explainer-bottom-copy">
-          {feat ? (
-            <>
-              <FeatureHead title={feat.title} cmd={feat.cmd}/>
-              <FeatureBody lede={feat.lede} bullets={feat.bullets} tone={feat.tone}/>
-            </>
-          ) : (
-            <div style={{
-              fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--mute)',
-              lineHeight: 1.5, maxWidth: 420, textWrap: 'pretty',
-            }}>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.12em',
-                color: 'var(--wood-deep)', textTransform: 'uppercase', marginBottom: 8,
-              }}>
-                Idle
-              </div>
-              Scroll down to activate each feature. The diagram swaps its source,
-              overlay stack, and resulting dimension in sync with the feature
-              under the reading band.
-            </div>
-          )}
-        </div>
+        <LiveDiagram feature={active}/>
       </div>
     </aside>
   );
