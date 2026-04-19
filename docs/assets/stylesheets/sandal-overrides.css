@@ -111,22 +111,12 @@
    ----------------------------------------------------------------- */
 .explainer {
   position: relative;
-  max-width: 1200px;
-  margin:    0 auto;
-  /* Bottom padding = panel height + buffer so the last trigger can still
-     reach the reading band without being permanently covered. */
-  padding:   12px 28px calc(320px + 64px);
-}
-
-.explainer-scroll {
-  max-width: 760px;
-}
-
-/* Homepage has `hide: navigation` and `hide: toc` in its front-matter,
-   but mkdocs-material still constrains main-content to --md-grid-max-width
-   (61rem by default). Give the explainer breathing room. */
-.md-main__inner.md-grid:has(.explainer) {
-  max-width: none;
+  /* Inherit the page content width (mkdocs-material's --md-grid-max-width,
+     ~61rem by default) so the explainer text aligns with the markdown
+     intro above it. Bottom padding = panel height + buffer so the last
+     trigger can still reach the reading band without being permanently
+     covered. */
+  padding: 12px 0 calc(320px + 64px);
 }
 
 .explainer-bottom-panel {
