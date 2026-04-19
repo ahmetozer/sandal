@@ -135,11 +135,12 @@
   right: 0;
   bottom: 0;
   height: 320px;
-  background: var(--paper);
-  border-top: 1px solid var(--rule);
-  box-shadow: var(--shadow-pop);
-  /* Stay above mkdocs-material's back-to-top button (z-index 2) but
-     below any modal overlays (which use much higher values). */
+  /* Transparent — page content must scroll visibly behind the diagram. The
+     LiveDiagram paints its own card backgrounds; the panel itself is just a
+     positioning frame. `pointer-events: none` lets the user scroll-wheel in
+     the gaps around the diagram without the panel capturing the event. */
+  background: transparent;
+  pointer-events: none;
   z-index: 3;
 }
 
@@ -172,12 +173,8 @@
   }
 }
 
-/* Dark scheme */
-[data-md-color-scheme="slate"] .explainer-bottom-panel {
-  background: var(--paper);
-  border-top: 1px solid var(--rule);
-  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
-}
+/* Dark scheme — panel stays transparent on both schemes. The LiveDiagram's
+   own card surfaces supply the contrast. */
 
 /* Respect users who prefer reduced motion. */
 @media (prefers-reduced-motion: reduce) {
