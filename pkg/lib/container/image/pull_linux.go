@@ -18,26 +18,30 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// mergeLayers merges OCI image layers into a single directory.
-// It first tries overlayfs (kernel handles whiteouts natively, fastest),
-// then falls back to manual disk-based extraction with whiteout processing.
-func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) error {
+// mergeLayers merges OCI image layers into a single directory. It first
+// tries overlayfs (kernel handles whiteouts natively, fastest), then
+// falls back to manual disk-based extraction with whiteout processing.
+// It returns the post-whiteout path set built from tar headers. Callers
+// use that set as ground truth when writing the squashfs because
+// os.ReadDir on an overlayfs-backed dir can silently truncate.
+func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.Event) (*pathIndex, error) {
 	var pch chan<- progress.Event
 	if len(progressCh) > 0 {
 		pch = progressCh[0]
 	}
+	idx := newPathIndex()
 	// Extract each layer to its own directory.
 	layerDirs := make([]string, len(layers))
 	baseDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-layers-*")
 	if err != nil {
-		return fmt.Errorf("creating layers base dir: %w", err)
+		return nil, fmt.Errorf("creating layers base dir: %w", err)
 	}
 	defer os.RemoveAll(baseDir)
 
 	for i, layer := range layers {
 		layerDir := filepath.Join(baseDir, fmt.Sprintf("layer-%d", i))
 		if err := os.MkdirAll(layerDir, 0755); err != nil {
-			return fmt.Errorf("creating layer %d dir: %w", i, err)
+			return nil, fmt.Errorf("creating layer %d dir: %w", i, err)
 		}
 		slog.Debug("mergeLayers", slog.String("action", "extracting"), slog.Int("layer", i+1), slog.Int("total", len(layers)))
 		if pch != nil {
@@ -46,8 +50,8 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 			default:
 			}
 		}
-		if err := extractLayerRaw(layer, layerDir); err != nil {
-			return fmt.Errorf("extracting layer %d: %w", i, err)
+		if err := extractLayerRaw(layer, layerDir, idx); err != nil {
+			return nil, fmt.Errorf("extracting layer %d: %w", i, err)
 		}
 		layerDirs[i] = layerDir
 	}
@@ -59,39 +63,57 @@ func mergeLayers(layers []io.Reader, dir string, progressCh ...chan<- progress.E
 		}
 	}
 
-	// Try overlayfs merge: stack layers as lowerdir (last layer = highest priority).
-	if err := mergeWithOverlayfs(layerDirs, dir); err != nil {
-		slog.Debug("mergeLayers", slog.String("action", "overlayfs-fallback"), slog.Any("error", err))
-		// Overlayfs not available — fall back to manual merge with whiteout processing.
-		return mergeLayerDirs(layerDirs, dir)
+	if pch != nil {
+		select {
+		case pch <- progress.Event{Phase: progress.PhaseMerge, TaskID: "merge", Current: 0, Total: 0}:
+		default:
+		}
 	}
-	return nil
+
+	// Try overlayfs merge: stack layers as lowerdir (last layer = highest priority).
+	mergeErr := mergeWithOverlayfs(layerDirs, dir)
+	if mergeErr != nil {
+		slog.Debug("mergeLayers", slog.String("action", "overlayfs-fallback"), slog.Any("error", mergeErr))
+		// Overlayfs not available — fall back to manual merge with whiteout processing.
+		mergeErr = mergeLayerDirs(layerDirs, dir)
+	}
+
+	if pch != nil && mergeErr == nil {
+		totalSize, _ := dirSize(dir)
+		select {
+		case pch <- progress.Event{Phase: progress.PhaseMerge, TaskID: "merge", Current: totalSize, Total: totalSize, Done: true}:
+		default:
+		}
+	}
+
+	if mergeErr != nil {
+		return nil, mergeErr
+	}
+	return idx, nil
 }
 
 // mergeWithOverlayfs mounts an overlayfs with all layer dirs stacked as
-// lowerdir entries and a tmpfs-backed upperdir/workdir, then copies the
-// merged result to outDir. The tmpfs ensures upperdir/workdir are on a real
-// filesystem (required by overlayfs) and keeps everything in memory.
+// lowerdir entries and a temporary upperdir/workdir, then copies the
+// merged result to outDir.
+//
+// The upper/work dirs are created on BaseTempDir which is ext4-backed
+// when -csize is set. No tmpfs is used — inside a VM every tmpfs byte
+// comes from guest RAM. If the underlying filesystem does not support
+// overlayfs (e.g. virtiofs without -csize), the mount fails and the
+// caller falls back to manual merge.
 func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 	if len(layerDirs) == 0 {
 		return fmt.Errorf("no layers")
 	}
 
-	// Create a tmpfs for upper/work dirs — overlayfs requires these on a
-	// real filesystem, and tmpfs auto-cleans on unmount.
-	tmpfsDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-ovl-tmpfs-*")
+	ovlDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-ovl-upper-*")
 	if err != nil {
-		return fmt.Errorf("creating tmpfs dir: %w", err)
+		return fmt.Errorf("creating overlay upper dir: %w", err)
 	}
-	defer os.RemoveAll(tmpfsDir)
+	defer os.RemoveAll(ovlDir)
 
-	if err := cmount.Mount("tmpfs", tmpfsDir, "tmpfs", 0, "size=64k"); err != nil {
-		return fmt.Errorf("tmpfs mount: %w", err)
-	}
-	defer unix.Unmount(tmpfsDir, 0)
-
-	upperDir := filepath.Join(tmpfsDir, "upper")
-	workDir := filepath.Join(tmpfsDir, "work")
+	upperDir := filepath.Join(ovlDir, "upper")
+	workDir := filepath.Join(ovlDir, "work")
 	os.MkdirAll(upperDir, 0755)
 	os.MkdirAll(workDir, 0755)
 
@@ -122,7 +144,10 @@ func mergeWithOverlayfs(layerDirs []string, outDir string) error {
 // extractLayerRaw extracts a tar layer to a directory, converting OCI
 // whiteout files to overlayfs-native whiteouts (char device 0/0).
 // Does NOT process whiteouts — just converts the format for overlayfs.
-func extractLayerRaw(layer io.Reader, dir string) error {
+// If idx is non-nil, each header is also recorded so the caller can
+// assemble a post-whiteout path set across layers without re-reading
+// the tarball.
+func extractLayerRaw(layer io.Reader, dir string, idx *pathIndex) error {
 	tr := tar.NewReader(layer)
 	for {
 		hdr, err := tr.Next()
@@ -138,6 +163,10 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 			continue
 		}
 
+		if idx != nil {
+			idx.record(name, hdr.Typeflag)
+		}
+
 		nameDir := path.Dir(name)
 		base := path.Base(name)
 
@@ -151,13 +180,18 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 		}
 
 		// Convert OCI file whiteout (.wh.<name>) to overlayfs char device 0/0.
+		// If mknod fails (no CAP_MKNOD), preserve the OCI .wh. marker file
+		// so the manual merge fallback can process it.
 		if strings.HasPrefix(base, ".wh.") {
 			targetName := base[len(".wh."):]
 			target := filepath.Join(dir, filepath.FromSlash(nameDir), targetName)
 			os.MkdirAll(filepath.Dir(target), 0755)
 			os.Remove(target)
-			// Create character device 0/0 — the overlayfs whiteout format.
-			unix.Mknod(target, unix.S_IFCHR|0666, 0)
+			if err := unix.Mknod(target, unix.S_IFCHR|0666, 0); err != nil {
+				// mknod failed — create an OCI-format .wh. marker file instead.
+				whTarget := filepath.Join(dir, filepath.FromSlash(nameDir), base)
+				os.WriteFile(whTarget, nil, 0644)
+			}
 			continue
 		}
 
@@ -170,19 +204,31 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			os.MkdirAll(target, os.FileMode(hdr.Mode))
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", target, err)
+			}
+			if err := os.Chmod(target, tarMode(hdr.Mode)); err != nil {
+				return fmt.Errorf("chmod %s: %w", target, err)
+			}
 		case tar.TypeReg:
-			os.MkdirAll(filepath.Dir(target), 0755)
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", filepath.Dir(target), err)
+			}
 			os.Remove(target)
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
-				return err
+				return fmt.Errorf("open %s: %w", target, err)
 			}
 			if _, err := io.Copy(f, tr); err != nil {
 				f.Close()
-				return err
+				return fmt.Errorf("write %s: %w", target, err)
 			}
-			f.Close()
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close %s: %w", target, err)
+			}
+			if err := os.Chmod(target, tarMode(hdr.Mode)); err != nil {
+				return fmt.Errorf("chmod %s: %w", target, err)
+			}
 		case tar.TypeSymlink:
 			os.MkdirAll(filepath.Dir(target), 0755)
 			os.Remove(target)
@@ -200,6 +246,23 @@ func extractLayerRaw(layer io.Reader, dir string) error {
 			continue
 		}
 	}
+}
+
+// tarMode translates the 12-bit Unix mode from a tar header into an
+// os.FileMode, preserving setuid/setgid/sticky which occupy different
+// bit positions in Go's FileMode encoding than in on-disk Unix mode.
+func tarMode(m int64) os.FileMode {
+	mode := os.FileMode(m) & os.ModePerm
+	if m&0o4000 != 0 {
+		mode |= os.ModeSetuid
+	}
+	if m&0o2000 != 0 {
+		mode |= os.ModeSetgid
+	}
+	if m&0o1000 != 0 {
+		mode |= os.ModeSticky
+	}
+	return mode
 }
 
 // mergeLayerDirs merges pre-extracted layer directories into outDir using
@@ -243,7 +306,10 @@ func applyLayerDir(layerDir, outDir string) error {
 				// Opaque directory: remove all existing children in outDir.
 				removeDirectoryContents(dst)
 			}
-			return os.MkdirAll(dst, info.Mode())
+			if err := os.MkdirAll(dst, 0755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", dst, err)
+			}
+			return os.Chmod(dst, info.Mode()&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky))
 		}
 
 		// Check for overlayfs whiteout (char device 0/0).
@@ -256,18 +322,36 @@ func applyLayerDir(layerDir, outDir string) error {
 			}
 		}
 
+		// Check for OCI-format whiteout (.wh.<name> marker files).
+		// These are created when mknod fails (no CAP_MKNOD).
+		base := filepath.Base(srcPath)
+		if strings.HasPrefix(base, ".wh.") {
+			targetName := base[len(".wh."):]
+			targetPath := filepath.Join(filepath.Dir(dst), targetName)
+			os.RemoveAll(targetPath)
+			return nil
+		}
+
 		// Regular file, symlink, etc — copy to outDir.
 		if info.Mode()&os.ModeSymlink != 0 {
 			linkTarget, err := os.Readlink(srcPath)
 			if err != nil {
-				return err
+				return fmt.Errorf("readlink %s: %w", srcPath, err)
 			}
 			os.Remove(dst)
-			return os.Symlink(linkTarget, dst)
+			if err := os.Symlink(linkTarget, dst); err != nil {
+				return fmt.Errorf("symlink %s -> %s: %w", linkTarget, dst, err)
+			}
+			return nil
 		}
 
-		os.MkdirAll(filepath.Dir(dst), 0755)
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", filepath.Dir(dst), err)
+		}
 		os.Remove(dst)
-		return copyFile(srcPath, dst, info.Mode())
+		if err := copyFile(srcPath, dst, info.Mode()); err != nil {
+			return fmt.Errorf("copy %s -> %s: %w", srcPath, dst, err)
+		}
+		return nil
 	})
 }

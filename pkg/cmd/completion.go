@@ -160,11 +160,11 @@ _sandal() {
             fi
             ;;
         clear)
-            COMPREPLY=($(compgen -W "-help -all" -- "${cur}"))
+            COMPREPLY=($(compgen -W "-help -all -dry-run -images -snapshots -orphans -kernel-cache -temp" -- "${cur}"))
             ;;
         exec)
             if [[ "${cur}" == -* ]]; then
-                COMPREPLY=($(compgen -W "-help -env-all -env-pass -dir -user -ns-mnt -ns-ipc -ns-cgroup -ns-pid -ns-net -ns-user -ns-uts" -- "${cur}"))
+                COMPREPLY=($(compgen -W "-help -t -env-all -env-pass -dir -user" -- "${cur}"))
             else
                 _sandal_container_names
             fi
@@ -263,7 +263,7 @@ func zshCompletion() string {
 		{"snapshot", "Snapshot container changes as a squashfs image"},
 		{"export", "Export full container filesystem as a squashfs image"},
 		{"attach", "Attach to a running background container"},
-		{"vm", "Manage virtual machines (macOS only)"},
+		{"vm", "Manage virtual machines"},
 		{"completion", "Generate shell completion scripts"},
 		{"help", "Show help"},
 	}
@@ -390,22 +390,22 @@ _sandal() {
                 clear)
                     _arguments \
                         '-help[show this help message]' \
-                        '-all[delete all non-running containers]'
+                        '-all[reclaim everything]' \
+                        '-dry-run[preview removals without deleting]' \
+                        '-images[remove unreferenced downloaded images]' \
+                        '-snapshots[remove unreferenced snapshots]' \
+                        '-orphans[remove orphaned changedir files]' \
+                        '-kernel-cache[remove stale initramfs entries]' \
+                        '-temp[remove leftover temp files]'
                     ;;
                 exec)
                     _arguments \
                         '-help[show this help message]' \
+                        '-t[allocate a pseudo-TTY]' \
                         '-env-all[send all environment variables]' \
                         '*-env-pass[pass specific environment variables]:var:' \
                         '-dir[working directory]:dir:_directories' \
                         '-user[work user]:user:' \
-                        '-ns-mnt[mnt namespace or host]:ns:' \
-                        '-ns-ipc[ipc namespace or host]:ns:' \
-                        '-ns-cgroup[cgroup namespace or host]:ns:' \
-                        '-ns-pid[pid namespace or host]:ns:' \
-                        '-ns-net[net namespace or host]:ns:' \
-                        '-ns-user[user namespace or host]:ns:' \
-                        '-ns-uts[uts namespace or host]:ns:' \
                         '*:container:_sandal_container_names'
                     ;;
                 snapshot)

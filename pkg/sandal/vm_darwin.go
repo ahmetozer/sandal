@@ -23,6 +23,13 @@ import (
 // stageHostEtc creates a staging directory with host /etc files
 // that the VM needs. On macOS, /etc is a symlink to /private/etc
 // which VirtioFS may not follow, so we stage the files explicitly.
+//
+// Currently staged:
+//   - resolv.conf — DNS configuration
+//   - ssl/cert.pem — CA bundle for TLS verification (used by
+//     `sandal build`'s in-VM OCI registry pulls; macOS keeps the
+//     bundle at /etc/ssl/cert.pem, Linux distros use a different
+//     layout we don't need here).
 func stageHostEtc() string {
 	dir := filepath.Join(env.LibDir, "system", "etc")
 	os.MkdirAll(dir, 0755)
@@ -31,6 +38,15 @@ func stageHostEtc() string {
 	if _, err := os.Stat(resolvPath); err != nil {
 		if data, err := os.ReadFile("/etc/resolv.conf"); err == nil {
 			os.WriteFile(resolvPath, data, 0644)
+		}
+	}
+
+	sslDir := filepath.Join(dir, "ssl")
+	os.MkdirAll(sslDir, 0755)
+	certPath := filepath.Join(sslDir, "cert.pem")
+	if _, err := os.Stat(certPath); err != nil {
+		if data, err := os.ReadFile("/etc/ssl/cert.pem"); err == nil {
+			os.WriteFile(certPath, data, 0644)
 		}
 	}
 	return dir

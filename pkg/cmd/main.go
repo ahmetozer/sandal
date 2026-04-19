@@ -48,6 +48,8 @@ func Main() {
 			executeSubCommand(Snapshot)
 		case "export":
 			executeSubCommand(Export)
+		case "build":
+			executeSubCommand(Build)
 		case "attach":
 			executeSubCommand(Attach)
 		case "vm":
@@ -100,7 +102,7 @@ func subCommandsHelp() {
 	snapshot - Snapshot container changes as a squashfs image
 	export - Export full container filesystem as a squashfs image
 	attach - Attach to a running background container's console
-	vm - Manage virtual machines (macOS only)
+	vm - Manage virtual machines
 	completion - Generate shell completion scripts (bash, zsh)
 	help - Show help, default and current environment variables` + "\n")
 

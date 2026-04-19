@@ -35,13 +35,12 @@ func (t VsockTransport) DialMapping(_ context.Context, id int) (net.Conn, error)
 		return nil, fmt.Errorf("vsock connect cid=%d port=%d: %w", t.GuestCID, port, err)
 	}
 	f := os.NewFile(uintptr(fd), fmt.Sprintf("vsock:%d:%d", t.GuestCID, port))
-	// Try net.FileConn for netpoller integration + splice(2) zero-copy.
-	// This runs on the KVM host with a real Linux kernel that typically
-	// supports vsock epoll. Falls back to blocking fileConn if it fails.
-	if nc, err := net.FileConn(f); err == nil {
-		f.Close() // net.FileConn dups the fd; close our original
-		return nc, nil
-	}
+	// Always use blocking fileConn. Previously we tried net.FileConn for
+	// netpoller + splice(2) zero-copy; that API returns a working-looking
+	// net.Conn without error even on kernels where vsock doesn't raise
+	// epoll readiness events. The resulting conn's Read returns EAGAIN
+	// immediately, silently dropping every response on port forwards.
+	// The blocking fileConn is slower but correct.
 	return &fileConn{f: f, fd: fd}, nil
 }
 
@@ -60,6 +59,16 @@ func (c *fileConn) Write(b []byte) (int, error) { return c.f.Write(b) }
 func (c *fileConn) Close() error {
 	unix.Shutdown(c.fd, unix.SHUT_RDWR)
 	return c.f.Close()
+}
+
+// CloseWrite signals write-done on the vsock without tearing down the
+// receive side. Without this, the relay's half-close logic would fall
+// back to Close() (SHUT_RDWR), which ABORTS any response bytes the peer
+// still has queued — the user-visible symptom is "request reaches the
+// server, response never reaches the client" on -p TLS/TCP forwards
+// through a VM.
+func (c *fileConn) CloseWrite() error {
+	return unix.Shutdown(c.fd, unix.SHUT_WR)
 }
 func (c *fileConn) LocalAddr() net.Addr  { return vsockAddr{} }
 func (c *fileConn) RemoteAddr() net.Addr { return vsockAddr{} }

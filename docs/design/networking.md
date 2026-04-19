@@ -41,23 +41,21 @@ func CreateDefaultBridge() error {
 ### Bridge Modes
 
 **Bare metal Linux**:
-- Bridge gets a static IP from `SANDAL_HOST_NET` (default: `172.19.0.1/24`)
+- Bridge gets a static IP from `SANDAL_HOST_NET` (default: `172.16.0.1/24,fd34:0135:0123::1/64`)
 - Containers get IPs from the same subnet
 - Host acts as gateway, uses iptables NAT for internet access
 
 **Inside KVM VM** (when sandal itself runs in a VM):
-- Bridge operates in L2 switching mode
-- `eth0` (VM's virtio-net) is added as a bridge port
-- Bridge does NOT get an IP address
+- No bridge is created
+- Existing ethN interfaces are adopted directly in passthru mode
+- Containers use the VM's network interface without L2 bridging
 - Containers get IPs via DHCP from the external network
-- Original eth0 MAC is saved and applied to container veths
 
 ```go
 func CreateDefaultBridge() {
     if env.IsVM() {
-        // L2 bridge mode: bridge eth0 directly
-        netlink.LinkSetMaster(eth0Link, bridge)
-        // Save original MAC for container use
+        // Passthru mode: no bridge, use ethN directly
+        return nil, nil
     } else {
         // Standard mode: assign IP to bridge
         addr := parseAddr(os.Getenv("SANDAL_HOST_NET"))
@@ -86,7 +84,7 @@ func createVethPair(hostName, contName string, bridge *netlink.Bridge) {
 ```
 
 Naming convention:
-- Host side: `sandal<container_short_id>`
+- Host side: `s-<random_10char_id>`
 - Container side: `eth0` (moved into container's network namespace)
 
 ### Network Interface Configuration
@@ -96,10 +94,11 @@ Naming convention:
 Each container network interface spec supports:
 
 ```
--n ip=172.19.0.2/24,route=172.19.0.1,type=veth,master=sandal0
--n ip=dhcp,type=veth,master=sandal0
--n type=host   (share host network namespace)
+-net "ip=172.16.0.2/24;route=172.16.0.1;type=veth;master=sandal0"
+-net "ip=dhcp;type=veth;master=sandal0"
 ```
+
+Note: sharing the host network namespace is done via `-ns-net host`, not through the network interface flag.
 
 Configuration flow:
 ```
@@ -226,7 +225,7 @@ func (t *tapDevice) attachToBridge() {
 Network config is passed via kernel command line as base64-encoded JSON:
 
 ```
-SANDAL_VM_NET=<base64({"addr":"172.19.0.5/24","gateway":"172.19.0.1","mac":"52:54:00:xx:xx:01","mtu":1500})>
+SANDAL_VM_NET=<base64({"addr":"172.16.0.5/24","gateway":"172.16.0.1","mac":"52:54:00:xx:xx:01","mtu":1500})>
 ```
 
 Guest init applies this:
@@ -256,9 +255,9 @@ mac := [6]byte{0x52, 0x54, 0x00, byte(pid>>8), byte(pid), 0x01}
 ### Container on Bare Metal
 
 ```
-Container eth0 (172.19.0.2/24)
+Container eth0 (172.16.0.2/24)
   -> veth peer on host
-  -> sandal0 bridge (172.19.0.1/24)
+  -> sandal0 bridge (172.16.0.1/24)
   -> iptables MASQUERADE
   -> host eth0 -> internet
 ```
@@ -276,14 +275,15 @@ Container eth0 inside VM
   -> Host network
 ```
 
-### VM-in-VM L2 Bridge Mode
+### VM Passthru Mode
 
 When sandal runs inside an existing VM (detected by `env.IsVM()`):
 
 ```
-Container eth0 inside inner VM
-  -> sandal0 bridge (L2 mode, no IP)
-  -> eth0 bridged directly (switched)
-  -> Outer VM's bridge/network
-  -> DHCP from outer network
+Container eth0 inside VM
+  -> ethN passthru (no bridge, no veth)
+  -> VM's virtio-net interface
+  -> Host TAP device
+  -> Host sandal0 bridge
+  -> DHCP from host network
 ```

@@ -3,6 +3,7 @@ package squash
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -62,6 +63,13 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 		return "", err
 	}
 
+	// Fetch and persist the OCI image config (ENV, ENTRYPOINT, CMD, etc.)
+	// alongside the squashfs cache file so containers can apply it at runtime.
+	if err := fetchAndStoreImageConfig(ctx, client, srcRef, manifest, cacheFile); err != nil {
+		slog.Warn("Pull", slog.String("action", "image-config-fetch-failed"), slog.Any("error", err))
+		// Non-fatal: container will run without image config defaults
+	}
+
 	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, progressCh)
 	if err != nil {
 		return "", err
@@ -79,7 +87,8 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 	// Extract layers directly to disk instead of loading all file bodies
 	// into RAM via Flatten(). This keeps memory usage O(1) and prevents
 	// OOM on memory-constrained devices (e.g. Raspberry Pi).
-	if err := mergeLayers(layers, tmpDir, progressCh); err != nil {
+	idx, err := mergeLayers(layers, tmpDir, progressCh)
+	if err != nil {
 		return "", fmt.Errorf("merging layers: %w", err)
 	}
 
@@ -122,12 +131,40 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 		return "", fmt.Errorf("creating squashfs writer: %w", err)
 	}
 
-	if err := w.CreateFromDir(tmpDir); err != nil {
+	// Feed the squashfs writer the tar-derived path list so a short
+	// os.ReadDir on overlayfs cannot silently drop entries.
+	if err := w.CreateFromPaths(tmpDir, idx.sortedPaths()); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("creating squashfs image: %w", err)
 	}
 	tmpFile.Close()
+
+	// Validate the squashfs against three independent counts:
+	//   1. tar-derived path set (idx) — ground truth from layer headers
+	//   2. merged tmpDir walk — what's actually on disk after overlayfs
+	//   3. squashfs read-back — what we just wrote
+	// Disagreement between any two means a silent drop happened, so we
+	// delete the temp sqfs and fail so the next sandal run re-pulls.
+	srcCount, err := countRegularFiles(tmpDir)
+	if err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("counting merged files: %w", err)
+	}
+	sqfsCount, err := squashfs.CountRegularFiles(tmpPath)
+	if err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("counting squashfs files: %w", err)
+	}
+	idxCount := idx.countRegularFiles(tmpDir)
+	if srcCount != sqfsCount || idxCount != sqfsCount {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("squashfs integrity check failed: tar-index=%d merged-dir=%d squashfs=%d (image=%s)", idxCount, srcCount, sqfsCount, imageRef)
+	}
+	slog.Debug("Pull", slog.String("action", "integrity-ok"),
+		slog.Int("tar-index", idxCount),
+		slog.Int("merged-dir", srcCount),
+		slog.Int("squashfs", sqfsCount))
 
 	if progressCh != nil {
 		fi, _ := os.Stat(tmpPath)
@@ -153,7 +190,7 @@ func Pull(ctx context.Context, imageRef string, imageDir string, progressCh chan
 // ExportImageSquashfs downloads a container image, flattens its layers,
 // and writes a squashfs image to the given file.
 func ExportImageSquashfs(ctx context.Context, imageRef string, outFile *os.File) error {
-	tmpDir, err := pullToDir(ctx, imageRef, nil)
+	tmpDir, idx, err := pullToDir(ctx, imageRef, nil)
 	if err != nil {
 		return err
 	}
@@ -163,6 +200,9 @@ func ExportImageSquashfs(ctx context.Context, imageRef string, outFile *os.File)
 	w, err := squashfs.NewWriter(outFile, squashfs.WithCompression(squashfs.CompGzip))
 	if err != nil {
 		return fmt.Errorf("creating squashfs writer: %w", err)
+	}
+	if idx != nil && idx.len() > 0 {
+		return w.CreateFromPaths(tmpDir, idx.sortedPaths())
 	}
 	return w.CreateFromDir(tmpDir)
 }
@@ -178,8 +218,10 @@ func ExportImageTarGz(ctx context.Context, imageRef string, w io.Writer) error {
 }
 
 // pullToDir downloads and flattens an image into a temporary directory.
-// Caller is responsible for removing the returned directory.
-func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.Event) (string, error) {
+// Caller is responsible for removing the returned directory. Also returns
+// the tar-derived post-whiteout path index so squashfs callers can
+// enumerate entries without relying on os.ReadDir over the merged dir.
+func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.Event) (string, *pathIndex, error) {
 	platform := registry.Platform{
 		OS:           "linux",
 		Architecture: runtime.GOARCH,
@@ -187,7 +229,7 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	srcRef, err := registry.ParseReference(imageRef)
 	if err != nil {
-		return "", fmt.Errorf("parse image reference: %w", err)
+		return "", nil, fmt.Errorf("parse image reference: %w", err)
 	}
 
 	slog.Info("pullToDir", slog.String("action", "pulling"), slog.String("image", imageRef), slog.String("os", platform.OS), slog.String("arch", platform.Architecture))
@@ -196,12 +238,12 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	manifest, err := resolveManifest(ctx, client, srcRef, platform)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	layers, err := downloadLayers(ctx, client, srcRef.Repository, manifest.Layers, progressCh)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer cleanupLayers(layers)
 
@@ -209,15 +251,16 @@ func pullToDir(ctx context.Context, imageRef string, progressCh chan<- progress.
 
 	tmpDir, err := os.MkdirTemp(env.BaseTempDir, "sandal-image-*")
 	if err != nil {
-		return "", fmt.Errorf("creating temp directory: %w", err)
+		return "", nil, fmt.Errorf("creating temp directory: %w", err)
 	}
 
-	if err := mergeLayers(layers, tmpDir); err != nil {
+	idx, err := mergeLayers(layers, tmpDir)
+	if err != nil {
 		os.RemoveAll(tmpDir)
-		return "", fmt.Errorf("merging layers: %w", err)
+		return "", nil, fmt.Errorf("merging layers: %w", err)
 	}
 
-	return tmpDir, nil
+	return tmpDir, idx, nil
 }
 
 // IsImageReference returns true if the string looks like a container image
@@ -254,8 +297,10 @@ func IsImageReference(s string) bool {
 		return false
 	}
 
-	// After parsing, Docker Hub refs get normalized to registry-1.docker.io
-	return strings.Contains(ref.Registry, ".")
+	// After parsing, Docker Hub refs get normalized to registry-1.docker.io.
+	// Also accept hostnames with an explicit port (e.g. localhost:5000)
+	// which is the common convention for local/dev registries.
+	return strings.Contains(ref.Registry, ".") || strings.Contains(ref.Registry, ":")
 }
 
 // SanitizeRef converts an image reference to the cache filename (without
@@ -296,7 +341,10 @@ func copyDir(src, dst string) error {
 		dstPath := filepath.Join(dst, rel)
 
 		if info.IsDir() {
-			return os.MkdirAll(dstPath, info.Mode())
+			if err := os.MkdirAll(dstPath, 0755); err != nil {
+				return err
+			}
+			return os.Chmod(dstPath, info.Mode()&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky))
 		}
 
 		if info.Mode()&os.ModeSymlink != 0 {
@@ -324,7 +372,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	}
 	defer sf.Close()
 
-	df, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	df, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -332,7 +380,10 @@ func copyFile(src, dst string, mode os.FileMode) error {
 		df.Close()
 		return err
 	}
-	return df.Close()
+	if err := df.Close(); err != nil {
+		return err
+	}
+	return os.Chmod(dst, mode&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky))
 }
 
 // removeDirectoryContents removes all children of a directory without
@@ -367,6 +418,69 @@ func dirSize(path string) (int64, error) {
 		return nil
 	})
 	return total, err
+}
+
+// countRegularFiles returns the number of regular files under root.
+// Symlinks, devices, and directories are excluded — matching what
+// squashfs.CountRegularFiles reports for the written image. Unlike
+// dirSize, walk errors are propagated so a silently truncated readdir
+// on a misbehaving filesystem is caught.
+func countRegularFiles(root string) (int, error) {
+	count := 0
+	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.Mode().IsRegular() {
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+// fetchAndStoreImageConfig fetches the OCI image config from the registry and
+// writes the RuntimeConfig as a JSON sidecar file next to the squashfs cache.
+func fetchAndStoreImageConfig(ctx context.Context, client *registry.Client, ref registry.Reference, manifest *registry.Manifest, cacheFile string) error {
+	configData, err := fetchBlob(ctx, client, ref.Repository, manifest.Config.Digest)
+	if err != nil {
+		return fmt.Errorf("fetch config blob: %w", err)
+	}
+	var imgConfig registry.ImageConfig
+	if err := json.Unmarshal(configData, &imgConfig); err != nil {
+		return fmt.Errorf("decode image config: %w", err)
+	}
+
+	configJSON, err := json.Marshal(imgConfig.Config)
+	if err != nil {
+		return fmt.Errorf("marshal runtime config: %w", err)
+	}
+
+	configFile := cacheFile + ".json"
+	if err := os.WriteFile(configFile, configJSON, 0644); err != nil {
+		return fmt.Errorf("write config sidecar: %w", err)
+	}
+
+	slog.Debug("Pull", slog.String("action", "stored-image-config"), slog.String("path", configFile))
+	return nil
+}
+
+// LoadImageConfig reads the OCI RuntimeConfig sidecar file for a cached
+// squashfs image. Returns nil (no error) if the sidecar doesn't exist.
+func LoadImageConfig(sqfsPath string) (*registry.RuntimeConfig, error) {
+	configFile := sqfsPath + ".json"
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read image config: %w", err)
+	}
+	var cfg registry.RuntimeConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("decode image config: %w", err)
+	}
+	return &cfg, nil
 }
 
 // PullFromArgs scans command args for -lw values that look like OCI image references,

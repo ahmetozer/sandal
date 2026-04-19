@@ -75,6 +75,7 @@ func parseAndRunContainer(args []string) error {
 	f.StringVar(&c.Devtmpfs, "devtmpfs", "", "mount point of devtmpfs")
 
 	f.StringVar(&c.User, "user", "", "user or user:group information")
+	f.StringVar(&c.Entrypoint, "entrypoint", "", "override image ENTRYPOINT")
 
 	f.Var(&c.RunPrePivot, "rcp", "run command before pivoting")
 	f.Var(&c.RunPreExec, "rci", "run command before init")
@@ -110,6 +111,10 @@ func parseAndRunContainer(args []string) error {
 	if splitErr != nil {
 		return splitErr
 	}
+
+	// ContArgs will be resolved after rootfs mount when image config
+	// provides ENTRYPOINT/CMD defaults. At this point, empty ContArgs
+	// is allowed — it means "use image defaults".
 
 	// Auto-detect TTY: if stdin is a terminal and -t wasn't explicitly set,
 	// enable TTY mode for interactive foreground runs. Only applies on the

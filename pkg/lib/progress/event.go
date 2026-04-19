@@ -6,6 +6,7 @@ type Phase int
 const (
 	PhaseDownload Phase = iota
 	PhaseExtract
+	PhaseMerge
 	PhaseSquashfs
 )
 
@@ -15,6 +16,8 @@ func (p Phase) String() string {
 		return "download"
 	case PhaseExtract:
 		return "extract"
+	case PhaseMerge:
+		return "merge"
 	case PhaseSquashfs:
 		return "squashfs"
 	default:

@@ -116,23 +116,36 @@ Central configuration struct passed through the container lifecycle. Both direct
 
 ```go
 type Config struct {
-    Name        string              // Unique container name
-    HostPid     int                 // Host-side PID (VM: KVM child process PID)
-    ContPid     int                 // Container-side PID (unused for VM containers)
-    RootfsDir   string              // Mounted root filesystem path
-    ChangeDir   string              // Overlay upper/work directory
-    NS          namespace.Namespaces // Namespace configuration
-    Capabilities capabilities.Capabilities
-    Net         any                 // Network interface specs
-    VM          string              // VM mode: "" (direct), "kvm", "vz"
-    Volumes     wrapper.StringFlags // Bind mount specs (-v host:container)
-    MemoryLimit string              // Cgroup memory limit (VM: used for VM RAM)
-    CPULimit    string              // Cgroup CPU limit (VM: used for vCPU count)
-    Env         wrapper.StringFlags // Environment variables
-    ContArgs    []string            // Command to execute
-    HostArgs    []string            // Original CLI args (used for daemon recovery)
-    Background  bool                // Run in background (-d)
-    Startup     bool                // Auto-restart via daemon (-startup)
+    Name          string              // Unique container name
+    Created       int64               // Unix timestamp
+    HostPid       int                 // Host-side PID (VM: KVM child process PID)
+    ContPid       int                 // Container-side PID (unused for VM containers)
+    TmpSize       uint                // Tmpfs size in MB (0 = disabled)
+    ChangeDirSize string              // Change dir disk image size
+    ChangeDirType string              // "auto", "folder", "image"
+    ChangeDir     string              // Overlay upper/work directory
+    RootfsDir     string              // Mounted root filesystem path
+    Snapshot      string              // Snapshot output path
+    ReadOnly      bool                // Read-only rootfs
+    Remove        bool                // Remove container files on exit
+    EnvAll        bool                // Pass all host env vars
+    Background    bool                // Run in background (-d)
+    Startup       bool                // Auto-restart via daemon (-startup)
+    TTY           bool                // Allocate PTY
+    NS            namespace.Namespaces // Namespace configuration
+    Capabilities  capabilities.Capabilities
+    User          string              // User:group to run as
+    Dir           string              // Working directory
+    Volumes       wrapper.StringFlags // Bind mount specs (-v host:container)
+    Lower         wrapper.StringFlags // Additional overlay lower dirs
+    PassEnv       wrapper.StringFlags // Pass specific env vars
+    Net           any                 // Network interface specs
+    Ports         []forward.PortMapping // Port forwarding mappings
+    VM            string              // VM mode: "" (direct), "kvm", "vz"
+    ContArgs      []string            // Command to execute
+    HostArgs      []string            // Original CLI args (used for daemon recovery)
+    MemoryLimit   string              // Cgroup memory limit (VM: used for VM RAM)
+    CPULimit      string              // Cgroup CPU limit (VM: used for vCPU count)
 }
 ```
 

@@ -4,12 +4,14 @@ package kvm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/forward"
@@ -100,16 +102,23 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdou
 	// Port-forwarding listeners — host side only. The guest relay is started
 	// from SANDAL_VM_FORWARDS during guest init. Matching vsock ports are
 	// derived from each mapping's id via VsockBasePort.
+	//
+	// If the host bind fails (EADDRINUSE, permission, etc.) we return an
+	// error instead of continuing — a VM whose forwards don't work is
+	// usually worse than a fast failure: the user sees the container
+	// "running" but can't reach it, and the cause (a stale sandal still
+	// holding the port, a foreground run in another terminal, etc.) is
+	// buried in VM boot output.
 	if len(forwards) > 0 {
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		stop, err := forward.Start(ctx, name, forwards,
 			forward.VsockTransport{GuestCID: uint32(vm.VsockGuestCID())})
 		if err != nil {
-			slog.Warn("Boot", slog.String("action", "start forwards"), slog.Any("error", err))
-		} else {
-			defer stop()
+			cancel()
+			return portForwardError(forwards, err)
 		}
+		defer cancel()
+		defer stop()
 	}
 
 	// Wait for VM to stop
@@ -120,6 +129,26 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdou
 	}
 
 	return nil
+}
+
+// portForwardError wraps a forward.Start failure with context the user
+// actually needs: which mapping, likely cause, and how to investigate.
+// The most common failure is EADDRINUSE when another sandal run (or any
+// other process) is still listening on the same host port.
+func portForwardError(forwards []forward.PortMapping, err error) error {
+	var specs []string
+	for _, f := range forwards {
+		specs = append(specs, f.Raw)
+	}
+	msg := err.Error()
+	hint := ""
+	if strings.Contains(msg, "address already in use") || errors.Is(err, syscall.EADDRINUSE) {
+		hint = "\n  hint: another process is listening on the host port. Common causes:" +
+			"\n    • a previous `sandal run` with the same -p is still running (check `sandal ps`)" +
+			"\n    • a foreground run in another terminal that was Ctrl-C'd but left the listener" +
+			"\n    • another service on the host using the same port (check `ss -tlnp | grep <port>`)"
+	}
+	return fmt.Errorf("port-forward setup failed for %v: %w%s", specs, err, hint)
 }
 
 // vsockAvailable returns true if the host can communicate with KVM guests

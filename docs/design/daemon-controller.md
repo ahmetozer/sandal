@@ -334,8 +334,8 @@ func ListContainers() ([]config.Config, error) {
 | `SANDAL_IMAGE_DIR` | `$SANDAL_LIB_DIR/images` | Cached OCI images |
 | `SANDAL_ROOTFSDIR` | `$SANDAL_LIB_DIR/rootfs` | Container root filesystems |
 | `SANDAL_CHANGE_DIR` | `$SANDAL_LIB_DIR/changes` | Overlay upper directories |
-| `SANDAL_HOST_NET` | `172.19.0.1/24` | Default bridge subnet |
-| `SANDAL_LOG_LEVEL` | `info` | Logging level |
+| `SANDAL_HOST_NET` | `172.16.0.1/24,fd34:0135:0123::1/64` | Default bridge subnet |
+| `SANDAL_LOG_LEVEL` | `warn` | Logging level |
 | `SANDAL_DAEMON_SOCKET` | `$SANDAL_RUN_DIR/sandal.sock` | Daemon Unix socket path |
 
 These can be overridden via environment variables or the sandal daemon configuration.

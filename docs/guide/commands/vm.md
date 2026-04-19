@@ -36,7 +36,7 @@ sandal vm run -kernel /path/to/Image -initrd /path/to/initramfs -- /bin/sh
 
 #### `-kernel string`
 
-:   Path to the Linux kernel image (required).
+:   Path to the Linux kernel image (auto-downloaded if empty).
   The kernel must be an uncompressed `Image` file compatible with the target architecture.
 
 ```bash
@@ -255,17 +255,19 @@ sandal vm kill -force -all
 
 ## Delete
 
-Delete a VM configuration and its associated files.
+Delete a VM configuration and its associated files. Takes one or more VM names as positional arguments.
 
 ```bash
-sandal vm delete -name alpine
+sandal vm delete alpine
+sandal vm delete alpine test-vm
+sandal vm delete -all
 ```
 
 ### Flags
 
-#### `-name string`
+#### `-all bool`
 
-:   VM name (required).
+:   Delete all VM configurations.
 
 ---
 

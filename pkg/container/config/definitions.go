@@ -31,6 +31,15 @@ type Config struct {
 	RootfsDir string
 	Snapshot  string
 
+	// ChangeDirManaged signals that the caller (typically `sandal build`)
+	// owns the change-dir backing across multiple host.RunContainer
+	// invocations. When true, host.mountRootfs assumes the change dir is
+	// already mounted and host.UmountRootfs leaves the change-dir backing
+	// in place at container teardown. This lets build accumulate state in
+	// the upper directory across successive RUN steps without losing data
+	// to the unmount-remount cycle host normally performs per run.
+	ChangeDirManaged bool
+
 	ReadOnly        bool
 	Remove          bool
 	EnvAll          bool
@@ -62,6 +71,9 @@ type Config struct {
 	// Resource limits (cgroups v2)
 	MemoryLimit string // Memory limit with units (e.g., "512M", "1G")
 	CPULimit    string // CPU limit as number of CPUs (e.g., "0.5", "2")
+
+	// CLI entrypoint override (like docker --entrypoint)
+	Entrypoint string // Overrides image ENTRYPOINT when set
 }
 
 var (

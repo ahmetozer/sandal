@@ -24,15 +24,15 @@ sandal kill -all
 
 ### `-signal int`
 
-Define custom signal for kill request.
+Define custom signal for kill request (default: 9 / SIGKILL).
 
 ```bash
 sandal kill -signal 3 homeassistant
 ```
 
-### `-timeout string`
+### `-timeout int`
 
-Kill commands wait for the process to complete and you can define a timeout for this command to give up.
+Timeout in seconds to wait for the process to complete (default: 5).
 
 ```bash
 sandal kill -signal 2 -timeout 10 homeassistant

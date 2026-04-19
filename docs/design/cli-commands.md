@@ -52,20 +52,20 @@ sandal run [flags] <image> [command] [args...]
 | `-v` | Bind mount volume | `-v /host:/container` |
 | `-d` | Run as daemon (background) | `sandal run -d alpine` |
 | `-t` | Allocate TTY | `sandal run -t alpine sh` |
-| `-n` | Network configuration | `-n ip=dhcp` |
+| `-net` | Network configuration | `-net ip=dhcp` |
 | `--name` | Container name | `--name myapp` |
 | `--memory` | Memory limit | `--memory 512M` |
 | `--cpu` | CPU limit | `--cpu 2` |
-| `--user` | Run as user | `--user nobody:nogroup` |
-| `--privileged` | Grant all capabilities | |
-| `--ns-pid` | PID namespace (host/new/pid) | `--ns-pid host` |
-| `--ns-net` | Network namespace | `--ns-net host` |
-| `--startup` | Auto-restart on daemon boot | |
+| `-user` | Run as user | `-user nobody:nogroup` |
+| `-privileged` | Grant all capabilities | |
+| `-ns-pid` | PID namespace (host/new/pid) | `-ns-pid host` |
+| `-ns-net` | Network namespace | `-ns-net host` |
+| `-startup` | Auto-restart on daemon boot | |
 | `-lw` | Additional lower directories | `-lw /extra/layer` |
 | `-tmp` | Tmpfs-backed changes (ephemeral) | |
-| `-e` | Environment variable | `-e FOO=bar` |
-| `-w` | Working directory | `-w /app` |
-| `--env-host` | Pass all host env vars | |
+| `-env-pass` | Pass specific environment variable | `-env-pass FOO` |
+| `-dir` | Working directory | `-dir /app` |
+| `-env-all` | Pass all host env vars | |
 
 **Behavior with `--vm`**: Parses `--vm` into the container config's `VM` field, pre-pulls the image, downloads the kernel, builds an initrd containing the sandal binary, and launches a KVM VM that re-executes the remaining command inside the VM. Host-only flags (`-d`, `-startup`, `--name`, `--cpu`, `--memory`) are stripped from the args forwarded to the VM guest. When combined with `-d -startup`, the VM container is registered in the same state system as direct containers and managed by the daemon for auto-restart.
 
@@ -79,8 +79,8 @@ sandal ps [flags]
 
 | Flag | Description |
 |------|-------------|
-| `-a` | Show all containers (including stopped) |
-| `-q` | Only show container names |
+| `-dry` | Do not verify running state containers |
+| `-ns` | Show namespace information |
 
 Output format (tabwriter):
 ```
@@ -110,7 +110,7 @@ sandal stop [-t TIMEOUT] <name>
 ```
 
 1. Send SIGTERM
-2. Wait up to TIMEOUT seconds (default: 10)
+2. Wait up to TIMEOUT seconds (default: 30)
 3. Send SIGKILL if still running
 
 ### `exec` - Execute Command in Container
@@ -262,7 +262,7 @@ func (s *StringFlags) Set(value string) error {
 }
 ```
 
-This allows repeated flags: `-v /a:/b -v /c:/d -e FOO=1 -e BAR=2`
+This allows repeated flags: `-v /a:/b -v /c:/d -env-pass FOO -env-pass BAR`
 
 ### Arg Manipulation Helpers (`pkg/sandal/args.go`)
 

@@ -66,16 +66,20 @@ func RemoveBoolFlag(args []string, name string) []string {
 }
 
 // SplitFlagsArgs returns flags and child process args separated by "--".
+// If "--" is absent, all args are treated as flags and commandArgs is nil.
+// The caller is responsible for resolving the command from image config
+// defaults when commandArgs is empty.
 func SplitFlagsArgs(args []string) (flagArgs []string, commandArgs []string, err error) {
 	for childArgStartLoc, arg := range args {
 		if arg == "--" {
 			hostArgs := args[:childArgStartLoc]
 			podArgs := args[childArgStartLoc+1:]
 			if len(podArgs) < 1 {
-				return hostArgs, podArgs, fmt.Errorf("there is no command provided")
+				return hostArgs, podArgs, fmt.Errorf("there is no command provided after '--'")
 			}
 			return hostArgs, podArgs, nil
 		}
 	}
-	return args, nil, fmt.Errorf("there is no command provided")
+	// No "--" found — all args are flags, command may come from image config.
+	return args, nil, nil
 }

@@ -153,9 +153,17 @@ func PrepareInitrd(kernelPath string) (string, error) {
 }
 
 // MarshalVMArgs encodes the cleaned args into a JSON byte slice
-// suitable for passing as SANDAL_VM_ARGS.
+// suitable for passing as SANDAL_VM_ARGS. The args become
+// ["run", ...cleanArgs] inside the guest (historical default).
 func MarshalVMArgs(cleanArgs []string) ([]byte, error) {
-	vmArgs := append([]string{"run"}, cleanArgs...)
+	return MarshalVMSubcommandArgs("run", cleanArgs)
+}
+
+// MarshalVMSubcommandArgs is like MarshalVMArgs but lets the caller choose
+// the subcommand that the in-guest sandal will dispatch to. Used by
+// `sandal build -vm` to run build inside a VM.
+func MarshalVMSubcommandArgs(subcommand string, cleanArgs []string) ([]byte, error) {
+	vmArgs := append([]string{subcommand}, cleanArgs...)
 	argsJSON, err := json.Marshal(vmArgs)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling VM args: %w", err)

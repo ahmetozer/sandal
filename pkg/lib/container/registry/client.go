@@ -31,8 +31,18 @@ func NewClient(registry string) *Client {
 	}
 }
 
-// baseURL returns the registry API base URL.
+// baseURL returns the registry API base URL. Localhost registries (common
+// for local dev, e.g. `docker run -d -p 5000:5000 registry:2`) use plain
+// HTTP — attempting HTTPS would require a TLS cert we don't have. Every
+// other registry defaults to HTTPS.
 func (c *Client) baseURL() string {
+	host := c.registry
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	if host == "localhost" || host == "127.0.0.1" || host == "[::1]" {
+		return "http://" + c.registry
+	}
 	return "https://" + c.registry
 }
 

@@ -32,6 +32,7 @@ const (
 	sqfsTypeDir     = 1
 	sqfsTypeFile    = 2
 	sqfsTypeSymlink = 3
+	sqfsTypeLDir    = 8 // Extended directory inode (file_size is uint32)
 )
 
 // Superblock flags
@@ -79,6 +80,12 @@ type Writer struct {
 
 	// Optional progress callback invoked after each file's data is written.
 	progressFn func(bytesWritten int64)
+
+	// listDir returns the child names of dirPath, sorted ascending.
+	// Defaults to os.ReadDir. CreateFromPaths overrides this to use a
+	// caller-supplied path list so a short os.ReadDir on overlayfs cannot
+	// silently drop entries.
+	listDir func(dirPath string) ([]string, error)
 
 	dataPos int64
 }
@@ -398,6 +405,63 @@ func (w *Writer) writeMetadataBlocksTracked(raw []byte) ([]int64, error) {
 
 // CreateFromDir creates a squashfs image from a directory tree.
 func (w *Writer) CreateFromDir(rootPath string) error {
+	w.listDir = func(dirPath string) ([]string, error) {
+		entries, err := os.ReadDir(dirPath)
+		if err != nil {
+			return nil, err
+		}
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		return names, nil
+	}
+	return w.build(rootPath)
+}
+
+// CreateFromPaths creates a squashfs image containing exactly the entries
+// listed in paths (relative to rootPath). Intermediate directories implied
+// by the list are included automatically. Unlike CreateFromDir, this API
+// never calls os.ReadDir, which on overlayfs can silently truncate — it
+// trusts the caller-supplied list as ground truth.
+func (w *Writer) CreateFromPaths(rootPath string, paths []string) error {
+	children := make(map[string]map[string]struct{})
+	add := func(parent, name string) {
+		if children[parent] == nil {
+			children[parent] = map[string]struct{}{}
+		}
+		children[parent][name] = struct{}{}
+	}
+	rootClean := filepath.Clean(rootPath)
+	for _, rel := range paths {
+		rel = filepath.Clean(rel)
+		if rel == "." || rel == "/" {
+			continue
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		cur := rootClean
+		for _, part := range parts {
+			if part == "" {
+				continue
+			}
+			add(cur, part)
+			cur = filepath.Join(cur, part)
+		}
+	}
+	w.listDir = func(dirPath string) ([]string, error) {
+		set := children[filepath.Clean(dirPath)]
+		names := make([]string, 0, len(set))
+		for n := range set {
+			names = append(names, n)
+		}
+		return names, nil
+	}
+	return w.build(rootPath)
+}
+
+// build is the shared tail of CreateFromDir/CreateFromPaths that runs once
+// w.listDir has been configured.
+func (w *Writer) build(rootPath string) error {
 	// Phase 1: Walk tree bottom-up, write file data, build raw inodes and dir entries
 	// All block references are stored as PLACEHOLDERS and fixed up later.
 	_, err := w.processDir(rootPath, rootPath)
@@ -526,20 +590,26 @@ func (w *Writer) CreateFromDir(rootPath string) error {
 
 // processDir recursively processes a directory bottom-up.
 func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
-	entries, err := os.ReadDir(dirPath)
+	names, err := w.listDir(dirPath)
 	if err != nil {
 		return 0, err
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
+	sort.Strings(names)
 
 	var children []inodeInfo
 
-	for _, entry := range entries {
-		childPath := filepath.Join(dirPath, entry.Name())
+	for _, name := range names {
+		childPath := filepath.Join(dirPath, name)
 		info, err := os.Lstat(childPath)
 		if err != nil {
+			// A path supplied via CreateFromPaths that isn't on disk means
+			// the upstream merge (e.g. copyDir over an overlayfs mount)
+			// dropped a file that the tar index expected. Skip it here;
+			// the caller's integrity check will see the count mismatch
+			// and fail the build before caching.
+			if os.IsNotExist(err) {
+				continue
+			}
 			return 0, err
 		}
 
@@ -570,21 +640,21 @@ func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
 				return 0, err
 			}
 			inum := w.buildSymlinkInode(info, target)
-			children = append(children, inodeInfo{inum, sqfsTypeSymlink, entry.Name()})
+			children = append(children, inodeInfo{inum, sqfsTypeSymlink, name})
 
 		case info.IsDir():
 			childInum, err := w.processDir(childPath, rootPath)
 			if err != nil {
 				return 0, err
 			}
-			children = append(children, inodeInfo{childInum, sqfsTypeDir, entry.Name()})
+			children = append(children, inodeInfo{childInum, sqfsTypeDir, name})
 
 		case info.Mode().IsRegular():
 			inum, err := w.buildFileInode(childPath, info)
 			if err != nil {
 				return 0, err
 			}
-			children = append(children, inodeInfo{inum, sqfsTypeFile, entry.Name()})
+			children = append(children, inodeInfo{inum, sqfsTypeFile, name})
 		}
 	}
 
@@ -600,7 +670,7 @@ func (w *Writer) processDir(dirPath, rootPath string) (uint32, error) {
 // buildDirEntries writes directory entries to dirRaw with placeholder block references.
 // Entries are grouped by inode metadata block (max 256 per group).
 // Returns raw byte position and total size.
-func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint16) {
+func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint32) {
 	dirRawPos := w.dirRaw.Len()
 
 	if len(children) == 0 {
@@ -661,45 +731,94 @@ func (w *Writer) buildDirEntries(children []inodeInfo) (int, uint16) {
 		groupStart = groupEnd
 	}
 
-	dirSize := uint16(buf.Len())
+	dirSize := uint32(buf.Len())
 	w.dirRaw.Write(buf.Bytes())
 
 	return dirRawPos, dirSize
 }
 
-// buildDirInode creates a basic directory inode (type 1) with placeholder block refs.
-func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos int, dirSize uint16) uint32 {
+// unixMode converts an fs.FileMode to the 16-bit on-disk Unix mode
+// including setuid/setgid/sticky. Go's FileMode places those bits
+// outside the low 12, so .Perm() alone loses them.
+func unixMode(m fs.FileMode) uint16 {
+	out := uint16(m.Perm())
+	if m&fs.ModeSetuid != 0 {
+		out |= 0o4000
+	}
+	if m&fs.ModeSetgid != 0 {
+		out |= 0o2000
+	}
+	if m&fs.ModeSticky != 0 {
+		out |= 0o1000
+	}
+	return out
+}
+
+// buildDirInode creates a directory inode with placeholder block refs.
+// Uses basic dir inode (type 1) when dirSize fits in uint16, otherwise
+// extended dir inode (type 8) with uint32 file_size.
+func (w *Writer) buildDirInode(info fs.FileInfo, children []inodeInfo, dirRawPos int, dirSize uint32) uint32 {
 	inodeNum := w.allocInode()
 	uid := w.lookupID(0)
 	gid := w.lookupID(0)
 
+	fileSize := dirSize + 3 // +3 overhead per squashfs spec
+
 	var buf bytes.Buffer
-	// Common header (16 bytes)
-	binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeDir))
-	binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
-	binary.Write(&buf, binary.LittleEndian, uid)
-	binary.Write(&buf, binary.LittleEndian, gid)
-	binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
-	binary.Write(&buf, binary.LittleEndian, inodeNum)
 
-	// block_index is at byte 16 of the inode data
-	blockIndexOffset := w.inodeRaw.Len() + 16
+	if fileSize <= 0xFFFF {
+		// Basic directory inode (type 1): file_size is uint16
+		binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeDir))
+		binary.Write(&buf, binary.LittleEndian, unixMode(info.Mode()))
+		binary.Write(&buf, binary.LittleEndian, uid)
+		binary.Write(&buf, binary.LittleEndian, gid)
+		binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
+		binary.Write(&buf, binary.LittleEndian, inodeNum)
 
-	// Basic dir fields (16 bytes)
-	binary.Write(&buf, binary.LittleEndian, uint32(0))                // block_index (PLACEHOLDER)
-	binary.Write(&buf, binary.LittleEndian, uint32(len(children)+2))  // link_count
-	binary.Write(&buf, binary.LittleEndian, dirSize+3)                // file_size (+3 overhead)
-	binary.Write(&buf, binary.LittleEndian, uint16(0))                // block_offset (PLACEHOLDER)
-	binary.Write(&buf, binary.LittleEndian, uint32(1))                // parent_inode
+		blockIndexOffset := w.inodeRaw.Len() + 16
 
-	w.appendInode(inodeNum, buf.Bytes())
+		binary.Write(&buf, binary.LittleEndian, uint32(0))               // block_index (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(len(children)+2)) // link_count
+		binary.Write(&buf, binary.LittleEndian, uint16(fileSize))        // file_size
+		binary.Write(&buf, binary.LittleEndian, uint16(0))               // block_offset (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(1))               // parent_inode
 
-	// Only add fixup for non-empty directories
-	if len(children) > 0 {
-		w.dirInodeFixups = append(w.dirInodeFixups, dirInodeFixup{
-			inodeRawOffset: blockIndexOffset,
-			dirRawPos:      dirRawPos,
-		})
+		w.appendInode(inodeNum, buf.Bytes())
+
+		if len(children) > 0 {
+			w.dirInodeFixups = append(w.dirInodeFixups, dirInodeFixup{
+				inodeRawOffset: blockIndexOffset,
+				dirRawPos:      dirRawPos,
+			})
+		}
+	} else {
+		// Extended directory inode (type 8): file_size is uint32
+		binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeLDir))
+		binary.Write(&buf, binary.LittleEndian, unixMode(info.Mode()))
+		binary.Write(&buf, binary.LittleEndian, uid)
+		binary.Write(&buf, binary.LittleEndian, gid)
+		binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))
+		binary.Write(&buf, binary.LittleEndian, inodeNum)
+
+		binary.Write(&buf, binary.LittleEndian, uint32(len(children)+2)) // link_count
+		binary.Write(&buf, binary.LittleEndian, uint32(fileSize))        // file_size
+
+		blockIndexOffset := w.inodeRaw.Len() + buf.Len()
+
+		binary.Write(&buf, binary.LittleEndian, uint32(0))               // block_index (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(1))               // parent_inode
+		binary.Write(&buf, binary.LittleEndian, uint16(0))               // i_count (no index)
+		binary.Write(&buf, binary.LittleEndian, uint16(0))               // block_offset (PLACEHOLDER)
+		binary.Write(&buf, binary.LittleEndian, uint32(0))               // xattr_idx (none)
+
+		w.appendInode(inodeNum, buf.Bytes())
+
+		if len(children) > 0 {
+			w.dirInodeFixups = append(w.dirInodeFixups, dirInodeFixup{
+				inodeRawOffset: blockIndexOffset,
+				dirRawPos:      dirRawPos,
+			})
+		}
 	}
 
 	return inodeNum
@@ -724,7 +843,7 @@ func (w *Writer) buildFileInode(path string, info fs.FileInfo) (uint32, error) {
 
 	var buf bytes.Buffer
 	binary.Write(&buf, binary.LittleEndian, uint16(sqfsTypeFile))
-	binary.Write(&buf, binary.LittleEndian, uint16(info.Mode().Perm()))
+	binary.Write(&buf, binary.LittleEndian, unixMode(info.Mode()))
 	binary.Write(&buf, binary.LittleEndian, uid)
 	binary.Write(&buf, binary.LittleEndian, gid)
 	binary.Write(&buf, binary.LittleEndian, uint32(info.ModTime().Unix()))

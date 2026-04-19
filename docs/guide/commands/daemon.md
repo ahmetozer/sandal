@@ -25,6 +25,20 @@ service sandal start # (1)!
 
 1. Output of service command varies between Systemd and OpenRC but it does not have impact.
 
+## Flags
+
+### `-install bool`
+
+:   Install systemd or OpenRC service files for the sandal daemon.
+
+### `-read-interval duration`
+
+:   Use polling at the given interval instead of file system events for reloading state. Useful for network-attached storage (NFS, SMB) where file events are not supported.
+
+```bash
+sandal daemon -read-interval 5s
+```
+
 ## Behaviors of Daemon Service
 
 ### Service Start
