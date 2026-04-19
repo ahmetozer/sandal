@@ -40,10 +40,20 @@ func Kill(args []string) error {
 			return fmt.Errorf("unable to list containers: %w", err)
 		}
 		for _, cont := range conts {
-			isRunning, _ := crt.IsPidRunning(cont.ContPid)
+			pid := cont.ContPid
+			if pid == 0 && cont.VM != "" {
+				pid = cont.HostPid
+			}
+			if pid == 0 {
+				continue
+			}
+			isRunning, _ := crt.IsPidRunning(pid)
 			if isRunning {
 				names = append(names, cont.Name)
 			}
+		}
+		if len(names) < 1 {
+			return nil
 		}
 	}
 
