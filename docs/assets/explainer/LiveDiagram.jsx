@@ -58,11 +58,12 @@ function LiveDiagram({ feature }) {
             zIndex: 0,
           }} aria-hidden="true"/>
 
-          {/* VM pill — top-left of the shroud */}
+          {/* VM pill — top-right of the shroud so it doesn't overlap the
+              "DIMENSION" column header on the left. */}
           <div style={{
             position: 'absolute',
             top: vm ? 2 : 18,
-            left: vm ? -4 : 0,
+            right: vm ? -4 : 0,
             fontFamily: 'var(--font-mono)', fontSize: 10,
             letterSpacing: '0.1em', textTransform: 'uppercase',
             padding: '3px 7px',
@@ -71,7 +72,7 @@ function LiveDiagram({ feature }) {
             borderRadius: 2,
             opacity: vm ? 1 : 0,
             transform: vm ? 'translateY(0)' : 'translateY(6px)',
-            transition: 'opacity 350ms, transform 350ms, top 450ms, left 450ms',
+            transition: 'opacity 350ms, transform 350ms, top 450ms, right 450ms',
             pointerEvents: 'none',
             whiteSpace: 'nowrap',
             zIndex: 2,
