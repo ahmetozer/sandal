@@ -101,6 +101,8 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 extra_css:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css
+  - assets/stylesheets/sandal-tokens.css
+  - assets/stylesheets/sandal-overrides.css
 extra_javascript:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js
 
