@@ -157,16 +157,25 @@
   pointer-events: auto;
 }
 
-/* Narrow viewports: shrink panel further, reduce padding. */
+/* Narrow viewports: drop the bottom panel entirely. The 3-column diagram
+   (source → overlayfs → dimension) needs horizontal room to read; at
+   phone widths it clips the dimension column. Inline content (title,
+   cmd, lede, bullets) already tells the story, so omit the pinned
+   diagram and let the page flow linearly. */
 @media (max-width: 900px) {
   .explainer-bottom-panel {
-    height: 260px;
-  }
-  .explainer-bottom-inner {
-    padding: 12px 16px;
+    display: none;
   }
   .explainer {
-    padding: 12px 16px calc(260px + 48px);
+    padding: 12px 0 48px;
+  }
+}
+
+/* Tighten trigger-section padding on narrow screens so the phone scrolls
+   through features without excessive dead space. */
+@media (max-width: 600px) {
+  .explainer section[data-feature-index] {
+    min-height: 40vh !important;
   }
 }
 

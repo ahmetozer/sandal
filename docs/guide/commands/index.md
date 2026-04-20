@@ -66,46 +66,46 @@ sandal run -lw alpine:latest -tmp 10 --rm
 ### `-devtmpfs string`
 
 :   mount point of devtmpfs  
-example: -devtmpfs /mnt/devtmpfs  
-[more info unix.stackexchange.com](https://unix.stackexchange.com/questions/77933/using-devtmpfs-for-dev)
+    example: -devtmpfs /mnt/devtmpfs  
+    [more info unix.stackexchange.com](https://unix.stackexchange.com/questions/77933/using-devtmpfs-for-dev)
 
 ---
 
 ### `-dir string`
 
 :   working directory  
-Default it is set to root folder `/`. When `-lw` provides an OCI image, the image's `WorkingDir` is used as the default if `-dir` is not set. When multiple `-lw` images are provided, the last image that defines `WorkingDir` wins.
+    Default it is set to root folder `/`. When `-lw` provides an OCI image, the image's `WorkingDir` is used as the default if `-dir` is not set. When multiple `-lw` images are provided, the last image that defines `WorkingDir` wins.
 
 ---
 
 ### `-env-all bool`
 
 :   send all enviroment variables to container  
-Environment variables which currently you are seing at `env` command.
+    Environment variables which currently you are seing at `env` command.
 
 ---
 
 ### `-env-pass value`
 
 :   pass only requested enviroment variables to container  
-For example you are set variable with `export FOO=BAR`, and `-env-pass FOO` will read variable from existing environment and passes to container.  
-***It does not accepts `-env-pass FOO=BAR` for security purposes***
+    For example you are set variable with `export FOO=BAR`, and `-env-pass FOO` will read variable from existing environment and passes to container.  
+    ***It does not accepts `-env-pass FOO=BAR` for security purposes***
 
 ---
 
 ### `-entrypoint string`
 
 :   override the OCI image `ENTRYPOINT`.
-  When set, replaces the image's ENTRYPOINT with the given executable. Equivalent to Docker's `--entrypoint` flag.
-  Combine with `--` arguments to compose the full command.
+    When set, replaces the image's ENTRYPOINT with the given executable. Equivalent to Docker's `--entrypoint` flag.
+    Combine with `--` arguments to compose the full command.
 
-  ```bash
-  # Run /bin/echo instead of the image's ENTRYPOINT
-  sandal run -lw alpine:latest -tmp 64 -entrypoint /bin/echo -- "hello world"
-  # Skip an image's ENTRYPOINT (e.g. to inspect a container that normally runs an init)
-  sandal run -lw ghcr.io/home-assistant/home-assistant:latest -tmp 200 \
-      -entrypoint /bin/sh -- -c "ls /usr/local/lib/python3.14/site-packages | head"
-  ```
+    ``` { .bash title="Example" }
+    # Run /bin/echo instead of the image's ENTRYPOINT
+    sandal run -lw alpine:latest -tmp 64 -entrypoint /bin/echo -- "hello world"
+    # Skip an image's ENTRYPOINT (e.g. to inspect a container that normally runs an init)
+    sandal run -lw ghcr.io/home-assistant/home-assistant:latest -tmp 200 \
+        -entrypoint /bin/sh -- -c "ls /usr/local/lib/python3.14/site-packages | head"
+    ```
 
 ---
 
@@ -124,16 +124,16 @@ Allocation configuration of /etc/hosts file.
 
 ### `-lw value`
 
-: Lower directory of the root file system (default destination: `/`)
-  Lower directories are attach folders or images to container to access but changes are saved under `-chdir`.
-  This flag can usable multiple times to attach multiple images and directories to container.
-  By default, lower directories are mounted at the root (`/`) of the container. Use `source:/container/path` syntax to mount at a custom path.
+:   Lower directory of the root file system (default destination: `/`)
+    Lower directories are attach folders or images to container to access but changes are saved under `-chdir`.
+    This flag can usable multiple times to attach multiple images and directories to container.
+    By default, lower directories are mounted at the root (`/`) of the container. Use `source:/container/path` syntax to mount at a custom path.
 
-  In addition to local paths and image files, `-lw` accepts **container image references** from OCI registries. When the value is not a local path, sandal automatically pulls the image, flattens its layers into a squashfs image, and caches it under `SANDAL_IMAGE_DIR` for future use.
+    In addition to local paths and image files, `-lw` accepts **container image references** from OCI registries. When the value is not a local path, sandal automatically pulls the image, flattens its layers into a squashfs image, and caches it under `SANDAL_IMAGE_DIR` for future use.
 
-  **Multiple images.** When multiple `-lw` images are provided, the **last** image that defines a value wins for `ENTRYPOINT`, `CMD`, `WorkingDir`, and `User`. `ENV` vars accumulate from all images in `-lw` order, with later images overriding earlier ones on duplicate keys. This matches the intuition that the right-most `-lw` is the "outer" layer:
+    **Multiple images.** When multiple `-lw` images are provided, the **last** image that defines a value wins for `ENTRYPOINT`, `CMD`, `WorkingDir`, and `User`. `ENV` vars accumulate from all images in `-lw` order, with later images overriding earlier ones on duplicate keys. This matches the intuition that the right-most `-lw` is the "outer" layer:
 
-    ```bash
+    ``` { .bash title="Example" }
     # python:3-slim's PATH and PYTHON_VERSION win, alpine's unique ENV vars are kept
     sandal run -lw alpine:latest -lw python:3-slim -tmp 200 -- env
 
@@ -240,20 +240,19 @@ Allocation configuration of /etc/hosts file.
 ### `--memory string`
 
 :   limit the memory available to the container
-  Specify the maximum amount of memory the container can use.
-  Supports human-readable units: K, M, G, T (1000-based) or Ki, Mi, Gi, Ti (1024-based).
-  Uses cgroup v2 memory controller to enforce memory limits (triggers OOM killer if exceeded).
-  Custom `/proc/meminfo` is generated to show the limited memory inside the container.
+    Specify the maximum amount of memory the container can use.
+    Supports human-readable units: K, M, G, T (1000-based) or Ki, Mi, Gi, Ti (1024-based).
+    Uses cgroup v2 memory controller to enforce memory limits (triggers OOM killer if exceeded).
+    Custom `/proc/meminfo` is generated to show the limited memory inside the container.
 
-  Example usage:
-  ```bash
-  sandal run --memory 512M -lw / -- bash    # 512 megabytes
-  sandal run --memory 1G -lw / -- bash      # 1 gigabyte
-  sandal run --memory 1Gi -lw / -- bash     # 1 gibibyte (1024-based)
-  sandal run --memory 134217728 -lw / -- bash  # 128MB in bytes
-  ```
+    ``` { .bash title="Example usage" }
+    sandal run --memory 512M -lw / -- bash    # 512 megabytes
+    sandal run --memory 1G -lw / -- bash      # 1 gigabyte
+    sandal run --memory 1Gi -lw / -- bash     # 1 gibibyte (1024-based)
+    sandal run --memory 134217728 -lw / -- bash  # 128MB in bytes
+    ```
 
-  **Note:** Requires cgroup v2 with memory controller available. If unavailable, a warning is logged and only `/proc/meminfo` is customized (without kernel enforcement).
+    **Note:** Requires cgroup v2 with memory controller available. If unavailable, a warning is logged and only `/proc/meminfo` is customized (without kernel enforcement).
 
 ---
 
@@ -266,21 +265,21 @@ Allocation configuration of /etc/hosts file.
 ### `-net value`
 
 :   container network interface configuration
->
-  ```bash
-  # Allocate custom interface only
-  sandal run -lw / -net "ip=172.19.0.3/24=fd34:0135:0127::9/64" -- bash
-  # Allocate default and custom interface with different bridge
-  sandal run -lw / -net "" -net "ip=172.19.0.3/24=fd34:0135:0127::9/64;master=br0" -- bash
-  # Custom interface naming
-  sandal run -lw / -net "" -net "name=pppoe;master=layer2" -- bash
-  # Custom mtu or ethernet set
-  sandal run -lw / -net "" -net "ether="aa:ee:81:f4:c0:d3";mtu=1480" -- bash
-  # DHCP: obtain IP from an upstream DHCP server
-  sandal run -lw / -net "ip=dhcp" -- bash          # dual-stack (DHCPv4 + DHCPv6)
-  sandal run -lw / -net "ip=dhcp4" -- bash         # IPv4 only
-  sandal run -lw / -net "ip=dhcp6" -- bash         # IPv6 only
-  ```
+
+    ``` { .bash title="Example" }
+    # Allocate custom interface only
+    sandal run -lw / -net "ip=172.19.0.3/24=fd34:0135:0127::9/64" -- bash
+    # Allocate default and custom interface with different bridge
+    sandal run -lw / -net "" -net "ip=172.19.0.3/24=fd34:0135:0127::9/64;master=br0" -- bash
+    # Custom interface naming
+    sandal run -lw / -net "" -net "name=pppoe;master=layer2" -- bash
+    # Custom mtu or ethernet set
+    sandal run -lw / -net "" -net "ether="aa:ee:81:f4:c0:d3";mtu=1480" -- bash
+    # DHCP: obtain IP from an upstream DHCP server
+    sandal run -lw / -net "ip=dhcp" -- bash          # dual-stack (DHCPv4 + DHCPv6)
+    sandal run -lw / -net "ip=dhcp4" -- bash         # IPv4 only
+    sandal run -lw / -net "ip=dhcp6" -- bash         # IPv6 only
+    ```
 
 ??? info "DHCP"
 
@@ -357,9 +356,7 @@ Allocation configuration of /etc/hosts file.
     **Host endpoint**: `<port>`, `<ip>:<port>`, or `unix://<path>`.
     **Container endpoint**: `<port>`, `unix://<path>`, or `tcp://<port>` / `udp://<port>` for cross-protocol forwarding. Defaults to the same port as the host when omitted.
 
-    **Grammar reference:**
-
-    ```
+    ``` { title="Grammar reference" }
     -p 443                                       tcp 127.0.0.1:443  -> cont 127.0.0.1:443
     -p 0.0.0.0:443                               tcp 0.0.0.0:443    -> cont 127.0.0.1:443
     -p 0.0.0.0:443:8443                          tcp 0.0.0.0:443    -> cont 127.0.0.1:8443
@@ -372,9 +369,7 @@ Allocation configuration of /etc/hosts file.
     -p udp://unix:///run/host.sock:53            host unix dgram    -> cont 127.0.0.1:53 udp
     ```
 
-    **Examples:**
-
-    ```bash
+    ``` { .bash title="Examples" }
     # TCP: expose container port 8080 on host 0.0.0.0:8080
     sandal run -lw alpine -p 0.0.0.0:8080 -- nc -lp 8080
 
@@ -406,20 +401,20 @@ Allocation configuration of /etc/hosts file.
 ### `-rci value`
 
 :   run command before init
->
-  ```bash
-  sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
-  ```
+
+    ``` { .bash title="Example" }
+    sandal run -rm -lw / -rci="ifconfig eth0" -- echo hello
+    ```
 
 ---
 
 ### `-rcp value`
 
-:   run command before pivoting.  
->
-  ```bash
-  sandal run -rm -lw / -rcp="ifconfig eth0" -- echo hello
-  ```
+:   run command before pivoting.
+
+    ``` { .bash title="Example" }
+    sandal run -rm -lw / -rcp="ifconfig eth0" -- echo hello
+    ```
 
 ---
 
@@ -453,25 +448,24 @@ Allocation configuration of /etc/hosts file.
 ### `-snapshot string`
 
 :   snapshot output path for container changes (squashfs image).
-  When set, `sandal snapshot` will write the image to this path instead of the default location.
-  On subsequent runs, if the snapshot file exists it is automatically mounted as the lowest-priority lower layer in the overlay, so previously saved changes are available inside the container.
+    When set, `sandal snapshot` will write the image to this path instead of the default location.
+    On subsequent runs, if the snapshot file exists it is automatically mounted as the lowest-priority lower layer in the overlay, so previously saved changes are available inside the container.
 
-  Example usage:
-  ```bash
-  # Run with a named snapshot location
-  sandal run -lw / -name test --rm -- bash
-  # Save changes while running
-  sandal snapshot test
-  # Run stateless container with snapshot
-  sandal run -lw / -name test --rm -- bash
-  # Re-run — previous snapshot
-  # if snapshot is presented for this container at default path,
-  # and -snapshot file is not presented container will be use defualt path snapshot 
-  # with sandal snapshot command new snapshot is presented at new path
-  sandal run -snapshot /data/mycontainer.sqfs -lw / -name test -- bash
-  ```
+    ``` { .bash title="Example usage" }
+    # Run with a named snapshot location
+    sandal run -lw / -name test --rm -- bash
+    # Save changes while running
+    sandal snapshot test
+    # Run stateless container with snapshot
+    sandal run -lw / -name test --rm -- bash
+    # Re-run — previous snapshot
+    # if snapshot is presented for this container at default path,
+    # and -snapshot file is not presented container will be use defualt path snapshot 
+    # with sandal snapshot command new snapshot is presented at new path
+    sandal run -snapshot /data/mycontainer.sqfs -lw / -name test -- bash
+    ```
 
-  Without `-snapshot`, the default path is `SANDAL_SNAPSHOT_DIR/<name>.sqfs` (`/var/lib/sandal/snapshot/<name>.sqfs`).
+    Without `-snapshot`, the default path is `SANDAL_SNAPSHOT_DIR/<name>.sqfs` (`/var/lib/sandal/snapshot/<name>.sqfs`).
 
 ---
 
@@ -490,58 +484,58 @@ Allocation configuration of /etc/hosts file.
 ### `-t bool`
 
 :   allocate a pseudo-TTY for the container.
-  Required for terminal programs like `htop`, `vim`, `iptraf-ng`, or any program that needs `isatty()` to return true.
+    Required for terminal programs like `htop`, `vim`, `iptraf-ng`, or any program that needs `isatty()` to return true.
 
-  In **foreground** mode (`-t` without `-d`), the host terminal is set to raw mode and connected directly to the container's PTY. Arrow keys, Ctrl+C, and terminal resize work automatically.
+    In **foreground** mode (`-t` without `-d`), the host terminal is set to raw mode and connected directly to the container's PTY. Arrow keys, Ctrl+C, and terminal resize work automatically.
 
-  In **background** mode (`-t -d` with daemon running), the PTY is served over a Unix socket. Use `sandal attach` to connect. Supports mouse, arrow keys, function keys, and terminal resize.
+    In **background** mode (`-t -d` with daemon running), the PTY is served over a Unix socket. Use `sandal attach` to connect. Supports mouse, arrow keys, function keys, and terminal resize.
 
-  ```bash
-  # Interactive foreground with PTY
-  sandal run -lw / -tmp 10 --rm -t -- bash
-  # Background with PTY (requires daemon)
-  sandal daemon &
-  sandal run -lw / -tmp 10 --rm -t -d --startup -name my-htop -- htop
-  sandal attach my-htop
-  ```
+    ``` { .bash title="Example" }
+    # Interactive foreground with PTY
+    sandal run -lw / -tmp 10 --rm -t -- bash
+    # Background with PTY (requires daemon)
+    sandal daemon &
+    sandal run -lw / -tmp 10 --rm -t -d --startup -name my-htop -- htop
+    sandal attach my-htop
+    ```
 
-  !!! warning
-      Using `-t -d` without the daemon results in FIFO mode (no PTY). Terminal programs will not display correctly. A warning is logged in this case.
+!!! warning
+    Using `-t -d` without the daemon results in FIFO mode (no PTY). Terminal programs will not display correctly. A warning is logged in this case.
 
 ---
 
 ### `-chdir-type string`
 
 :   Change dir backing type (default `auto`).
-  Controls how the overlayfs upper/work directory is backed:
+    Controls how the overlayfs upper/work directory is backed:
 
     - **`auto`** — Automatically selects the best option. Uses `folder` on native Linux with a supported filesystem (ext4, xfs, btrfs). Falls back to `image` when running inside a VM (VirtioFS), on nested overlayfs, or on unsupported filesystems.
     - **`folder`** — Uses the change dir directly on disk. Requires the underlying filesystem to support overlayfs upper (ext4, xfs, btrfs with d_type).
     - **`image`** — Creates a sparse ext4 disk image, loop-mounts it, and uses it as the change dir. Works everywhere, including VirtioFS, nested overlayfs, and unsupported filesystems.
 
-```bash
-# Force image mode on native Linux
-sandal run -lw alpine -chdir-type image -- ash
-# Force folder mode (only on supported filesystems)
-sandal run -lw alpine -chdir-type folder -- ash
-```
+    ``` { .bash title="Example" }
+    # Force image mode on native Linux
+    sandal run -lw alpine -chdir-type image -- ash
+    # Force folder mode (only on supported filesystems)
+    sandal run -lw alpine -chdir-type folder -- ash
+    ```
 
 ---
 
 ### `-csize string`
 
 :   Change dir disk image size (default `128m`).
-  Accepts human-readable sizes: `128m`, `128mb`, `1g`, `1gb`, `512k`, `512kb` (case-insensitive, binary units).
-  Raw bytes are also accepted as plain numbers.
-  Only applies when `-chdir-type` is `image` (or `auto` resolves to `image`). The image is created as a sparse file, so it only consumes actual disk space as data is written.
-  A warning is logged if `-csize` is set while the change dir type resolves to `folder`.
+    Accepts human-readable sizes: `128m`, `128mb`, `1g`, `1gb`, `512k`, `512kb` (case-insensitive, binary units).
+    Raw bytes are also accepted as plain numbers.
+    Only applies when `-chdir-type` is `image` (or `auto` resolves to `image`). The image is created as a sparse file, so it only consumes actual disk space as data is written.
+    A warning is logged if `-csize` is set while the change dir type resolves to `folder`.
 
-```bash
-# 512MB change dir image
-sandal run -lw alpine -csize 512m -- ash
-# 2GB change dir image
-sandal run -lw alpine -chdir-type image -csize 2g -- ash
-```
+    ``` { .bash title="Example" }
+    # 512MB change dir image
+    sandal run -lw alpine -csize 512m -- ash
+    # 2GB change dir image
+    sandal run -lw alpine -chdir-type image -csize 2g -- ash
+    ```
 
 ---
 
@@ -560,21 +554,21 @@ Benefical for:
 ### `-user string`
 
 :   Start container as custom user or user:group configuration.
-  When `-lw` provides an OCI image, the image's `User` is used as the default if `-user` is not set. When multiple `-lw` images are provided, the last image that defines `User` wins.
->
-  ```bash
-  # chroot to given path
-  sandal run -rm --lw / -user dnsmasq -- id
-  uid=100(dnsmasq) gid=101(dnsmasq)
-  sandal run -rm --lw / -user dnsmasq:wheel -- id
-  uid=100(dnsmasq) gid=10(wheel)
-  sandal run -rm --lw / -user 10:nogroup -- id
-  uid=10(uucp) gid=65533(nogroup)
-  sandal run -rm --lw / -user 10 -- id
-  uid=10(uucp) gid=10(wheel)
-  sandal run -rm --lw / -user adm:10 -- id
-  uid=3(adm) gid=10(wheel)
-  ```
+    When `-lw` provides an OCI image, the image's `User` is used as the default if `-user` is not set. When multiple `-lw` images are provided, the last image that defines `User` wins.
+
+    ``` { .bash title="Example" }
+    # chroot to given path
+    sandal run -rm --lw / -user dnsmasq -- id
+    uid=100(dnsmasq) gid=101(dnsmasq)
+    sandal run -rm --lw / -user dnsmasq:wheel -- id
+    uid=100(dnsmasq) gid=10(wheel)
+    sandal run -rm --lw / -user 10:nogroup -- id
+    uid=10(uucp) gid=65533(nogroup)
+    sandal run -rm --lw / -user 10 -- id
+    uid=10(uucp) gid=10(wheel)
+    sandal run -rm --lw / -user adm:10 -- id
+    uid=3(adm) gid=10(wheel)
+    ```
 
 ### `-vm bool`
 
@@ -587,12 +581,12 @@ Benefical for:
 ### `-v value`
 
 :   volume mount point
->
-  ```bash
-  # chroot to given path
-  sandal run -rm -v /mnt/disk1:/ -- bash
-  #  attach file,attach path to custom path, attach path, and  to the container.
-  sandal run -rm -v /etc/nftables.conf \
-    -v /run/dbus \
-    -v /etc/homeas/config:/config  -- bash
-  ```
+
+    ``` { .bash title="Example" }
+    # chroot to given path
+    sandal run -rm -v /mnt/disk1:/ -- bash
+    #  attach file,attach path to custom path, attach path, and  to the container.
+    sandal run -rm -v /etc/nftables.conf \
+      -v /run/dbus \
+      -v /etc/homeas/config:/config  -- bash
+    ```
