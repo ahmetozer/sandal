@@ -140,7 +140,10 @@
   margin: 0 auto;
   padding: 20px 28px;
   display: flex;
-  align-items: center;
+  /* Pin the diagram to the top of the panel so the caption (label + cmd)
+     is never clipped. Taller states may overflow the bottom — acceptable
+     because caption is the load-bearing info. */
+  align-items: flex-start;
   justify-content: center;
   overflow: hidden;
 }
@@ -148,6 +151,10 @@
 .explainer-bottom-inner > * {
   width: 100%;
   max-width: 760px;
+  /* Re-enable pointer events on the diagram so the command text can be
+     selected and copied. The panel around it stays pointer-events:none
+     so scroll-wheel passes through the empty margins. */
+  pointer-events: auto;
 }
 
 /* Narrow viewports: shrink panel further, reduce padding. */

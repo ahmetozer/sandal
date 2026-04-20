@@ -23,126 +23,128 @@ const FEATURES = [
     title: 'Use the running host as the base',
     cmd: 'sandal run -lw / -- sh',
     tone: 'wood',
-    lede: 'No pull, no archive — Sandal just binds the live host as the lower layer. Your container sees the exact tools already on disk.',
+    lede: 'Sandal binds the live host as the base. The container sees the tools already on disk.',
     bullets: [
-      'Ideal for quick experiments on the machine you are already sitting on.',
-      'Writes go into an upper dir so the host stays untouched.',
-      'Good pair with snapshot — capture the changedir when you are done.',
+      'Quick experiments on the machine you are already sitting on.',
+      'Changes stay separate so the host is untouched.',
+      'Pairs with snapshot — save your changes when you are done.',
     ],
   },
   {
     title: 'Mount a local image file',
     cmd: 'sandal run -lw ./alpine.sqfs -- sh',
     tone: 'wood',
-    lede: 'Point at any squashfs, rootfs tarball, or directory on disk — useful for air-gapped machines and reproducible base images.',
+    lede: 'Point at any image file on disk — useful for air-gapped machines and reproducible base images.',
     bullets: [
-      'Squashfs is compressed and mounted read-only — fast boot, small disk footprint.',
-      'Share one image across dozens of dimensions; each gets its own upper dir.',
-      'Works without a network at all.',
+      'Compressed and read-only — fast boot, small footprint.',
+      'Share one image across many containers.',
+      'Works without a network.',
     ],
   },
   {
     title: 'Mount a USB or NVMe drive',
     cmd: 'sandal run -lw /dev/nvme1n1 -- sh',
     tone: 'wood',
-    lede: 'Plug in a block device and use it directly as a lower layer. Great for field rescue, portable toolchains, or recovering a broken install from a known-good USB.',
+    lede: 'Use a block device directly as the base. Great for field rescue, portable toolchains, or recovering a broken install from a known-good USB.',
     bullets: [
-      'Any mountable filesystem works — ext4, xfs, btrfs, squashfs on a partition.',
-      'Hot-pluggable: unplug to release; re-plug to run again, upper dir is preserved.',
-      'The block device is attached read-only; your overlay writes stay in the upper dir.',
+      'Any standard filesystem works.',
+      'Hot-pluggable: unplug to release; re-plug to run again, changes are preserved.',
+      'Drive is read-only; your changes stay separate.',
     ],
   },
   {
     title: 'Pull from a registry',
     cmd: 'sandal run -lw python:3.12 -- python',
     tone: 'water',
-    lede: 'Any OCI or Docker registry works. Pulled layers get flattened into a squashfs and cached — subsequent runs start instantly.',
+    lede: 'Any OCI or Docker registry works. Layers are cached — subsequent runs start instantly.',
     bullets: [
       'docker.io, ghcr.io, quay.io, self-hosted — all the usual places.',
-      'Pass the -lw flag multiple times to stack images in order.',
-      'No daemon runs in the background; pulls happen on demand.',
+      'Pass -lw multiple times to stack images in order.',
+      'No background daemon; pulls happen on demand.',
     ],
   },
   {
     title: 'Resume with a persistent snapshot',
     cmd: 'sandal snapshot myapp  #  then  sandal run -lw / -name myapp',
     tone: 'water',
-    lede: 'sandal snapshot captures just the upperdir (your writes from the last run) as a squashfs. The next time you sandal run with the same -name, that snapshot auto-mounts as the lowest lower — so you resume exactly where you left off.',
+    lede: 'sandal snapshot captures your changes. Run again with the same -name and they are mounted back — you resume where you left off.',
     bullets: [
-      'Only the upperdir is captured — the base image stays external and swappable.',
-      'Use -i / -e to include or exclude paths and keep caches out of the image.',
-      'Chains: successive snapshots merge the previous .sqfs with fresh writes.',
+      'Only your changes are captured; the base image stays swappable.',
+      'Include or exclude paths with -i / -e.',
+      'Chainable: each snapshot merges with fresh changes.',
     ],
   },
   {
     title: 'Wrap it all in a VM',
     cmd: 'sandal run --vm -lw python:3.12 -- python',
     tone: 'water',
-    lede: 'For workloads that need hardware isolation, Sandal can boot the same overlay stack inside a Firecracker microVM. Your dimension sits inside a disposable kernel — same command, stronger boundary.',
+    lede: 'Boot the same setup inside a microVM when you need hardware isolation. Same command, stronger boundary.',
     bullets: [
-      'Fresh kernel + initrd per run — no shared host kernel surface.',
-      'overlayfs still assembles the lower layers the usual way, just inside the guest.',
-      'Good for running untrusted code, multi-tenant builds, or kernel-module experiments.',
+      'Fresh kernel per run — no shared host kernel.',
+      'Layers assemble the usual way, just inside the guest.',
+      'Good for untrusted code, multi-tenant builds, or kernel experiments.',
     ],
   },
   {
     title: 'Share a host directory with -v',
     cmd: 'sandal run -lw python:3.12 -v ./data:/data -- python app.py',
     tone: 'wood',
-    lede: 'The -v flag bind-mounts a host path straight through into the dimension — no lower, no upperdir, no copy. Writes land on the host immediately.',
+    lede: 'The -v flag connects a host path straight into the container. No copy — changes land on the host immediately.',
     bullets: [
       'Keep source code, model weights, or datasets editable on the host.',
-      'Format is the familiar HOST:GUEST — append :ro to make it read-only.',
-      'Mix freely with any number of -lw layers; -v is orthogonal to the stack.',
+      'Format is HOST:GUEST — append :ro for read-only.',
+      'Mix freely with any number of -lw layers.',
+    ],
+  },
+  {
+    title: 'Listen on the host, forward to the container',
+    cmd: 'sandal run -lw code-server -p tls://0.0.0.0:8080:unix://vscode -- code-server',
+    tone: 'water',
+    lede: 'The -p flag binds a listener on the host and forwards traffic in. TLS terminates on the host; the container sees plain traffic.',
+    bullets: [
+      'Host side: TCP, UDP, TLS, or a unix socket.',
+      'Container side: port or unix socket — cross-protocol works.',
+      'Same flag in VM mode; traffic tunnels over vsock.',
     ],
   },
   {
     title: 'Combine any of them',
     cmd: 'sandal run -lw / -lw python:3.12 -v ./data:/data -snapshot ./myapp.sqfs -- python',
     tone: 'water',
-    lede: 'Stack any sources with -lw, pass through host paths with -v, persist writes with -snapshot, and add --vm for hardware isolation. One command, one process tree, every composition you need.',
+    lede: 'Stack sources with -lw, share paths with -v, persist with -snapshot, add --vm for isolation. One command, every composition you need.',
     bullets: [
       'Put a fast-changing app layer above a stable base.',
-      'Pin a vendored binary by dropping it into the top-most lower.',
-      'Bind mount hot-reload data or large datasets that would be wasteful in a lower.',
+      'Pin a vendored binary by dropping it into the top layer.',
+      'Share hot-reload data or large datasets without building them into layers.',
     ],
   },
 ];
 
 function useActiveFeature(refs) {
-  // IntersectionObserver-based detection. Each trigger section (including the
-  // intro at index 0) fires callbacks as it enters/leaves the "reading band"
-  // — the slice of viewport above where the BottomPanel sits.
-  //
-  // rootMargin '-20% 0px -55% 0px' = trigger band from 20% to 45% of viewport
-  // height. The bottom 55% is ignored so sections scrolling under the pinned
-  // BottomPanel don't drive state.
+  // Scroll-position-based detection. Active = the LAST section whose top has
+  // scrolled past a reading line ~30% from the top of the viewport. Simpler
+  // and more predictable than IntersectionObserver ratios — notably, the
+  // final section reliably becomes active at page bottom even when padding
+  // can't push its top any higher into the reading band.
   const [active, setActive] = React.useState(0);
   React.useEffect(() => {
-    const ratios = new Map();
     const recompute = () => {
+      const line = window.innerHeight * 0.3;
       let best = 0;
-      let bestRatio = 0;
       for (let i = 0; i < refs.current.length; i++) {
         const el = refs.current[i];
         if (!el) continue;
-        const r = ratios.get(el) ?? 0;
-        if (r > bestRatio) { bestRatio = r; best = i; }
+        if (el.getBoundingClientRect().top <= line) best = i;
       }
-      if (bestRatio > 0) setActive(best);
+      setActive(best);
     };
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) ratios.set(e.target, e.intersectionRatio);
-        recompute();
-      },
-      {
-        rootMargin: '-20% 0px -55% 0px',
-        threshold: [0, 0.25, 0.5, 0.75, 1],
-      }
-    );
-    refs.current.forEach(el => el && io.observe(el));
-    return () => io.disconnect();
+    recompute();
+    window.addEventListener('scroll', recompute, { passive: true });
+    window.addEventListener('resize', recompute);
+    return () => {
+      window.removeEventListener('scroll', recompute);
+      window.removeEventListener('resize', recompute);
+    };
   }, []);
   return active;
 }

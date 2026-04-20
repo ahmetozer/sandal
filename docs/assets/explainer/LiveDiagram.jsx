@@ -409,6 +409,22 @@ const DIAGRAM_STATES = [
     ],
   },
   {
+    label: 'port forwarding · -p',
+    cmd: 'sandal run -lw code-server -p tls://0.0.0.0:8080:unix://vscode -- code-server',
+    source: { kind: 'single', items: [
+      { icon: 'registry', title: 'code-server', ref: 'ghcr.io', tone: 'wood' },
+    ]},
+    lowers: [
+      { key: 'cs', label: 'lower · code-server', tone: 'water' },
+    ],
+    dimensionName: 'exposed',
+    chips: [
+      { text: '-p scheme://host:port:target' },
+      { text: 'TCP · UDP · TLS · unix' },
+      { text: 'VM mode: tunnels over vsock' },
+    ],
+  },
+  {
     label: 'combined',
     cmd: 'sandal run -lw / -lw python:3.12 -v ./data:/data -snapshot ./myapp.sqfs -- python',
     source: { kind: 'multi', items: [
@@ -457,7 +473,14 @@ const diagStyles = {
   },
   captionCmd: {
     fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink)',
-    flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    flex: 1, minWidth: 0,
+    /* Wrap long commands onto multiple lines so the full text is visible
+       and selectable (user-copyable). Break at word boundaries when
+       possible; fall back to any character for very long single tokens. */
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    userSelect: 'text',
   },
   canvas: {
     position: 'relative',
