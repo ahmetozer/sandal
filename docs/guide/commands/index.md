@@ -143,7 +143,7 @@ Allocation configuration of /etc/hosts file.
 
 ??? info "More"
 
-    Example Commands
+    #### Example Commands
 
     ```bash
     # Single Lower Directory
@@ -177,34 +177,34 @@ Allocation configuration of /etc/hosts file.
     4. Use `source:/container/path` to mount a lower directory at a specific path inside the container as a mini-overlay with full COW behavior. The separator is `:/` (colon followed by slash).
     5. Append `:=sub` to opt-in to automatic sub-mount discovery. Without `:=sub`, sub-mounts are not included.
 
-    :   #### Custom Mount Targets
+    #### Custom Mount Targets
 
-    :     By default, lower directories are merged at the root (`/`) of the container overlay. You can mount a lower directory at a **custom container path** using `source:/target` syntax:
+    By default, lower directories are merged at the root (`/`) of the container overlay. You can mount a lower directory at a **custom container path** using `source:/target` syntax:
 
-          ```bash
-          -lw /host/path:/container/path
-          -lw myimage.sqfs:/opt/data
-          -lw nginx:latest:/opt/nginx
-          ```
+    ```bash
+    -lw /host/path:/container/path
+    -lw myimage.sqfs:/opt/data
+    -lw nginx:latest:/opt/nginx
+    ```
 
-          Each targeted lower is mounted as a mini-overlay with its own upper/work directories, providing full copy-on-write behavior.
+    Each targeted lower is mounted as a mini-overlay with its own upper/work directories, providing full copy-on-write behavior.
 
-    :   #### Sub-Mount Discovery (`:=sub`)
+    #### Sub-Mount Discovery (`:=sub`)
 
-    :     When a host directory contains sub-mounts on separate filesystems (e.g. `/root` on a separate ext4 partition under `/`), these are **not** included by default — overlayfs does not cross mount boundaries.
+    When a host directory contains sub-mounts on separate filesystems (e.g. `/root` on a separate ext4 partition under `/`), these are **not** included by default — overlayfs does not cross mount boundaries.
 
-          Append `:=sub` to opt-in to automatic sub-mount discovery:
+    Append `:=sub` to opt-in to automatic sub-mount discovery:
 
-          ```bash
-          sandal run -lw /:=sub -- bash     # / with all sub-mounts
-          sandal run -lw /:/custom:=sub -- bash  # / at /custom with sub-mounts
-          ```
+    ```bash
+    sandal run -lw /:=sub -- bash     # / with all sub-mounts
+    sandal run -lw /:/custom:=sub -- bash  # / at /custom with sub-mounts
+    ```
 
-          Paths already covered by `-v` (volume) are skipped to avoid conflicts.
+    Paths already covered by `-v` (volume) are skipped to avoid conflicts.
 
-    :   #### How Lower Directories Works ?
+    #### How Lower Directories Works ?
 
-    :     Read file operation
+    Read file operation
 
     ``` mermaid
     graph LR
@@ -225,7 +225,7 @@ Allocation configuration of /etc/hosts file.
     E1 -- No | File Not Found --> O1
     ```
 
-    :   Write file operation
+    Write file operation
 
     ``` mermaid
     graph LR

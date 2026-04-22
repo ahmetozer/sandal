@@ -13,15 +13,17 @@ Sandal is a lightweight portable container environment controller, designed and 
 
 ## Goal of This Project
 
-Sandal creates intermediate layer between host operating system and containers without requiring dedicated memory allocation like as virtual machines.  
+Sandal is a single-binary container runtime for systems that aren't always online, aren't always Linux, and don't always have room for a background daemon. It sits between the host OS and its containers as a lightweight isolation layer — without the memory overhead of a virtual machine.
 
-- This project supports provision container from directories, immutable image files (IMG, Squash FS) so you can execute the container directly from the file, and easy to distribute and configure it with portable media.
+- **One static binary, no required daemon.** A single executable runs containers directly — no background service, no image store on shared disk, nothing to install on the far end. An optional daemon exists only for `-startup` workloads that need to survive reboots.
 
-- Portable container images gives ability to provision containers from outside the system host storage system such as SD cards, That enables to access and manage from outside (macOS, Windows) the host operating system when the system is offline.  
+- **OCI-compliant registry client, built in.** Pulls directly from Docker Hub, `ghcr.io`, and `quay.io`, flattens the layers, and caches them locally — no registry configuration, no side services.
 
-- Easy deployment, enables remote deployment without requiring any software or deep experience at field side.
+- **Containers as portable files.** Provision from directories, immutable images (IMG, SquashFS), or registry references, and execute directly off the file — so a container can live on an SD card or USB drive and be built, inspected, or managed from macOS or Windows even when the Linux host is offline.
 
-- Additionally, these features create easy to manage embedded-Linux work environments or development surface without requiring to build own distribution ([Yocto](https://www.yoctoproject.org/), [Buildroot](https://buildroot.org/)) from scratch for each change.
+- **Optional microVM, same CLI.** Add `-vm` to run under KVM (Linux) or Apple Virtualization (macOS) without changing any other flag — useful when untrusted work needs a kernel boundary of its own.
+
+- **Embedded Linux without a full build.** Get a manageable embedded-Linux work environment without rebuilding a custom distribution with [Yocto](https://www.yoctoproject.org/) or [Buildroot](https://buildroot.org/) from scratch for every change.
 
 <!--
   Homepage explainer. Loaded only on /. Script order is load-bearing:
