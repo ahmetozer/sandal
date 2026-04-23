@@ -47,6 +47,11 @@ jobs:
 
   mkdocs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Configure Git Credentials
@@ -70,15 +75,5 @@ jobs:
             mkdocs-material-
       - run: pip install -r requirements.txt
       - run: DEBIAN_FRONTEND=noninteractive sudo apt install -y libcairo2
-      - name: Extract version
-        id: version
-        run: |
-          # Get full tag name including 'v' prefix
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-      - name: Deploy docs with mike
-        run: |
-          export SANDAL_GOLANG_LIB_URL=https://pkg.go.dev/github.com/ahmetozer/sandal@${{ steps.version.outputs.VERSION }}/pkg/lib
-          mkdocs gh-deploy --force
-        #mike deploy --push --update-aliases ${{ steps.version.outputs.VERSION }} latest
-        #mike set-default --push latest
+      - name: Deploy docs
+        run: mkdocs gh-deploy --force
