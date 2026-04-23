@@ -9,7 +9,6 @@ docs_dir: docs
 plugins:
   - search
   - social
-  - mike
   - awesome-pages
   - markdownextradata: {}
   - privacy:
@@ -107,15 +106,8 @@ extra_javascript:
   - https://unpkg.com/mermaid@11/dist/mermaid.min.js
   - assets/javascripts/mermaid-init.js
 
-extra:
-  version:
-    provider: mike
-    default: stable 
-    alias: true
 
 nav:
   - Home: index.md
   - ... | setup/*.md
   - ... | guide/*/*.md
-  # - ...
-  - Golang Lib: !!python/object/apply:os.getenv ["SANDAL_GOLANG_LIB_URL"]
