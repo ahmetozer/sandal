@@ -36,3 +36,4 @@ pkg/vm/kernel/preinit_arm64.bin
 
 # Superpowers design docs
 docs/superpowers/
+dist
