@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
     - go generate ./pkg/sandal/vmbin
@@ -41,17 +43,19 @@ builds:
 
 archives:
   - id: linux
-    builds:
+    ids:
       - linux
-    format: binary
+    formats:
+      - binary
     name_template: '{{ .Binary }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
     files:
       - none*
 
   - id: darwin
-    builds:
+    ids:
       - darwin
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: 'sandal_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     files:
       - LICENSE
@@ -73,25 +77,32 @@ changelog:
       - "^chore:"
       - "^ci:"
 
-brews:
+homebrew_casks:
   - name: sandal
     ids:
       - darwin
+    binaries:
+      - sandal
     repository:
       owner: ahmetozer
       name: sandal
       branch: master
       token: "{{ .Env.GITHUB_TOKEN }}"
-    directory: Formula
+      pull_request:
+        enabled: true
+        base:
+          branch: master
+    directory: Casks
     commit_author:
       name: github-actions[bot]
       email: github-actions[bot]@users.noreply.github.com
-    commit_msg_template: "chore(brew): sandal {{ .Tag }}"
+    commit_msg_template: "chore(cask): sandal {{ .Tag }}"
     homepage: https://github.com/ahmetozer/sandal
     description: Lightweight portable container environment controller with macOS VM support
-    license: Apache-2.0
     skip_upload: auto
-    install: |
-      bin.install "sandal"
-    test: |
-      system "#{bin}/sandal", "help"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/sandal"]
+          end
