@@ -80,9 +80,15 @@ func findSubMounts(lowerDir string) ([]subMount, error) {
 	}
 
 	// Paths to exclude — sandal's own directories to avoid circular mounts.
+	// Resolve symlinks because mountinfo uses real paths (e.g. /run not /var/run).
 	excludePrefixes := []string{
 		env.RunDir + "/",
 		env.LibDir + "/",
+	}
+	for i, ep := range excludePrefixes {
+		if resolved, err := filepath.EvalSymlinks(strings.TrimSuffix(ep, "/")); err == nil {
+			excludePrefixes[i] = resolved + "/"
+		}
 	}
 
 	var mounts []subMount
@@ -288,6 +294,71 @@ func mountTargetedLowerOverlays(c *config.Config, targeted []lowerArg, changeBas
 		}
 	}
 	return nil
+}
+
+// unmountAllBelow reads /proc/self/mountinfo and unmounts every mount whose
+// mount point is at or below dir. Mounts are unmounted deepest-first so that
+// child mounts are removed before parents. The loop repeats until no more
+// mounts remain, handling stacked mounts at the same path.
+func unmountAllBelow(dir string) []error {
+	dir = filepath.Clean(dir)
+	if dir == "" || dir == "/" {
+		return nil
+	}
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	prefix := dir + "/"
+
+	var errs []error
+	for {
+		f, err := os.Open("/proc/self/mountinfo")
+		if err != nil {
+			return append(errs, fmt.Errorf("opening mountinfo: %w", err))
+		}
+
+		var targets []string
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			mp, _, err := parseMountinfoLine(scanner.Text())
+			if err != nil {
+				continue
+			}
+			if mp == dir || strings.HasPrefix(mp, prefix) {
+				targets = append(targets, mp)
+			}
+		}
+		f.Close()
+
+		if len(targets) == 0 {
+			break
+		}
+
+		// Sort deepest first so children are unmounted before parents.
+		sort.Slice(targets, func(i, j int) bool {
+			di := strings.Count(targets[i], "/")
+			dj := strings.Count(targets[j], "/")
+			if di != dj {
+				return di > dj
+			}
+			return targets[i] > targets[j]
+		})
+
+		for _, t := range targets {
+			if err := unix.Unmount(t, unix.MNT_DETACH); err != nil {
+				if !os.IsNotExist(err) {
+					errs = append(errs, fmt.Errorf("unmount %s: %w", t, err))
+				}
+			}
+		}
+
+		// If we couldn't unmount anything, stop to avoid infinite loop.
+		// (All remaining mounts returned errors above.)
+		if len(errs) >= len(targets) {
+			break
+		}
+	}
+	return errs
 }
 
 // subMountRegistry tracks mini-overlay mount paths per container for cleanup.

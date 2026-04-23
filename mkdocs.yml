@@ -87,22 +87,25 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.mark
   - pymdownx.smartsymbols
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
 extra_css:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css
+  - assets/stylesheets/sandal-tokens.css
+  - assets/stylesheets/sandal-overrides.css
 extra_javascript:
   - https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js
+  - https://unpkg.com/mermaid@11/dist/mermaid.min.js
+  - assets/javascripts/mermaid-init.js
 
 extra:
   version:

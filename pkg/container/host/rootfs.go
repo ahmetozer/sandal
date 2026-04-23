@@ -303,17 +303,19 @@ func UmountRootfs(c *config.Config) []error {
 	errs := []error{}
 	var err error
 
-	// Unmount sub-mount mini-overlays before the main overlay.
+	// Unmount sub-mount mini-overlays from the in-memory registry first.
 	if subErrs := unmountSubMountOverlays(c.Name); subErrs != nil {
 		errs = append(errs, subErrs...)
 	}
 
-	err = unix.Unmount(c.RootfsDir, 0)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			errs = append(errs, err)
-		}
+	// Unmount ALL mounts at or below c.RootfsDir discovered from
+	// /proc/self/mountinfo. This handles stale sub-mount overlays from
+	// previous runs whose in-memory registry was lost (e.g. crash/kill),
+	// as well as stacked rootfs overlays from repeated restarts.
+	if umountErrs := unmountAllBelow(c.RootfsDir); umountErrs != nil {
+		errs = append(errs, umountErrs...)
 	}
+
 	err = os.Remove(c.RootfsDir)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -330,6 +332,12 @@ func UmountRootfs(c *config.Config) []error {
 				errs = append(errs, fmt.Errorf("image change dir cleanup: %w", cleanupErr))
 			}
 			overlayfs.UnregisterImageChangeMount(c.ChangeDir)
+		}
+
+		// Clean up stale change dir mounts from previous runs whose
+		// in-memory registry was lost. This handles stacked loop mounts.
+		if umountErrs := unmountAllBelow(c.ChangeDir); umountErrs != nil {
+			errs = append(errs, umountErrs...)
 		}
 
 		if c.TmpSize != 0 {
