@@ -13,8 +13,8 @@ Sandal enables easy deployment at field side without requering any other applica
 ### macOS (Apple Silicon)
 
 ```sh
-brew tap ahmetozer/sandal
-brew install sandal
+brew tap ahmetozer/tap
+brew install --cask sandal
 ```
 
 ### Linux

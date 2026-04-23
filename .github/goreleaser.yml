@@ -85,13 +85,9 @@ homebrew_casks:
       - sandal
     repository:
       owner: ahmetozer
-      name: sandal
-      branch: master
-      token: "{{ .Env.GITHUB_TOKEN }}"
-      pull_request:
-        enabled: true
-        base:
-          branch: master
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
     commit_author:
       name: github-actions[bot]
