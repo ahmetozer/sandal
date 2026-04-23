@@ -1,0 +1,2163 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/kvm-hypervisor/">
+      
+      
+        <link rel="prev" href="../image-management/">
+      
+      
+        <link rel="next" href="../networking/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>KVM Hypervisor - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="KVM Hypervisor - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/kvm-hypervisor.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/kvm-hypervisor/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="KVM Hypervisor - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/kvm-hypervisor.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#kvm-hypervisor" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              KVM Hypervisor
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/commands/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kvm-api-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KVM API Layer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="KVM API Layer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#system-level-ioctls-on-devkvm-fd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System-Level ioctls (on /dev/kvm fd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vm-level-ioctls-on-vmfd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM-Level ioctls (on vmFd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vcpu-level-ioctls-on-vcpufd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vCPU-Level ioctls (on vcpuFd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wrapper-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wrapper Functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vm-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="VM Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vm-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM States
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Memory Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allocation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory Registration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guest-physical-address-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guest Physical Address Layout
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Guest Physical Address Layout">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arm64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ARM64
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#x86-64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        x86-64
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guest-memory-access-helpers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guest Memory Access Helpers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vcpu-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vCPU Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="vCPU Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mmio-exit-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MMIO Exit Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interrupt-delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interrupt Delivery
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interrupt Delivery">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mechanism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mechanism
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gsi-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GSI Routing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uart-interrupt-arm64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UART Interrupt (ARM64)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arm64-gic-generic-interrupt-controller" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ARM64 GIC (Generic Interrupt Controller)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device-tree-blob-dtb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Device Tree Blob (DTB)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uart-emulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UART Emulation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UART Emulation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arm64-pl011-uart-at-0x09000000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ARM64: PL011 UART at 0x09000000
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#x86-64-16550-uart-at-io-port-0x3f8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        x86-64: 16550 UART at I/O port 0x3F8
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interrupt-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interrupt Logic
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signal-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signal Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="kvm-hypervisor">KVM Hypervisor<a class="headerlink" href="#kvm-hypervisor" title="Permanent link">&para;</a></h1>
+<p>The KVM hypervisor (<code>pkg/vm/kvm/</code>) implements a lightweight virtual machine monitor using Linux KVM. It supports ARM64 and x86-64 architectures with virtio MMIO device emulation, all in pure Go with no CGO.</p>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>+---------------------------------------------------+
+|  Host Userspace (sandal binary)                   |
+|                                                    |
+|  +-------+  +----------+  +-------------------+   |
+|  | vCPU  |  | UART     |  | Virtio MMIO       |   |
+|  | Mgr   |  | Console  |  | Transport         |   |
+|  +---+---+  +----+-----+  +---+---+---+---+---+   |
+|      |           |             |   |   |   |       |
+|      |     +-----+------+     |   |   |   |       |
+|      |     | stdin/out  |     |   |   |   |       |
+|      |     +------------+     |   |   |   |       |
+|      |                  +-----+   |   |   +---+   |
+|      |                  | Console |   |       |   |
+|      |                  +---------+   |   +---+   |
+|      |                       +--------+   | Net|  |
+|      |                       | Block  |   +---+   |
+|      |                       +--------+   | FS |  |
+|      |                                    +---+   |
++------+--------------------------------------------+
+       |                     Guest Memory (mmap)
++------+--------------------------------------------+
+|  /dev/kvm  (KVM kernel module)                    |
++---------------------------------------------------+
+|  Hardware (VT-x / ARM VHE)                        |
++---------------------------------------------------+
+</code></pre></div>
+<h2 id="kvm-api-layer">KVM API Layer<a class="headerlink" href="#kvm-api-layer" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/kvm.go</code></p>
+<h3 id="system-level-ioctls-on-devkvm-fd">System-Level ioctls (on <code>/dev/kvm</code> fd)<a class="headerlink" href="#system-level-ioctls-on-devkvm-fd" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ioctl</th>
+<th>Constant</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KVM_GET_API_VERSION</code></td>
+<td><code>0xAE00</code></td>
+<td>Returns 12 (expected version)</td>
+</tr>
+<tr>
+<td><code>KVM_CREATE_VM</code></td>
+<td><code>0xAE01</code></td>
+<td>Creates VM instance, returns vmFd</td>
+</tr>
+<tr>
+<td><code>KVM_CHECK_EXTENSION</code></td>
+<td><code>0xAE03</code></td>
+<td>Query supported capabilities</td>
+</tr>
+<tr>
+<td><code>KVM_GET_VCPU_MMAP_SIZE</code></td>
+<td><code>0xAE04</code></td>
+<td>Size of per-vCPU shared memory</td>
+</tr>
+</tbody>
+</table>
+<h3 id="vm-level-ioctls-on-vmfd">VM-Level ioctls (on vmFd)<a class="headerlink" href="#vm-level-ioctls-on-vmfd" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ioctl</th>
+<th>Constant</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KVM_CREATE_VCPU</code></td>
+<td><code>0xAE41</code></td>
+<td>Create virtual CPU, returns vcpuFd</td>
+</tr>
+<tr>
+<td><code>KVM_SET_USER_MEMORY_REGION</code></td>
+<td><code>0x4020AE46</code></td>
+<td>Register guest physical memory</td>
+</tr>
+<tr>
+<td><code>KVM_CREATE_DEVICE</code></td>
+<td><code>0xC00CAEE0</code></td>
+<td>Create in-kernel device (GIC)</td>
+</tr>
+<tr>
+<td><code>KVM_IRQ_LINE</code></td>
+<td><code>0x4008AE61</code></td>
+<td>Assert/deassert IRQ line (ARM64 UART)</td>
+</tr>
+<tr>
+<td><code>KVM_SET_GSI_ROUTING</code></td>
+<td><code>0x4008AE6A</code></td>
+<td>Configure IRQ routing table</td>
+</tr>
+<tr>
+<td><code>KVM_IRQFD</code></td>
+<td><code>0x4020AE76</code></td>
+<td>Register eventfd for interrupt injection</td>
+</tr>
+<tr>
+<td><code>KVM_CREATE_IRQCHIP</code></td>
+<td><code>0xAE60</code></td>
+<td>Create in-kernel IRQ chip (x86)</td>
+</tr>
+<tr>
+<td><code>KVM_SET_TSS_ADDR</code></td>
+<td><code>0xAE47</code></td>
+<td>Set TSS address (x86)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="vcpu-level-ioctls-on-vcpufd">vCPU-Level ioctls (on vcpuFd)<a class="headerlink" href="#vcpu-level-ioctls-on-vcpufd" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ioctl</th>
+<th>Constant</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KVM_RUN</code></td>
+<td><code>0xAE80</code></td>
+<td>Execute vCPU until exit</td>
+</tr>
+<tr>
+<td><code>KVM_ARM_VCPU_INIT</code></td>
+<td><code>0x4020AEAE</code></td>
+<td>Initialize ARM vCPU</td>
+</tr>
+<tr>
+<td><code>KVM_GET_ONE_REG</code></td>
+<td><code>0x4010AEAB</code></td>
+<td>Read single ARM register</td>
+</tr>
+<tr>
+<td><code>KVM_SET_ONE_REG</code></td>
+<td><code>0x4010AEAC</code></td>
+<td>Write single ARM register</td>
+</tr>
+<tr>
+<td><code>KVM_GET_REGS</code></td>
+<td><code>0x8090AE81</code></td>
+<td>Read all registers (x86)</td>
+</tr>
+<tr>
+<td><code>KVM_SET_REGS</code></td>
+<td><code>0x4090AE82</code></td>
+<td>Write all registers (x86)</td>
+</tr>
+<tr>
+<td><code>KVM_SET_SREGS</code></td>
+<td><code>0x4138AE84</code></td>
+<td>Write special registers (x86)</td>
+</tr>
+<tr>
+<td><code>KVM_SET_SIGNAL_MASK</code></td>
+<td><code>0x4004AE8B</code></td>
+<td>Block signals during KVM_RUN</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wrapper-functions">Wrapper Functions<a class="headerlink" href="#wrapper-functions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">arg</span><span class="w"> </span><span class="kt">uintptr</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">uintptr</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<span class="kd">func</span><span class="w"> </span><span class="nx">ioctlPtr</span><span class="p">(</span><span class="nx">fd</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">request</span><span class="w"> </span><span class="kt">uintptr</span><span class="p">,</span><span class="w"> </span><span class="nx">arg</span><span class="w"> </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">uintptr</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+</code></pre></div>
+<p>Both use <code>unix.Syscall(unix.SYS_IOCTL, ...)</code> directly.</p>
+<h2 id="vm-structure">VM Structure<a class="headerlink" href="#vm-structure" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vm.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">VM</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">name</span><span class="w">      </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">kvmFd</span><span class="w">     </span><span class="kt">int</span><span class="w">            </span><span class="c1">// /dev/kvm file descriptor</span>
+<span class="w">    </span><span class="nx">vmFd</span><span class="w">      </span><span class="kt">int</span><span class="w">            </span><span class="c1">// VM instance fd (from KVM_CREATE_VM)</span>
+<span class="w">    </span><span class="nx">vcpuFds</span><span class="w">   </span><span class="p">[]</span><span class="kt">int</span><span class="w">          </span><span class="c1">// Per-vCPU fds (from KVM_CREATE_VCPU)</span>
+<span class="w">    </span><span class="nx">vcpuRun</span><span class="w">   </span><span class="p">[][]</span><span class="kt">byte</span><span class="w">       </span><span class="c1">// Per-vCPU mmap&#39;d kvm_run regions</span>
+<span class="w">    </span><span class="nx">memory</span><span class="w">    </span><span class="p">[]</span><span class="kt">byte</span><span class="w">         </span><span class="c1">// Guest RAM (mmap&#39;d host buffer)</span>
+<span class="w">    </span><span class="nx">memSize</span><span class="w">   </span><span class="kt">uint64</span><span class="w">         </span><span class="c1">// Guest RAM size in bytes</span>
+
+<span class="w">    </span><span class="c1">// Devices</span>
+<span class="w">    </span><span class="nx">uart</span><span class="w">       </span><span class="o">*</span><span class="nx">uart</span><span class="w">                </span><span class="c1">// Serial console (PL011 or 16550)</span>
+<span class="w">    </span><span class="nx">consoleDev</span><span class="w"> </span><span class="o">*</span><span class="nx">VirtioConsoleDevice</span><span class="w"> </span><span class="c1">// Virtio console</span>
+<span class="w">    </span><span class="nx">netDevs</span><span class="w">    </span><span class="p">[]</span><span class="o">*</span><span class="nx">VirtioNetDevice</span><span class="w">   </span><span class="c1">// Virtio network devices</span>
+<span class="w">    </span><span class="nx">blkDevs</span><span class="w">    </span><span class="p">[]</span><span class="o">*</span><span class="nx">VirtioBlkDevice</span><span class="w">   </span><span class="c1">// Virtio block devices</span>
+<span class="w">    </span><span class="nx">virtioDevs</span><span class="w"> </span><span class="p">[]</span><span class="o">*</span><span class="nx">virtioMMIODev</span><span class="w">     </span><span class="c1">// All virtio devices (MMIO transport)</span>
+<span class="w">    </span><span class="nx">tap</span><span class="w">        </span><span class="o">*</span><span class="nx">tapDevice</span><span class="w">           </span><span class="c1">// TAP network interface</span>
+
+<span class="w">    </span><span class="c1">// Console I/O pipes</span>
+<span class="w">    </span><span class="nx">stdinReader</span><span class="w">  </span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+<span class="w">    </span><span class="nx">stdinWriter</span><span class="w">  </span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+<span class="w">    </span><span class="nx">stdoutReader</span><span class="w"> </span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+<span class="w">    </span><span class="nx">stdoutWriter</span><span class="w"> </span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span>
+
+<span class="w">    </span><span class="c1">// State</span>
+<span class="w">    </span><span class="nx">state</span><span class="w">     </span><span class="nx">VMState</span>
+<span class="w">    </span><span class="nx">stateMu</span><span class="w">   </span><span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+<span class="w">    </span><span class="nx">stopCh</span><span class="w">    </span><span class="kd">chan</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">stoppedCh</span><span class="w"> </span><span class="kd">chan</span><span class="w"> </span><span class="kd">struct</span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">wg</span><span class="w">        </span><span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="vm-states">VM States<a class="headerlink" href="#vm-states" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="nx">VMStateStopped</span><span class="w">  </span><span class="nx">VMState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">    </span><span class="nx">VMStateRunning</span><span class="w">  </span><span class="nx">VMState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="nx">VMStatePaused</span><span class="w">   </span><span class="nx">VMState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">2</span>
+<span class="w">    </span><span class="nx">VMStateError</span><span class="w">    </span><span class="nx">VMState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">3</span>
+<span class="w">    </span><span class="nx">VMStateStarting</span><span class="w"> </span><span class="nx">VMState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">4</span>
+<span class="w">    </span><span class="nx">VMStateStopping</span><span class="w"> </span><span class="nx">VMState</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">7</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="memory-model">Memory Model<a class="headerlink" href="#memory-model" title="Permanent link">&para;</a></h2>
+<h3 id="allocation">Allocation<a class="headerlink" href="#allocation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1">// vm.go - NewVM()</span>
+<span class="nx">memory</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Mmap</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">MemoryBytes</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">unix</span><span class="p">.</span><span class="nx">PROT_READ</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">PROT_WRITE</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">unix</span><span class="p">.</span><span class="nx">MAP_PRIVATE</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">MAP_ANONYMOUS</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">MAP_NORESERVE</span><span class="p">)</span>
+</code></pre></div>
+<p><code>MAP_NORESERVE</code> allows physical memory overcommit - the host kernel doesn't reserve swap space for the full allocation. Memory pages are allocated on demand (page fault).</p>
+<h3 id="memory-registration">Memory Registration<a class="headerlink" href="#memory-registration" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="nx">region</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">kvmUserspaceMemoryRegion</span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Slot</span><span class="p">:</span><span class="w">          </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">GuestPhysAddr</span><span class="p">:</span><span class="w"> </span><span class="nx">guestMemBase</span><span class="p">,</span><span class="w">  </span><span class="c1">// 0x40000000 (ARM64) or 0x0 (x86)</span>
+<span class="w">    </span><span class="nx">MemorySize</span><span class="p">:</span><span class="w">    </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">MemoryBytes</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">UserspaceAddr</span><span class="p">:</span><span class="w"> </span><span class="nb">uint64</span><span class="p">(</span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">memory</span><span class="p">[</span><span class="mi">0</span><span class="p">]))),</span>
+<span class="p">}</span>
+<span class="nx">ioctl</span><span class="p">(</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_SET_USER_MEMORY_REGION</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">region</span><span class="p">)))</span>
+</code></pre></div>
+<h3 id="guest-physical-address-layout">Guest Physical Address Layout<a class="headerlink" href="#guest-physical-address-layout" title="Permanent link">&para;</a></h3>
+<h4 id="arm64">ARM64<a class="headerlink" href="#arm64" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code>0x00000000 - 0x07FFFFFF    Unmapped (below GIC)
+0x08000000 - 0x0800FFFF    GIC Distributor
+0x08010000 - 0x0801FFFF    GIC CPU Interface (GICv2)
+0x080A0000 - 0x08FFFFFF    GIC Redistributor (GICv3)
+0x09000000 - 0x09000FFF    PL011 UART
+0x0A000000 - 0x0A001FFF    Virtio MMIO devices (0x200 each)
+0x40000000                  Guest RAM base (guestMemBase)
+0x40000000 + 0x00000000    Kernel image load address
+0x40000000 + 0x03000000    DTB (48MB offset)
+0x40000000 + 0x03200000    Initrd (50MB offset)
+</code></pre></div>
+<h4 id="x86-64">x86-64<a class="headerlink" href="#x86-64" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code>0x00000000                  Guest RAM base (guestMemBase = 0)
+0x00000500                  GDT
+0x00001000                  PML4 page table
+0x00002000                  PDPT page table
+0x00003000                  PD page table
+0x00010000                  Boot parameters (zero page)
+0x00020000                  Kernel command line
+0x00100000                  Kernel image load address (1MB)
+0x0A000000+                 Virtio MMIO devices (0x200 each)
+</code></pre></div>
+<h3 id="guest-memory-access-helpers">Guest Memory Access Helpers<a class="headerlink" href="#guest-memory-access-helpers" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">guestSlice</span><span class="p">(</span><span class="nx">gpa</span><span class="w"> </span><span class="kt">uint64</span><span class="p">,</span><span class="w"> </span><span class="nx">size</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">offset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">gpa</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">guestMemBase</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">vm</span><span class="p">.</span><span class="nx">memory</span><span class="p">[</span><span class="nx">offset</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="nx">offset</span><span class="o">+</span><span class="nx">size</span><span class="p">]</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">readGuestU16</span><span class="p">(</span><span class="nx">gpa</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w"> </span><span class="kt">uint16</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">readGuestU32</span><span class="p">(</span><span class="nx">gpa</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w"> </span><span class="kt">uint32</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">readGuestU64</span><span class="p">(</span><span class="nx">gpa</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w"> </span><span class="kt">uint64</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">writeGuestU16</span><span class="p">(</span><span class="nx">gpa</span><span class="w"> </span><span class="kt">uint64</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">uint16</span><span class="p">)</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">writeGuestU32</span><span class="p">(</span><span class="nx">gpa</span><span class="w"> </span><span class="kt">uint64</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">uint32</span><span class="p">)</span>
+</code></pre></div>
+<p>These translate Guest Physical Addresses (GPA) to Host Virtual Addresses (HVA) by offsetting into the mmap'd memory buffer.</p>
+<h2 id="vcpu-lifecycle">vCPU Lifecycle<a class="headerlink" href="#vcpu-lifecycle" title="Permanent link">&para;</a></h2>
+<h3 id="creation">Creation<a class="headerlink" href="#creation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">CPUCount</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">vcpuFd</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_CREATE_VCPU</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">i</span><span class="p">))</span>
+<span class="w">    </span><span class="nx">vcpuRun</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Mmap</span><span class="p">(</span><span class="nx">vcpuFd</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">vcpuMmapSize</span><span class="p">,</span><span class="w"> </span><span class="nx">PROT_READ</span><span class="o">|</span><span class="nx">PROT_WRITE</span><span class="p">,</span><span class="w"> </span><span class="nx">MAP_SHARED</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">vm</span><span class="p">.</span><span class="nx">vcpuFds</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">vcpuFd</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">vm</span><span class="p">.</span><span class="nx">vcpuRun</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">vcpuRun</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The mmap'd <code>kvm_run</code> region is shared between kernel and userspace. After <code>KVM_RUN</code> returns, the exit reason and associated data are read from this region.</p>
+<h3 id="run-loop">Run Loop<a class="headerlink" href="#run-loop" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vm.go</code> - <code>runVCPU()</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">runVCPU</span><span class="p">(</span><span class="nx">idx</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Block SIGURG to prevent Go scheduler from interrupting KVM_RUN</span>
+<span class="w">    </span><span class="c1">// during WFI (Wait For Interrupt) which would cause spurious wakeups</span>
+<span class="w">    </span><span class="nx">blockSIGURG</span><span class="p">(</span><span class="nx">vm</span><span class="p">.</span><span class="nx">vcpuFds</span><span class="p">[</span><span class="nx">idx</span><span class="p">])</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">select</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">vm</span><span class="p">.</span><span class="nx">stopCh</span><span class="p">:</span>
+<span class="w">            </span><span class="k">return</span>
+<span class="w">        </span><span class="k">default</span><span class="p">:</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vm</span><span class="p">.</span><span class="nx">vcpuFds</span><span class="p">[</span><span class="nx">idx</span><span class="p">],</span><span class="w"> </span><span class="nx">KVM_RUN</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">EINTR</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">continue</span><span class="w">  </span><span class="c1">// Interrupted by signal, retry</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="nx">run</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">vm</span><span class="p">.</span><span class="nx">vcpuRun</span><span class="p">[</span><span class="nx">idx</span><span class="p">]</span>
+<span class="w">        </span><span class="nx">exitReason</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">binary</span><span class="p">.</span><span class="nx">LittleEndian</span><span class="p">.</span><span class="nx">Uint32</span><span class="p">(</span><span class="nx">run</span><span class="p">[</span><span class="mi">8</span><span class="p">:</span><span class="mi">12</span><span class="p">])</span>
+
+<span class="w">        </span><span class="k">switch</span><span class="w"> </span><span class="nx">exitReason</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">kvmExitIO</span><span class="p">:</span><span class="w">       </span><span class="c1">// x86 port I/O</span>
+<span class="w">            </span><span class="nx">vm</span><span class="p">.</span><span class="nx">handleExitIO</span><span class="p">(</span><span class="nx">run</span><span class="p">)</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">kvmExitMMIO</span><span class="p">:</span><span class="w">     </span><span class="c1">// Memory-mapped I/O</span>
+<span class="w">            </span><span class="nx">vm</span><span class="p">.</span><span class="nx">handleExitMMIO</span><span class="p">(</span><span class="nx">run</span><span class="p">)</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">kvmExitHLT</span><span class="p">:</span><span class="w">      </span><span class="c1">// Guest halted</span>
+<span class="w">            </span><span class="c1">// Check stop channel</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">kvmExitShutdown</span><span class="p">:</span><span class="w"> </span><span class="c1">// Guest shutdown</span>
+<span class="w">            </span><span class="nx">vm</span><span class="p">.</span><span class="nx">Stop</span><span class="p">()</span>
+<span class="w">            </span><span class="k">return</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">kvmExitSystemEvent</span><span class="p">:</span><span class="w"> </span><span class="c1">// PSCI shutdown/reboot</span>
+<span class="w">            </span><span class="nx">vm</span><span class="p">.</span><span class="nx">Stop</span><span class="p">()</span>
+<span class="w">            </span><span class="k">return</span>
+<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">kvmExitIntr</span><span class="p">:</span><span class="w">     </span><span class="c1">// Interrupted by signal</span>
+<span class="w">            </span><span class="k">continue</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="mmio-exit-handling">MMIO Exit Handling<a class="headerlink" href="#mmio-exit-handling" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">vm</span><span class="w"> </span><span class="o">*</span><span class="nx">VM</span><span class="p">)</span><span class="w"> </span><span class="nx">handleExitMMIO</span><span class="p">(</span><span class="nx">run</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">phys</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">binary</span><span class="p">.</span><span class="nx">LittleEndian</span><span class="p">.</span><span class="nx">Uint64</span><span class="p">(</span><span class="nx">run</span><span class="p">[</span><span class="nx">mmioPhysOffset</span><span class="p">:])</span>
+<span class="w">    </span><span class="nx">data</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">run</span><span class="p">[</span><span class="nx">mmioDataOffset</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="nx">mmioDataOffset</span><span class="o">+</span><span class="mi">8</span><span class="p">]</span>
+<span class="w">    </span><span class="nx">size</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">binary</span><span class="p">.</span><span class="nx">LittleEndian</span><span class="p">.</span><span class="nx">Uint32</span><span class="p">(</span><span class="nx">run</span><span class="p">[</span><span class="nx">mmioLenOffset</span><span class="p">:])</span>
+<span class="w">    </span><span class="nx">isWrite</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">run</span><span class="p">[</span><span class="nx">mmioIsWriteOffset</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span>
+
+<span class="w">    </span><span class="c1">// Route to UART or virtio device based on address</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">phys</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mh">0x09000000</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">phys</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="mh">0x09001000</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">vm</span><span class="p">.</span><span class="nx">uart</span><span class="p">.</span><span class="nx">handleMMIO</span><span class="p">(</span><span class="nx">phys</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">size</span><span class="p">,</span><span class="w"> </span><span class="nx">isWrite</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">dev</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">vm</span><span class="p">.</span><span class="nx">virtioDevs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="nx">phys</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">dev</span><span class="p">.</span><span class="nx">baseAddr</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">phys</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nx">dev</span><span class="p">.</span><span class="nx">baseAddr</span><span class="o">+</span><span class="mh">0x200</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nx">dev</span><span class="p">.</span><span class="nx">handleMMIO</span><span class="p">(</span><span class="nx">phys</span><span class="o">-</span><span class="nx">dev</span><span class="p">.</span><span class="nx">baseAddr</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">size</span><span class="p">,</span><span class="w"> </span><span class="nx">isWrite</span><span class="p">)</span>
+<span class="w">                </span><span class="k">break</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="interrupt-delivery">Interrupt Delivery<a class="headerlink" href="#interrupt-delivery" title="Permanent link">&para;</a></h2>
+<h3 id="mechanism">Mechanism<a class="headerlink" href="#mechanism" title="Permanent link">&para;</a></h3>
+<p>Sandal uses <strong>eventfd-based interrupt injection</strong> (KVM_IRQFD) for virtio devices, which is more efficient than calling KVM_IRQ_LINE per interrupt:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">setupIRQFD</span><span class="p">(</span><span class="nx">vmFd</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">dev</span><span class="w"> </span><span class="o">*</span><span class="nx">virtioMMIODev</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Create eventfd for IRQ injection</span>
+<span class="w">    </span><span class="nx">efd</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Eventfd</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">EFD_CLOEXEC</span><span class="p">)</span>
+<span class="w">    </span><span class="c1">// Create resample eventfd for level-triggered IRQ acknowledgment</span>
+<span class="w">    </span><span class="nx">resampleEfd</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Eventfd</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">EFD_CLOEXEC</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">irqfd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">kvmIRQFD</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">Fd</span><span class="p">:</span><span class="w">    </span><span class="nb">uint32</span><span class="p">(</span><span class="nx">efd</span><span class="p">),</span>
+<span class="w">        </span><span class="nx">GSI</span><span class="p">:</span><span class="w">   </span><span class="nx">dev</span><span class="p">.</span><span class="nx">irqNum</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">Flags</span><span class="p">:</span><span class="w"> </span><span class="nx">kvmIRQFDFlagResample</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">ResampleFd</span><span class="p">:</span><span class="w"> </span><span class="nb">uint32</span><span class="p">(</span><span class="nx">resampleEfd</span><span class="p">),</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_IRQFD</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">irqfd</span><span class="p">)))</span>
+
+<span class="w">    </span><span class="nx">dev</span><span class="p">.</span><span class="nx">irqEfd</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">efd</span>
+<span class="w">    </span><span class="nx">dev</span><span class="p">.</span><span class="nx">resampleEfd</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">resampleEfd</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">dev</span><span class="w"> </span><span class="o">*</span><span class="nx">virtioMMIODev</span><span class="p">)</span><span class="w"> </span><span class="nx">injectIRQ</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">buf</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="kt">byte</span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">binary</span><span class="p">.</span><span class="nx">LittleEndian</span><span class="p">.</span><span class="nx">PutUint64</span><span class="p">(</span><span class="nx">buf</span><span class="p">[:],</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Write</span><span class="p">(</span><span class="nx">dev</span><span class="p">.</span><span class="nx">irqEfd</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="p">[:])</span><span class="w">  </span><span class="c1">// Triggers interrupt in guest</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="gsi-routing">GSI Routing<a class="headerlink" href="#gsi-routing" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vm.go</code></p>
+<p>GSI (Global System Interrupt) routing maps device interrupt numbers to the in-kernel interrupt controller:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">setupGSIRouting</span><span class="p">(</span><span class="nx">vmFd</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">devs</span><span class="w"> </span><span class="p">[]</span><span class="o">*</span><span class="nx">virtioMMIODev</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">entries</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="nx">kvmIRQRoutingEntry</span><span class="p">,</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">devs</span><span class="p">))</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">dev</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">devs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">entries</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">kvmIRQRoutingEntry</span><span class="p">{</span>
+<span class="w">            </span><span class="nx">GSI</span><span class="p">:</span><span class="w">  </span><span class="nx">dev</span><span class="p">.</span><span class="nx">irqNum</span><span class="p">,</span>
+<span class="w">            </span><span class="nx">Type</span><span class="p">:</span><span class="w"> </span><span class="nx">KVM_IRQ_ROUTING_IRQCHIP</span><span class="p">,</span>
+<span class="w">            </span><span class="c1">// ARM64: irqchip=0 (GIC), pin=irqNum</span>
+<span class="w">            </span><span class="c1">// x86: irqchip=ioapic, pin=irqNum</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">routing</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">kvmIRQRouting</span><span class="p">{</span><span class="nx">Nr</span><span class="p">:</span><span class="w"> </span><span class="nb">uint32</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">entries</span><span class="p">)),</span><span class="w"> </span><span class="nx">Entries</span><span class="p">:</span><span class="w"> </span><span class="nx">entries</span><span class="p">}</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_SET_GSI_ROUTING</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">routing</span><span class="p">)))</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="uart-interrupt-arm64">UART Interrupt (ARM64)<a class="headerlink" href="#uart-interrupt-arm64" title="Permanent link">&para;</a></h3>
+<p>The UART uses direct <code>KVM_IRQ_LINE</code> instead of eventfd, since it's a simple level-triggered interrupt:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">u</span><span class="w"> </span><span class="o">*</span><span class="nx">uart</span><span class="p">)</span><span class="w"> </span><span class="nx">setIRQ</span><span class="p">(</span><span class="nx">level</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">irq</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">kvmIRQLevel</span><span class="p">{</span><span class="nx">IRQ</span><span class="p">:</span><span class="w"> </span><span class="nx">u</span><span class="p">.</span><span class="nx">irqNum</span><span class="p">,</span><span class="w"> </span><span class="nx">Level</span><span class="p">:</span><span class="w"> </span><span class="nb">uint32</span><span class="p">(</span><span class="nx">level</span><span class="p">)}</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">u</span><span class="p">.</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_IRQ_LINE</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">irq</span><span class="p">)))</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="arm64-gic-generic-interrupt-controller">ARM64 GIC (Generic Interrupt Controller)<a class="headerlink" href="#arm64-gic-generic-interrupt-controller" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vcpu_arm64.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">createGIC</span><span class="p">(</span><span class="nx">vmFd</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Try GICv3 first</span>
+<span class="w">    </span><span class="nx">dev</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">kvmCreateDevice</span><span class="p">{</span><span class="nx">Type</span><span class="p">:</span><span class="w"> </span><span class="nx">kvmDevTypeARMVGICv3</span><span class="p">}</span>
+<span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_CREATE_DEVICE</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// Fallback to GICv2</span>
+<span class="w">        </span><span class="nx">dev</span><span class="p">.</span><span class="nx">Type</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">kvmDevTypeARMVGICv2</span>
+<span class="w">        </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vmFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_CREATE_DEVICE</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// Set distributor base address</span>
+<span class="w">    </span><span class="nx">setDeviceAttr</span><span class="p">(</span><span class="nx">devFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_DEV_ARM_VGIC_GRP_ADDR</span><span class="p">,</span><span class="w"> </span><span class="nx">addrTypeDist</span><span class="p">,</span><span class="w"> </span><span class="nx">gicDistBase</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// GICv3: set redistributor address</span>
+<span class="w">    </span><span class="c1">// GICv2: set CPU interface address</span>
+<span class="w">    </span><span class="nx">setDeviceAttr</span><span class="p">(</span><span class="nx">devFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_DEV_ARM_VGIC_GRP_ADDR</span><span class="p">,</span><span class="w"> </span><span class="nx">addrType</span><span class="p">,</span><span class="w"> </span><span class="nx">baseAddr</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// Initialize GIC</span>
+<span class="w">    </span><span class="nx">setDeviceAttr</span><span class="p">(</span><span class="nx">devFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_DEV_ARM_VGIC_GRP_CTRL</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>GIC memory map</strong>:
+<div class="highlight"><pre><span></span><code>0x08000000    GIC Distributor (64KB)
+0x08010000    GIC CPU Interface (64KB) - GICv2 only
+0x080A0000    GIC Redistributor (per-CPU, 128KB each) - GICv3 only
+</code></pre></div></p>
+<h2 id="device-tree-blob-dtb">Device Tree Blob (DTB)<a class="headerlink" href="#device-tree-blob-dtb" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/dtb.go</code> (ARM64 only)</p>
+<p>The DTB is built programmatically in FDT (Flattened Device Tree) format:</p>
+<div class="highlight"><pre><span></span><code>/ {
+    compatible = &quot;linux,dummy-virt&quot;;
+    #address-cells = &lt;2&gt;;
+    #size-cells = &lt;2&gt;;
+    interrupt-parent = &lt;&amp;gic&gt;;
+
+    chosen {
+        bootargs = &quot;&lt;kernel cmdline&gt;&quot;;
+        stdout-path = &quot;/pl011@9000000&quot;;
+        linux,initrd-start = &lt;initrd_addr&gt;;
+        linux,initrd-end = &lt;initrd_addr + initrd_size&gt;;
+    };
+
+    memory@40000000 {
+        device_type = &quot;memory&quot;;
+        reg = &lt;0x0 0x40000000 0x0 &lt;mem_size&gt;&gt;;
+    };
+
+    cpus {
+        cpu@0 { device_type = &quot;cpu&quot;; compatible = &quot;arm,arm-v8&quot;; enable-method = &quot;psci&quot;; };
+        cpu@1 { ... };
+    };
+
+    psci {
+        compatible = &quot;arm,psci-0.2&quot;;
+        method = &quot;hvc&quot;;
+    };
+
+    intc@8000000 {  // GIC
+        compatible = &quot;arm,gic-v3&quot; or &quot;arm,cortex-a15-gic&quot;;
+        interrupt-controller;
+        reg = &lt;dist_base dist_size redist_base redist_size&gt;;
+    };
+
+    pl011@9000000 {  // UART
+        compatible = &quot;arm,pl011&quot;, &quot;arm,primecell&quot;;
+        reg = &lt;0x0 0x09000000 0x0 0x1000&gt;;
+        interrupts = &lt;GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH&gt;;
+    };
+
+    virtio_mmio@a000000 {  // Virtio device 0
+        compatible = &quot;virtio,mmio&quot;;
+        reg = &lt;0x0 0x0a000000 0x0 0x200&gt;;
+        interrupts = &lt;GIC_SPI 16 IRQ_TYPE_EDGE_RISING&gt;;
+    };
+    // ... more virtio devices at 0x200 intervals
+};
+</code></pre></div>
+<h2 id="uart-emulation">UART Emulation<a class="headerlink" href="#uart-emulation" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/uart.go</code></p>
+<h3 id="arm64-pl011-uart-at-0x09000000">ARM64: PL011 UART at 0x09000000<a class="headerlink" href="#arm64-pl011-uart-at-0x09000000" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Register</th>
+<th>Read</th>
+<th>Write</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x000</td>
+<td>DR</td>
+<td>Read received char</td>
+<td>Write char to transmit</td>
+</tr>
+<tr>
+<td>0x018</td>
+<td>FR</td>
+<td>Flags (TXFE, RXFE)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>0x038</td>
+<td>IMSC</td>
+<td>Interrupt mask</td>
+<td>Set interrupt mask</td>
+</tr>
+<tr>
+<td>0x03C</td>
+<td>RIS</td>
+<td>Raw interrupt status</td>
+<td>-</td>
+</tr>
+<tr>
+<td>0x040</td>
+<td>MIS</td>
+<td>Masked interrupt status</td>
+<td>-</td>
+</tr>
+<tr>
+<td>0x044</td>
+<td>ICR</td>
+<td>-</td>
+<td>Clear interrupt</td>
+</tr>
+<tr>
+<td>0xFE0-0xFFC</td>
+<td>ID regs</td>
+<td>PL011 identification</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h3 id="x86-64-16550-uart-at-io-port-0x3f8">x86-64: 16550 UART at I/O port 0x3F8<a class="headerlink" href="#x86-64-16550-uart-at-io-port-0x3f8" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Register</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x3F8</td>
+<td>RBR/THR</td>
+<td>Receive/Transmit data</td>
+</tr>
+<tr>
+<td>0x3F9</td>
+<td>IER</td>
+<td>Interrupt enable</td>
+</tr>
+<tr>
+<td>0x3FD</td>
+<td>LSR</td>
+<td>Line status (TX ready, RX ready)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interrupt-logic">Interrupt Logic<a class="headerlink" href="#interrupt-logic" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Input arrives (host stdin -&gt; pipe -&gt; UART buffer)
+  -&gt; Set RX interrupt pending
+  -&gt; If RX interrupt enabled (IMSC bit 4):
+       -&gt; Assert IRQ line (KVM_IRQ_LINE level=1)
+  -&gt; Guest reads DR register
+  -&gt; Clear RX pending
+  -&gt; If no more pending interrupts:
+       -&gt; Deassert IRQ line (KVM_IRQ_LINE level=0)
+</code></pre></div>
+<h2 id="signal-handling">Signal Handling<a class="headerlink" href="#signal-handling" title="Permanent link">&para;</a></h2>
+<p>The vCPU run loop blocks <code>SIGURG</code> using <code>KVM_SET_SIGNAL_MASK</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">blockSIGURG</span><span class="p">(</span><span class="nx">vcpuFd</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// SIGURG (signal 23) is used by Go runtime for goroutine preemption.</span>
+<span class="w">    </span><span class="c1">// If not blocked, it causes spurious KVM_EXIT_INTR during guest WFI,</span>
+<span class="w">    </span><span class="c1">// wasting CPU cycles.</span>
+<span class="w">    </span><span class="nx">mask</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">kvmSignalMask</span><span class="p">{</span><span class="nx">Len</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">}</span>
+<span class="w">    </span><span class="nx">mask</span><span class="p">.</span><span class="nx">Sigset</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="mi">23</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w">  </span><span class="c1">// Block SIGURG</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">vcpuFd</span><span class="p">,</span><span class="w"> </span><span class="nx">KVM_SET_SIGNAL_MASK</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">mask</span><span class="p">)))</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1636 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/guest-init/">
+      
+      
+        <link rel="prev" href="../daemon-controller/">
+      
+      
+        <link rel="next" href="../image-management/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Guest VM Initialization - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Guest VM Initialization - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/guest-init.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/guest-init/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Guest VM Initialization - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/guest-init.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#guest-vm-initialization" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Guest VM Initialization
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/commands/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boot-stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boot Stages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Boot Stages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stage-1-environment-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1: Environment Import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-2-filesystem-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2: Filesystem Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-3-kernel-module-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 3: Kernel Module Loading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-4-root-filesystem-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 4: Root Filesystem Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-5-virtiofs-mounting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 5: VirtioFS Mounting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-6-network-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 6: Network Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-7-state-isolation-and-cli-re-dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 7: State Isolation and CLI Re-dispatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path Resolution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables-in-guest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variables in Guest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shutdown
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="guest-vm-initialization">Guest VM Initialization<a class="headerlink" href="#guest-vm-initialization" title="Permanent link">&para;</a></h1>
+<p>When sandal runs inside a KVM VM as PID 1, it performs system initialization before re-dispatching the original CLI command. This document describes the guest-side boot process.</p>
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/guest/init.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">IsVMInit</span><span class="p">()</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">Getpid</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">Getenv</span><span class="p">(</span><span class="s">&quot;SANDAL_VM_ARGS&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Three conditions identify VM init mode:
+1. Running as PID 1 (init process)
+2. <code>SANDAL_VM_ARGS</code> environment variable is set (base64-encoded CLI args)
+3. <code>/proc/cmdline</code> contains SANDAL_* parameters</p>
+<h2 id="boot-stages">Boot Stages<a class="headerlink" href="#boot-stages" title="Permanent link">&para;</a></h2>
+<h3 id="stage-1-environment-import">Stage 1: Environment Import<a class="headerlink" href="#stage-1-environment-import" title="Permanent link">&para;</a></h3>
+<p>The Go binary runs directly as <code>/init</code> on both KVM and VZ. The kernel
+opens <code>/dev/console</code> (provided as a cpio char device in the initramfs)
+for fds 0/&frac12; when init is exec'd, so the Go runtime starts with valid
+stdio. <code>importKernelCmdlineEnv()</code> then mounts <code>devtmpfs</code> on <code>/dev</code> and
+<code>procfs</code> on <code>/proc</code> before reading <code>/proc/cmdline</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">importKernelCmdlineEnv</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Mount /dev and /proc if not already present (KVM initramfs path).</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">Stat</span><span class="p">(</span><span class="s">&quot;/dev/null&quot;</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">os</span><span class="p">.</span><span class="nx">MkdirAll</span><span class="p">(</span><span class="s">&quot;/dev&quot;</span><span class="p">,</span><span class="w"> </span><span class="mo">0755</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">mount</span><span class="p">(</span><span class="s">&quot;devtmpfs&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/dev&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;devtmpfs&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">Stat</span><span class="p">(</span><span class="s">&quot;/proc/cmdline&quot;</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">os</span><span class="p">.</span><span class="nx">MkdirAll</span><span class="p">(</span><span class="s">&quot;/proc&quot;</span><span class="p">,</span><span class="w"> </span><span class="mo">0755</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">mount</span><span class="p">(</span><span class="s">&quot;proc&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/proc&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;proc&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">cmdline</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="s">&quot;/proc/cmdline&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="c1">// Parse space-separated key=value pairs</span>
+<span class="w">    </span><span class="c1">// For SANDAL_* keys: base64-decode the value</span>
+<span class="w">    </span><span class="c1">// Set as environment variables</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Kernel command line parameters</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Format</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SANDAL_VM_ARGS</code></td>
+<td>base64(JSON array)</td>
+<td>Original CLI arguments</td>
+</tr>
+<tr>
+<td><code>SANDAL_VM_NET</code></td>
+<td>base64(JSON object)</td>
+<td>Network configuration</td>
+</tr>
+<tr>
+<td><code>SANDAL_VM_MOUNTS</code></td>
+<td>comma-separated</td>
+<td>VirtioFS mount specs</td>
+</tr>
+<tr>
+<td><code>SANDAL_VM</code></td>
+<td><code>"kvm"</code> or <code>"mac"</code></td>
+<td>Hypervisor type</td>
+</tr>
+<tr>
+<td><code>SANDAL_LIB_DIR</code></td>
+<td>path</td>
+<td>Library directory (for image cache)</td>
+</tr>
+<tr>
+<td><code>console</code></td>
+<td><code>ttyAMA0</code>/<code>ttyS0</code></td>
+<td>Kernel console device</td>
+</tr>
+<tr>
+<td><code>loglevel</code></td>
+<td><code>0</code>-<code>7</code></td>
+<td>Kernel log verbosity</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stage-2-filesystem-setup">Stage 2: Filesystem Setup<a class="headerlink" href="#stage-2-filesystem-setup" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>mount(&quot;proc&quot;,     &quot;/proc&quot;,    &quot;proc&quot;,     0, &quot;&quot;)
+mount(&quot;devtmpfs&quot;, &quot;/dev&quot;,     &quot;devtmpfs&quot;, 0, &quot;&quot;)
+mount(&quot;sysfs&quot;,    &quot;/sys&quot;,     &quot;sysfs&quot;,    0, &quot;&quot;)
+mount(&quot;devpts&quot;,   &quot;/dev/pts&quot;, &quot;devpts&quot;,   0, &quot;&quot;)
+</code></pre></div>
+<p>Redirect stdio to console:
+<div class="highlight"><pre><span></span><code><span class="nx">console</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">OpenFile</span><span class="p">(</span><span class="s">&quot;/dev/console&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="nx">unix</span><span class="p">.</span><span class="nx">Dup2</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">console</span><span class="p">.</span><span class="nx">Fd</span><span class="p">()),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w">  </span><span class="c1">// stdin</span>
+<span class="nx">unix</span><span class="p">.</span><span class="nx">Dup2</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">console</span><span class="p">.</span><span class="nx">Fd</span><span class="p">()),</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w">  </span><span class="c1">// stdout</span>
+<span class="nx">unix</span><span class="p">.</span><span class="nx">Dup2</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nx">console</span><span class="p">.</span><span class="nx">Fd</span><span class="p">()),</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w">  </span><span class="c1">// stderr</span>
+</code></pre></div></p>
+<h3 id="stage-3-kernel-module-loading">Stage 3: Kernel Module Loading<a class="headerlink" href="#stage-3-kernel-module-loading" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/lib/modprobe/</code></p>
+<p>Modules are loaded in dependency order. <code>virtio_mmio</code> <strong>must</strong> be loaded first as it's the transport for all virtio devices.</p>
+<div class="highlight"><pre><span></span><code>Group 1 - Virtio transport (MUST be first):
+  virtio_mmio
+
+Group 2 - Storage:
+  fuse           # FUSE protocol support
+  virtiofs       # VirtioFS filesystem type
+  overlay        # OverlayFS for container layers
+  loop           # Loop device for disk images
+  squashfs       # SquashFS filesystem (compressed images)
+  ext4           # EXT4 filesystem
+
+Group 3 - Networking:
+  veth           # Virtual ethernet pairs
+  bridge         # Linux bridge
+  tun            # TUN/TAP devices
+  af_packet      # Raw packet sockets
+
+Group 4 - Netfilter (for container NAT):
+  nf_conntrack
+  nf_nat
+  nf_tables
+  iptable_nat
+  iptable_filter
+  ip_tables
+  ip_vs
+  ip_vs_rr
+
+Group 5 - Tunneling:
+  vxlan
+  ip_gre
+  wireguard
+  ip6_tunnel
+</code></pre></div>
+<p>Module loading uses:
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">LoadModule</span><span class="p">(</span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">f</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">&quot;/lib/modules/&lt;version&gt;/&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;.ko&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">io</span><span class="p">.</span><span class="nx">ReadAll</span><span class="p">(</span><span class="nx">f</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">unix</span><span class="p">.</span><span class="nx">SyscallNoError</span><span class="p">(</span><span class="nx">unix</span><span class="p">.</span><span class="nx">SYS_INIT_MODULE</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">data</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+<span class="w">        </span><span class="nb">uintptr</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">data</span><span class="p">)),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></p>
+<h3 id="stage-4-root-filesystem-setup">Stage 4: Root Filesystem Setup<a class="headerlink" href="#stage-4-root-filesystem-setup" title="Permanent link">&para;</a></h3>
+<p>The initial root is an initramfs (read-only, in-memory). Since pivot_root doesn't work on initramfs, sandal creates a tmpfs root:</p>
+<div class="highlight"><pre><span></span><code>mount(&quot;tmpfs&quot;, &quot;/newroot&quot;, &quot;tmpfs&quot;, 0, &quot;&quot;)
+
+Copy files to new root:
+  /newroot/init         &lt;- /init (sandal binary)
+  /newroot/proc/
+  /newroot/sys/
+  /newroot/dev/
+  /newroot/mnt/
+  /newroot/tmp/
+  /newroot/var/lib/sandal/
+  /newroot/var/run/sandal/
+
+chroot(&quot;/newroot&quot;)
+chdir(&quot;/&quot;)
+</code></pre></div>
+<h3 id="stage-5-virtiofs-mounting">Stage 5: VirtioFS Mounting<a class="headerlink" href="#stage-5-virtiofs-mounting" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Decode SANDAL_VM_MOUNTS:
+  &quot;fs-0=/host/data,fs-1=/home/user/.sandal-vm/images,fs-2=/home/user/.sandal-vm/kernel&quot;
+
+For each mount spec:
+  Parse: tag=hostpath  or  tag=hostpath=guestmountpoint
+
+  Default guestmountpoint = /mnt/&lt;hostpath&gt;
+
+  mkdir -p &lt;guestmountpoint&gt;
+  mount(tag, guestmountpoint, &quot;virtiofs&quot;, 0, &quot;&quot;)
+</code></pre></div>
+<p>After VirtioFS mounts, the guest can access:
+- Host directories shared via <code>-v</code> flags
+- OCI image cache (for container rootfs)
+- Sandal library directory</p>
+<h3 id="stage-6-network-configuration">Stage 6: Network Configuration<a class="headerlink" href="#stage-6-network-configuration" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Decode SANDAL_VM_NET (JSON):
+{
+  &quot;addr&quot;: &quot;172.16.0.5/24&quot;,
+  &quot;gateway&quot;: &quot;172.16.0.1&quot;,
+  &quot;mac&quot;: &quot;52:54:00:12:34:01&quot;,
+  &quot;mtu&quot;: 1500
+}
+
+Configure:
+  ip link set eth0 address &lt;mac&gt;
+  ip addr add &lt;addr&gt; dev eth0
+  ip link set eth0 up
+  ip link set lo up
+  ip route add default via &lt;gateway&gt;
+</code></pre></div>
+<h3 id="stage-7-state-isolation-and-cli-re-dispatch">Stage 7: State Isolation and CLI Re-dispatch<a class="headerlink" href="#stage-7-state-isolation-and-cli-re-dispatch" title="Permanent link">&para;</a></h3>
+<p>After VMInit() returns, <code>main_linux.go</code> redirects the state directory to local tmpfs and calls <code>cmd.Main()</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">platformMain</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">guest</span><span class="p">.</span><span class="nx">IsVMInit</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">guest</span><span class="p">.</span><span class="nx">VMInit</span><span class="p">()</span><span class="w">                                            </span><span class="c1">// Stages 1-6 above</span>
+<span class="w">        </span><span class="nx">env</span><span class="p">.</span><span class="nx">SetDefault</span><span class="p">(</span><span class="s">&quot;SANDAL_STATE_DIR&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/tmp/sandal-state&quot;</span><span class="p">)</span><span class="w">  </span><span class="c1">// Redirect state to tmpfs</span>
+<span class="w">        </span><span class="nx">env</span><span class="p">.</span><span class="nx">BaseStateDir</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;/tmp/sandal-state&quot;</span>
+<span class="w">        </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Main</span><span class="p">()</span><span class="w">                                                </span><span class="c1">// Re-dispatch original command</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The state directory redirect is critical because <code>/var/lib/sandal/state/</code> is shared into the VM via VirtioFS as part of the sandal library directory. Without redirection, <code>RunContainer()</code> and the container runtime would write state JSON files through VirtioFS, creating ghost container entries visible from the host. By redirecting to <code>/tmp/sandal-state</code> (local tmpfs), the container runtime can still write config files that child processes need to read, without leaking state to the host. <code>env.SetDefault()</code> ensures the redirected path propagates to child processes via environment variables. See <a href="../architecture/#virtiofs-state-isolation">architecture.md</a> for the full explanation.</p>
+<p><code>cmd.Main()</code> reads <code>os.Args</code> which were reconstructed from <code>SANDAL_VM_ARGS</code>:
+<div class="highlight"><pre><span></span><code>Original host command:  sandal run --vm --name myvm -d -v /data alpine:latest /bin/sh
+VM_ARGS decoded:        [&quot;run&quot;, &quot;-v&quot;, &quot;/mnt/data&quot;, &quot;alpine:latest&quot;, &quot;/bin/sh&quot;]
+</code></pre></div></p>
+<p>Note that host-only flags (<code>--vm</code>, <code>--name</code>, <code>-d</code>, <code>-startup</code>, <code>--cpu</code>, <code>--memory</code>) are stripped before encoding into <code>SANDAL_VM_ARGS</code>. Paths are translated from host paths to guest VirtioFS mount paths by <code>guest.ResolvePath()</code>.</p>
+<h2 id="path-resolution">Path Resolution<a class="headerlink" href="#path-resolution" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/guest/resolve.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">ResolvePath</span><span class="p">(</span><span class="nx">hostPath</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">mounts</span><span class="w"> </span><span class="p">[]</span><span class="nx">MountSpec</span><span class="p">)</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">m</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">mounts</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasPrefix</span><span class="p">(</span><span class="nx">hostPath</span><span class="p">,</span><span class="w"> </span><span class="nx">m</span><span class="p">.</span><span class="nx">HostPath</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nx">relative</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">TrimPrefix</span><span class="p">(</span><span class="nx">hostPath</span><span class="p">,</span><span class="w"> </span><span class="nx">m</span><span class="p">.</span><span class="nx">HostPath</span><span class="p">)</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">GuestPath</span><span class="p">,</span><span class="w"> </span><span class="nx">relative</span><span class="p">)</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">hostPath</span><span class="w">  </span><span class="c1">// fallback: return unchanged</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Example:
+<div class="highlight"><pre><span></span><code>Host path:       /home/user/.sandal-vm/images/alpine.sqsh
+Mount spec:      fs-1=/home/user/.sandal-vm/images=/mnt/images
+Resolved path:   /mnt/images/alpine.sqsh
+</code></pre></div></p>
+<h2 id="environment-variables-in-guest">Environment Variables in Guest<a class="headerlink" href="#environment-variables-in-guest" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Set By</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SANDAL_VM</code></td>
+<td>kernel cmdline</td>
+<td><code>"kvm"</code></td>
+</tr>
+<tr>
+<td><code>SANDAL_VM_ARGS</code></td>
+<td>kernel cmdline</td>
+<td>base64 JSON of original args</td>
+</tr>
+<tr>
+<td><code>SANDAL_VM_NET</code></td>
+<td>kernel cmdline</td>
+<td>base64 JSON of network config</td>
+</tr>
+<tr>
+<td><code>SANDAL_VM_MOUNTS</code></td>
+<td>kernel cmdline</td>
+<td>Mount specifications</td>
+</tr>
+<tr>
+<td><code>SANDAL_LIB_DIR</code></td>
+<td>derived</td>
+<td>VirtioFS-mounted library path</td>
+</tr>
+<tr>
+<td><code>SANDAL_RUN_DIR</code></td>
+<td>defaults</td>
+<td><code>/var/run/sandal/</code></td>
+</tr>
+<tr>
+<td><code>SANDAL_ROOTFSDIR</code></td>
+<td>defaults</td>
+<td>Derived from lib dir</td>
+</tr>
+</tbody>
+</table>
+<h2 id="shutdown">Shutdown<a class="headerlink" href="#shutdown" title="Permanent link">&para;</a></h2>
+<p>When the container exits inside the VM:
+1. Container process exits
+2. sandal CLI exits
+3. PID 1 (sandal init) exits
+4. Kernel performs orderly shutdown
+5. Guest sends PSCI SYSTEM_OFF (ARM64) or shutdown (x86)
+6. KVM exit reason: <code>kvmExitSystemEvent</code> or <code>kvmExitShutdown</code>
+7. Host <code>runVCPU()</code> loop exits
+8. <code>vm.Stop()</code> is called
+9. <code>vm.WaitUntilStopped()</code> returns
+10. Terminal restored, host process exits</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

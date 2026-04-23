@@ -1,0 +1,1922 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/virtiofs-fuse/">
+      
+      
+        <link rel="prev" href="../virtio-devices/">
+      
+      
+        <link rel="next" href="../../guide/commands/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>VirtioFS and FUSE Server - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="VirtioFS and FUSE Server - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/virtiofs-fuse.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/virtiofs-fuse/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="VirtioFS and FUSE Server - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/virtiofs-fuse.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#virtiofs-and-fuse-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              VirtioFS and FUSE Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/commands/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Device Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Device Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#virtio-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Virtio Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fuse-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE Protocol
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FUSE Protocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requestresponse-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Request/Response Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse-request-header-40-bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE Request Header (40 bytes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse-response-header-16-bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE Response Header (16 bytes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-fuse-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported FUSE Operations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#node-and-handle-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Node and Handle Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Node and Handle Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#node-id-allocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Node ID Allocation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-handle-allocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Handle Allocation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operation Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operation Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fuse_init-opcode-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_INIT (Opcode 26)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse_lookup-opcode-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_LOOKUP (Opcode 1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse_read-opcode-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_READ (Opcode 15)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse_write-opcode-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_WRITE (Opcode 16)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse_readdir-fuse_readdirplus-opcodes-2844" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_READDIR / FUSE_READDIRPLUS (Opcodes 28/44)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse_create-opcode-35" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_CREATE (Opcode 35)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuse_setattr-opcode-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FUSE_SETATTR (Opcode 4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#descriptor-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descriptor Processing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Descriptor Processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#split-descriptor-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Split Descriptor Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read-Only Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mount-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mount Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="virtiofs-and-fuse-server">VirtioFS and FUSE Server<a class="headerlink" href="#virtiofs-and-fuse-server" title="Permanent link">&para;</a></h1>
+<p>Sandal implements a built-in VirtioFS device with an embedded FUSE server. This eliminates the need for an external <code>virtiofsd</code> daemon - file operations are handled directly by the sandal process.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>Guest Kernel                          Host (sandal process)
++------------------+                  +---------------------------+
+| Application      |                  | VirtioFSDevice            |
+|   read(&quot;/data&quot;)  |                  |                           |
++--------+---------+                  |  +---------------------+  |
+         |                            |  | FUSE Request Handler|  |
++--------+---------+                  |  |                     |  |
+| VFS Layer        |                  |  | handleFuseRequest() |  |
++--------+---------+                  |  +----------+----------+  |
+         |                            |             |              |
++--------+---------+                  |  +----------+----------+  |
+| FUSE Kernel      |  &lt;--virtqueue--&gt; |  | Node/File Handle   |  |
+| Module           |                  |  | Management         |  |
+| (virtiofs type)  |                  |  +----------+----------+  |
++------------------+                  |             |              |
+                                      |  +----------+----------+  |
+                                      |  | Host Filesystem     |  |
+                                      |  | (os.Open, os.Read)  |  |
+                                      |  +---------------------+  |
+                                      +---------------------------+
+</code></pre></div>
+<h2 id="device-structure">Device Structure<a class="headerlink" href="#device-structure" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/virtiofs.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">VirtioFSDevice</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">tag</span><span class="w">      </span><span class="kt">string</span><span class="w">          </span><span class="c1">// Mount tag (e.g., &quot;fs-0&quot;)</span>
+<span class="w">    </span><span class="nx">hostPath</span><span class="w"> </span><span class="kt">string</span><span class="w">          </span><span class="c1">// Host directory to share</span>
+<span class="w">    </span><span class="nx">readOnly</span><span class="w"> </span><span class="kt">bool</span><span class="w">            </span><span class="c1">// Disable write operations</span>
+
+<span class="w">    </span><span class="c1">// Node management</span>
+<span class="w">    </span><span class="nx">mu</span><span class="w">       </span><span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+<span class="w">    </span><span class="nx">nodes</span><span class="w">    </span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">string</span><span class="w">   </span><span class="c1">// nodeID -&gt; host path</span>
+<span class="w">    </span><span class="nx">nextNode</span><span class="w"> </span><span class="kt">uint64</span><span class="w">              </span><span class="c1">// Next node ID to allocate</span>
+
+<span class="w">    </span><span class="c1">// File handle management</span>
+<span class="w">    </span><span class="nx">handles</span><span class="w">    </span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="w">  </span><span class="c1">// fh -&gt; open file</span>
+<span class="w">    </span><span class="nx">nextHandle</span><span class="w"> </span><span class="kt">uint64</span><span class="w">               </span><span class="c1">// Next file handle to allocate</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="virtio-config">Virtio Config<a class="headerlink" href="#virtio-config" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Device ID</strong>: 26 (VIRTIO_FS)</li>
+<li><strong>Queues</strong>: Queue 0 = hiprio (unused), Queue 1 = request queue</li>
+<li><strong>Config space</strong> (at MMIO offset 0x100+):</li>
+<li>Bytes 0-35: Tag string (36 bytes, null-padded)</li>
+<li>Bytes 36-39: num_request_queues (uint32) = 1</li>
+</ul>
+<h2 id="fuse-protocol">FUSE Protocol<a class="headerlink" href="#fuse-protocol" title="Permanent link">&para;</a></h2>
+<h3 id="requestresponse-flow">Request/Response Flow<a class="headerlink" href="#requestresponse-flow" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Guest writes to virtqueue:
+  Descriptor chain:
+    [0] Readable:  FUSE request header (40 bytes) + request body
+    [1] Writable:  FUSE response header (16 bytes) + response body
+
+Host processes:
+  1. Concatenate all readable descriptors -&gt; full FUSE request
+  2. Parse FUSE header (opcode, nodeid, unique)
+  3. Dispatch to handler based on opcode
+  4. Build response header + body
+  5. Write response across writable descriptors
+  6. Return total bytes written
+</code></pre></div>
+<h3 id="fuse-request-header-40-bytes">FUSE Request Header (40 bytes)<a class="headerlink" href="#fuse-request-header-40-bytes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">fuseInHeader</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Len</span><span class="w">     </span><span class="kt">uint32</span><span class="w">  </span><span class="c1">// Total request length (header + body)</span>
+<span class="w">    </span><span class="nx">Opcode</span><span class="w">  </span><span class="kt">uint32</span><span class="w">  </span><span class="c1">// Operation code (see table below)</span>
+<span class="w">    </span><span class="nx">Unique</span><span class="w">  </span><span class="kt">uint64</span><span class="w">  </span><span class="c1">// Request ID (echoed in response)</span>
+<span class="w">    </span><span class="nx">NodeID</span><span class="w">  </span><span class="kt">uint64</span><span class="w">  </span><span class="c1">// Target inode/node</span>
+<span class="w">    </span><span class="nx">UID</span><span class="w">     </span><span class="kt">uint32</span><span class="w">  </span><span class="c1">// Calling user ID</span>
+<span class="w">    </span><span class="nx">GID</span><span class="w">     </span><span class="kt">uint32</span><span class="w">  </span><span class="c1">// Calling group ID</span>
+<span class="w">    </span><span class="nx">PID</span><span class="w">     </span><span class="kt">uint32</span><span class="w">  </span><span class="c1">// Calling process ID</span>
+<span class="w">    </span><span class="nx">Padding</span><span class="w"> </span><span class="kt">uint32</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="fuse-response-header-16-bytes">FUSE Response Header (16 bytes)<a class="headerlink" href="#fuse-response-header-16-bytes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">fuseOutHeader</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Len</span><span class="w">    </span><span class="kt">uint32</span><span class="w">  </span><span class="c1">// Total response length (header + body)</span>
+<span class="w">    </span><span class="nx">Error</span><span class="w">  </span><span class="kt">int32</span><span class="w">   </span><span class="c1">// Negative errno (0 = success)</span>
+<span class="w">    </span><span class="nx">Unique</span><span class="w"> </span><span class="kt">uint64</span><span class="w">  </span><span class="c1">// Echoed from request</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="supported-fuse-operations">Supported FUSE Operations<a class="headerlink" href="#supported-fuse-operations" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Opcode</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>FUSE_LOOKUP</td>
+<td>Look up a directory entry by name</td>
+</tr>
+<tr>
+<td>3</td>
+<td>FUSE_GETATTR</td>
+<td>Get file attributes (stat)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>FUSE_SETATTR</td>
+<td>Set file attributes (chmod, truncate, chown)</td>
+</tr>
+<tr>
+<td>9</td>
+<td>FUSE_MKDIR</td>
+<td>Create directory</td>
+</tr>
+<tr>
+<td>10</td>
+<td>FUSE_UNLINK</td>
+<td>Delete file</td>
+</tr>
+<tr>
+<td>11</td>
+<td>FUSE_RMDIR</td>
+<td>Delete directory</td>
+</tr>
+<tr>
+<td>12</td>
+<td>FUSE_RENAME</td>
+<td>Rename file (v1)</td>
+</tr>
+<tr>
+<td>14</td>
+<td>FUSE_OPEN</td>
+<td>Open file</td>
+</tr>
+<tr>
+<td>15</td>
+<td>FUSE_READ</td>
+<td>Read file data</td>
+</tr>
+<tr>
+<td>16</td>
+<td>FUSE_WRITE</td>
+<td>Write file data</td>
+</tr>
+<tr>
+<td>17</td>
+<td>FUSE_STATFS</td>
+<td>Get filesystem statistics</td>
+</tr>
+<tr>
+<td>25</td>
+<td>FUSE_FLUSH</td>
+<td>Flush file buffers</td>
+</tr>
+<tr>
+<td>26</td>
+<td>FUSE_INIT</td>
+<td>Initialize FUSE connection</td>
+</tr>
+<tr>
+<td>27</td>
+<td>FUSE_OPENDIR</td>
+<td>Open directory</td>
+</tr>
+<tr>
+<td>28</td>
+<td>FUSE_READDIR</td>
+<td>Read directory entries</td>
+</tr>
+<tr>
+<td>35</td>
+<td>FUSE_CREATE</td>
+<td>Create and open file</td>
+</tr>
+<tr>
+<td>39</td>
+<td>FUSE_RELEASEDIR</td>
+<td>Close directory</td>
+</tr>
+<tr>
+<td>44</td>
+<td>FUSE_READDIRPLUS</td>
+<td>Read directory with attributes</td>
+</tr>
+<tr>
+<td>45</td>
+<td>FUSE_RENAME2</td>
+<td>Rename with flags</td>
+</tr>
+</tbody>
+</table>
+<h2 id="node-and-handle-management">Node and Handle Management<a class="headerlink" href="#node-and-handle-management" title="Permanent link">&para;</a></h2>
+<h3 id="node-id-allocation">Node ID Allocation<a class="headerlink" href="#node-id-allocation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Node 1 (fuseRootID):  Always maps to hostPath (the shared directory root)
+Node 2+:              Allocated on FUSE_LOOKUP, maps to hostPath + relative path
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">d</span><span class="w"> </span><span class="o">*</span><span class="nx">VirtioFSDevice</span><span class="p">)</span><span class="w"> </span><span class="nx">allocateNode</span><span class="p">(</span><span class="nx">path</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">uint64</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nx">Lock</span><span class="p">()</span>
+<span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nx">Unlock</span><span class="p">()</span>
+<span class="w">    </span><span class="c1">// Check if path already has a node</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">p</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">nodes</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">p</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nx">path</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">id</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">id</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextNode</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextNode</span><span class="o">++</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nodes</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">path</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">id</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="file-handle-allocation">File Handle Allocation<a class="headerlink" href="#file-handle-allocation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">d</span><span class="w"> </span><span class="o">*</span><span class="nx">VirtioFSDevice</span><span class="p">)</span><span class="w"> </span><span class="nx">allocateHandle</span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="p">)</span><span class="w"> </span><span class="kt">uint64</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nx">Lock</span><span class="p">()</span>
+<span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nx">Unlock</span><span class="p">()</span>
+<span class="w">    </span><span class="nx">fh</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextHandle</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextHandle</span><span class="o">++</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">handles</span><span class="p">[</span><span class="nx">fh</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">f</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">fh</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Handles are released on <code>FUSE_RELEASE</code> / <code>FUSE_RELEASEDIR</code>.</p>
+<h2 id="operation-details">Operation Details<a class="headerlink" href="#operation-details" title="Permanent link">&para;</a></h2>
+<h3 id="fuse_init-opcode-26">FUSE_INIT (Opcode 26)<a class="headerlink" href="#fuse_init-opcode-26" title="Permanent link">&para;</a></h3>
+<p>Handshake between guest kernel and FUSE server:</p>
+<div class="highlight"><pre><span></span><code>Request:  fuseInitIn{Major: 7, Minor: N, MaxReadahead, Flags}
+Response: fuseInitOut{
+    Major: 7, Minor: 38,
+    MaxReadahead: 131072,
+    MaxWrite: 131072,
+    MaxBackground: 16,
+    CongestionThreshold: 12,
+    TimeGran: 1,
+}
+</code></pre></div>
+<h3 id="fuse_lookup-opcode-1">FUSE_LOOKUP (Opcode 1)<a class="headerlink" href="#fuse_lookup-opcode-1" title="Permanent link">&para;</a></h3>
+<p>Resolves a filename within a directory node:</p>
+<div class="highlight"><pre><span></span><code>Request:  NodeID=parent, Body=filename (null-terminated string)
+
+Processing:
+  parentPath = nodes[NodeID]
+  fullPath = filepath.Join(parentPath, filename)
+  info = os.Lstat(fullPath)
+  childNode = allocateNode(fullPath)
+
+Response: fuseEntryOut{
+    NodeID: childNode,
+    Attr: {mode, size, uid, gid, nlink, atime, mtime, ctime, ...}
+}
+</code></pre></div>
+<h3 id="fuse_read-opcode-15">FUSE_READ (Opcode 15)<a class="headerlink" href="#fuse_read-opcode-15" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Request:  fuseReadIn{Fh: fileHandle, Offset: byteOffset, Size: maxBytes}
+
+Processing:
+  file = handles[Fh]
+  file.ReadAt(buf, Offset)
+
+Response: fuseOutHeader{Len: headerSize + bytesRead} + data
+</code></pre></div>
+<h3 id="fuse_write-opcode-16">FUSE_WRITE (Opcode 16)<a class="headerlink" href="#fuse_write-opcode-16" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Request:  fuseWriteIn{Fh, Offset, Size} + data bytes
+
+Processing:
+  if readOnly: return -EACCES
+  file = handles[Fh]
+  file.WriteAt(data, Offset)
+
+Response: fuseWriteOut{Size: bytesWritten}
+</code></pre></div>
+<p><strong>Split descriptor handling</strong>: FUSE_WRITE data may span multiple readable descriptors. The handler concatenates all readable descriptor data before extracting the write payload:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">// Readable descriptors are concatenated:</span>
+<span class="c1">// [desc0: FUSE header (40B) + fuseWriteIn (24B)] [desc1: write data]</span>
+<span class="c1">// The handler reads the full request, then extracts data starting at</span>
+<span class="c1">// offset 40 (header) + 24 (writeIn body) = 64 bytes into the buffer.</span>
+</code></pre></div>
+<h3 id="fuse_readdir-fuse_readdirplus-opcodes-2844">FUSE_READDIR / FUSE_READDIRPLUS (Opcodes 28/44)<a class="headerlink" href="#fuse_readdir-fuse_readdirplus-opcodes-2844" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Request:  fuseReadIn{Fh, Offset, Size}
+
+Processing:
+  dir = handles[Fh]
+  entries = dir.ReadDir(-1)
+  For each entry starting from Offset:
+    READDIR:     Pack dirent{ino, off, namelen, type, name}
+    READDIRPLUS: Pack dirent + fuseEntryOut{nodeID, attr, ...}
+
+Response: Packed directory entries fitting within Size bytes
+</code></pre></div>
+<h3 id="fuse_create-opcode-35">FUSE_CREATE (Opcode 35)<a class="headerlink" href="#fuse_create-opcode-35" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Request:  fuseCreateIn{Flags, Mode} + filename
+
+Processing:
+  if readOnly: return -EACCES
+  path = filepath.Join(nodes[NodeID], filename)
+  file = os.OpenFile(path, Flags, Mode)
+  node = allocateNode(path)
+  fh = allocateHandle(file)
+
+Response: fuseEntryOut{NodeID, Attr} + fuseOpenOut{Fh}
+</code></pre></div>
+<h3 id="fuse_setattr-opcode-4">FUSE_SETATTR (Opcode 4)<a class="headerlink" href="#fuse_setattr-opcode-4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Request:  fuseSetAttrIn{Valid, Size, Mode, UID, GID, ...}
+
+Processing (based on Valid bitmask):
+  if FATTR_SIZE:  os.Truncate(path, Size)
+  if FATTR_MODE:  os.Chmod(path, Mode)
+  if FATTR_UID/GID: os.Chown(path, UID, GID)
+
+Response: fuseAttrOut{Attr: updated_stat}
+</code></pre></div>
+<h2 id="descriptor-processing">Descriptor Processing<a class="headerlink" href="#descriptor-processing" title="Permanent link">&para;</a></h2>
+<h3 id="split-descriptor-handling">Split Descriptor Handling<a class="headerlink" href="#split-descriptor-handling" title="Permanent link">&para;</a></h3>
+<p>FUSE requests often arrive with the header and body split across multiple descriptors:</p>
+<div class="highlight"><pre><span></span><code>Typical layout:
+  Descriptor 0 (readable):  [FUSE header 40B | request body]
+  Descriptor 1 (readable):  [additional request data]  (e.g., WRITE payload)
+  Descriptor 2 (writable):  [space for response header]
+  Descriptor 3 (writable):  [space for response body]
+</code></pre></div>
+<p>The handler concatenates all readable buffers into a single request buffer, and distributes the response across writable buffers:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">handleFuseRequest</span><span class="p">(</span><span class="nx">readBufs</span><span class="p">,</span><span class="w"> </span><span class="nx">writeBufs</span><span class="w"> </span><span class="p">[][]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="kt">uint32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Concatenate readable descriptors into single request</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">reqBuf</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">readBufs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">reqBuf</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">reqBuf</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="o">...</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// Parse header from concatenated buffer</span>
+<span class="w">    </span><span class="nx">header</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">parseFuseHeader</span><span class="p">(</span><span class="nx">reqBuf</span><span class="p">[:</span><span class="mi">40</span><span class="p">])</span>
+<span class="w">    </span><span class="nx">body</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">reqBuf</span><span class="p">[</span><span class="mi">40</span><span class="p">:]</span>
+
+<span class="w">    </span><span class="c1">// Process request, build response</span>
+<span class="w">    </span><span class="nx">resp</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">(</span><span class="nx">header</span><span class="p">,</span><span class="w"> </span><span class="nx">body</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// Write response across writable descriptors</span>
+<span class="w">    </span><span class="nx">written</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">writeBufs</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">n</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">copy</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span><span class="w"> </span><span class="nx">resp</span><span class="p">[</span><span class="nx">written</span><span class="p">:])</span>
+<span class="w">        </span><span class="nx">written</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">n</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">written</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">resp</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">break</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">uint32</span><span class="p">(</span><span class="nx">written</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="read-only-mode">Read-Only Mode<a class="headerlink" href="#read-only-mode" title="Permanent link">&para;</a></h2>
+<p>When <code>readOnly</code> is true, these operations return <code>-EACCES</code>:
+- FUSE_SETATTR (mode, size, ownership changes)
+- FUSE_WRITE
+- FUSE_CREATE
+- FUSE_MKDIR
+- FUSE_UNLINK
+- FUSE_RMDIR
+- FUSE_RENAME / FUSE_RENAME2</p>
+<p>Read operations (LOOKUP, GETATTR, OPEN, READ, READDIR) work normally.</p>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<p>FUSE errors are returned as negative errno values in the response header:</p>
+<table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Value</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-ENOENT</code></td>
+<td>-2</td>
+<td>File not found (LOOKUP, GETATTR)</td>
+</tr>
+<tr>
+<td><code>-EIO</code></td>
+<td>-5</td>
+<td>I/O error (READ, WRITE)</td>
+</tr>
+<tr>
+<td><code>-EACCES</code></td>
+<td>-13</td>
+<td>Permission denied (write ops on read-only)</td>
+</tr>
+<tr>
+<td><code>-EEXIST</code></td>
+<td>-17</td>
+<td>File already exists (MKDIR, CREATE with O_EXCL)</td>
+</tr>
+<tr>
+<td><code>-ENOTDIR</code></td>
+<td>-20</td>
+<td>Not a directory (READDIR on file)</td>
+</tr>
+<tr>
+<td><code>-EINVAL</code></td>
+<td>-22</td>
+<td>Invalid argument</td>
+</tr>
+<tr>
+<td><code>-ENOSYS</code></td>
+<td>-38</td>
+<td>Operation not implemented</td>
+</tr>
+<tr>
+<td><code>-ENOTEMPTY</code></td>
+<td>-39</td>
+<td>Directory not empty (RMDIR)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mount-configuration">Mount Configuration<a class="headerlink" href="#mount-configuration" title="Permanent link">&para;</a></h2>
+<p>VirtioFS mounts are configured via kernel command line:</p>
+<div class="highlight"><pre><span></span><code>SANDAL_VM_MOUNTS=fs-0=/host/data,fs-1=/home/user/.sandal-vm/images
+</code></pre></div>
+<p>Format: <code>tag=hostpath</code> or <code>tag=hostpath=guestmountpoint</code></p>
+<p>Guest-side mount:
+<div class="highlight"><pre><span></span><code>mount<span class="w"> </span>-t<span class="w"> </span>virtiofs<span class="w"> </span>fs-0<span class="w"> </span>/mnt/data
+</code></pre></div></p>
+<p>The guest kernel's virtiofs module communicates with the VirtioFSDevice via the virtqueue, which dispatches FUSE requests to the built-in handler.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1658 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/image-management/">
+      
+      
+        <link rel="prev" href="../guest-init/">
+      
+      
+        <link rel="next" href="../kvm-hypervisor/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Image Management - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Image Management - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/image-management.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/image-management/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Image Management - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/image-management.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#image-management" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Image Management
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/commands/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#oci-container-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OCI Container Images
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OCI Container Images">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#registry-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#image-reference-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image Reference Parsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pull-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image-pulling-and-flattening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image Pulling and Flattening
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#squashfs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SquashFS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#linux-kernel-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linux Kernel Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Linux Kernel Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kernel-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kernel Download
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#initrd-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initrd Generation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Initrd Generation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cpio-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPIO Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#initrd-overlay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initrd Overlay
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#zboot-extraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ZBOOT Extraction
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cache-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#image-format-support-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image Format Support Matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="image-management">Image Management<a class="headerlink" href="#image-management" title="Permanent link">&para;</a></h1>
+<p>Sandal handles OCI container images, Linux kernels, and initrd generation. All artifacts are cached locally to avoid repeated downloads.</p>
+<h2 id="oci-container-images">OCI Container Images<a class="headerlink" href="#oci-container-images" title="Permanent link">&para;</a></h2>
+<h3 id="registry-client">Registry Client<a class="headerlink" href="#registry-client" title="Permanent link">&para;</a></h3>
+<p><strong>Package</strong>: <code>pkg/lib/container/registry/</code></p>
+<p>Implements the OCI Distribution Spec v2 API for pulling images from registries.</p>
+<h4 id="image-reference-parsing">Image Reference Parsing<a class="headerlink" href="#image-reference-parsing" title="Permanent link">&para;</a></h4>
+<p><strong>File</strong>: <code>registry/reference.go</code></p>
+<div class="highlight"><pre><span></span><code>Input formats:
+  &quot;alpine&quot;                      -&gt; registry-1.docker.io/library/alpine:latest
+  &quot;alpine:3.18&quot;                 -&gt; registry-1.docker.io/library/alpine:3.18
+  &quot;ghcr.io/user/repo:v1&quot;       -&gt; ghcr.io/user/repo:v1
+  &quot;registry.io/img@sha256:abc&quot; -&gt; registry.io/img@sha256:abc
+</code></pre></div>
+<h4 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h4>
+<p><strong>File</strong>: <code>registry/auth.go</code></p>
+<div class="highlight"><pre><span></span><code>1. Try unauthenticated request
+2. If 401, parse WWW-Authenticate header:
+   Bearer realm=&quot;https://auth.docker.io/token&quot;,service=&quot;registry.docker.io&quot;,scope=&quot;repository:library/alpine:pull&quot;
+3. Load credentials from ~/.docker/config.json
+4. Exchange credentials for bearer token
+5. Retry with Authorization: Bearer &lt;token&gt;
+</code></pre></div>
+<h4 id="pull-flow">Pull Flow<a class="headerlink" href="#pull-flow" title="Permanent link">&para;</a></h4>
+<p><strong>File</strong>: <code>registry/client.go</code></p>
+<div class="highlight"><pre><span></span><code>FetchManifest(ref)
+  |
+  +-- GET /v2/&lt;name&gt;/manifests/&lt;reference&gt;
+  |   Accept: application/vnd.oci.image.index.v1+json,
+  |           application/vnd.docker.distribution.manifest.list.v2+json,
+  |           application/vnd.oci.image.manifest.v1+json,
+  |           application/vnd.docker.distribution.manifest.v2+json
+  |
+  +-- If manifest list/index:
+  |     Select platform (linux/arm64 or linux/amd64)
+  |     Fetch platform-specific manifest
+  |
+  +-- Return manifest with layer digests and config
+</code></pre></div>
+<h3 id="image-pulling-and-flattening">Image Pulling and Flattening<a class="headerlink" href="#image-pulling-and-flattening" title="Permanent link">&para;</a></h3>
+<p><strong>Package</strong>: <code>pkg/lib/container/image/</code></p>
+<p><strong>File</strong>: <code>image/pull.go</code></p>
+<div class="highlight"><pre><span></span><code>Pull(imageRef) -&gt; squashfsPath
+  |
+  +-- Check cache: ~/.sandal-vm/images/&lt;sanitized_ref&gt;.sqsh
+  |     If cached, return cached path
+  |
+  +-- registry.FetchManifest(ref) -&gt; manifest
+  |
+  +-- For each layer in manifest.Layers:
+  |     GET /v2/&lt;name&gt;/blobs/&lt;digest&gt;
+  |     Download and decompress (gzip/zstd)
+  |
+  +-- Flatten all layers into single directory:
+  |     Apply layers in order (lower -&gt; upper)
+  |     Handle whiteout files (.wh.*)
+  |
+  +-- squashfs.Create(flatDir) -&gt; squashfsPath
+  |     Convert flattened directory to squashfs image
+  |
+  +-- Cache at ~/.sandal-vm/images/&lt;sanitized_ref&gt;.sqsh
+  |
+  +-- Return squashfsPath
+</code></pre></div>
+<h3 id="squashfs">SquashFS<a class="headerlink" href="#squashfs" title="Permanent link">&para;</a></h3>
+<p><strong>Package</strong>: <code>pkg/lib/squashfs/</code></p>
+<p>Sandal uses squashfs as its primary immutable image format:
+- Compressed, read-only filesystem
+- Efficient random access
+- Small file size
+- Mountable directly by Linux kernel</p>
+<p><strong>File</strong>: <code>squashfs/writer.go</code> - Implements squashfs v4.0 format:
+- Gzip compression for data blocks
+- Inode table, directory table, fragment table
+- Proper superblock with magic <code>0x73717368</code> ("hsqs")</p>
+<h2 id="linux-kernel-management">Linux Kernel Management<a class="headerlink" href="#linux-kernel-management" title="Permanent link">&para;</a></h2>
+<p><strong>Package</strong>: <code>pkg/vm/kernel/</code></p>
+<h3 id="kernel-download">Kernel Download<a class="headerlink" href="#kernel-download" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>kernel/kernel.go</code></p>
+<div class="highlight"><pre><span></span><code>EnsureKernel() -&gt; kernelPath
+  |
+  +-- Check cache: ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
+  |     If cached, return cached path
+  |
+  +-- Determine architecture: arm64 or x86_64
+  |
+  +-- Fetch Alpine Linux APK index:
+  |     https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/&lt;arch&gt;/APKINDEX.tar.gz
+  |
+  +-- Find linux-virt package version
+  |
+  +-- Download APK:
+  |     https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/&lt;arch&gt;/linux-virt-&lt;ver&gt;.apk
+  |
+  +-- Extract kernel image from APK (tar.gz format):
+  |     boot/vmlinuz-virt -&gt; vmlinuz
+  |
+  +-- If ARM64: detect ZBOOT format, decompress if needed
+  |     ZBOOT: EFI stub wrapping gzip-compressed kernel Image
+  |     Magic: &quot;zimg&quot; at offset 4
+  |     Extract and decompress to raw ARM64 Image
+  |
+  +-- Cache at ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
+  |
+  +-- Also extract kernel modules for initrd
+  |     lib/modules/&lt;version&gt;/ -&gt; cached for initrd generation
+  |
+  +-- Return kernelPath
+</code></pre></div>
+<h3 id="initrd-generation">Initrd Generation<a class="headerlink" href="#initrd-generation" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>kernel/initrd.go</code></p>
+<p>The initrd contains the sandal binary and kernel modules needed for the VM
+to boot and mount VirtioFS shares. The result is <strong>content-addressed</strong>: the
+cache key is <code>sha256(sandal binary || base initrd)</code> truncated to 16 bytes
+hex, and the file lives at <code>&lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img</code>.
+Identical inputs always resolve to the same path; on a cache hit no archive
+is built.</p>
+<div class="highlight"><pre><span></span><code>CreateFromBinary(binData, baseInitrd) -&gt; cachePath
+  |
+  +-- Compute cache key:
+  |     sha256(binary) || 0x00 || sha256(baseInitrd)
+  |     -&gt; first 16 bytes hex -&gt; &quot;439a75c21ae9...&quot;.img
+  |
+  +-- If &lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img exists -&gt; return it
+  |
+  +-- Build into a temp file in &lt;BaseKernelDir&gt; (same dir for atomic rename):
+  |     - Decompress base initrd, strip CPIO trailer, append
+  |     - Append /dev/console char device (5,1) so the kernel
+  |       wires fds 0/1/2 when init is exec&#39;d
+  |     - Append /etc/{nsswitch.conf,resolv.conf,hosts} for Go runtime
+  |     - Append sandal binary as /init
+  |       (mounts /dev devtmpfs + /proc procfs itself in
+  |        importKernelCmdlineEnv before any code that needs them)
+  |     - Write CPIO trailer
+  |     - Gzip compress
+  |     - fsync
+  |
+  +-- Atomic rename to final cache path
+  |
+  +-- Return cachePath (owned by cache, NOT removed by caller)
+</code></pre></div>
+<p>The cache entry is reused across every VM start that uses the same sandal
+binary and base initrd — typically every run on a stable host. Updating
+sandal or upgrading the kernel produces a new entry; old entries stay on
+disk and can be pruned manually with
+<code>rm &lt;BaseKernelDir&gt;/initramfs-sandal-*.img</code>.</p>
+<h4 id="cpio-format">CPIO Format<a class="headerlink" href="#cpio-format" title="Permanent link">&para;</a></h4>
+<p><strong>File</strong>: <code>kernel/cpio.go</code></p>
+<p>Uses the "newc" (SVR4) CPIO format with ASCII hex headers:</p>
+<div class="highlight"><pre><span></span><code>Header (110 bytes):
+  &quot;070701&quot;        magic
+  ino, mode, uid, gid, nlink
+  mtime, filesize
+  devmajor, devminor, rdevmajor, rdevminor
+  namesize, check
+
+Followed by: filename (null-terminated, padded to 4 bytes)
+Followed by: file data (padded to 4 bytes)
+</code></pre></div>
+<p>Functions:
+- <code>writeCPIODir()</code> - Create directory entry
+- <code>writeCPIOFile()</code> - Create file entry with content
+- <code>writeCPIOCharDev()</code> - Create character device node
+- <code>findInCPIO()</code> - Extract file from existing CPIO archive
+- <code>stripCPIOTrailer()</code> - Remove "TRAILER!!!" entry for appending</p>
+<h3 id="initrd-overlay">Initrd Overlay<a class="headerlink" href="#initrd-overlay" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>kernel/initrd.go</code> - <code>CreateOverlay()</code></p>
+<p>When the base initrd contains an init script (e.g., Alpine's init), sandal can inject VirtioFS mount commands:</p>
+<div class="highlight"><pre><span></span><code>CreateOverlay(baseInitrd, mounts) -&gt; modifiedInitrd
+  |
+  +-- Find /init script in base CPIO
+  |
+  +-- Inject mount commands before &quot;exec switch_root&quot;:
+  |     mkdir -p /sysroot/mnt/data
+  |     mount -t virtiofs fs-0 /sysroot/mnt/data
+  |
+  +-- Append modified init script as CPIO overlay
+  |
+  +-- Return combined initrd
+</code></pre></div>
+<h3 id="zboot-extraction">ZBOOT Extraction<a class="headerlink" href="#zboot-extraction" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>kernel/zboot.go</code></p>
+<p>ARM64 kernels from Alpine are in EFI ZBOOT format (gzip-compressed kernel wrapped in an EFI PE stub):</p>
+<div class="highlight"><pre><span></span><code>Detection:
+  offset 0: MZ (PE header)
+  offset 4: &quot;zimg&quot; (ZBOOT magic)
+
+Extraction:
+  Read payload_offset and payload_size from header
+  Slice payload from file
+  Decompress with gzip
+  Result: raw ARM64 Image format kernel
+</code></pre></div>
+<h2 id="cache-structure">Cache Structure<a class="headerlink" href="#cache-structure" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>~/.sandal-vm/
+  kernel/
+    arm64/
+      vmlinuz               # Cached kernel image
+      modules/              # Kernel modules for initrd
+    amd64/
+      vmlinuz
+      modules/
+  images/
+    alpine_latest.sqsh      # Cached OCI images as squashfs
+    ubuntu_22.04.sqsh
+  machines/
+    &lt;vm-name&gt;/
+      config.json           # VM configuration
+      pid                   # VM process PID
+</code></pre></div>
+<h2 id="image-format-support-matrix">Image Format Support Matrix<a class="headerlink" href="#image-format-support-matrix" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Container (direct)</th>
+<th>Container (VM)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OCI image reference</td>
+<td>Pull + squashfs cache</td>
+<td>Pull + squashfs cache</td>
+<td>Auto-detected from string</td>
+</tr>
+<tr>
+<td>SquashFS file</td>
+<td>Loop mount</td>
+<td>VirtioFS share</td>
+<td>Preferred for immutable images</td>
+</tr>
+<tr>
+<td>Directory</td>
+<td>Direct lowerdir</td>
+<td>VirtioFS share</td>
+<td>Development use</td>
+</tr>
+<tr>
+<td>Raw disk (MBR/GPT)</td>
+<td>Loop mount + partition</td>
+<td>VirtioFS or virtio-blk</td>
+<td>For full disk images</td>
+</tr>
+<tr>
+<td>ISO</td>
+<td>Loop mount (read-only)</td>
+<td>Virtio-blk (read-only)</td>
+<td>Used for install media</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

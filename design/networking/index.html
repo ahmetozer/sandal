@@ -1,0 +1,1663 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/networking/">
+      
+      
+        <link rel="prev" href="../kvm-hypervisor/">
+      
+      
+        <link rel="next" href="../virtio-devices/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Networking - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Networking - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/networking.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/networking/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Networking - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/networking.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#networking" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Networking
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/commands/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#network-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Topology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bridge-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bridge Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#default-bridge-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default Bridge Creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bridge-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge Modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#container-networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Container Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Container Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#veth-pair-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Veth Pair Creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#network-interface-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Interface Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ip-address-allocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IP Address Allocation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dhcp-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DHCP Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vm-networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="VM Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tap-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TAP Device
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tap-bridge-attachment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TAP-Bridge Attachment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vm-side-network-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM-side Network Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mac-address-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MAC Address Generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-flow-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Flow Summary
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Network Flow Summary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#container-on-bare-metal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Container on Bare Metal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vm-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM Container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vm-passthru-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM Passthru Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="networking">Networking<a class="headerlink" href="#networking" title="Permanent link">&para;</a></h1>
+<p>Sandal uses a shared bridge network model where both containers and VMs connect to the same L2 bridge (<code>sandal0</code>). Containers use veth pairs; VMs use TAP devices.</p>
+<h2 id="network-topology">Network Topology<a class="headerlink" href="#network-topology" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>+------------------+     +------------------+     +------------------+
+| Container A      |     | Container B      |     | KVM VM           |
+| (veth: eth0)     |     | (veth: eth0)     |     | (virtio-net)     |
++--------+---------+     +--------+---------+     +--------+---------+
+         |                         |                        |
+   [veth peer]              [veth peer]              [TAP device]
+         |                         |                        |
++--------+-------------------------+------------------------+---------+
+|                          sandal0 bridge                              |
++---------------------------------------------------------------------+
+         |
+   [host uplink or NAT]
+</code></pre></div>
+<h2 id="bridge-setup">Bridge Setup<a class="headerlink" href="#bridge-setup" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/container/net/bridge.go</code></p>
+<h3 id="default-bridge-creation">Default Bridge Creation<a class="headerlink" href="#default-bridge-creation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">CreateDefaultBridge</span><span class="p">()</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">bridge</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Bridge</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">LinkAttrs</span><span class="p">:</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAttrs</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sandal0&quot;</span><span class="p">},</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAdd</span><span class="p">(</span><span class="nx">bridge</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetUp</span><span class="p">(</span><span class="nx">bridge</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// Disable STP for immediate port activation</span>
+<span class="w">    </span><span class="c1">// Set forward delay to 0</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="bridge-modes">Bridge Modes<a class="headerlink" href="#bridge-modes" title="Permanent link">&para;</a></h3>
+<p><strong>Bare metal Linux</strong>:
+- Bridge gets a static IP from <code>SANDAL_HOST_NET</code> (default: <code>172.16.0.1/24,fd34:0135:0123::1/64</code>)
+- Containers get IPs from the same subnet
+- Host acts as gateway, uses iptables NAT for internet access</p>
+<p><strong>Inside KVM VM</strong> (when sandal itself runs in a VM):
+- No bridge is created
+- Existing ethN interfaces are adopted directly in passthru mode
+- Containers use the VM's network interface without L2 bridging
+- Containers get IPs via DHCP from the external network</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">CreateDefaultBridge</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">IsVM</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// Passthru mode: no bridge, use ethN directly</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// Standard mode: assign IP to bridge</span>
+<span class="w">        </span><span class="nx">addr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">parseAddr</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Getenv</span><span class="p">(</span><span class="s">&quot;SANDAL_HOST_NET&quot;</span><span class="p">))</span>
+<span class="w">        </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">AddrAdd</span><span class="p">(</span><span class="nx">bridge</span><span class="p">,</span><span class="w"> </span><span class="nx">addr</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="container-networking">Container Networking<a class="headerlink" href="#container-networking" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/container/net/</code></p>
+<h3 id="veth-pair-creation">Veth Pair Creation<a class="headerlink" href="#veth-pair-creation" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>net/veth.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">createVethPair</span><span class="p">(</span><span class="nx">hostName</span><span class="p">,</span><span class="w"> </span><span class="nx">contName</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">bridge</span><span class="w"> </span><span class="o">*</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Bridge</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">veth</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Veth</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">LinkAttrs</span><span class="p">:</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAttrs</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="nx">hostName</span><span class="p">,</span><span class="w"> </span><span class="nx">MasterIndex</span><span class="p">:</span><span class="w"> </span><span class="nx">bridge</span><span class="p">.</span><span class="nx">Index</span><span class="p">},</span>
+<span class="w">        </span><span class="nx">PeerName</span><span class="p">:</span><span class="w">  </span><span class="nx">contName</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAdd</span><span class="p">(</span><span class="nx">veth</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetUp</span><span class="p">(</span><span class="nx">hostVeth</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Naming convention:
+- Host side: <code>s-&lt;random_10char_id&gt;</code>
+- Container side: <code>eth0</code> (moved into container's network namespace)</p>
+<h3 id="network-interface-configuration">Network Interface Configuration<a class="headerlink" href="#network-interface-configuration" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>net/link.go</code></p>
+<p>Each container network interface spec supports:</p>
+<div class="highlight"><pre><span></span><code>-net &quot;ip=172.16.0.2/24;route=172.16.0.1;type=veth;master=sandal0&quot;
+-net &quot;ip=dhcp;type=veth;master=sandal0&quot;
+</code></pre></div>
+<p>Note: sharing the host network namespace is done via <code>-ns-net host</code>, not through the network interface flag.</p>
+<p>Configuration flow:
+<div class="highlight"><pre><span></span><code>parseNetworkFlags(cfg.Net)
+  For each interface:
+    1. Create veth pair
+    2. Move peer into container network namespace
+    3. Set MAC address (if specified)
+    4. Set MTU
+    5. Assign IP:
+       - Static: netlink.AddrAdd()
+       - DHCP:   dhcp.Request() -&gt; obtain lease -&gt; apply
+    6. Add routes: netlink.RouteAdd()
+    7. Bring interface up: netlink.LinkSetUp()
+</code></pre></div></p>
+<h3 id="ip-address-allocation">IP Address Allocation<a class="headerlink" href="#ip-address-allocation" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>net/ip-allocation.go</code></p>
+<p>When using static IPs, sandal tracks allocated addresses to prevent conflicts:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">IPRequest</span><span class="p">(</span><span class="nx">bridge</span><span class="w"> </span><span class="o">*</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Bridge</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">net</span><span class="p">.</span><span class="nx">IPNet</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">bridgeAddrs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">AddrList</span><span class="p">(</span><span class="nx">bridge</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">baseIP</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">bridgeAddrs</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">IP</span>
+
+<span class="w">    </span><span class="c1">// Scan existing containers for used IPs</span>
+<span class="w">    </span><span class="nx">usedIPs</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">scanUsedIPs</span><span class="p">()</span>
+
+<span class="w">    </span><span class="c1">// Increment from bridge IP until finding unused one</span>
+<span class="w">    </span><span class="nx">candidate</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">incrementIP</span><span class="p">(</span><span class="nx">baseIP</span><span class="p">)</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">usedIPs</span><span class="p">[</span><span class="nx">candidate</span><span class="p">.</span><span class="nx">String</span><span class="p">()]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">candidate</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">incrementIP</span><span class="p">(</span><span class="nx">candidate</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">IPNet</span><span class="p">{</span><span class="nx">IP</span><span class="p">:</span><span class="w"> </span><span class="nx">candidate</span><span class="p">,</span><span class="w"> </span><span class="nx">Mask</span><span class="p">:</span><span class="w"> </span><span class="nx">bridgeAddrs</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Mask</span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="dhcp-client">DHCP Client<a class="headerlink" href="#dhcp-client" title="Permanent link">&para;</a></h3>
+<p><strong>Package</strong>: <code>pkg/lib/dhcp/</code></p>
+<p>Built-in DHCP client for both IPv4 and IPv6:</p>
+<p><strong>DHCPv4</strong> (<code>client.go</code>):
+<div class="highlight"><pre><span></span><code>DISCOVER -&gt; OFFER -&gt; REQUEST -&gt; ACK
+  |
+  +-- Bind raw socket to interface
+  +-- Send DHCPDISCOVER broadcast
+  +-- Receive DHCPOFFER with offered IP
+  +-- Send DHCPREQUEST for offered IP
+  +-- Receive DHCPACK
+  +-- Apply: ip addr add &lt;IP&gt; dev &lt;iface&gt;
+  +-- Apply: ip route add default via &lt;gateway&gt;
+</code></pre></div></p>
+<p><strong>DHCPv6</strong> (<code>client6.go</code>):
+<div class="highlight"><pre><span></span><code>SOLICIT -&gt; ADVERTISE -&gt; REQUEST -&gt; REPLY
+</code></pre></div></p>
+<p><strong>Platform abstraction</strong>: <code>conn_linux.go</code> uses raw sockets; <code>conn_darwin.go</code> uses BPF.</p>
+<h3 id="route-configuration">Route Configuration<a class="headerlink" href="#route-configuration" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>net/route.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">addDefaultRoute</span><span class="p">(</span><span class="nx">gateway</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">IP</span><span class="p">,</span><span class="w"> </span><span class="nx">iface</span><span class="w"> </span><span class="o">*</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Link</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">route</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Route</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">LinkIndex</span><span class="p">:</span><span class="w"> </span><span class="nx">iface</span><span class="p">.</span><span class="nx">Attrs</span><span class="p">().</span><span class="nx">Index</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">Gw</span><span class="p">:</span><span class="w">        </span><span class="nx">gateway</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">Dst</span><span class="p">:</span><span class="w">       </span><span class="kc">nil</span><span class="p">,</span><span class="w">  </span><span class="c1">// default route</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">RouteAdd</span><span class="p">(</span><span class="nx">route</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="vm-networking">VM Networking<a class="headerlink" href="#vm-networking" title="Permanent link">&para;</a></h2>
+<h3 id="tap-device">TAP Device<a class="headerlink" href="#tap-device" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/kvm/tap.go</code></p>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">createTAP</span><span class="p">(</span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">tapDevice</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">&quot;/dev/net/tun&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">O_CLOEXEC</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+
+<span class="w">    </span><span class="nx">ifr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">ifreq</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">Flags</span><span class="p">:</span><span class="w"> </span><span class="nx">IFF_TAP</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nx">IFF_NO_PI</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nx">IFF_VNET_HDR</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nb">copy</span><span class="p">(</span><span class="nx">ifr</span><span class="p">.</span><span class="nx">Name</span><span class="p">[:],</span><span class="w"> </span><span class="nx">name</span><span class="p">)</span><span class="w">  </span><span class="c1">// e.g., &quot;sandal1234&quot;</span>
+
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETIFF</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">ifr</span><span class="p">)))</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETOFFLOAD</span><span class="p">,</span><span class="w"> </span><span class="nx">TUN_F_CSUM</span><span class="o">|</span><span class="nx">TUN_F_TSO4</span><span class="o">|</span><span class="nx">TUN_F_TSO6</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETVNETHDRSZ</span><span class="p">,</span><span class="w"> </span><span class="mi">12</span><span class="p">)</span><span class="w">  </span><span class="c1">// virtio_net_hdr size</span>
+
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">tapDevice</span><span class="p">{</span><span class="nx">fd</span><span class="p">:</span><span class="w"> </span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="p">:</span><span class="w"> </span><span class="nx">name</span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Flags explained</strong>:
+- <code>IFF_TAP</code>: Ethernet-level (L2) device (vs IFF_TUN for IP-level)
+- <code>IFF_NO_PI</code>: No packet info header (raw ethernet frames)
+- <code>IFF_VNET_HDR</code>: Prepend/expect 12-byte virtio_net_hdr on each frame</p>
+<h3 id="tap-bridge-attachment">TAP-Bridge Attachment<a class="headerlink" href="#tap-bridge-attachment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">tapDevice</span><span class="p">)</span><span class="w"> </span><span class="nx">attachToBridge</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">bridge</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sandalnet</span><span class="p">.</span><span class="nx">CreateDefaultBridge</span><span class="p">()</span>
+<span class="w">    </span><span class="nx">tapLink</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkByName</span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nx">name</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetMaster</span><span class="p">(</span><span class="nx">tapLink</span><span class="p">,</span><span class="w"> </span><span class="nx">bridge</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetUp</span><span class="p">(</span><span class="nx">tapLink</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="vm-side-network-configuration">VM-side Network Configuration<a class="headerlink" href="#vm-side-network-configuration" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/guest/init.go</code></p>
+<p>Network config is passed via kernel command line as base64-encoded JSON:</p>
+<div class="highlight"><pre><span></span><code>SANDAL_VM_NET=&lt;base64({&quot;addr&quot;:&quot;172.16.0.5/24&quot;,&quot;gateway&quot;:&quot;172.16.0.1&quot;,&quot;mac&quot;:&quot;52:54:00:xx:xx:01&quot;,&quot;mtu&quot;:1500})&gt;
+</code></pre></div>
+<p>Guest init applies this:
+<div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">vmConfigureNetwork</span><span class="p">(</span><span class="nx">cfg</span><span class="w"> </span><span class="nx">vmNetConfig</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkByName</span><span class="p">(</span><span class="s">&quot;eth0&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetHardwareAddr</span><span class="p">(</span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">MAC</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">AddrAdd</span><span class="p">(</span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Addr</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetUp</span><span class="p">(</span><span class="nx">eth0</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">RouteAdd</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Route</span><span class="p">{</span><span class="nx">Gw</span><span class="p">:</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Gateway</span><span class="p">})</span>
+<span class="p">}</span>
+</code></pre></div></p>
+<h3 id="mac-address-generation">MAC Address Generation<a class="headerlink" href="#mac-address-generation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1">// virtio_net.go</span>
+<span class="nx">mac</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="kt">byte</span><span class="p">{</span><span class="mh">0x52</span><span class="p">,</span><span class="w"> </span><span class="mh">0x54</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span><span class="w"> </span><span class="nb">byte</span><span class="p">(</span><span class="nx">pid</span><span class="o">&gt;&gt;</span><span class="mi">8</span><span class="p">),</span><span class="w"> </span><span class="nb">byte</span><span class="p">(</span><span class="nx">pid</span><span class="p">),</span><span class="w"> </span><span class="mh">0x01</span><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li>Prefix <code>52:54:00</code> is the QEMU/KVM OUI range</li>
+<li>Middle bytes derived from VM PID for uniqueness</li>
+<li>Last byte <code>0x01</code> distinguishes from container MACs</li>
+</ul>
+<h2 id="network-flow-summary">Network Flow Summary<a class="headerlink" href="#network-flow-summary" title="Permanent link">&para;</a></h2>
+<h3 id="container-on-bare-metal">Container on Bare Metal<a class="headerlink" href="#container-on-bare-metal" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Container eth0 (172.16.0.2/24)
+  -&gt; veth peer on host
+  -&gt; sandal0 bridge (172.16.0.1/24)
+  -&gt; iptables MASQUERADE
+  -&gt; host eth0 -&gt; internet
+</code></pre></div>
+<h3 id="vm-container">VM Container<a class="headerlink" href="#vm-container" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>Container eth0 inside VM
+  -&gt; veth peer inside VM
+  -&gt; sandal0 bridge inside VM
+  -&gt; VM eth0 (virtio-net)
+  -&gt; [virtqueue]
+  -&gt; Host TAP device
+  -&gt; Host sandal0 bridge
+  -&gt; Host network
+</code></pre></div>
+<h3 id="vm-passthru-mode">VM Passthru Mode<a class="headerlink" href="#vm-passthru-mode" title="Permanent link">&para;</a></h3>
+<p>When sandal runs inside an existing VM (detected by <code>env.IsVM()</code>):</p>
+<div class="highlight"><pre><span></span><code>Container eth0 inside VM
+  -&gt; ethN passthru (no bridge, no veth)
+  -&gt; VM&#39;s virtio-net interface
+  -&gt; Host TAP device
+  -&gt; Host sandal0 bridge
+  -&gt; DHCP from host network
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

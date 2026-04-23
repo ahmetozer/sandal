@@ -1,0 +1,1789 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/boot-sequence/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../cli-commands/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Boot Sequence - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Boot Sequence - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/boot-sequence.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/boot-sequence/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Boot Sequence - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/boot-sequence.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#boot-sequence" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Boot Sequence
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/commands/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#entry-point-dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entry Point Dispatch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-cli-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: CLI Parsing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-run-command-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Run Command Router
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-kvm-vm-launch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: KVM VM Launch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3: KVM VM Launch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-3a-kvm-vm-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3a: KVM VM Creation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arm64-vcpu-initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ARM64 vCPU Initialization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#x86-64-vcpu-initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        x86-64 vCPU Initialization
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-container-creation-direct-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Container Creation (Direct Path)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-container-init-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Container Init Process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-vm-guest-initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: VM Guest Initialization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vcpu-run-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vCPU Run Loop
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="boot-sequence">Boot Sequence<a class="headerlink" href="#boot-sequence" title="Permanent link">&para;</a></h1>
+<p>This document describes the end-to-end flow from CLI invocation to user workload execution, covering both direct container and VM-isolated paths.</p>
+<h2 id="entry-point-dispatch">Entry Point Dispatch<a class="headerlink" href="#entry-point-dispatch" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>main.go</code>, <code>main_linux.go</code></p>
+<div class="highlight"><pre><span></span><code>main()
+  -&gt; platformMain()     [main_linux.go]
+       |
+       +-- PID == 1 &amp;&amp; SANDAL_VM_ARGS set?
+       |     YES -&gt; guest.VMInit()   # VM guest init (Phase 6)
+       |            cmd.Main()       # Re-dispatch CLI in VM
+       |
+       +-- SANDAL_CHILD env set?
+       |     YES -&gt; guest.ContainerInitProc()  # Container child (Phase 5)
+       |
+       +-- DEFAULT -&gt; cmd.Main()     # Host CLI (Phase 1)
+</code></pre></div>
+<p>The same binary serves three roles depending on context:
+1. <strong>Host CLI</strong>: Normal invocation on the host system
+2. <strong>VM Init</strong>: Running as PID 1 inside a KVM guest
+3. <strong>Container Init</strong>: Running as the forked child process inside isolated namespaces</p>
+<h2 id="phase-1-cli-parsing">Phase 1: CLI Parsing<a class="headerlink" href="#phase-1-cli-parsing" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/cmd/main.go</code></p>
+<p><code>cmd.Main()</code> dispatches based on <code>os.Args[1]</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Handler</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run</code></td>
+<td><code>Run()</code> → <code>sandal.Run()</code></td>
+<td>Create and start a container</td>
+</tr>
+<tr>
+<td><code>ps</code></td>
+<td><code>cmdPs()</code></td>
+<td>List running containers</td>
+</tr>
+<tr>
+<td><code>kill</code></td>
+<td><code>cmdKill()</code></td>
+<td>Send signal to container</td>
+</tr>
+<tr>
+<td><code>exec</code></td>
+<td><code>cmdExec()</code></td>
+<td>Execute command in running container</td>
+</tr>
+<tr>
+<td><code>daemon</code></td>
+<td><code>cmdDaemon()</code></td>
+<td>Start background daemon</td>
+</tr>
+<tr>
+<td><code>vm</code></td>
+<td><code>cmdVM()</code></td>
+<td>VM management (macOS)</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>Other management commands</td>
+</tr>
+</tbody>
+</table>
+<h2 id="phase-2-run-command-router">Phase 2: Run Command Router<a class="headerlink" href="#phase-2-run-command-router" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/sandal/run.go</code>, <code>pkg/sandal/run_linux.go</code></p>
+<div class="highlight"><pre><span></span><code>sandal.Run(args)
+  -&gt; platformRun(args)  [run_linux.go]
+       -&gt; parseAndRunContainer(args)
+            |
+            +-- Parse ALL flags (including -vm) into Config struct
+            |
+            +-- c.VM != &quot;&quot; AND not already in VM?
+            |     YES -&gt; RunInVM(&amp;config)    # Phase 3
+            |
+            +-- NO -&gt; RunContainer(&amp;config)  # Phase 4
+</code></pre></div>
+<p>All flags are parsed into the container Config struct first, including <code>-vm</code>. This enables VM containers to be tracked with the same state system as direct containers. The <code>VM</code> field persists in the config JSON, allowing the daemon to distinguish VM containers for health checks and recovery.</p>
+<p>Detection of "already in VM" uses <code>guest.IsVMInit()</code> which checks PID and <code>SANDAL_VM_ARGS</code> env var. Platform dispatch is handled via build tags: <code>run_vm_linux.go</code> (KVM), <code>run_vm_darwin.go</code> (VZ), <code>run_vm_unsupported.go</code>.</p>
+<h2 id="phase-3-kvm-vm-launch">Phase 3: KVM VM Launch<a class="headerlink" href="#phase-3-kvm-vm-launch" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/sandal/vm_linux.go</code></p>
+<div class="highlight"><pre><span></span><code>sandal.RunInKVM(config)
+  |
+  +-- 1. Strip host-only flags from args for VM guest forwarding:
+  |      Remove: -vm (consumed here), -cpu/-memory (VM resources),
+  |              -d/-startup (would cause guest to delegate/exit),
+  |              --name (would overwrite host state via shared VirtioFS)
+  |
+  +-- 2. scanMountPaths(args) -&gt; collect -v mount paths for VirtioFS
+  |      Each -v /host/path:/guest/path becomes a VirtioFS mount
+  |      Unix socket paths detected for vsock relay instead
+  |
+  +-- 3. squash.PullFromArgs(args) -&gt; pre-pull OCI images to squashfs cache
+  |      Downloads image layers, flattens to single squashfs file
+  |      Replaces image reference in args with cache path
+  |
+  +-- 4. Build VM config from container config:
+  |      c.CPULimit -&gt; cfg.CPUCount (ceil to integer vCPUs)
+  |      c.MemoryLimit -&gt; cfg.MemoryBytes (page-aligned)
+  |      Clear c.CPULimit/c.MemoryLimit (consumed as VM resources)
+  |
+  +-- 5. kernel.EnsureKernel() -&gt; download Linux kernel if not cached
+  |      Source: Alpine Linux APK repository (linux-virt package)
+  |      Handles ZBOOT extraction (ARM64 EFI compressed format)
+  |      Cache: ~/.sandal-vm/kernel/&lt;arch&gt;/
+  |
+  +-- 6. buildVirtioFSMounts() -&gt; create mount configs
+  |      Each mount gets tag: fs-0, fs-1, fs-2, ...
+  |      Always includes: sandal library dir, image cache dir
+  |
+  +-- 7. marshalVMArgs() -&gt; JSON-encode cleaned CLI args
+  |
+  +-- 8. sandalnet.CreateDefaultBridge() -&gt; ensure sandal0 bridge exists
+  |
+  +-- 9. sandalnet.IPRequest() -&gt; allocate IP from bridge subnet
+  |
+  +-- 10. buildKernelCmdLine() -&gt; construct kernel parameters
+  |       SANDAL_VM_ARGS=&lt;base64(json_args)&gt;
+  |       SANDAL_VM_NET=&lt;base64(json_network_config)&gt;
+  |       SANDAL_VM_MOUNTS=&lt;comma_separated_mount_specs&gt;
+  |       SANDAL_VM_SOCKETS=&lt;port=host=guest entries&gt;
+  |       SANDAL_VM=kvm
+  |       console=ttyAMA0 (ARM64) or console=ttyS0 (x86)
+  |       loglevel=0
+  |
+  +-- 11. vmbin.Linux() -&gt; bytes of sandal binary for /init
+  |       (self-executable on linux, embedded via go:embed on darwin)
+  |
+  +-- 12. kernel.CreateFromBinary(binData, baseInitrd) -&gt; cached initrd
+  |       Content-addressed by sha256(binary, baseInitrd).
+  |       Cache hit -&gt; returns existing path with no I/O.
+  |       Cache miss -&gt; wraps sandal binary into CPIO archive as
+  |       /init, adds /dev/console char dev for stdio fds, merges
+  |       base initrd modules, atomically publishes to
+  |       &lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img
+  |
+  +-- 13. vmconfig.SaveConfig(name, cfg) -&gt; persist ephemeral VM config
+  |       Path: ~/.sandal-vm/machines/&lt;name&gt;/config.json
+  |
+  +-- 14. Execution path dispatch:
+  |
+  |   Path A: Delegate to daemon (-d -startup, daemon running)
+  |     controller.SetContainer(config) -&gt; save to state dir
+  |     Return immediately. Daemon health check will boot the VM.
+  |     Ephemeral VM config and initrd cleaned up (daemon rebuilds).
+  |
+  |   Path B: Fork child process (daemon context or -d)
+  |     forkVMProcess() -&gt; exec.Command(&quot;sandal vm start -name &lt;name&gt;&quot;)
+  |     Child process runs in new session (Setsid: true)
+  |     Parent records child PID as HostPid
+  |     Goroutine waits for child, cleans up VM config/initrd on exit
+  |
+  |   Path C: Foreground (default)
+  |     controller.SetContainer(config)
+  |     kvm.Boot(name, cfg, nil, nil) -&gt; launch VM (Phase 3a)
+  |     Blocks until VM exits, then updates status
+  |     Defer cleans up VM config and initrd
+</code></pre></div>
+<h3 id="phase-3a-kvm-vm-creation">Phase 3a: KVM VM Creation<a class="headerlink" href="#phase-3a-kvm-vm-creation" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/kvm/boot.go</code>, <code>pkg/vm/kvm/vm.go</code></p>
+<div class="highlight"><pre><span></span><code>kvm.Boot(name, cfg, stdin, stdout)
+  |
+  +-- If stdin/stdout are nil (foreground): use os.Stdin/os.Stdout
+  |   If custom IO provided (future use): skip terminal raw mode
+  |
+  +-- terminal.SetRaw() -&gt; put host terminal in raw mode (foreground only)
+  |
+  +-- NewVM(name, cfg)
+  |   |
+  |   +-- openKVM() -&gt; fd = open(&quot;/dev/kvm&quot;)
+  |   |   verify KVM_GET_API_VERSION == 12
+  |   |
+  |   +-- ioctl(kvmFd, KVM_CREATE_VM, 0) -&gt; vmFd
+  |   |
+  |   +-- setupVM(vmFd) -&gt; platform-specific (x86: TSS, IRQCHIP)
+  |   |
+  |   +-- mmap(cfg.MemoryBytes, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE) -&gt; mem[]
+  |   |   Allocates guest RAM with overcommit (no physical reservation)
+  |   |
+  |   +-- ioctl(vmFd, KVM_SET_USER_MEMORY_REGION, {slot:0, gpa:guestMemBase, size, hva})
+  |   |   Registers guest memory with KVM
+  |   |
+  |   +-- loadFileIntoMemory(mem, kernelLoadOffset, cfg.KernelPath)
+  |   |   ARM64: kernel at offset 0x0 (guestMemBase + 0)
+  |   |   x86: kernel at offset 0x100000 (1MB)
+  |   |
+  |   +-- loadFileIntoMemory(mem, initrdOffset, cfg.InitrdPath)
+  |   |   ARM64: initrd at 50MB offset
+  |   |   x86: initrd after kernel
+  |   |
+  |   +-- Create stdin/stdout pipe pair for serial console
+  |   +-- newUART(irqLine, stdinReader, stdoutWriter)
+  |   |
+  |   +-- getVCPUMmapSize(kvmFd) -&gt; size of kvm_run struct
+  |   |
+  |   +-- For each CPU i in 0..CPUCount-1:
+  |   |     ioctl(vmFd, KVM_CREATE_VCPU, i) -&gt; vcpuFd
+  |   |     mmap(vcpuFd, vcpuMmapSize) -&gt; kvm_run shared memory region
+  |   |
+  |   +-- Create virtio devices (in order):
+  |   |     [0] VirtioConsoleDevice (device ID 3)
+  |   |     [1] VirtioBlkDevice for disk (device ID 2) if DiskPath set
+  |   |     [2] VirtioBlkDevice for ISO (device ID 2, read-only) if ISOPath set
+  |   |     [3..N] VirtioFSDevice for each mount (device ID 26)
+  |   |     [N+1] VirtioNetDevice (device ID 1) with TAP backend
+  |   |
+  |   +-- initVCPUs(vmFd, vcpuFds, mem, cfg)
+  |   |     ARM64: See &quot;ARM64 vCPU Init&quot; below
+  |   |     x86: See &quot;x86 vCPU Init&quot; below
+  |   |
+  |   +-- setupGSIRouting(vmFd, devices) -&gt; KVM_SET_GSI_ROUTING
+  |   |     Maps each device&#39;s GSI to GIC SPI interrupt
+  |   |
+  |   +-- For each virtio device:
+  |         setupIRQFD(vmFd, dev) -&gt; KVM_IRQFD with eventfd
+  |         Enables userspace interrupt injection without ioctl per IRQ
+  |
+  +-- vm.StartIORelay(stdin, stdout)
+  |     Goroutines: host stdin -&gt; VM stdin pipe, VM stdout pipe -&gt; host stdout
+  |
+  +-- signal.Notify(SIGINT, SIGTERM) -&gt; vm.Stop()
+  |
+  +-- vm.Start()
+  |   |
+  |   +-- For each vCPU: go runVCPU(i)
+  |   +-- consoleDev.StartRX() -&gt; goroutine reads stdin pipe, injects to RX queue
+  |   +-- For each netDev: netDev.StartRX() -&gt; goroutine reads TAP, injects to RX queue
+  |
+  +-- vm.WaitUntilStopped() -&gt; blocks until all vCPUs exit
+</code></pre></div>
+<h3 id="arm64-vcpu-initialization">ARM64 vCPU Initialization<a class="headerlink" href="#arm64-vcpu-initialization" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vcpu_arm64.go</code></p>
+<div class="highlight"><pre><span></span><code>initVCPUs() [ARM64]
+  |
+  +-- For each vCPU:
+  |     ioctl(vmFd, KVM_ARM_PREFERRED_TARGET) -&gt; get init struct
+  |     ioctl(vcpuFd, KVM_ARM_VCPU_INIT, initStruct)
+  |
+  +-- CPU 0 (primary):
+  |     Set PC = guestMemBase + kernelLoadOffset (kernel entry)
+  |     Set X0 = guestMemBase + dtbOffset (DTB address)
+  |     Set PSTATE = 0x3c5 (EL1h, DAIF masked)
+  |
+  +-- CPUs 1+ (secondary):
+  |     Set PSCI power-off state (activated by primary via HVC)
+  |
+  +-- buildDTB(cfg, mem, deviceList) -&gt; create flattened device tree
+  |     Memory node, CPU nodes, GIC node, UART node
+  |     Virtio-MMIO device nodes with IRQ assignments
+  |     Chosen node: bootargs, stdout-path, initrd addresses
+  |
+  +-- createGIC(vmFd)
+        Try GICv3 first (distributor + redistributor)
+        Fallback to GICv2 (distributor + CPU interface)
+        GIC dist @ 0x08000000, redist @ 0x080A0000
+</code></pre></div>
+<h3 id="x86-64-vcpu-initialization">x86-64 vCPU Initialization<a class="headerlink" href="#x86-64-vcpu-initialization" title="Permanent link">&para;</a></h3>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vcpu_amd64.go</code></p>
+<div class="highlight"><pre><span></span><code>initVCPUs() [x86-64]
+  |
+  +-- Setup page tables in guest memory:
+  |     PML4 @ 0x1000, PDPT @ 0x2000, PD @ 0x3000
+  |     Identity maps first 4GB with 2MB pages
+  |
+  +-- Setup GDT @ 0x500:
+  |     Null, code64 (L=1), data64 segments
+  |
+  +-- Setup boot parameters (zero page) @ 0x10000:
+  |     Linux boot protocol v2.14
+  |     E820 memory map
+  |     Kernel cmdline @ 0x20000
+  |     Initrd address and size
+  |
+  +-- Configure special registers:
+  |     CR3 = 0x1000 (PML4)
+  |     CR4 = PAE
+  |     CR0 = PG | PE | WP
+  |     EFER = LME | LMA (long mode)
+  |
+  +-- Set initial register state:
+        RIP = 0x100000 (kernel entry at 1MB)
+        RSI = 0x10000 (boot params)
+        CS = 64-bit code segment
+        DS/ES/SS = data segment
+</code></pre></div>
+<h2 id="phase-4-container-creation-direct-path">Phase 4: Container Creation (Direct Path)<a class="headerlink" href="#phase-4-container-creation-direct-path" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/sandal/run_linux.go</code>, <code>pkg/sandal/container.go</code>, <code>pkg/container/host/crun.go</code></p>
+<div class="highlight"><pre><span></span><code>sandal.parseAndRunContainer(args) -&gt; sandal.RunContainer(cfg, netFlags)
+  |
+  +-- Parse flags: image, -v volumes, -d daemon, -t tty, --ns-*, --cap-*, etc.
+  +-- Generate container ID (base-62 timestamp + random)
+  +-- Resolve rootfs directory and change directory
+  +-- Parse namespace configuration (defaults: new mnt, pid, ipc, uts, net)
+  +-- Mount rootfs (overlayfs with image as lower, changedir as upper)
+  +-- controller.SetContainer(cfg) -&gt; save config JSON
+  +-- host.Run(cfg)
+        |
+        +-- Allocate PTY (foreground) or FIFO (daemon)
+        +-- Create cgroup: /sys/fs/cgroup/sandal/&lt;name&gt;/
+        +-- Set resource limits (memory.max, cpu.max)
+        +-- Get clone flags from namespace config
+        +-- SysProcAttr{Cloneflags: CLONE_NEWNS|CLONE_NEWPID|...}
+        +-- Fork child process with SANDAL_CHILD=&lt;config_name&gt;
+        +-- Parent: signal forwarding, PTY relay, wait for exit
+        +-- Child: ContainerInitProc() (Phase 5)
+</code></pre></div>
+<h2 id="phase-5-container-init-process">Phase 5: Container Init Process<a class="headerlink" href="#phase-5-container-init-process" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/container/guest/init.go</code></p>
+<div class="highlight"><pre><span></span><code>ContainerInitProc()
+  |
+  +-- Load container config from SANDAL_CHILD env var
+  |
+  +-- Set hostname
+  |
+  +-- Configure network interfaces:
+  |     For each network spec:
+  |       Create/join veth pair
+  |       Set master bridge (sandal0)
+  |       Assign IP (static or DHCP)
+  |       Add routes
+  |
+  +-- Mount volumes (-v binds)
+  +-- Mount /proc (with cpuinfo/meminfo overrides for cgroup limits)
+  +-- Mount /sys, /dev, /dev/pts, /dev/shm, /tmp
+  +-- Create device nodes (null, zero, full, random, urandom, tty)
+  |
+  +-- Configure DNS (/etc/resolv.conf)
+  +-- Set hostname (/etc/hostname)
+  |
+  +-- Pivot root to container rootfs
+  |     mount(&quot;&quot;, &quot;/&quot;, &quot;&quot;, MS_PRIVATE|MS_REC, &quot;&quot;)
+  |     pivot_root(rootfs, oldroot)
+  |     unmount(oldroot)
+  |
+  +-- Drop capabilities (unless --privileged)
+  |     Keep: NET_BIND_SERVICE, SYS_CHROOT, SETGID, SETUID, ...
+  |     Drop: SYS_ADMIN, SYS_PTRACE, NET_ADMIN (non-privileged)
+  |
+  +-- Switch user (if --user specified)
+  |     setresgid(), setresuid() with PR_SET_KEEPCAPS
+  |
+  +-- Exec user command
+        syscall.Exec(containerArgs[0], containerArgs, env)
+</code></pre></div>
+<h2 id="phase-6-vm-guest-initialization">Phase 6: VM Guest Initialization<a class="headerlink" href="#phase-6-vm-guest-initialization" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/guest/init.go</code></p>
+<p>This runs when the sandal binary is PID 1 inside the KVM guest.</p>
+<div class="highlight"><pre><span></span><code>VMInit()
+  |
+  +-- importKernelCmdlineEnv()
+  |     Parse /proc/cmdline for SANDAL_* parameters
+  |     Base64-decode values, set as environment variables
+  |
+  +-- Mount essential filesystems:
+  |     mount(&quot;proc&quot;, &quot;/proc&quot;, &quot;proc&quot;, 0, &quot;&quot;)
+  |     mount(&quot;devtmpfs&quot;, &quot;/dev&quot;, &quot;devtmpfs&quot;, 0, &quot;&quot;)
+  |     mount(&quot;sysfs&quot;, &quot;/sys&quot;, &quot;sysfs&quot;, 0, &quot;&quot;)
+  |     mount(&quot;devpts&quot;, &quot;/dev/pts&quot;, &quot;devpts&quot;, 0, &quot;&quot;)
+  |
+  +-- Redirect stdin/stdout/stderr to /dev/console
+  |
+  +-- Load kernel modules (ordered, virtio_mmio MUST be first):
+  |     Group 1 (virtio): virtio_mmio
+  |     Group 2 (storage): fuse, virtiofs, overlay, loop, squashfs, ext4
+  |     Group 3 (network): veth, bridge, tun, af_packet
+  |     Group 4 (netfilter): nf_conntrack, nf_nat, iptable_nat, ip_vs, ...
+  |     Group 5 (tunneling): vxlan, ip_gre, wireguard
+  |
+  +-- Setup new root:
+  |     mount(&quot;tmpfs&quot;, &quot;/newroot&quot;, &quot;tmpfs&quot;, 0, &quot;&quot;)
+  |     Copy /init to /newroot/init
+  |     Create dirs: /proc, /sys, /dev, /mnt, /var/lib/sandal, ...
+  |     chroot(&quot;/newroot&quot;)
+  |
+  +-- Mount VirtioFS shares:
+  |     Decode SANDAL_VM_MOUNTS: &quot;fs-0=/host/data,fs-1=/home/user/.sandal-vm&quot;
+  |     For each mount:
+  |       mkdir -p &lt;mountpoint&gt;
+  |       mount(tag, mountpoint, &quot;virtiofs&quot;, 0, &quot;&quot;)
+  |
+  +-- Configure network:
+  |     Decode SANDAL_VM_NET JSON: {addr, gateway, mac, mtu}
+  |     ip addr add &lt;addr&gt; dev eth0
+  |     ip link set eth0 up
+  |     ip route add default via &lt;gateway&gt;
+  |
+  +-- Return to platformMain()
+  |
+  +-- env.SetDefault(&quot;SANDAL_STATE_DIR&quot;, &quot;/tmp/sandal-state&quot;)
+  +-- env.BaseStateDir = &quot;/tmp/sandal-state&quot;
+  |     Redirect state directory to local tmpfs to prevent ghost
+  |     container entries: the real state directory
+  |     (/var/lib/sandal/state/) is shared via VirtioFS, so writes
+  |     would create duplicate entries visible from the host.
+  |     The redirect allows child processes to read config while
+  |     keeping the host state clean. See architecture.md
+  |     &quot;VirtioFS State Isolation&quot; for details.
+  |
+  +-- cmd.Main() is called, dispatching the original CLI args
+        from SANDAL_VM_ARGS (e.g., &quot;run alpine:latest /bin/sh&quot;)
+        This triggers Phase 4 (sandal.RunContainer) inside the VM
+</code></pre></div>
+<h2 id="vcpu-run-loop">vCPU Run Loop<a class="headerlink" href="#vcpu-run-loop" title="Permanent link">&para;</a></h2>
+<p><strong>File</strong>: <code>pkg/vm/kvm/vm.go</code></p>
+<div class="highlight"><pre><span></span><code>runVCPU(cpuIndex)
+  |
+  +-- Block SIGURG signal (prevents Go scheduler preemption during KVM_RUN)
+  |     KVM_SET_SIGNAL_MASK with SIGURG blocked
+  |
+  +-- Loop:
+        ioctl(vcpuFd, KVM_RUN, 0) -&gt; blocks until VM exit
+        |
+        +-- Read exit_reason from mmap&#39;d kvm_run struct
+        |
+        +-- Switch on exit_reason:
+              |
+              +-- kvmExitIO (2) [x86 only]:
+              |     Port I/O access (UART at 0x3F8)
+              |     Route to uart.handleIO()
+              |
+              +-- kvmExitMMIO (6):
+              |     Memory-mapped I/O access
+              |     Check address range:
+              |       0x09000000-0x09000FFF -&gt; uart.handleMMIO() [ARM64]
+              |       0x0A000000+ -&gt; virtio device MMIO handler
+              |     Route to appropriate virtioMMIODev.handleMMIO()
+              |
+              +-- kvmExitHLT (5) [x86]:
+              |     Guest halted, check if should continue
+              |
+              +-- kvmExitShutdown (8):
+              |     Guest requested shutdown
+              |     Signal VM stop
+              |
+              +-- kvmExitSystemEvent (24):
+              |     PSCI SYSTEM_OFF or SYSTEM_RESET
+              |     Signal VM stop
+              |
+              +-- kvmExitIntr (10):
+                    Interrupted by signal, continue loop
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

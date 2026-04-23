@@ -1,0 +1,98 @@
+# ALL AI AGENTS AND BOTS ARE BLOCKED FROM THIS REPOSITORY
+# This repository is protected from unauthorized AI analysis, knowledge extraction, and automated processing
+
+# OpenAI / ChatGPT / GPT bots
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OpenAI
+Disallow: /
+
+# Anthropic / Claude
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude
+Disallow: /
+
+User-agent: claude-web
+Disallow: /
+
+# Google AI
+User-agent: Googlebot-Extended
+Disallow: /
+
+User-agent: bingbot
+Disallow: /
+
+# Meta / Facebook
+User-agent: facebookexternalhit
+Disallow: /
+
+# Apple
+User-agent: Applebot
+Disallow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Disallow: /
+
+# Other AI training crawlers
+User-agent: CCBot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: Diffbotbot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+# Go documentation and package indexing
+User-agent: godoc
+Disallow: /
+
+User-agent: pkg.go.dev
+Disallow: /
+
+User-agent: gocrawler
+Disallow: /
+
+# Documentation crawlers
+User-agent: *documentation*
+Disallow: /
+
+User-agent: *doc*
+Disallow: /
+
+User-agent: *index*
+Disallow: /
+
+# All bots and crawlers
+User-agent: *-bot
+Disallow: /
+
+User-agent: *-crawler
+Disallow: /
+
+User-agent: *spider*
+Disallow: /
+
+User-agent: *scraper*
+Disallow: /
+
+# Catch-all for ALL agents
+User-agent: *
+Disallow: /
+
+# Prevent any automated access
+Crawl-delay: 999999
+Request-rate: 0/1d
+
+# No sitemap
+Sitemap:
