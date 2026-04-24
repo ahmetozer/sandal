@@ -54,3 +54,50 @@ jobs:
           path: sandal-${{ matrix.goos }}-${{ matrix.goarch }}
           retention-days: 30
           if-no-files-found: error
+
+  mkdocs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+      - run: pip install -r requirements.txt
+      - run: DEBIAN_FRONTEND=noninteractive sudo apt install -y libcairo2
+      - name: Build docs for /beta/
+        run: |
+          sed -i 's|^site_url:.*|site_url: https://sandal.ahmetozer.org/beta/|' mkdocs.yml
+          mkdocs build
+          rm -f site/CNAME
+      - name: Deploy to gh-pages /beta/
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add -B gh-pages gh-pages-worktree origin/gh-pages
+          rm -rf gh-pages-worktree/beta
+          mkdir -p gh-pages-worktree/beta
+          cp -a site/. gh-pages-worktree/beta/
+          cd gh-pages-worktree
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No doc changes to publish"
+          else
+            git commit -m "Deploy beta docs (${GITHUB_SHA:0:7})"
+            git push origin gh-pages
+          fi

@@ -230,6 +230,38 @@
   }
 }
 
+/* Wide viewports: move the diagram out of the bottom strip and into a
+   right-side column so it reads next to the text rather than under it.
+   Reveal slides in from the right instead of up from the bottom.
+   Threshold set above MacBook Pro 16" "More Space" scaling (≈2056px)
+   so the right-column layout only engages on larger external monitors. */
+@media (min-width: 2400px) {
+  .explainer {
+    /* Drop the tall bottom reservation — the panel no longer covers the
+       bottom of the page at this breakpoint. */
+    padding-bottom: 48px;
+  }
+  .explainer-bottom-panel {
+    top: 96px;                             /* clear the sticky site header */
+    bottom: 24px;
+    right: 48px;                           /* breathing room from viewport edge */
+    left: auto;
+    /* Wider panel — the 3-column diagram needs ~180px/col to avoid
+       squeezing the DIMENSION column (Tag uses whiteSpace:nowrap). */
+    width: clamp(560px, 32vw, 680px);
+    height: auto;
+    transform: translateX(calc(100% + 64px));
+  }
+  .explainer-bottom-panel.is-revealed {
+    transform: translateX(0);
+  }
+  .explainer-bottom-inner {
+    max-width: none;
+    padding: 20px 24px;
+    align-items: center;                   /* vertical center in tall column */
+  }
+}
+
 /* Tighten trigger-section padding on narrow screens so the phone scrolls
    through features without excessive dead space. */
 @media (max-width: 600px) {

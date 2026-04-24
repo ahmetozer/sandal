@@ -55,19 +55,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Configure Git Credentials
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
-      - name: Configure Git token
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
       - uses: actions/cache@v4
         with:
           key: mkdocs-material-${{ env.cache_id }}
@@ -76,5 +67,24 @@ jobs:
             mkdocs-material-
       - run: pip install -r requirements.txt
       - run: DEBIAN_FRONTEND=noninteractive sudo apt install -y libcairo2
-      - name: Deploy docs
-        run: mkdocs gh-deploy --force
+      - name: Build docs
+        run: mkdocs build
+      - name: Deploy to gh-pages root (preserve /beta/)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add -B gh-pages gh-pages-worktree origin/gh-pages
+          find gh-pages-worktree -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'beta' -exec rm -rf {} +
+          cp -a site/. gh-pages-worktree/
+          cd gh-pages-worktree
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No doc changes to publish"
+          else
+            git commit -m "Deploy docs (${GITHUB_SHA:0:7})"
+            git push origin gh-pages
+          fi
