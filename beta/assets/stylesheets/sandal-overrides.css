@@ -1,0 +1,307 @@
+/* ===================================================================
+   Sandal Design System — mkdocs-material overrides
+   Bridges tokens from sandal-tokens.css into mkdocs-material's
+   --md-* variables, and tweaks the slate (dark) scheme to match
+   the design bundle's night-mode spec.
+   =================================================================== */
+
+/* -----------------------------------------------------------------
+   LIGHT SCHEME — map Sandal tokens into mkdocs-material variables.
+   ----------------------------------------------------------------- */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color:          var(--bone);
+  --md-default-fg-color:          var(--ink-soft);
+  --md-default-fg-color--light:   var(--mute);
+  --md-default-fg-color--lighter: var(--mute);
+  --md-primary-fg-color:          var(--ink);
+  --md-accent-fg-color:           var(--wood-deep);
+  --md-code-bg-color:             var(--paper);
+  --md-code-fg-color:             var(--ink);
+  --md-typeset-a-color:           var(--ink);
+}
+
+/* -----------------------------------------------------------------
+   DARK SCHEME (mkdocs-material's `slate`) — ported from the
+   UI kit's night mode block in ui_kits/docs_site/index.html.
+   Redefining Sandal tokens here cascades into any rule below
+   that uses them; redefining --md-* maps into mkdocs chrome.
+   ----------------------------------------------------------------- */
+[data-md-color-scheme="slate"] {
+  --bone:       #13161c;
+  --paper:      #1a1e26;
+  --rule:       rgba(255, 255, 255, 0.08);
+  --ink:        #f2ede0;
+  --ink-soft:   #d8d2c3;
+  --mute:       #8892a0;
+  --white:      #22262f;
+  --wood:       #d9a870;
+  --wood-deep:  #a4763f;
+  --wood-light: #e8c896;
+
+  --md-default-bg-color:         var(--bone);
+  --md-default-fg-color:         var(--ink-soft);
+  --md-default-fg-color--light:  var(--mute);
+  --md-code-bg-color:            var(--paper);
+  --md-typeset-a-color:          var(--water);
+  --md-accent-fg-color:          var(--wood);
+}
+
+/* Night-mode header — deeper than body so it recedes,
+   matches the UI kit's `.site-header` night override. */
+[data-md-color-scheme="slate"] .md-header {
+  background:    #0c0f14;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:    0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* -----------------------------------------------------------------
+   CODE BLOCKS — terminal palette on both schemes. `pre` already
+   contrasts in light mode; dark code on light bg is intentional
+   per the design spec ("Code is present on almost every surface").
+   ----------------------------------------------------------------- */
+.md-typeset pre > code,
+.md-typeset .highlight > pre {
+  background: var(--term-bg);
+  color:      var(--term-fg);
+}
+
+.md-typeset code {
+  font-family: var(--font-mono);
+}
+
+/* -----------------------------------------------------------------
+   CALLOUTS — align accent borders with the semantic palette.
+   Mkdocs-material's admonition icons/titles stay as-is; only the
+   left-edge accent shifts.
+   ----------------------------------------------------------------- */
+.md-typeset .admonition.info,
+.md-typeset .admonition.note,
+.md-typeset details.info,
+.md-typeset details.note {
+  border-color: var(--water);
+}
+
+.md-typeset .admonition.warning,
+.md-typeset .admonition.caution,
+.md-typeset details.warning,
+.md-typeset details.caution {
+  border-color: var(--warn);
+}
+
+.md-typeset .admonition.danger,
+.md-typeset .admonition.error,
+.md-typeset .admonition.failure,
+.md-typeset details.danger,
+.md-typeset details.error,
+.md-typeset details.failure {
+  border-color: var(--err);
+}
+
+/* -----------------------------------------------------------------
+   HOMEPAGE EXPLAINER — bottom-pinned diagram.
+   The SandalExplainer component renders:
+     .explainer
+       .explainer-scroll   (Intro + N trigger sections — normal flow,
+                            each trigger contains title + cmd + body)
+       .explainer-bottom-panel  (LiveDiagram only — position:fixed)
+
+   The scrolling content flows behind the pinned diagram; the panel
+   shows the morphing diagram for whichever trigger sits in the
+   reading band above it.
+   ----------------------------------------------------------------- */
+.explainer {
+  position: relative;
+  /* Inherit the page content width (mkdocs-material's --md-grid-max-width,
+     ~61rem by default) so the explainer text aligns with the markdown
+     intro above it. Bottom padding = panel height + buffer so the last
+     trigger can still reach the reading band without being permanently
+     covered. */
+  padding: 12px 0 calc(clamp(400px, 56vh, 560px) + 64px);
+}
+
+.explainer-bottom-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: clamp(400px, 56vh, 560px);
+  /* Transparent — page content must scroll visibly behind the diagram. The
+     LiveDiagram paints its own card backgrounds; the panel itself is just a
+     positioning frame. `pointer-events: none` lets the user scroll-wheel in
+     the gaps around the diagram without the panel capturing the event. */
+  background: transparent;
+  pointer-events: none;
+  z-index: 3;
+  /* Start hidden below the viewport — first-time visitors see a clean hero
+     and the arrow cue. `is-revealed` (toggled once scrollY crosses the
+     threshold) slides it into place. */
+  transform: translateY(100%);
+  opacity: 0;
+  transition: transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 380ms ease-out;
+}
+
+.explainer-bottom-panel.is-revealed {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* -----------------------------------------------------------------
+   SCROLL CUE — animated down arrow at the end of the intro block.
+   Button element so it's keyboard-focusable; on click it smooth-scrolls
+   to the first feature section. Fades out once the panel reveals.
+   ----------------------------------------------------------------- */
+.explainer-scroll-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wood-deep);
+  background: color-mix(in srgb, var(--oar) 25%, var(--paper));
+  border: 1px solid var(--wood-light);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: opacity 320ms ease-out, transform 320ms ease-out, background 160ms;
+}
+
+.explainer-scroll-cue:hover,
+.explainer-scroll-cue:focus-visible {
+  background: color-mix(in srgb, var(--oar) 50%, var(--paper));
+  outline: none;
+}
+
+.explainer-scroll-cue.is-hidden {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.explainer-scroll-cue-arrow {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  animation: sandal-scroll-bounce 1.6s ease-in-out infinite;
+}
+
+@keyframes sandal-scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+
+.explainer-bottom-inner {
+  max-width: 900px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 20px 28px;
+  display: flex;
+  /* Pin the diagram to the bottom of the panel so it sits against the
+     viewport edge rather than floating mid-screen. Taller states may
+     overflow the top — the chips row carries the load-bearing summary,
+     so clipping the caption is preferable to a high-floating diagram. */
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.explainer-bottom-inner > * {
+  width: 100%;
+  max-width: 760px;
+  /* Re-enable pointer events on the diagram so the command text can be
+     selected and copied. The panel around it stays pointer-events:none
+     so scroll-wheel passes through the empty margins. */
+  pointer-events: auto;
+}
+
+/* Narrow viewports: drop the bottom panel entirely. The 3-column diagram
+   (source → overlayfs → dimension) needs horizontal room to read; at
+   phone widths it clips the dimension column. Inline content (title,
+   cmd, lede, bullets) already tells the story, so omit the pinned
+   diagram and let the page flow linearly. */
+@media (max-width: 900px) {
+  .explainer-bottom-panel {
+    display: none;
+  }
+  .explainer {
+    padding: 12px 0 48px;
+  }
+}
+
+/* Wide viewports: move the diagram out of the bottom strip and into a
+   right-side column so it reads next to the text rather than under it.
+   Reveal slides in from the right instead of up from the bottom.
+   Threshold set above MacBook Pro 16" "More Space" scaling (≈2056px)
+   so the right-column layout only engages on larger external monitors. */
+@media (min-width: 2400px) {
+  .explainer {
+    /* Drop the tall bottom reservation — the panel no longer covers the
+       bottom of the page at this breakpoint. */
+    padding-bottom: 48px;
+  }
+  .explainer-bottom-panel {
+    top: 96px;                             /* clear the sticky site header */
+    bottom: 24px;
+    right: 48px;                           /* breathing room from viewport edge */
+    left: auto;
+    /* Wider panel — the 3-column diagram needs ~180px/col to avoid
+       squeezing the DIMENSION column (Tag uses whiteSpace:nowrap). */
+    width: clamp(560px, 32vw, 680px);
+    height: auto;
+    transform: translateX(calc(100% + 64px));
+  }
+  .explainer-bottom-panel.is-revealed {
+    transform: translateX(0);
+  }
+  .explainer-bottom-inner {
+    max-width: none;
+    padding: 20px 24px;
+    align-items: center;                   /* vertical center in tall column */
+  }
+}
+
+/* Tighten trigger-section padding on narrow screens so the phone scrolls
+   through features without excessive dead space. */
+@media (max-width: 600px) {
+  .explainer section[data-feature-index] {
+    min-height: 40vh !important;
+  }
+}
+
+/* -----------------------------------------------------------------
+   MOBILE CONTENT PADDING — mkdocs-material's default left indents on
+   definition lists and nested lists eat too much horizontal space on
+   phone widths. Pull them back so code blocks and text have room.
+   ----------------------------------------------------------------- */
+@media (max-width: 600px) {
+  .md-typeset dl dd {
+    margin-left: 0.6em;
+  }
+  .md-typeset details,
+  .md-typeset .admonition {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+  .md-typeset .admonition-title,
+  .md-typeset summary {
+    padding-left: 2rem;
+  }
+  .md-typeset pre > code {
+    /* Let code blocks scroll horizontally rather than force a wide viewport. */
+    overflow-x: auto;
+  }
+}
+
+/* Dark scheme — panel stays transparent on both schemes. The LiveDiagram's
+   own card surfaces supply the contrast. */
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .explainer *,
+  .explainer-bottom-panel * {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}

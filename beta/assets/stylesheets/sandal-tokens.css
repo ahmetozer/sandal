@@ -1,0 +1,115 @@
+/* ===================================================================
+   Sandal Design System — design tokens
+   Source: github.com/ahmetozer/sandal (mkdocs.yml + sandal_logo.png)
+   Ported from the design bundle's colors_and_type.css :root block.
+   =================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------
+     INK / NEUTRALS  (the logo outline + cream hull)
+     --------------------------------------------------------------- */
+  --ink:        #1a2332;
+  --ink-soft:   #2b3340;
+  --mute:       #6c7680;
+  --rule:       #e4e0d6;
+  --bone:       #f5efe1;
+  --paper:      #faf6ec;
+  --white:      #ffffff;
+
+  /* ---------------------------------------------------------------
+     WOOD / WARM ACCENTS  (boat interior planks)
+     --------------------------------------------------------------- */
+  --wood-deep:  #5a3a1f;
+  --wood:       #8a5a2b;
+  --wood-light: #c89968;
+  --oar:        #e8c896;
+
+  /* ---------------------------------------------------------------
+     WATER / SIGNAL
+     --------------------------------------------------------------- */
+  --water:      #a7d8e0;
+  --water-deep: #6aa9b5;
+
+  /* ---------------------------------------------------------------
+     SEMANTIC
+     --------------------------------------------------------------- */
+  --ok:   #3a7d44;
+  --warn: #c77b2c;
+  --err:  #a83c2a;
+  --info: var(--water-deep);
+
+  /* ---------------------------------------------------------------
+     TERMINAL  (CLI recreations, code blocks)
+     --------------------------------------------------------------- */
+  --term-bg:     #0f1115;
+  --term-fg:     #e4e0d6;
+  --term-prompt: #a7d8e0;
+  --term-dim:    #6c7680;
+  --term-accent: #c89968;
+  --term-ok:     #6fa86a;
+  --term-err:    #d97a6a;
+
+  /* ---------------------------------------------------------------
+     TYPE
+     --------------------------------------------------------------- */
+  --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 16px;
+  --text-md:   18px;
+  --text-lg:   22px;
+  --text-xl:   28px;
+  --text-2xl:  36px;
+  --text-3xl:  48px;
+  --text-4xl:  64px;
+
+  --lh-tight:  1.1;
+  --lh-snug:   1.25;
+  --lh-normal: 1.5;
+  --lh-loose:  1.6;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-bold:    700;
+
+  /* ---------------------------------------------------------------
+     SPACING  (4px grid)
+     --------------------------------------------------------------- */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+
+  /* ---------------------------------------------------------------
+     RADII  (small / square-ish — embedded-systems feel)
+     --------------------------------------------------------------- */
+  --r-sm:   2px;
+  --r-md:   4px;
+  --r-lg:   8px;
+  --r-pill: 9999px;
+
+  /* ---------------------------------------------------------------
+     BORDERS & SHADOWS
+     --------------------------------------------------------------- */
+  --border-hair: 1px solid var(--rule);
+  --border-ink:  1px solid var(--ink);
+  --border-dark: 1px solid rgba(255, 255, 255, 0.08);
+
+  --shadow-pop: 0 2px 6px rgba(26, 35, 50, 0.08),
+                0 8px 24px rgba(26, 35, 50, 0.06);
+
+  /* ---------------------------------------------------------------
+     MOTION
+     --------------------------------------------------------------- */
+  --motion-fast:   120ms linear;
+  --motion-normal: 150ms ease-out;
+}
