@@ -132,6 +132,64 @@
   background: transparent;
   pointer-events: none;
   z-index: 3;
+  /* Start hidden below the viewport — first-time visitors see a clean hero
+     and the arrow cue. `is-revealed` (toggled once scrollY crosses the
+     threshold) slides it into place. */
+  transform: translateY(100%);
+  opacity: 0;
+  transition: transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 380ms ease-out;
+}
+
+.explainer-bottom-panel.is-revealed {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* -----------------------------------------------------------------
+   SCROLL CUE — animated down arrow at the end of the intro block.
+   Button element so it's keyboard-focusable; on click it smooth-scrolls
+   to the first feature section. Fades out once the panel reveals.
+   ----------------------------------------------------------------- */
+.explainer-scroll-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wood-deep);
+  background: color-mix(in srgb, var(--oar) 25%, var(--paper));
+  border: 1px solid var(--wood-light);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: opacity 320ms ease-out, transform 320ms ease-out, background 160ms;
+}
+
+.explainer-scroll-cue:hover,
+.explainer-scroll-cue:focus-visible {
+  background: color-mix(in srgb, var(--oar) 50%, var(--paper));
+  outline: none;
+}
+
+.explainer-scroll-cue.is-hidden {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.explainer-scroll-cue-arrow {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  animation: sandal-scroll-bounce 1.6s ease-in-out infinite;
+}
+
+@keyframes sandal-scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
 }
 
 .explainer-bottom-inner {
