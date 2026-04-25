@@ -86,9 +86,8 @@ Stack images by repeating `-lw`. The right-most image wins for `ENTRYPOINT`, `CM
 
 A common pattern is combining a **single-binary Go image** (typically built `FROM scratch` — no shell, no package manager, just the binary) with **alpine** to get shell and debugging tools alongside the binary:
 
-``` { .bash title="Traefik (single-binary Go image) + alpine shell/tools" }
-sandal run -lw traefik:latest -lw alpine:latest --rm -t -- sh
-# inside the container: /traefik is the binary, alpine's busybox utilities are also available
+``` { .bash title="alpine shell/tools + hello-world (single-binary scratch image)" }
+sandal run -lw alpine:latest -lw hello-world:latest --rm -- ash -c "echo shell is avaible and hello as well; ./hello"
 ```
 
 ## Ephemeral in-memory rootfs (Linux only)
