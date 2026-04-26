@@ -3,13 +3,19 @@
 This sub command provisiones a new container to the system.
 
 ``` { .bash .annotate title="Example usage" }
-sandal run -lw / -tmp 10 --rm --  bash
+sandal run --rm -lw alpine
 ```
 
-When `-lw` provides a container image with an `ENTRYPOINT` or `CMD`, the trailing `-- command` is **optional** — the image's default command is used:
+When `-lw` provides a container image with an `ENTRYPOINT` or `CMD`, the trailing `-- command` is **optional** — the image's default command is used. Provide `-- <command>` to override it:
 
-``` { .bash .annotate title="Run image default command" }
-sandal run -lw alpine:latest -tmp 10 --rm
+``` { .bash .annotate title="Run a custom command" }
+sandal run --rm -lw alpine -- ls
+```
+
+Use the host's root filesystem as the lower layer (**Linux only** — requires native namespaces and is not available on macOS, where sandal runs inside a VM):
+
+``` { .bash .annotate title="Use the host rootfs as lower layer (Linux only)" }
+sandal run -lw /
 ```
 
 ## Flags

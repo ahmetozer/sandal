@@ -1,6 +1,6 @@
 # Configuration
 
-Each sub command will be configured by, flags and you can find details under [/guide/commands/*](../../guide/commands) pages.  
+Each sub command will be configured by, flags and you can find details under [/commands/*](../commands/index.md) pages.  
 Project wide configurations are use environment variables for setting.
 
 ## Environment Variables
