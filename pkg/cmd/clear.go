@@ -6,10 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
@@ -31,6 +33,7 @@ func Clear(args []string) error {
 		doOrphans   bool
 		doKernel    bool
 		doTemp      bool
+		imageNames  wrapper.StringFlags
 	)
 
 	f.BoolVar(&help, "help", false, "show this help message")
@@ -41,6 +44,7 @@ func Clear(args []string) error {
 	f.BoolVar(&doOrphans, "orphans", false, "remove changedir files/dirs and ext4 .img files whose container state file is missing")
 	f.BoolVar(&doKernel, "kernel-cache", false, "remove stale initramfs-sandal-*.img entries in SANDAL_KERNEL_DIR (keeps the most recent)")
 	f.BoolVar(&doTemp, "temp", false, "remove leftover temp files under SANDAL_TEMP_DIR from interrupted pulls")
+	f.Var(&imageNames, "i", "clear cached images whose filename contains this substring (repeatable)")
 
 	if err := f.Parse(args); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -49,6 +53,10 @@ func Clear(args []string) error {
 	if help {
 		f.Usage()
 		return nil
+	}
+
+	if len(imageNames) > 0 {
+		return clearByImageName(imageNames, dryRun)
 	}
 
 	// -all is the catch-all: expand it to enable every scanner in
@@ -260,6 +268,124 @@ func Clear(args []string) error {
 		// for them in the summary count.
 		count += len(containerActions)
 	}
+	verb := "removed"
+	if dryRun {
+		verb = "would remove"
+	}
+	fmt.Printf("clear: %s %d item(s), %s reclaimed\n", verb, count, humanBytesCmd(bytes))
+	return nil
+}
+
+// clearByImageName implements the `-i` branch of `sandal clear`. It
+// substring-matches each user-supplied pattern against `.sqfs`
+// filenames in env.BaseImageDir, refuses to remove files still
+// referenced by any container (naming the referencing container in
+// the error), and otherwise removes (or previews) the matched files.
+// Composes only with -dry-run; other scope flags are intentionally
+// ignored on this branch.
+func clearByImageName(patterns wrapper.StringFlags, dryRun bool) error {
+	dir := env.BaseImageDir
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("clear: read image dir %s: %v", dir, err)
+	}
+
+	conts, _ := controller.Containers()
+	usage := clean.BuildUsageSet(conts)
+
+	// Map cached image path -> containers that reference it, for
+	// blocked-match error messages.
+	refsByPath := map[string][]string{}
+	for _, c := range conts {
+		if c == nil {
+			continue
+		}
+		for _, im := range c.ImmutableImages {
+			if im.File == "" {
+				continue
+			}
+			if abs, err := filepath.Abs(im.File); err == nil {
+				refsByPath[abs] = append(refsByPath[abs], c.Name)
+			}
+		}
+		for _, ref := range c.Lower {
+			p := filepath.Join(dir, squash.SanitizeRef(ref)+".sqfs")
+			refsByPath[p] = append(refsByPath[p], c.Name)
+		}
+	}
+
+	matchedAny := false
+	type blocked struct {
+		path string
+		by   []string
+	}
+	var (
+		actions []clean.Action
+		blocks  []blocked
+		seen    = map[string]bool{}
+	)
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(name, ".sqfs") {
+			continue
+		}
+		var hit string
+		for _, p := range patterns {
+			if p != "" && strings.Contains(name, p) {
+				hit = p
+				break
+			}
+		}
+		if hit == "" {
+			continue
+		}
+		matchedAny = true
+		full := filepath.Join(dir, name)
+		if seen[full] {
+			continue
+		}
+		seen[full] = true
+		if _, used := usage.Images[full]; used {
+			names := refsByPath[full]
+			seenN := map[string]bool{}
+			uniq := names[:0]
+			for _, n := range names {
+				if seenN[n] {
+					continue
+				}
+				seenN[n] = true
+				uniq = append(uniq, n)
+			}
+			blocks = append(blocks, blocked{path: full, by: uniq})
+			continue
+		}
+		var size int64
+		if info, err := os.Lstat(full); err == nil {
+			size = info.Size()
+		}
+		actions = append(actions, clean.Action{
+			Path:   full,
+			Kind:   clean.KindImage,
+			Reason: "matched -i " + hit,
+			Bytes:  size,
+		})
+	}
+
+	if !matchedAny {
+		return fmt.Errorf("clear: no image matched: %s", strings.Join(patterns, ", "))
+	}
+	if len(blocks) > 0 {
+		for _, b := range blocks {
+			fmt.Fprintf(os.Stderr, "clear: refusing to remove %s (referenced by: %s)\n", b.path, strings.Join(b.by, ", "))
+		}
+		return fmt.Errorf("clear: %d matched image(s) still referenced by container(s); remove the container(s) first with `sandal rm`", len(blocks))
+	}
+
+	count, bytes := clean.Apply(actions, dryRun)
 	verb := "removed"
 	if dryRun {
 		verb = "would remove"

@@ -19,6 +19,7 @@ sandal clear
 | `-orphans`         | Changedir entries and `.img` files in `SANDAL_CHANGE_DIR` whose container state file is missing.                |
 | `-kernel-cache`    | Stale `initramfs-sandal-*.img` entries in `SANDAL_KERNEL_DIR`; keeps the most recently produced one.            |
 | `-temp`            | Leftover temp files in `SANDAL_TEMP_DIR` from interrupted pulls.                                                |
+| `-i <name>`        | Cached `.sqfs` files in `SANDAL_IMAGE_DIR` whose filename contains `<name>`. Repeatable. Refuses if referenced. |
 | `-all`             | All of the above, plus every stopped container regardless of the `-rm` flag.                                    |
 
 Alpine-provided kernels (`vmlinuz-virt-*`, `initramfs-virt-*`) are never
@@ -68,6 +69,24 @@ Clean only unused downloaded images:
 sandal clear -images
 ```
 
+Clear one or more cached images by name (substring match against the
+cached filename):
+
+```bash
+sandal clear -i homeassistant
+sandal clear -i homeassistant -dry-run
+sandal clear -i ha -i nginx
+```
+
+`-i` matches if the substring appears anywhere in the cached `.sqfs`
+filename, so `-i homeassistant` matches
+`ghcr.io_home-assistant_home-assistant_stable_<hash>.sqfs`. If any
+matched file is still referenced by a container, the command exits
+non-zero, names the referencing container(s), and removes nothing —
+remove the container first with `sandal rm`. `-i` runs as a focused
+operation: when set, the other scope flags (`-all`, `-images`,
+`-snapshots`, `-orphans`, `-kernel-cache`, `-temp`) are ignored.
+
 Preview a full cleanup without touching disk:
 
 ```bash
@@ -85,6 +104,9 @@ Usage of clear:
         print what would be removed without deleting anything
   -help
         show this help message
+  -i value
+        clear cached images whose filename contains this substring
+        (repeatable)
   -images
         remove downloaded images under SANDAL_IMAGE_DIR that no
         container references
