@@ -50,11 +50,24 @@ func (dc DaemonConfig) Start() error {
 		}
 	}
 
+	// Rehydrate port-forward listeners for already-running containers
+	// before starting the supervisor loops. After a daemon crash the
+	// container PIDs are still alive but their listeners died with the
+	// previous daemon process; this loop reattaches without touching
+	// the containers themselves. Health-check-driven recovery (which
+	// goes through crun and registers via Forwards.Add) will replace
+	// any sessions installed here for containers it later restarts.
+	host.RehydrateAllForwards()
+
 	wg.Add(2)
 	daemonKillRequested := make(chan bool)
 	go signalProxy(daemonKillRequested, &wg)
 	go daemonControlHealthCheck(daemonKillRequested, &wg)
 	wg.Wait()
+
+	// Release port-forward listeners before tearing down containers so
+	// in-flight relays don't dial into netns that's about to disappear.
+	host.Forwards.StopAll()
 
 	DaemonPid := os.Getpid()
 	conts, err := controller.Containers()
