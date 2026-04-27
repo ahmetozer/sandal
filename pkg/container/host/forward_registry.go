@@ -90,6 +90,18 @@ func (r *forwardRegistry) Remove(name string, s *forwardSession) {
 	s.close()
 }
 
+// Stop unconditionally closes whatever session is registered under
+// name. Used by code paths that learned a container is gone (e.g. the
+// health-check loop) but didn't build the session itself, so they
+// can't use the CAS-style Remove. No-op if absent.
+func (r *forwardRegistry) Stop(name string) {
+	r.mu.Lock()
+	s := r.sessions[name]
+	delete(r.sessions, name)
+	r.mu.Unlock()
+	s.close()
+}
+
 // StopAll closes every active session. Called from the daemon shutdown
 // path before containers are signalled.
 func (r *forwardRegistry) StopAll() {

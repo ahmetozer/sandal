@@ -293,14 +293,10 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 		// session and orphan the old listener (port stuck "in use").
 		ownedSession := session
 		registered := env.IsDaemon && session != nil
-		waitPid := cmd.Process.Pid
-		slog.Info("crun: wait goroutine starting", "name", c.Name, "pid", waitPid, "registered", registered)
 		go func() {
-			ws, werr := cmd.Process.Wait()
-			slog.Info("crun: wait goroutine returned", "name", c.Name, "pid", waitPid, "exit", ws, "err", werr)
+			cmd.Process.Wait()
 			if registered {
 				Forwards.Remove(c.Name, ownedSession)
-				slog.Info("crun: forward session removed", "name", c.Name)
 			}
 			if consoleCleanup != nil {
 				consoleCleanup()
