@@ -132,6 +132,64 @@
   background: transparent;
   pointer-events: none;
   z-index: 3;
+  /* Start hidden below the viewport — first-time visitors see a clean hero
+     and the arrow cue. `is-revealed` (toggled once scrollY crosses the
+     threshold) slides it into place. */
+  transform: translateY(100%);
+  opacity: 0;
+  transition: transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 380ms ease-out;
+}
+
+.explainer-bottom-panel.is-revealed {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* -----------------------------------------------------------------
+   SCROLL CUE — animated down arrow at the end of the intro block.
+   Button element so it's keyboard-focusable; on click it smooth-scrolls
+   to the first feature section. Fades out once the panel reveals.
+   ----------------------------------------------------------------- */
+.explainer-scroll-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wood-deep);
+  background: color-mix(in srgb, var(--oar) 25%, var(--paper));
+  border: 1px solid var(--wood-light);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: opacity 320ms ease-out, transform 320ms ease-out, background 160ms;
+}
+
+.explainer-scroll-cue:hover,
+.explainer-scroll-cue:focus-visible {
+  background: color-mix(in srgb, var(--oar) 50%, var(--paper));
+  outline: none;
+}
+
+.explainer-scroll-cue.is-hidden {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.explainer-scroll-cue-arrow {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  animation: sandal-scroll-bounce 1.6s ease-in-out infinite;
+}
+
+@keyframes sandal-scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
 }
 
 .explainer-bottom-inner {
@@ -169,6 +227,38 @@
   }
   .explainer {
     padding: 12px 0 48px;
+  }
+}
+
+/* Wide viewports: move the diagram out of the bottom strip and into a
+   right-side column so it reads next to the text rather than under it.
+   Reveal slides in from the right instead of up from the bottom.
+   Threshold set above MacBook Pro 16" "More Space" scaling (≈2056px)
+   so the right-column layout only engages on larger external monitors. */
+@media (min-width: 2400px) {
+  .explainer {
+    /* Drop the tall bottom reservation — the panel no longer covers the
+       bottom of the page at this breakpoint. */
+    padding-bottom: 48px;
+  }
+  .explainer-bottom-panel {
+    top: 96px;                             /* clear the sticky site header */
+    bottom: 24px;
+    right: 48px;                           /* breathing room from viewport edge */
+    left: auto;
+    /* Wider panel — the 3-column diagram needs ~180px/col to avoid
+       squeezing the DIMENSION column (Tag uses whiteSpace:nowrap). */
+    width: clamp(560px, 32vw, 680px);
+    height: auto;
+    transform: translateX(calc(100% + 64px));
+  }
+  .explainer-bottom-panel.is-revealed {
+    transform: translateX(0);
+  }
+  .explainer-bottom-inner {
+    max-width: none;
+    padding: 20px 24px;
+    align-items: center;                   /* vertical center in tall column */
   }
 }
 

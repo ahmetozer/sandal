@@ -8,13 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/image-management/">
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/commands/build/">
       
       
-        <link rel="prev" href="../guest-init/">
+        <link rel="prev" href="../attach/">
       
       
-        <link rel="next" href="../kvm-hypervisor/">
+        <link rel="next" href="../clear/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>Image Management - Sandal</title>
+        <title>Build - Sandal</title>
       
     
     
@@ -65,15 +65,15 @@
     
   
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Image Management - Sandal" />
-<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/image-management.png" />
+<meta property="og:title" content="Build - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/commands/build.png" />
 <meta property="og:image:type" content="image/png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/image-management/" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/commands/build/" />
 <meta property="twitter:card" content="summary_large_image" />
-<meta property="twitter:title" content="Image Management - Sandal" />
-<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/image-management.png" />
+<meta property="twitter:title" content="Build - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/commands/build.png" />
 </head>
   
   
@@ -93,7 +93,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#image-management" class="md-skip">
+        <a href="#build" class="md-skip">
           Skip to content
         </a>
       
@@ -128,7 +128,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Image Management
+              Build
             
           </span>
         </div>
@@ -287,11 +287,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../commands/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -521,28 +523,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -560,7 +565,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -578,7 +583,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -606,7 +611,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/attach/" class="md-nav__link">
+      <a href="../attach/" class="md-nav__link">
         
   
   
@@ -631,10 +636,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../commands/build/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -650,6 +682,208 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-t-nametag-required-unless-dry-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -t name:tag (required unless --dry-run)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-f-dockerfile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -f Dockerfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-push" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --push
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-target-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --target &lt;stage&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-build-arg-keyvalue-repeatable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --build-arg KEY=VALUE (repeatable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-dry-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --dry-run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -vm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-tmp-csize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -tmp / -csize
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-cpu-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --cpu / --memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported instructions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-stage-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-stage example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#push-round-trip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Push round-trip
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -662,7 +896,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/clear/" class="md-nav__link">
+      <a href="../clear/" class="md-nav__link">
         
   
   
@@ -690,7 +924,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/cmd/" class="md-nav__link">
+      <a href="../cmd/" class="md-nav__link">
         
   
   
@@ -718,7 +952,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/completion/" class="md-nav__link">
+      <a href="../completion/" class="md-nav__link">
         
   
   
@@ -746,7 +980,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/daemon/" class="md-nav__link">
+      <a href="../daemon/" class="md-nav__link">
         
   
   
@@ -774,7 +1008,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/exec/" class="md-nav__link">
+      <a href="../exec/" class="md-nav__link">
         
   
   
@@ -802,7 +1036,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/export/" class="md-nav__link">
+      <a href="../export/" class="md-nav__link">
         
   
   
@@ -830,7 +1064,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/inspect/" class="md-nav__link">
+      <a href="../inspect/" class="md-nav__link">
         
   
   
@@ -858,7 +1092,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/kill/" class="md-nav__link">
+      <a href="../kill/" class="md-nav__link">
         
   
   
@@ -886,7 +1120,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/ps/" class="md-nav__link">
+      <a href="../ps/" class="md-nav__link">
         
   
   
@@ -914,7 +1148,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/rerun/" class="md-nav__link">
+      <a href="../rerun/" class="md-nav__link">
         
   
   
@@ -942,7 +1176,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/rm/" class="md-nav__link">
+      <a href="../rm/" class="md-nav__link">
         
   
   
@@ -970,7 +1204,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/run/" class="md-nav__link">
+      <a href="../run/" class="md-nav__link">
         
   
   
@@ -998,7 +1232,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/snapshot/" class="md-nav__link">
+      <a href="../snapshot/" class="md-nav__link">
         
   
   
@@ -1026,7 +1260,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/stop/" class="md-nav__link">
+      <a href="../stop/" class="md-nav__link">
         
   
   
@@ -1054,7 +1288,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/vm/" class="md-nav__link">
+      <a href="../vm/" class="md-nav__link">
         
   
   
@@ -1254,34 +1488,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#oci-container-images" class="md-nav__link">
+  <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        OCI Container Images
+        How it works
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="OCI Container Images">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flags">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#registry-client" class="md-nav__link">
+  <a href="#-t-nametag-required-unless-dry-run" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Registry Client
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Registry Client">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#image-reference-parsing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Image Reference Parsing
+        -t name:tag (required unless --dry-run)
       
     </span>
   </a>
@@ -1289,10 +1522,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
+  <a href="#-f-dockerfile" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Authentication
+        -f Dockerfile
       
     </span>
   </a>
@@ -1300,26 +1533,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#pull-flow" class="md-nav__link">
+  <a href="#-push" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pull Flow
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#image-pulling-and-flattening" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Image Pulling and Flattening
+        --push
       
     </span>
   </a>
@@ -1327,10 +1544,65 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#squashfs" class="md-nav__link">
+  <a href="#-target-stage" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SquashFS
+        --target &lt;stage&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-build-arg-keyvalue-repeatable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --build-arg KEY=VALUE (repeatable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-dry-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --dry-run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -vm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-tmp-csize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -tmp / -csize
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-cpu-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --cpu / --memory
       
     </span>
   </a>
@@ -1343,88 +1615,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#linux-kernel-management" class="md-nav__link">
+  <a href="#supported-instructions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Linux Kernel Management
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Linux Kernel Management">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#kernel-download" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Kernel Download
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#initrd-generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Initrd Generation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Initrd Generation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cpio-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CPIO Format
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#initrd-overlay" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Initrd Overlay
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#zboot-extraction" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ZBOOT Extraction
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cache-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cache Structure
+        Supported instructions
       
     </span>
   </a>
@@ -1432,10 +1626,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#image-format-support-matrix" class="md-nav__link">
+  <a href="#multi-stage-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Image Format Support Matrix
+        Multi-stage example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#push-round-trip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Push round-trip
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
       
     </span>
   </a>
@@ -1459,259 +1686,192 @@
 
 
 
-<h1 id="image-management">Image Management<a class="headerlink" href="#image-management" title="Permanent link">&para;</a></h1>
-<p>Sandal handles OCI container images, Linux kernels, and initrd generation. All artifacts are cached locally to avoid repeated downloads.</p>
-<h2 id="oci-container-images">OCI Container Images<a class="headerlink" href="#oci-container-images" title="Permanent link">&para;</a></h2>
-<h3 id="registry-client">Registry Client<a class="headerlink" href="#registry-client" title="Permanent link">&para;</a></h3>
-<p><strong>Package</strong>: <code>pkg/lib/container/registry/</code></p>
-<p>Implements the OCI Distribution Spec v2 API for pulling images from registries.</p>
-<h4 id="image-reference-parsing">Image Reference Parsing<a class="headerlink" href="#image-reference-parsing" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>registry/reference.go</code></p>
-<div class="highlight"><pre><span></span><code>Input formats:
-  &quot;alpine&quot;                      -&gt; registry-1.docker.io/library/alpine:latest
-  &quot;alpine:3.18&quot;                 -&gt; registry-1.docker.io/library/alpine:3.18
-  &quot;ghcr.io/user/repo:v1&quot;       -&gt; ghcr.io/user/repo:v1
-  &quot;registry.io/img@sha256:abc&quot; -&gt; registry.io/img@sha256:abc
+<h1 id="build">Build<a class="headerlink" href="#build" title="Permanent link">&para;</a></h1>
+<p>Builds an OCI container image from a Dockerfile, producing a sandal-native <code>.sqfs</code> in the local image cache and optionally pushing it to a registry.</p>
+<div class="highlight"><span class="filename">Basic usage</span><pre><span></span><code>sandal<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>myimage:latest<span class="w"> </span>.
 </code></pre></div>
-<h4 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>registry/auth.go</code></p>
-<div class="highlight"><pre><span></span><code>1. Try unauthenticated request
-2. If 401, parse WWW-Authenticate header:
-   Bearer realm=&quot;https://auth.docker.io/token&quot;,service=&quot;registry.docker.io&quot;,scope=&quot;repository:library/alpine:pull&quot;
-3. Load credentials from ~/.docker/config.json
-4. Exchange credentials for bearer token
-5. Retry with Authorization: Bearer &lt;token&gt;
+<p>The result is available immediately for <code>sandal run</code>:</p>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>myimage:latest
 </code></pre></div>
-<h4 id="pull-flow">Pull Flow<a class="headerlink" href="#pull-flow" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>registry/client.go</code></p>
-<div class="highlight"><pre><span></span><code>FetchManifest(ref)
-  |
-  +-- GET /v2/&lt;name&gt;/manifests/&lt;reference&gt;
-  |   Accept: application/vnd.oci.image.index.v1+json,
-  |           application/vnd.docker.distribution.manifest.list.v2+json,
-  |           application/vnd.oci.image.manifest.v1+json,
-  |           application/vnd.docker.distribution.manifest.v2+json
-  |
-  +-- If manifest list/index:
-  |     Select platform (linux/arm64 or linux/amd64)
-  |     Fetch platform-specific manifest
-  |
-  +-- Return manifest with layer digests and config
-</code></pre></div>
-<h3 id="image-pulling-and-flattening">Image Pulling and Flattening<a class="headerlink" href="#image-pulling-and-flattening" title="Permanent link">&para;</a></h3>
-<p><strong>Package</strong>: <code>pkg/lib/container/image/</code></p>
-<p><strong>File</strong>: <code>image/pull.go</code></p>
-<div class="highlight"><pre><span></span><code>Pull(imageRef) -&gt; squashfsPath
-  |
-  +-- Check cache: ~/.sandal-vm/images/&lt;sanitized_ref&gt;.sqsh
-  |     If cached, return cached path
-  |
-  +-- registry.FetchManifest(ref) -&gt; manifest
-  |
-  +-- For each layer in manifest.Layers:
-  |     GET /v2/&lt;name&gt;/blobs/&lt;digest&gt;
-  |     Download and decompress (gzip/zstd)
-  |
-  +-- Flatten all layers into single directory:
-  |     Apply layers in order (lower -&gt; upper)
-  |     Handle whiteout files (.wh.*)
-  |
-  +-- squashfs.Create(flatDir) -&gt; squashfsPath
-  |     Convert flattened directory to squashfs image
-  |
-  +-- Cache at ~/.sandal-vm/images/&lt;sanitized_ref&gt;.sqsh
-  |
-  +-- Return squashfsPath
-</code></pre></div>
-<h3 id="squashfs">SquashFS<a class="headerlink" href="#squashfs" title="Permanent link">&para;</a></h3>
-<p><strong>Package</strong>: <code>pkg/lib/squashfs/</code></p>
-<p>Sandal uses squashfs as its primary immutable image format:
-- Compressed, read-only filesystem
-- Efficient random access
-- Small file size
-- Mountable directly by Linux kernel</p>
-<p><strong>File</strong>: <code>squashfs/writer.go</code> - Implements squashfs v4.0 format:
-- Gzip compression for data blocks
-- Inode table, directory table, fragment table
-- Proper superblock with magic <code>0x73717368</code> ("hsqs")</p>
-<h2 id="linux-kernel-management">Linux Kernel Management<a class="headerlink" href="#linux-kernel-management" title="Permanent link">&para;</a></h2>
-<p><strong>Package</strong>: <code>pkg/vm/kernel/</code></p>
-<h3 id="kernel-download">Kernel Download<a class="headerlink" href="#kernel-download" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/kernel.go</code></p>
-<div class="highlight"><pre><span></span><code>EnsureKernel() -&gt; kernelPath
-  |
-  +-- Check cache: ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
-  |     If cached, return cached path
-  |
-  +-- Determine architecture: arm64 or x86_64
-  |
-  +-- Fetch Alpine Linux APK index:
-  |     https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/&lt;arch&gt;/APKINDEX.tar.gz
-  |
-  +-- Find linux-virt package version
-  |
-  +-- Download APK:
-  |     https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/&lt;arch&gt;/linux-virt-&lt;ver&gt;.apk
-  |
-  +-- Extract kernel image from APK (tar.gz format):
-  |     boot/vmlinuz-virt -&gt; vmlinuz
-  |
-  +-- If ARM64: detect ZBOOT format, decompress if needed
-  |     ZBOOT: EFI stub wrapping gzip-compressed kernel Image
-  |     Magic: &quot;zimg&quot; at offset 4
-  |     Extract and decompress to raw ARM64 Image
-  |
-  +-- Cache at ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
-  |
-  +-- Also extract kernel modules for initrd
-  |     lib/modules/&lt;version&gt;/ -&gt; cached for initrd generation
-  |
-  +-- Return kernelPath
-</code></pre></div>
-<h3 id="initrd-generation">Initrd Generation<a class="headerlink" href="#initrd-generation" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/initrd.go</code></p>
-<p>The initrd contains the sandal binary and kernel modules needed for the VM
-to boot and mount VirtioFS shares. The result is <strong>content-addressed</strong>: the
-cache key is <code>sha256(sandal binary || base initrd)</code> truncated to 16 bytes
-hex, and the file lives at <code>&lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img</code>.
-Identical inputs always resolve to the same path; on a cache hit no archive
-is built.</p>
-<div class="highlight"><pre><span></span><code>CreateFromBinary(binData, baseInitrd) -&gt; cachePath
-  |
-  +-- Compute cache key:
-  |     sha256(binary) || 0x00 || sha256(baseInitrd)
-  |     -&gt; first 16 bytes hex -&gt; &quot;439a75c21ae9...&quot;.img
-  |
-  +-- If &lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img exists -&gt; return it
-  |
-  +-- Build into a temp file in &lt;BaseKernelDir&gt; (same dir for atomic rename):
-  |     - Decompress base initrd, strip CPIO trailer, append
-  |     - Append /dev/console char device (5,1) so the kernel
-  |       wires fds 0/1/2 when init is exec&#39;d
-  |     - Append /etc/{nsswitch.conf,resolv.conf,hosts} for Go runtime
-  |     - Append sandal binary as /init
-  |       (mounts /dev devtmpfs + /proc procfs itself in
-  |        importKernelCmdlineEnv before any code that needs them)
-  |     - Write CPIO trailer
-  |     - Gzip compress
-  |     - fsync
-  |
-  +-- Atomic rename to final cache path
-  |
-  +-- Return cachePath (owned by cache, NOT removed by caller)
-</code></pre></div>
-<p>The cache entry is reused across every VM start that uses the same sandal
-binary and base initrd — typically every run on a stable host. Updating
-sandal or upgrading the kernel produces a new entry; old entries stay on
-disk and can be pruned manually with
-<code>rm &lt;BaseKernelDir&gt;/initramfs-sandal-*.img</code>.</p>
-<h4 id="cpio-format">CPIO Format<a class="headerlink" href="#cpio-format" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>kernel/cpio.go</code></p>
-<p>Uses the "newc" (SVR4) CPIO format with ASCII hex headers:</p>
-<div class="highlight"><pre><span></span><code>Header (110 bytes):
-  &quot;070701&quot;        magic
-  ino, mode, uid, gid, nlink
-  mtime, filesize
-  devmajor, devminor, rdevmajor, rdevminor
-  namesize, check
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p>Every build produces a <strong>single squashed layer</strong>. Sandal's local cache format is a single <code>.sqfs</code> per image plus a <code>.sqfs.json</code> sidecar with the OCI <code>RuntimeConfig</code> (ENV, ENTRYPOINT, CMD, WORKDIR, USER). When pushing to a registry the image is flattened into one layer too — this matches how <code>sandal pull</code> already treats external images. <code>docker history</code> still shows every instruction because the OCI image config's <code>History</code> array is populated per instruction.</p>
+<p>For each build stage:</p>
+<ol>
+<li>The base image (<code>FROM</code>) is pulled via the same path <code>sandal run -lw &lt;ref&gt;</code> uses — cached <code>.sqfs</code> and all.</li>
+<li>The base is snapshot-copied onto a tmpfs-backed working directory. Tmpfs is used so the stage rootfs is on a real filesystem, not overlayfs, which lets per-step RUN overlays nest without hitting the kernel's max overlay stacking depth.</li>
+<li>Each instruction is applied in order:</li>
+<li><code>ENV</code>, <code>WORKDIR</code>, <code>USER</code>, <code>CMD</code>, <code>ENTRYPOINT</code>, <code>LABEL</code>, <code>EXPOSE</code>, <code>ARG</code>, <code>VOLUME</code>, <code>STOPSIGNAL</code> — mutate the in-memory <code>RuntimeConfig</code> only.</li>
+<li><code>COPY</code>, <code>ADD</code> — copy files directly into the stage rootfs (no container exec needed).</li>
+<li><code>RUN</code> — execute the command in an ephemeral sandal container with host network and the stage rootfs as lower. After exit, the overlay's upper dir is merged into the stage rootfs.</li>
+<li>When all stages are done, the target stage's rootfs is serialised as squashfs and the <code>RuntimeConfig</code> is written to the sidecar.</li>
+</ol>
+<h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">&para;</a></h2>
+<h3 id="-t-nametag-required-unless-dry-run"><code>-t name:tag</code> (required unless --dry-run)<a class="headerlink" href="#-t-nametag-required-unless-dry-run" title="Permanent link">&para;</a></h3>
+<p>Image tag. Used as the local cache key (<code>$SANDAL_IMAGE_DIR/&lt;sanitized-tag&gt;.sqfs</code>) and as the destination when <code>--push</code> is set.</p>
+<h3 id="-f-dockerfile"><code>-f Dockerfile</code><a class="headerlink" href="#-f-dockerfile" title="Permanent link">&para;</a></h3>
+<p>Path to the Dockerfile. Defaults to <code>&lt;CONTEXT&gt;/Dockerfile</code>.</p>
+<h3 id="-push"><code>--push</code><a class="headerlink" href="#-push" title="Permanent link">&para;</a></h3>
+<p>After building locally, push the image to the registry implied by <code>-t</code>. Localhost registries (e.g. <code>localhost:5000/...</code>) use plain HTTP automatically; everything else uses HTTPS.</p>
+<h3 id="-target-stage"><code>--target &lt;stage&gt;</code><a class="headerlink" href="#-target-stage" title="Permanent link">&para;</a></h3>
+<p>In multi-stage builds, stop at the named stage. Without this flag the last stage becomes the output image.</p>
+<h3 id="-build-arg-keyvalue-repeatable"><code>--build-arg KEY=VALUE</code> (repeatable)<a class="headerlink" href="#-build-arg-keyvalue-repeatable" title="Permanent link">&para;</a></h3>
+<p>Supply values for Dockerfile <code>ARG</code> declarations. Overrides any default value in the Dockerfile.</p>
+<h3 id="-dry-run"><code>--dry-run</code><a class="headerlink" href="#-dry-run" title="Permanent link">&para;</a></h3>
+<p>Parse the Dockerfile and print the plan without building. Useful for validating syntax.</p>
+<h3 id="-vm"><code>-vm</code><a class="headerlink" href="#-vm" title="Permanent link">&para;</a></h3>
+<p>Run the build inside a virtual machine. The VM boots sandal as <code>/init</code>, the build context and Dockerfile are shared read-only via VirtioFS, and the image cache directory is shared read-write so the output <code>.sqfs</code> + sidecar appear on the host immediately. Required on macOS; optional on Linux.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Linux: optional VM isolation for the build</span>
+sandal<span class="w"> </span>build<span class="w"> </span>-vm<span class="w"> </span>-t<span class="w"> </span>myapp:1.0<span class="w"> </span>.
 
-Followed by: filename (null-terminated, padded to 4 bytes)
-Followed by: file data (padded to 4 bytes)
+<span class="c1"># macOS: VM is implicit — -vm is accepted but always assumed</span>
+sandal<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>myapp:1.0<span class="w"> </span>.
 </code></pre></div>
-<p>Functions:
-- <code>writeCPIODir()</code> - Create directory entry
-- <code>writeCPIOFile()</code> - Create file entry with content
-- <code>writeCPIOCharDev()</code> - Create character device node
-- <code>findInCPIO()</code> - Extract file from existing CPIO archive
-- <code>stripCPIOTrailer()</code> - Remove "TRAILER!!!" entry for appending</p>
-<h3 id="initrd-overlay">Initrd Overlay<a class="headerlink" href="#initrd-overlay" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/initrd.go</code> - <code>CreateOverlay()</code></p>
-<p>When the base initrd contains an init script (e.g., Alpine's init), sandal can inject VirtioFS mount commands:</p>
-<div class="highlight"><pre><span></span><code>CreateOverlay(baseInitrd, mounts) -&gt; modifiedInitrd
-  |
-  +-- Find /init script in base CPIO
-  |
-  +-- Inject mount commands before &quot;exec switch_root&quot;:
-  |     mkdir -p /sysroot/mnt/data
-  |     mount -t virtiofs fs-0 /sysroot/mnt/data
-  |
-  +-- Append modified init script as CPIO overlay
-  |
-  +-- Return combined initrd
-</code></pre></div>
-<h3 id="zboot-extraction">ZBOOT Extraction<a class="headerlink" href="#zboot-extraction" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/zboot.go</code></p>
-<p>ARM64 kernels from Alpine are in EFI ZBOOT format (gzip-compressed kernel wrapped in an EFI PE stub):</p>
-<div class="highlight"><pre><span></span><code>Detection:
-  offset 0: MZ (PE header)
-  offset 4: &quot;zimg&quot; (ZBOOT magic)
+<h3 id="-tmp-csize"><code>-tmp</code> / <code>-csize</code><a class="headerlink" href="#-tmp-csize" title="Permanent link">&para;</a></h3>
+<p>Control the backing storage for stage rootfs and per-RUN change dirs.</p>
+<p><strong>Default (no <code>-tmp</code>)</strong>: the builder first checks whether the host
+filesystem supports stacking a new overlayfs (i.e. <code>/var/lib/sandal</code> is
+not itself overlayfs).</p>
+<ul>
+<li><strong>Supported</strong> → use a plain directory. Fastest path, direct disk I/O.</li>
+<li><strong>Not supported</strong> (devcontainers, Docker-in-Docker, nested sandal) →
+  fall back to a loop-mounted ext4 image of size <code>-csize</code> (default
+  <code>8g</code>). This is the same mechanism <code>sandal run -chdir-type image</code>
+  uses when the kernel rejects nested overlays.</li>
+</ul>
+<p><strong><code>-tmp N</code></strong>: tmpfs of <code>N</code> MB per backing. Fast, RAM-only — useful for
+small builds where you want to avoid disk writes entirely.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Default: disk-backed; good for large builds like Home Assistant</span>
+sandal<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>ha:test<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">BUILD_FROM</span><span class="o">=</span>ghcr.io/.../base:X<span class="w"> </span>.
 
-Extraction:
-  Read payload_offset and payload_size from header
-  Slice payload from file
-  Decompress with gzip
-  Result: raw ARM64 Image format kernel
+<span class="c1"># Explicit small tmpfs: for quick iteration on tiny Dockerfiles</span>
+sandal<span class="w"> </span>build<span class="w"> </span>-tmp<span class="w"> </span><span class="m">200</span><span class="w"> </span>-t<span class="w"> </span>foo:1<span class="w"> </span>.
+
+<span class="c1"># Bigger disk image (override 8g default) for very large package installs</span>
+sandal<span class="w"> </span>build<span class="w"> </span>-csize<span class="w"> </span>16g<span class="w"> </span>-t<span class="w"> </span>huge:1<span class="w"> </span>.
 </code></pre></div>
-<h2 id="cache-structure">Cache Structure<a class="headerlink" href="#cache-structure" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>~/.sandal-vm/
-  kernel/
-    arm64/
-      vmlinuz               # Cached kernel image
-      modules/              # Kernel modules for initrd
-    amd64/
-      vmlinuz
-      modules/
-  images/
-    alpine_latest.sqsh      # Cached OCI images as squashfs
-    ubuntu_22.04.sqsh
-  machines/
-    &lt;vm-name&gt;/
-      config.json           # VM configuration
-      pid                   # VM process PID
+<h3 id="-cpu-memory"><code>--cpu</code> / <code>--memory</code><a class="headerlink" href="#-cpu-memory" title="Permanent link">&para;</a></h3>
+<p>Tune the build VM's resources. Only effective with <code>-vm</code>.</p>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>build<span class="w"> </span>-vm<span class="w"> </span>--cpu<span class="w"> </span><span class="m">4</span><span class="w"> </span>--memory<span class="w"> </span>2G<span class="w"> </span>-t<span class="w"> </span>myapp:1.0<span class="w"> </span>.
 </code></pre></div>
-<h2 id="image-format-support-matrix">Image Format Support Matrix<a class="headerlink" href="#image-format-support-matrix" title="Permanent link">&para;</a></h2>
+<p><code>--cpu</code> accepts a decimal number of CPUs (rounded up). <code>--memory</code> accepts human-readable sizes: <code>K</code>/<code>M</code>/<code>G</code>/<code>T</code> (1000-based) or <code>Ki</code>/<code>Mi</code>/<code>Gi</code>/<code>Ti</code> (1024-based); a bare number is bytes.</p>
+<h2 id="supported-instructions">Supported instructions<a class="headerlink" href="#supported-instructions" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Format</th>
-<th>Container (direct)</th>
-<th>Container (VM)</th>
+<th>Instruction</th>
 <th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>OCI image reference</td>
-<td>Pull + squashfs cache</td>
-<td>Pull + squashfs cache</td>
-<td>Auto-detected from string</td>
+<td><code>FROM image[:tag] [AS name]</code></td>
+<td>Pulls from any OCI registry. <code>scratch</code> creates an empty rootfs. <code>FROM &lt;previous-stage&gt;</code> is supported via stage name or index.</td>
 </tr>
 <tr>
-<td>SquashFS file</td>
-<td>Loop mount</td>
-<td>VirtioFS share</td>
-<td>Preferred for immutable images</td>
+<td><code>RUN &lt;cmd&gt;</code> or <code>RUN ["exec","form"]</code></td>
+<td>Runs inside an ephemeral sandal container with host network. Shell form uses <code>/bin/sh -c</code>.</td>
 </tr>
 <tr>
-<td>Directory</td>
-<td>Direct lowerdir</td>
-<td>VirtioFS share</td>
-<td>Development use</td>
+<td><code>COPY [--from=&lt;stage&gt;] &lt;src&gt;... &lt;dst&gt;</code></td>
+<td>Copies from the build context or from a previous stage's rootfs.</td>
 </tr>
 <tr>
-<td>Raw disk (MBR/GPT)</td>
-<td>Loop mount + partition</td>
-<td>VirtioFS or virtio-blk</td>
-<td>For full disk images</td>
+<td><code>ADD &lt;src&gt;... &lt;dst&gt;</code></td>
+<td>Same as COPY (URL fetch + tar auto-extract not yet implemented).</td>
 </tr>
 <tr>
-<td>ISO</td>
-<td>Loop mount (read-only)</td>
-<td>Virtio-blk (read-only)</td>
-<td>Used for install media</td>
+<td><code>ENV KEY=VAL ...</code></td>
+<td>Multi-pair form and legacy <code>ENV KEY VAL</code> supported.</td>
+</tr>
+<tr>
+<td><code>LABEL KEY=VAL ...</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ARG NAME[=DEFAULT]</code></td>
+<td>Scoped to the stage (or global if before the first FROM).</td>
+</tr>
+<tr>
+<td><code>WORKDIR /path</code></td>
+<td>Creates the directory in the rootfs and becomes the default CWD for subsequent RUN/COPY.</td>
+</tr>
+<tr>
+<td><code>USER user[:group]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>CMD ["a","b"]</code> or <code>CMD a b</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ENTRYPOINT ["x"]</code> or <code>ENTRYPOINT x</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>EXPOSE port[/proto]</code></td>
+<td><code>tcp</code> is the default protocol.</td>
+</tr>
+<tr>
+<td><code>VOLUME /path ...</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>STOPSIGNAL SIG</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>SHELL ["/bin/bash","-c"]</code></td>
+<td>Parsed but not yet honoured for shell-form RUN (planned).</td>
 </tr>
 </tbody>
 </table>
+<p><code>.dockerignore</code> is honoured for <code>COPY</code>/<code>ADD</code> from the build context. Negation with <code>!pattern</code> and <code>**</code> cross-segment globs are supported.</p>
+<h2 id="multi-stage-example">Multi-stage example<a class="headerlink" href="#multi-stage-example" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="k">FROM</span><span class="w"> </span><span class="s">golang:1.22</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">build</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/src</span>
+<span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.
+<span class="k">RUN</span><span class="w"> </span>go<span class="w"> </span>build<span class="w"> </span>-o<span class="w"> </span>/out/app<span class="w"> </span>./cmd/app
+
+<span class="k">FROM</span><span class="w"> </span><span class="s">alpine:3.19</span>
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>build<span class="w"> </span>/out/app<span class="w"> </span>/usr/local/bin/app
+<span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;/usr/local/bin/app&quot;</span><span class="p">]</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>myapp:1.0<span class="w"> </span>.
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>myapp:1.0
+</code></pre></div>
+<h2 id="push-round-trip">Push round-trip<a class="headerlink" href="#push-round-trip" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># On the build host:</span>
+sandal<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>registry.example.com/team/svc:v3<span class="w"> </span>--push<span class="w"> </span>.
+
+<span class="c1"># On any other sandal host:</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>registry.example.com/team/svc:v3
+</code></pre></div>
+<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SANDAL_IMAGE_DIR</code></td>
+<td>Where <code>.sqfs</code> + <code>.sqfs.json</code> files are cached. Default <code>/var/lib/sandal/image</code>.</td>
+</tr>
+<tr>
+<td><code>SANDAL_TEMP_DIR</code></td>
+<td>Working directory for stage rootfs and intermediate files. Default <code>/var/lib/sandal/tmp</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Single layer output.</strong> Per-instruction layers are not preserved. This keeps images simple and matches the sandal cache format.</li>
+<li><strong>No build-time layer cache.</strong> Re-running <code>sandal build</code> re-executes every step from scratch. A content-addressed cache by instruction hash is on the roadmap.</li>
+<li><strong>No BuildKit features.</strong> <code>--mount=type=cache</code>, secrets, SSH forwarding, and parser directives other than <code># escape=</code> are not supported.</li>
+<li><strong><code>ADD</code> URL fetch and tar auto-extract</strong> not yet implemented; <code>ADD</code> currently behaves as <code>COPY</code>.</li>
+</ul>
 
 
 

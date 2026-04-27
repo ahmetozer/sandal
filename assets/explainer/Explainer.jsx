@@ -149,6 +149,20 @@ function useActiveFeature(refs) {
   return active;
 }
 
+function useScrolled(threshold) {
+  // True once the user has scrolled past `threshold` pixels from the top.
+  // Gates the bottom-panel reveal and the scroll-cue fade — a first-time
+  // visitor sees a clean hero, the panel slides up as they start exploring.
+  const [scrolled, setScrolled] = React.useState(false);
+  React.useEffect(() => {
+    const check = () => setScrolled(window.scrollY > threshold);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    return () => window.removeEventListener('scroll', check);
+  }, [threshold]);
+  return scrolled;
+}
+
 function FeatureHead({ title, cmd }) {
   return (
     <div style={{
@@ -206,7 +220,7 @@ function FeatureBody({ lede, bullets, tone }) {
   );
 }
 
-function IntroBlock({ innerRef }) {
+function IntroBlock({ innerRef, scrolled, onCueClick }) {
   return (
     <section ref={innerRef}
       style={{ minHeight: '40vh', paddingBottom: 32, scrollMarginTop: 72 }}
@@ -232,9 +246,15 @@ function IntroBlock({ innerRef }) {
         persist writes with <code>snapshot</code>, and add <code>--vm</code>
         for hardware isolation.
       </p>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--mute)' }}>
-        ↓ scroll to explore
-      </div>
+      <button
+        type="button"
+        onClick={onCueClick}
+        aria-label="Scroll down to explore"
+        className={'explainer-scroll-cue' + (scrolled ? ' is-hidden' : '')}
+      >
+        <span>scroll to explore</span>
+        <span className="explainer-scroll-cue-arrow" aria-hidden="true">↓</span>
+      </button>
     </section>
   );
 }
@@ -288,11 +308,16 @@ function TriggerSection({ innerRef, index, feature, active, past }) {
   );
 }
 
-function BottomPanel({ active }) {
+function BottomPanel({ active, revealed }) {
   // Fixed-bottom panel — contains only the morphing diagram. Text
   // descriptions for each feature live inline in the trigger sections.
+  // `revealed` toggles a slide-up reveal so the panel stays offscreen
+  // until the visitor starts scrolling, keeping the hero clean.
   return (
-    <aside className="explainer-bottom-panel" aria-hidden="false">
+    <aside
+      className={'explainer-bottom-panel' + (revealed ? ' is-revealed' : '')}
+      aria-hidden={!revealed}
+    >
       <div className="explainer-bottom-inner">
         <LiveDiagram feature={active}/>
       </div>
@@ -304,11 +329,17 @@ function SandalExplainer() {
   const refs = React.useRef([]);
   const setRef = (i) => (el) => { refs.current[i] = el; };
   const active = useActiveFeature(refs);
+  const scrolled = useScrolled(80);
+
+  const handleCueClick = () => {
+    const target = refs.current[1];
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <div className="explainer" data-screen-label="00 How-it-works">
       <div className="explainer-scroll">
-        <IntroBlock innerRef={setRef(0)}/>
+        <IntroBlock innerRef={setRef(0)} scrolled={scrolled} onCueClick={handleCueClick}/>
         {FEATURES.slice(1).map((feature, i) => {
           const index = i + 1;
           return (
@@ -323,7 +354,7 @@ function SandalExplainer() {
           );
         })}
       </div>
-      <BottomPanel active={active}/>
+      <BottomPanel active={active} revealed={scrolled}/>
     </div>
   );
 }

@@ -8,31 +8,31 @@
       
       
       
-        <link rel="canonical" href="https://ahmetozer.github.io/sandal/design/image-management/">
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/commands/">
       
       
-        <link rel="prev" href="../guest-init/">
+        <link rel="prev" href="../setup/configuration/">
       
       
-        <link rel="next" href="../kvm-hypervisor/">
+        <link rel="next" href="attach/">
       
       
         
       
       
-      <link rel="icon" href="../../sandal_icon.png">
+      <link rel="icon" href="../sandal_icon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Image Management - Sandal</title>
+        <title>Commands - Sandal</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -46,18 +46,18 @@
         
         
         
-        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <link rel="stylesheet" href="../assets/external/fonts.googleapis.com/css.49ea35f2.css">
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
     
-      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+      <link rel="stylesheet" href="../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
     
-      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+      <link rel="stylesheet" href="../assets/stylesheets/sandal-tokens.css">
     
-      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+      <link rel="stylesheet" href="../assets/stylesheets/sandal-overrides.css">
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -65,15 +65,15 @@
     
   
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Image Management - Sandal" />
-<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/image-management.png" />
+<meta property="og:title" content="Commands - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/commands/index.png" />
 <meta property="og:image:type" content="image/png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:url" content="https://ahmetozer.github.io/sandal/design/image-management/" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/commands/" />
 <meta property="twitter:card" content="summary_large_image" />
-<meta property="twitter:title" content="Image Management - Sandal" />
-<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/design/image-management.png" />
+<meta property="twitter:title" content="Commands - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/commands/index.png" />
 </head>
   
   
@@ -93,7 +93,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#image-management" class="md-skip">
+        <a href="#commands" class="md-skip">
           Skip to content
         </a>
       
@@ -109,9 +109,9 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+    <a href=".." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
       
-  <img src="../../sandal_logo.png" alt="logo">
+  <img src="../sandal_logo.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -128,7 +128,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Image Management
+              Commands
             
           </span>
         </div>
@@ -250,7 +250,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../.." class="md-tabs__link">
+      <a href=".." class="md-tabs__link">
         
   
   
@@ -271,7 +271,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../setup/" class="md-tabs__link">
+        <a href="../setup/" class="md-tabs__link">
           
   
   
@@ -287,11 +287,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../commands/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -311,7 +313,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../examples/" class="md-tabs__link">
+        <a href="../examples/" class="md-tabs__link">
           
   
   
@@ -351,9 +353,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+    <a href=".." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
       
-  <img src="../../sandal_logo.png" alt="logo">
+  <img src="../sandal_logo.png" alt="logo">
 
     </a>
     Sandal
@@ -380,7 +382,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -461,7 +463,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../setup/" class="md-nav__link">
+      <a href="../setup/" class="md-nav__link">
         
   
   
@@ -489,7 +491,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../setup/configuration/" class="md-nav__link">
+      <a href="../setup/configuration/" class="md-nav__link">
         
   
   
@@ -521,28 +523,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -560,7 +565,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -575,10 +580,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../commands/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -594,6 +626,136 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-the-images-default-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the image's default command
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#publish-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Publish ports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resource-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#passing-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passing environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#named-containers-and-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named containers and snapshots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#layer-multiple-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer multiple images
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ephemeral-in-memory-rootfs-linux-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ephemeral in-memory rootfs (Linux only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background-daemons-linux-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background daemons (Linux only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vm-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -606,7 +768,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/attach/" class="md-nav__link">
+      <a href="attach/" class="md-nav__link">
         
   
   
@@ -634,7 +796,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/build/" class="md-nav__link">
+      <a href="build/" class="md-nav__link">
         
   
   
@@ -662,7 +824,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/clear/" class="md-nav__link">
+      <a href="clear/" class="md-nav__link">
         
   
   
@@ -690,7 +852,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/cmd/" class="md-nav__link">
+      <a href="cmd/" class="md-nav__link">
         
   
   
@@ -718,7 +880,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/completion/" class="md-nav__link">
+      <a href="completion/" class="md-nav__link">
         
   
   
@@ -746,7 +908,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/daemon/" class="md-nav__link">
+      <a href="daemon/" class="md-nav__link">
         
   
   
@@ -774,7 +936,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/exec/" class="md-nav__link">
+      <a href="exec/" class="md-nav__link">
         
   
   
@@ -802,7 +964,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/export/" class="md-nav__link">
+      <a href="export/" class="md-nav__link">
         
   
   
@@ -830,7 +992,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/inspect/" class="md-nav__link">
+      <a href="inspect/" class="md-nav__link">
         
   
   
@@ -858,7 +1020,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/kill/" class="md-nav__link">
+      <a href="kill/" class="md-nav__link">
         
   
   
@@ -886,7 +1048,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/ps/" class="md-nav__link">
+      <a href="ps/" class="md-nav__link">
         
   
   
@@ -914,7 +1076,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/rerun/" class="md-nav__link">
+      <a href="rerun/" class="md-nav__link">
         
   
   
@@ -942,7 +1104,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/rm/" class="md-nav__link">
+      <a href="rm/" class="md-nav__link">
         
   
   
@@ -970,7 +1132,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/run/" class="md-nav__link">
+      <a href="run/" class="md-nav__link">
         
   
   
@@ -998,7 +1160,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/snapshot/" class="md-nav__link">
+      <a href="snapshot/" class="md-nav__link">
         
   
   
@@ -1026,7 +1188,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/stop/" class="md-nav__link">
+      <a href="stop/" class="md-nav__link">
         
   
   
@@ -1054,7 +1216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../commands/vm/" class="md-nav__link">
+      <a href="vm/" class="md-nav__link">
         
   
   
@@ -1143,7 +1305,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../examples/" class="md-nav__link">
+      <a href="../examples/" class="md-nav__link">
         
   
   
@@ -1171,7 +1333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../examples/homeasistant/" class="md-nav__link">
+      <a href="../examples/homeasistant/" class="md-nav__link">
         
   
   
@@ -1199,7 +1361,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../examples/vscode-agent/" class="md-nav__link">
+      <a href="../examples/vscode-agent/" class="md-nav__link">
         
   
   
@@ -1254,177 +1416,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#oci-container-images" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        OCI Container Images
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="OCI Container Images">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#registry-client" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Registry Client
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Registry Client">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#image-reference-parsing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Image Reference Parsing
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Authentication
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pull-flow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pull Flow
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#image-pulling-and-flattening" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Image Pulling and Flattening
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#squashfs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SquashFS
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#linux-kernel-management" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Linux Kernel Management
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Linux Kernel Management">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#kernel-download" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Kernel Download
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#initrd-generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Initrd Generation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Initrd Generation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cpio-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CPIO Format
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#initrd-overlay" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Initrd Overlay
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#zboot-extraction" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ZBOOT Extraction
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cache-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cache Structure
+        Quick start
       
     </span>
   </a>
@@ -1432,10 +1427,98 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#image-format-support-matrix" class="md-nav__link">
+  <a href="#run-the-images-default-command" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Image Format Support Matrix
+        Run the image's default command
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#publish-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Publish ports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resource-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#passing-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passing environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#named-containers-and-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named containers and snapshots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#layer-multiple-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer multiple images
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ephemeral-in-memory-rootfs-linux-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ephemeral in-memory rootfs (Linux only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background-daemons-linux-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background daemons (Linux only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vm-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM mode
       
     </span>
   </a>
@@ -1459,259 +1542,74 @@
 
 
 
-<h1 id="image-management">Image Management<a class="headerlink" href="#image-management" title="Permanent link">&para;</a></h1>
-<p>Sandal handles OCI container images, Linux kernels, and initrd generation. All artifacts are cached locally to avoid repeated downloads.</p>
-<h2 id="oci-container-images">OCI Container Images<a class="headerlink" href="#oci-container-images" title="Permanent link">&para;</a></h2>
-<h3 id="registry-client">Registry Client<a class="headerlink" href="#registry-client" title="Permanent link">&para;</a></h3>
-<p><strong>Package</strong>: <code>pkg/lib/container/registry/</code></p>
-<p>Implements the OCI Distribution Spec v2 API for pulling images from registries.</p>
-<h4 id="image-reference-parsing">Image Reference Parsing<a class="headerlink" href="#image-reference-parsing" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>registry/reference.go</code></p>
-<div class="highlight"><pre><span></span><code>Input formats:
-  &quot;alpine&quot;                      -&gt; registry-1.docker.io/library/alpine:latest
-  &quot;alpine:3.18&quot;                 -&gt; registry-1.docker.io/library/alpine:3.18
-  &quot;ghcr.io/user/repo:v1&quot;       -&gt; ghcr.io/user/repo:v1
-  &quot;registry.io/img@sha256:abc&quot; -&gt; registry.io/img@sha256:abc
+<h1 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h1>
+<p>This section covers the <code>sandal</code> sub-commands. The examples below focus on <a href="run/"><code>sandal run</code></a> usage patterns that work on both <strong>Linux</strong> and <strong>macOS</strong>.</p>
+<p>On Linux, containers run natively using kernel namespaces. On macOS, sandal transparently provisions an Apple Virtualization framework VM and runs the container inside it, so the same <code>sandal run</code> invocations work on both platforms.</p>
+<div class="admonition note">
+<p class="admonition-title">About <code>-tmp</code> on macOS</p>
+<p><code>-tmp</code> backs the overlay with a host tmpfs and is <strong>Linux-only</strong>. On macOS the container runs inside a VM, so you don't need it — use <code>-chdir-type image</code> (or leave it as the default <code>auto</code>, which resolves to <code>image</code> inside the VM) instead. The examples below omit <code>-tmp</code> so they work on both platforms.</p>
+</div>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>Pull an image from a registry and run a one-off command:</p>
+<div class="highlight"><span class="filename">Run a command in alpine</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;hello from sandal&quot;</span>
 </code></pre></div>
-<h4 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>registry/auth.go</code></p>
-<div class="highlight"><pre><span></span><code>1. Try unauthenticated request
-2. If 401, parse WWW-Authenticate header:
-   Bearer realm=&quot;https://auth.docker.io/token&quot;,service=&quot;registry.docker.io&quot;,scope=&quot;repository:library/alpine:pull&quot;
-3. Load credentials from ~/.docker/config.json
-4. Exchange credentials for bearer token
-5. Retry with Authorization: Bearer &lt;token&gt;
+<p><code>-lw</code> accepts any OCI image reference (Docker Hub short names, <code>ghcr.io/...</code>, <code>public.ecr.aws/...</code>, etc.). The image is pulled once, flattened to squashfs, and cached for subsequent runs.</p>
+<h2 id="run-the-images-default-command">Run the image's default command<a class="headerlink" href="#run-the-images-default-command" title="Permanent link">&para;</a></h2>
+<p>When the image has an <code>ENTRYPOINT</code> or <code>CMD</code>, you can omit the trailing <code>-- command</code>:</p>
+<div class="highlight"><span class="filename">Run nginx using its default CMD</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>nginx:latest<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8080:80
 </code></pre></div>
-<h4 id="pull-flow">Pull Flow<a class="headerlink" href="#pull-flow" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>registry/client.go</code></p>
-<div class="highlight"><pre><span></span><code>FetchManifest(ref)
-  |
-  +-- GET /v2/&lt;name&gt;/manifests/&lt;reference&gt;
-  |   Accept: application/vnd.oci.image.index.v1+json,
-  |           application/vnd.docker.distribution.manifest.list.v2+json,
-  |           application/vnd.oci.image.manifest.v1+json,
-  |           application/vnd.docker.distribution.manifest.v2+json
-  |
-  +-- If manifest list/index:
-  |     Select platform (linux/arm64 or linux/amd64)
-  |     Fetch platform-specific manifest
-  |
-  +-- Return manifest with layer digests and config
+<p>Sandal reads <code>ENTRYPOINT</code>, <code>CMD</code>, <code>WorkingDir</code>, <code>User</code>, and <code>ENV</code> from the image manifest automatically.</p>
+<h2 id="publish-ports">Publish ports<a class="headerlink" href="#publish-ports" title="Permanent link">&para;</a></h2>
+<p>The <code>-p</code> flag publishes a host port into the container and works identically in native and VM mode:</p>
+<div class="highlight"><span class="filename">Expose an HTTP server on :8080</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>nginx:latest<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8080:80
 </code></pre></div>
-<h3 id="image-pulling-and-flattening">Image Pulling and Flattening<a class="headerlink" href="#image-pulling-and-flattening" title="Permanent link">&para;</a></h3>
-<p><strong>Package</strong>: <code>pkg/lib/container/image/</code></p>
-<p><strong>File</strong>: <code>image/pull.go</code></p>
-<div class="highlight"><pre><span></span><code>Pull(imageRef) -&gt; squashfsPath
-  |
-  +-- Check cache: ~/.sandal-vm/images/&lt;sanitized_ref&gt;.sqsh
-  |     If cached, return cached path
-  |
-  +-- registry.FetchManifest(ref) -&gt; manifest
-  |
-  +-- For each layer in manifest.Layers:
-  |     GET /v2/&lt;name&gt;/blobs/&lt;digest&gt;
-  |     Download and decompress (gzip/zstd)
-  |
-  +-- Flatten all layers into single directory:
-  |     Apply layers in order (lower -&gt; upper)
-  |     Handle whiteout files (.wh.*)
-  |
-  +-- squashfs.Create(flatDir) -&gt; squashfsPath
-  |     Convert flattened directory to squashfs image
-  |
-  +-- Cache at ~/.sandal-vm/images/&lt;sanitized_ref&gt;.sqsh
-  |
-  +-- Return squashfsPath
+<div class="highlight"><span class="filename">Remap host 8443 -&gt; container 3000</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>caddy:latest<span class="w"> </span>--rm<span class="w"> </span>-p<span class="w"> </span>tls://0.0.0.0:8443:tcp://127.0.0.1:3000
 </code></pre></div>
-<h3 id="squashfs">SquashFS<a class="headerlink" href="#squashfs" title="Permanent link">&para;</a></h3>
-<p><strong>Package</strong>: <code>pkg/lib/squashfs/</code></p>
-<p>Sandal uses squashfs as its primary immutable image format:
-- Compressed, read-only filesystem
-- Efficient random access
-- Small file size
-- Mountable directly by Linux kernel</p>
-<p><strong>File</strong>: <code>squashfs/writer.go</code> - Implements squashfs v4.0 format:
-- Gzip compression for data blocks
-- Inode table, directory table, fragment table
-- Proper superblock with magic <code>0x73717368</code> ("hsqs")</p>
-<h2 id="linux-kernel-management">Linux Kernel Management<a class="headerlink" href="#linux-kernel-management" title="Permanent link">&para;</a></h2>
-<p><strong>Package</strong>: <code>pkg/vm/kernel/</code></p>
-<h3 id="kernel-download">Kernel Download<a class="headerlink" href="#kernel-download" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/kernel.go</code></p>
-<div class="highlight"><pre><span></span><code>EnsureKernel() -&gt; kernelPath
-  |
-  +-- Check cache: ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
-  |     If cached, return cached path
-  |
-  +-- Determine architecture: arm64 or x86_64
-  |
-  +-- Fetch Alpine Linux APK index:
-  |     https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/&lt;arch&gt;/APKINDEX.tar.gz
-  |
-  +-- Find linux-virt package version
-  |
-  +-- Download APK:
-  |     https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/&lt;arch&gt;/linux-virt-&lt;ver&gt;.apk
-  |
-  +-- Extract kernel image from APK (tar.gz format):
-  |     boot/vmlinuz-virt -&gt; vmlinuz
-  |
-  +-- If ARM64: detect ZBOOT format, decompress if needed
-  |     ZBOOT: EFI stub wrapping gzip-compressed kernel Image
-  |     Magic: &quot;zimg&quot; at offset 4
-  |     Extract and decompress to raw ARM64 Image
-  |
-  +-- Cache at ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
-  |
-  +-- Also extract kernel modules for initrd
-  |     lib/modules/&lt;version&gt;/ -&gt; cached for initrd generation
-  |
-  +-- Return kernelPath
+<h2 id="resource-limits">Resource limits<a class="headerlink" href="#resource-limits" title="Permanent link">&para;</a></h2>
+<p>Limit CPU and memory with <code>--cpu</code> and <code>--memory</code>. On Linux, limits are enforced via cgroup v2. On macOS, they are applied to the host-side VM configuration:</p>
+<div class="highlight"><span class="filename">Half a CPU, 256MB of memory</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>--cpu<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--memory<span class="w"> </span>256M<span class="w"> </span>--<span class="w"> </span>sh
 </code></pre></div>
-<h3 id="initrd-generation">Initrd Generation<a class="headerlink" href="#initrd-generation" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/initrd.go</code></p>
-<p>The initrd contains the sandal binary and kernel modules needed for the VM
-to boot and mount VirtioFS shares. The result is <strong>content-addressed</strong>: the
-cache key is <code>sha256(sandal binary || base initrd)</code> truncated to 16 bytes
-hex, and the file lives at <code>&lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img</code>.
-Identical inputs always resolve to the same path; on a cache hit no archive
-is built.</p>
-<div class="highlight"><pre><span></span><code>CreateFromBinary(binData, baseInitrd) -&gt; cachePath
-  |
-  +-- Compute cache key:
-  |     sha256(binary) || 0x00 || sha256(baseInitrd)
-  |     -&gt; first 16 bytes hex -&gt; &quot;439a75c21ae9...&quot;.img
-  |
-  +-- If &lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img exists -&gt; return it
-  |
-  +-- Build into a temp file in &lt;BaseKernelDir&gt; (same dir for atomic rename):
-  |     - Decompress base initrd, strip CPIO trailer, append
-  |     - Append /dev/console char device (5,1) so the kernel
-  |       wires fds 0/1/2 when init is exec&#39;d
-  |     - Append /etc/{nsswitch.conf,resolv.conf,hosts} for Go runtime
-  |     - Append sandal binary as /init
-  |       (mounts /dev devtmpfs + /proc procfs itself in
-  |        importKernelCmdlineEnv before any code that needs them)
-  |     - Write CPIO trailer
-  |     - Gzip compress
-  |     - fsync
-  |
-  +-- Atomic rename to final cache path
-  |
-  +-- Return cachePath (owned by cache, NOT removed by caller)
+<div class="highlight"><span class="filename">Two CPUs, 1GiB of memory</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>python:3-slim<span class="w"> </span>--rm<span class="w"> </span>--cpu<span class="w"> </span><span class="m">2</span><span class="w"> </span>--memory<span class="w"> </span>1Gi<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;print(&#39;ok&#39;)&quot;</span>
 </code></pre></div>
-<p>The cache entry is reused across every VM start that uses the same sandal
-binary and base initrd — typically every run on a stable host. Updating
-sandal or upgrading the kernel produces a new entry; old entries stay on
-disk and can be pruned manually with
-<code>rm &lt;BaseKernelDir&gt;/initramfs-sandal-*.img</code>.</p>
-<h4 id="cpio-format">CPIO Format<a class="headerlink" href="#cpio-format" title="Permanent link">&para;</a></h4>
-<p><strong>File</strong>: <code>kernel/cpio.go</code></p>
-<p>Uses the "newc" (SVR4) CPIO format with ASCII hex headers:</p>
-<div class="highlight"><pre><span></span><code>Header (110 bytes):
-  &quot;070701&quot;        magic
-  ino, mode, uid, gid, nlink
-  mtime, filesize
-  devmajor, devminor, rdevmajor, rdevminor
-  namesize, check
-
-Followed by: filename (null-terminated, padded to 4 bytes)
-Followed by: file data (padded to 4 bytes)
+<h2 id="passing-environment-variables">Passing environment variables<a class="headerlink" href="#passing-environment-variables" title="Permanent link">&para;</a></h2>
+<p>Pass individual variables from the host with <code>-env-pass</code> (no value injection — the name is read from your shell):</p>
+<div class="highlight"><span class="filename">Forward a single variable</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MY_TOKEN</span><span class="o">=</span><span class="s2">&quot;s3cret&quot;</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>-env-pass<span class="w"> </span>MY_TOKEN<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;echo &quot;$MY_TOKEN&quot;&#39;</span>
 </code></pre></div>
-<p>Functions:
-- <code>writeCPIODir()</code> - Create directory entry
-- <code>writeCPIOFile()</code> - Create file entry with content
-- <code>writeCPIOCharDev()</code> - Create character device node
-- <code>findInCPIO()</code> - Extract file from existing CPIO archive
-- <code>stripCPIOTrailer()</code> - Remove "TRAILER!!!" entry for appending</p>
-<h3 id="initrd-overlay">Initrd Overlay<a class="headerlink" href="#initrd-overlay" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/initrd.go</code> - <code>CreateOverlay()</code></p>
-<p>When the base initrd contains an init script (e.g., Alpine's init), sandal can inject VirtioFS mount commands:</p>
-<div class="highlight"><pre><span></span><code>CreateOverlay(baseInitrd, mounts) -&gt; modifiedInitrd
-  |
-  +-- Find /init script in base CPIO
-  |
-  +-- Inject mount commands before &quot;exec switch_root&quot;:
-  |     mkdir -p /sysroot/mnt/data
-  |     mount -t virtiofs fs-0 /sysroot/mnt/data
-  |
-  +-- Append modified init script as CPIO overlay
-  |
-  +-- Return combined initrd
+<p>Or send every host variable with <code>-env-all</code>:</p>
+<div class="highlight"><span class="filename">Forward all host environment variables</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>-env-all<span class="w"> </span>--<span class="w"> </span>env
 </code></pre></div>
-<h3 id="zboot-extraction">ZBOOT Extraction<a class="headerlink" href="#zboot-extraction" title="Permanent link">&para;</a></h3>
-<p><strong>File</strong>: <code>kernel/zboot.go</code></p>
-<p>ARM64 kernels from Alpine are in EFI ZBOOT format (gzip-compressed kernel wrapped in an EFI PE stub):</p>
-<div class="highlight"><pre><span></span><code>Detection:
-  offset 0: MZ (PE header)
-  offset 4: &quot;zimg&quot; (ZBOOT magic)
-
-Extraction:
-  Read payload_offset and payload_size from header
-  Slice payload from file
-  Decompress with gzip
-  Result: raw ARM64 Image format kernel
+<h2 id="named-containers-and-snapshots">Named containers and snapshots<a class="headerlink" href="#named-containers-and-snapshots" title="Permanent link">&para;</a></h2>
+<p>Give a container a name and persist its filesystem changes between runs:</p>
+<div class="highlight"><span class="filename">Run a named container</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-name<span class="w"> </span>dev<span class="w"> </span>-t<span class="w"> </span>--<span class="w"> </span>sh
 </code></pre></div>
-<h2 id="cache-structure">Cache Structure<a class="headerlink" href="#cache-structure" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>~/.sandal-vm/
-  kernel/
-    arm64/
-      vmlinuz               # Cached kernel image
-      modules/              # Kernel modules for initrd
-    amd64/
-      vmlinuz
-      modules/
-  images/
-    alpine_latest.sqsh      # Cached OCI images as squashfs
-    ubuntu_22.04.sqsh
-  machines/
-    &lt;vm-name&gt;/
-      config.json           # VM configuration
-      pid                   # VM process PID
+<div class="highlight"><span class="filename">Save changes to a snapshot after exit</span><pre><span></span><code>sandal<span class="w"> </span>snapshot<span class="w"> </span>dev
 </code></pre></div>
-<h2 id="image-format-support-matrix">Image Format Support Matrix<a class="headerlink" href="#image-format-support-matrix" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Format</th>
-<th>Container (direct)</th>
-<th>Container (VM)</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>OCI image reference</td>
-<td>Pull + squashfs cache</td>
-<td>Pull + squashfs cache</td>
-<td>Auto-detected from string</td>
-</tr>
-<tr>
-<td>SquashFS file</td>
-<td>Loop mount</td>
-<td>VirtioFS share</td>
-<td>Preferred for immutable images</td>
-</tr>
-<tr>
-<td>Directory</td>
-<td>Direct lowerdir</td>
-<td>VirtioFS share</td>
-<td>Development use</td>
-</tr>
-<tr>
-<td>Raw disk (MBR/GPT)</td>
-<td>Loop mount + partition</td>
-<td>VirtioFS or virtio-blk</td>
-<td>For full disk images</td>
-</tr>
-<tr>
-<td>ISO</td>
-<td>Loop mount (read-only)</td>
-<td>Virtio-blk (read-only)</td>
-<td>Used for install media</td>
-</tr>
-</tbody>
-</table>
+<p>On the next run, sandal automatically layers the snapshot back on top of the image. See <a href="snapshot/"><code>sandal snapshot</code></a> for snapshot paths, custom output locations, and how snapshots are reattached.</p>
+<h2 id="layer-multiple-images">Layer multiple images<a class="headerlink" href="#layer-multiple-images" title="Permanent link">&para;</a></h2>
+<p>Stack images by repeating <code>-lw</code>. The right-most image wins for <code>ENTRYPOINT</code>, <code>CMD</code>, <code>WorkingDir</code>, and <code>User</code>; <code>ENV</code> accumulates with later images overriding earlier ones.</p>
+<p>A common pattern is combining a <strong>single-binary Go image</strong> (typically built <code>FROM scratch</code> — no shell, no package manager, just the binary) with <strong>alpine</strong> to get shell and debugging tools alongside the binary:</p>
+<div class="highlight"><span class="filename">alpine shell/tools + hello-world (single-binary scratch image)</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-lw<span class="w"> </span>hello-world:latest<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span>ash<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo shell is avaible and hello as well; ./hello&quot;</span>
+</code></pre></div>
+<h2 id="ephemeral-in-memory-rootfs-linux-only">Ephemeral in-memory rootfs (Linux only)<a class="headerlink" href="#ephemeral-in-memory-rootfs-linux-only" title="Permanent link">&para;</a></h2>
+<p>On Linux, add <code>-tmp &lt;MB&gt;</code> to back the overlay with a host tmpfs instead of disk — useful for throwaway environments, nested sandal/docker runs, or filesystems that don't support overlayfs upper (fat32, exfat). This flag has no effect on macOS, where the overlay already lives inside the VM:</p>
+<div class="highlight"><span class="filename">Ephemeral alpine with 128MB tmpfs (Linux)</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-tmp<span class="w"> </span><span class="m">128</span><span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>--<span class="w"> </span>sh
+</code></pre></div>
+<h2 id="background-daemons-linux-only">Background daemons (Linux only)<a class="headerlink" href="#background-daemons-linux-only" title="Permanent link">&para;</a></h2>
+<p>On Linux, run detached with <code>-d</code> (requires the sandal daemon). Use <code>sandal attach</code> to reconnect to a TTY, or <code>sandal exec</code> to run additional commands inside the container. The daemon is not available on macOS:</p>
+<div class="highlight"><span class="filename">Background container with PTY (Linux)</span><pre><span></span><code>sandal<span class="w"> </span>daemon<span class="w"> </span><span class="p">&amp;</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span>-name<span class="w"> </span><span class="nb">bg</span><span class="w"> </span>--<span class="w"> </span>sh
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span><span class="nb">bg</span><span class="w"> </span>--<span class="w"> </span>ps<span class="w"> </span>aux
+sandal<span class="w"> </span>attach<span class="w"> </span><span class="nb">bg</span>
+</code></pre></div>
+<p>See <a href="daemon/"><code>sandal daemon</code></a> for daemon setup and service registration, <a href="attach/"><code>sandal attach</code></a> for connecting to a background container's TTY, and <a href="exec/"><code>sandal exec</code></a> for running additional commands inside a running container.</p>
+<h2 id="vm-mode">VM mode<a class="headerlink" href="#vm-mode" title="Permanent link">&para;</a></h2>
+<p>On Linux, you can opt in to KVM isolation with <code>-vm</code>. On macOS, sandal already uses Apple Virtualization, so <code>-vm</code> is a no-op and can be omitted:</p>
+<div class="highlight"><span class="filename">Force VM isolation on Linux</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-vm<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span>sh
+</code></pre></div>
+<p>See <a href="vm/"><code>sandal vm</code></a> for managing persistent VMs on macOS.</p>
+<hr />
+<p>For the full list of flags, defaults, and advanced behaviors (overlay internals, custom mount targets, networking, TLS termination, etc.), see <a href="run/"><code>sandal run</code></a>.</p>
 
 
 
@@ -1763,16 +1661,16 @@ Extraction:
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
-        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+        <script src="../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       
-        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+        <script src="../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
       
-        <script src="../../assets/javascripts/mermaid-init.js"></script>
+        <script src="../assets/javascripts/mermaid-init.js"></script>
       
     
   </body>

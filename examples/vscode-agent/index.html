@@ -1,0 +1,2268 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/examples/vscode-agent/">
+      
+      
+        <link rel="prev" href="../homeasistant/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>VS Code AI coding agent - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="VS Code AI coding agent - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/examples/vscode-agent.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/examples/vscode-agent/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="VS Code AI coding agent - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/examples/vscode-agent.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#vs-code-ai-coding-agent" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              VS Code AI coding agent
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../commands/" class="md-tabs__link">
+          
+  
+  
+  Commands
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../homeasistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VS Code AI coding agent
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VS Code AI coding agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspace-mount-mode-v-direct-vs-lw-copy-on-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspace mount mode — -v direct vs. -lw copy-on-write
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workspace mount mode — -v direct vs. -lw copy-on-write">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-v-pwdworkspace-direct-bind-mount" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -v "$PWD":/workspace — direct bind mount
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-lw-pwdworkspace-v-pwdreal-copy-on-write-workspace-explicit-promotion-path-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -lw "$PWD":/workspace -v "$PWD":/real — copy-on-write workspace + explicit-promotion path (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-a-vs-code-remote-ssh-into-the-container-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern A: VS Code Remote-SSH into the container (recommended)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern A: VS Code Remote-SSH into the container (recommended)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-the-base-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the base image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-container-with-ssh-exposed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the container with SSH exposed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connect-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connect VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restart-stop-tear-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restart, stop, tear down
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-b-local-vs-code-sandal-exec-terminal-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern B: Local VS Code + sandal exec terminal profile
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern B: Local VS Code + sandal exec terminal profile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#start-a-long-lived-container-in-the-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start a long-lived container in the background
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-a-vs-code-terminal-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add a VS Code terminal profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-c-devcontainer-style-pre-baked-toolchain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern C: Devcontainer-style pre-baked toolchain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern C: Devcontainer-style pre-baked toolchain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-the-toolchain-layer-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the toolchain layer once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-the-toolchain-on-every-subsequent-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the toolchain on every subsequent run
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ephemerality-modes-which-one-to-pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ephemerality modes — which one to pick
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardening-limiting-the-agents-blast-radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardening: limiting the agent's blast radius
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hardening: limiting the agent&#39;s blast radius">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#narrow-bind-mounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrow bind-mounts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-inherit-host-env-vars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't inherit host env vars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-as-an-unprivileged-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run as an unprivileged user
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read-only-base-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read-only base layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-it-together-a-hardened-recommended-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting it together — a hardened recommended profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tear-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tear down
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspace-mount-mode-v-direct-vs-lw-copy-on-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspace mount mode — -v direct vs. -lw copy-on-write
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workspace mount mode — -v direct vs. -lw copy-on-write">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-v-pwdworkspace-direct-bind-mount" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -v "$PWD":/workspace — direct bind mount
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-lw-pwdworkspace-v-pwdreal-copy-on-write-workspace-explicit-promotion-path-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -lw "$PWD":/workspace -v "$PWD":/real — copy-on-write workspace + explicit-promotion path (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-a-vs-code-remote-ssh-into-the-container-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern A: VS Code Remote-SSH into the container (recommended)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern A: VS Code Remote-SSH into the container (recommended)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-the-base-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the base image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-container-with-ssh-exposed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the container with SSH exposed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connect-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connect VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restart-stop-tear-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restart, stop, tear down
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-b-local-vs-code-sandal-exec-terminal-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern B: Local VS Code + sandal exec terminal profile
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern B: Local VS Code + sandal exec terminal profile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#start-a-long-lived-container-in-the-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start a long-lived container in the background
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-a-vs-code-terminal-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add a VS Code terminal profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-c-devcontainer-style-pre-baked-toolchain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pattern C: Devcontainer-style pre-baked toolchain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern C: Devcontainer-style pre-baked toolchain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-the-toolchain-layer-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the toolchain layer once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-the-toolchain-on-every-subsequent-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use the toolchain on every subsequent run
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ephemerality-modes-which-one-to-pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ephemerality modes — which one to pick
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardening-limiting-the-agents-blast-radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardening: limiting the agent's blast radius
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hardening: limiting the agent&#39;s blast radius">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#narrow-bind-mounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrow bind-mounts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-inherit-host-env-vars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't inherit host env vars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-as-an-unprivileged-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run as an unprivileged user
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read-only-base-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read-only base layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-it-together-a-hardened-recommended-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting it together — a hardened recommended profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tear-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tear down
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="vs-code-ai-coding-agent">VS Code AI coding agent<a class="headerlink" href="#vs-code-ai-coding-agent" title="Permanent link">&para;</a></h1>
+<p>Use sandal to give a VS Code–driven AI coding agent — Claude Code, Copilot, Cursor, or any other shell-using assistant — a clean, ephemeral development environment that resets on every session, without giving the agent access to your host filesystem, secrets, or network.</p>
+<p>This guide walks through:</p>
+<ul>
+<li>Three topology patterns for wiring VS Code, an agent, and a sandal container together</li>
+<li>Two ways to expose the project — <code>-v</code> (writes hit the host directly) vs. <code>-lw</code> (writes stay inside the container until you promote them)</li>
+<li>Three ephemerality modes (<code>-tmp</code> tmpfs, <code>--rm</code> disk overlay, snapshot-per-task) and when to pick each</li>
+<li>A hardening section covering network, mounts, secrets, and unprivileged execution to bound the agent's blast radius</li>
+</ul>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>The fastest way to convince yourself isolation works — drop into an Alpine shell with your project bind-mounted, all writes outside the project going to RAM, and disappearing on exit:</p>
+<div class="highlight"><span class="filename">One-shot ephemeral shell with the project mounted</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-shell<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>/bin/sh
+</code></pre></div>
+<p>Inside the container, run <code>apk add curl</code>, drop a <code>touch /etc/burned-it-down</code>, edit <code>/workspace/README.md</code>, then exit. Run the same command again: <code>/etc/burned-it-down</code> is gone (it lived in the tmpfs change dir), <code>apk</code> no longer remembers <code>curl</code>, but your <code>README.md</code> edit is still there because <code>/workspace</code> is a real bind mount on the host.</p>
+<p>That's the whole model. The rest of this page is about plugging an editor and an agent into it.</p>
+<div class="admonition note">
+<p class="admonition-title">Image choice</p>
+<p>Alpine is a tiny base for verifying the mechanics. For real agent work, stack a richer toolchain image with <code>-lw</code>. Microsoft publishes language-specific devcontainer bases that work as drop-in <code>-lw</code> values — <code>mcr.microsoft.com/devcontainers/base:ubuntu</code>, <code>…/python:3</code>, <code>…/javascript-node:20</code>, <code>…/go:1.22</code>, <code>…/typescript-node:20</code>, <code>…/cpp:debian</code>, <code>…/rust:1</code>, and more. See <a href="#pattern-c-devcontainer-style-pre-baked-toolchain">Pattern C</a> for stacking your own toolchain on top. Multiple <code>-lw</code> flags are allowed; later images win on <code>ENTRYPOINT</code>/<code>CMD</code>/<code>User</code>/<code>WorkingDir</code>.</p>
+</div>
+<hr />
+<h2 id="workspace-mount-mode-v-direct-vs-lw-copy-on-write">Workspace mount mode — <code>-v</code> direct vs. <code>-lw</code> copy-on-write<a class="headerlink" href="#workspace-mount-mode-v-direct-vs-lw-copy-on-write" title="Permanent link">&para;</a></h2>
+<p>Every pattern below has to make one decision: <strong>how should the project tree appear inside the container?</strong> There are two options, and they differ on whether the agent can clobber your host source.</p>
+<h3 id="-v-pwdworkspace-direct-bind-mount"><code>-v "$PWD":/workspace</code> — direct bind mount<a class="headerlink" href="#-v-pwdworkspace-direct-bind-mount" title="Permanent link">&para;</a></h3>
+<p>Every write the agent makes lands on host disk <strong>immediately</strong>. Convenient (you see edits in your host editor in real time), but the agent can also <code>rm -rf</code> your repo, leave half-applied refactors, or commit garbage to <code>.git/</code>. Suitable when you trust the agent and rely on <code>git</code> to recover from mistakes.</p>
+<h3 id="-lw-pwdworkspace-v-pwdreal-copy-on-write-workspace-explicit-promotion-path-recommended"><code>-lw "$PWD":/workspace -v "$PWD":/real</code> — copy-on-write workspace + explicit-promotion path <em>(recommended)</em><a class="headerlink" href="#-lw-pwdworkspace-v-pwdreal-copy-on-write-workspace-explicit-promotion-path-recommended" title="Permanent link">&para;</a></h3>
+<p><code>-lw "$PWD":/workspace</code> mounts the project as a <strong>lower layer</strong>. Reads come from your host repo, but every agent write goes to the container's change dir overlay (RAM tmpfs, disk overlay, or snapshot — whichever ephemerality mode you picked). Your host source is <strong>not</strong> modified.</p>
+<p><code>-v "$PWD":/real</code> exposes the same path as a real bind mount at <code>/real</code>. When the agent has finished a task and you've reviewed its changes, you (or the agent under your direction) explicitly copy from <code>/workspace</code> to <code>/real</code> — typically with <code>rsync -a /workspace/ /real/</code> or by <code>git apply</code>-ing a diff — to promote them to the host.</p>
+<div class="highlight"><span class="filename">COW workspace with an explicit promotion path</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/real<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-cow<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>bash
+</code></pre></div>
+<p>Inside the container:</p>
+<div class="highlight"><pre><span></span><code># Agent does whatever it wants under /workspace — all writes are ephemeral.
+$ rm -rf /workspace/src     # this is fine, it&#39;s COW
+$ # ... agent does its work ...
+# When you&#39;ve reviewed and want to keep the changes:
+$ rsync -a --delete /workspace/ /real/
+</code></pre></div>
+<details class="info">
+<summary>How sandal layers <code>-lw</code> with custom targets</summary>
+<p><code>-lw &lt;source&gt;:/&lt;target&gt;</code> mounts <code>&lt;source&gt;</code> as a lower layer at <code>/target</code> inside the container, with its own dedicated upper/work directories — i.e. a mini-overlay scoped to that path. Reads transparently fall through to <code>&lt;source&gt;</code> on the host, writes go to the container's change dir, and on container exit the change dir is deleted (with <code>--rm</code> or <code>-tmp</code>) or kept for snapshotting. See <a href="../../commands/run/#-lw-value">the <code>-lw</code> reference</a> for the full semantics, including <code>:=sub</code> for sub-mount discovery.</p>
+</details>
+<details class="info">
+<summary>Picking between the two</summary>
+<p>Use <code>-v</code> when the agent is well-trusted and you want zero promotion friction (e.g. you're driving the agent yourself, line by line, and you <code>git diff</code> after each step). Use <code>-lw + -v</code> when the agent runs longer-horizon tasks, when you want a clean "abort the whole session" off-switch, or when you want to compare the agent's proposed state vs. the host state side-by-side before promoting. The hardened recommended profile at the end of this page uses <code>-lw + -v</code>.</p>
+</details>
+<hr />
+<h2 id="pattern-a-vs-code-remote-ssh-into-the-container-recommended">Pattern A: VS Code Remote-SSH into the container <em>(recommended)</em><a class="headerlink" href="#pattern-a-vs-code-remote-ssh-into-the-container-recommended" title="Permanent link">&para;</a></h2>
+<p>VS Code on the host opens an SSH connection into a sandal container. VS Code Server, the Claude Code (or other agent) extension, the agent's shell tools, and the project all live <strong>inside</strong> the container. Your host VS Code instance is just the front-end; nothing the agent does touches the host.</p>
+<h3 id="build-the-base-image">Build the base image<a class="headerlink" href="#build-the-base-image" title="Permanent link">&para;</a></h3>
+<p>You need an image with <code>openssh-server</code>, your language toolchain, <code>git</code>, and a non-root user. Build it once with <code>sandal export</code>, or pull a community devcontainer image, or just use a registry image such as <code>mcr.microsoft.com/devcontainers/base:ubuntu</code>. For brevity here we use the Microsoft devcontainer base, which already has a <code>vscode</code> user and a sane PATH.</p>
+<h3 id="run-the-container-with-ssh-exposed">Run the container with SSH exposed<a class="headerlink" href="#run-the-container-with-ssh-exposed" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Detached container with SSH on a host-only port</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-box<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-tmp<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:2222:22<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>/usr/sbin/sshd<span class="w"> </span>-D
+</code></pre></div>
+<ul>
+<li><code>-d -t</code> runs detached with a PTY — VS Code's terminal panes work correctly inside.</li>
+<li><code>-tmp 4096</code> puts overlay writes in 4 GB of RAM tmpfs. VS Code Server, npm caches, language-server indexes, and <code>apt install</code>s land here and vanish on exit.</li>
+<li><code>-v "$PWD":/workspaces/project</code> is the only durable surface — every other write is ephemeral.</li>
+<li><code>-p 127.0.0.1:2222:22</code> binds <strong>only</strong> to localhost; the SSH endpoint is unreachable from other machines on your network. See <a href="../../commands/run/#-p-value"><code>sandal run -p</code></a> for the full grammar.</li>
+<li><code>-user vscode</code> runs the container's init as the unprivileged <code>vscode</code> user instead of root.</li>
+</ul>
+<h3 id="connect-vs-code">Connect VS Code<a class="headerlink" href="#connect-vs-code" title="Permanent link">&para;</a></h3>
+<p>In VS Code, install the <strong>Remote - SSH</strong> extension, then open the command palette → <em>Remote-SSH: Connect to Host</em> → enter <code>vscode@127.0.0.1</code> and pass <code>-p 2222</code> in your <code>~/.ssh/config</code>:</p>
+<div class="highlight"><span class="filename">~/.ssh/config snippet</span><pre><span></span><code>Host<span class="w"> </span>agent-box
+<span class="w">    </span>HostName<span class="w"> </span><span class="m">127</span>.0.0.1
+<span class="w">    </span>Port<span class="w"> </span><span class="m">2222</span>
+<span class="w">    </span>User<span class="w"> </span>vscode
+<span class="w">    </span>StrictHostKeyChecking<span class="w"> </span>no
+<span class="w">    </span>UserKnownHostsFile<span class="w"> </span>/dev/null
+</code></pre></div>
+<p>Connect to <code>agent-box</code>, open <code>/workspaces/project</code>, install the Claude Code extension <strong>in the remote workspace</strong> (VS Code prompts for this), and start the agent. Every shell command Claude Code issues runs inside the container.</p>
+<details class="info">
+<summary>Why VS Code Server first-launch is slow on tmpfs</summary>
+<p>The first connection downloads VS Code Server (~80 MB) and unpacks it under <code>~/.vscode-server</code> inside the container. With <code>-tmp</code> that lives in RAM and is <strong>lost on container restart</strong>, so a re-run pays the download again. If that bothers you, snapshot it once and stack it as a <code>-lw</code> layer — see <a href="#pattern-c-devcontainer-style-pre-baked-toolchain">Pattern C</a>.</p>
+</details>
+<h3 id="restart-stop-tear-down">Restart, stop, tear down<a class="headerlink" href="#restart-stop-tear-down" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Day-to-day operations</span><pre><span></span><code>sandal<span class="w"> </span>ps<span class="w">                             </span><span class="c1"># see container status</span>
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>agent-box<span class="w"> </span>--<span class="w"> </span>bash<span class="w">         </span><span class="c1"># drop a shell in next to the agent</span>
+sandal<span class="w"> </span>stop<span class="w"> </span>agent-box<span class="w">                 </span><span class="c1"># graceful SIGTERM, 30s timeout</span>
+sandal<span class="w"> </span>rerun<span class="w"> </span>agent-box<span class="w">                </span><span class="c1"># restart with the original arguments</span>
+sandal<span class="w"> </span>rm<span class="w"> </span>agent-box<span class="w">                   </span><span class="c1"># delete the overlay (project on host is untouched)</span>
+</code></pre></div>
+<p>See <a href="../../commands/exec/"><code>sandal exec</code></a>, <a href="../../commands/ps/"><code>sandal ps</code></a>, and <a href="../../commands/rerun/"><code>sandal rerun</code></a> for the flag reference.</p>
+<hr />
+<h2 id="pattern-b-local-vs-code-sandal-exec-terminal-profile">Pattern B: Local VS Code + <code>sandal exec</code> terminal profile<a class="headerlink" href="#pattern-b-local-vs-code-sandal-exec-terminal-profile" title="Permanent link">&para;</a></h2>
+<p>Keep VS Code running on the host with all your usual settings, themes, and extensions. Replace only the <strong>integrated terminal</strong> with one that drops you inside a sandal container — every shell command Claude Code's extension runs through that terminal then executes inside the sandbox, while file editing stays in your normal host VS Code.</p>
+<h3 id="start-a-long-lived-container-in-the-background">Start a long-lived container in the background<a class="headerlink" href="#start-a-long-lived-container-in-the-background" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Background sandbox container</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-shell<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>sleep<span class="w"> </span>infinity
+</code></pre></div>
+<p>The container's only job is to stay alive (<code>sleep infinity</code>) so we can <code>exec</code> into it. Writes go to tmpfs, edits to <code>/workspaces/project</code> go straight to your host repo.</p>
+<h3 id="add-a-vs-code-terminal-profile">Add a VS Code terminal profile<a class="headerlink" href="#add-a-vs-code-terminal-profile" title="Permanent link">&para;</a></h3>
+<p>Open VS Code's <code>settings.json</code> (<code>Cmd/Ctrl+Shift+P</code> → <em>Preferences: Open User Settings (JSON)</em>) and add:</p>
+<div class="highlight"><span class="filename">settings.json</span><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;terminal.integrated.profiles.linux&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;sandal-agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sandal&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;exec&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-t&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent-shell&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-l&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;terminal.integrated.defaultProfile.linux&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sandal-agent&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Now any new VS Code terminal — including the ones Claude Code spawns for tool calls — opens inside <code>agent-shell</code>. The host editor sees file edits instantly through the bind mount; everything else (package installs, build artifacts, language servers the agent runs from the terminal) lives in the container.</p>
+<details class="info">
+<summary>Why this is weaker isolation than Pattern A</summary>
+<p>The Claude Code extension itself still runs in your host VS Code, so it has access to your VS Code settings, workspace state, and any environment variables VS Code inherited from your shell. Only commands the extension executes via the terminal are sandboxed. If the threat model is "I trust the extension but not the code/tools the agent installs and runs", Pattern B is plenty. If you don't fully trust the extension itself, use Pattern A.</p>
+</details>
+<hr />
+<h2 id="pattern-c-devcontainer-style-pre-baked-toolchain">Pattern C: Devcontainer-style pre-baked toolchain<a class="headerlink" href="#pattern-c-devcontainer-style-pre-baked-toolchain" title="Permanent link">&para;</a></h2>
+<p>For repeatable agent sessions across a team — same Node version, same <code>git</code>, same linters, same agent CLI binaries — bake the toolchain into a portable squashfs once and stack it as a <code>-lw</code> layer on every run. This is sandal's equivalent of a devcontainer image, but the artifact is a single <code>.sqfs</code> file you can copy to a USB drive or attach to a CI job.</p>
+<h3 id="build-the-toolchain-layer-once">Build the toolchain layer once<a class="headerlink" href="#build-the-toolchain-layer-once" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Provision the toolchain inside a one-off container</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-toolchain-build<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;</span>
+<span class="s1">        apt-get update &amp;&amp; \</span>
+<span class="s1">        apt-get install -y --no-install-recommends \</span>
+<span class="s1">            nodejs npm python3 python3-pip git openssh-server &amp;&amp; \</span>
+<span class="s1">        npm install -g @anthropic-ai/claude-code &amp;&amp; \</span>
+<span class="s1">        rm -rf /var/lib/apt/lists/* /workspaces</span>
+<span class="s1">    &#39;</span>
+</code></pre></div>
+<p>Then capture <strong>just the system changes</strong> into a squashfs, excluding the workspace and any per-container state:</p>
+<div class="highlight"><span class="filename">Snapshot the toolchain into a portable .sqfs</span><pre><span></span><code>sandal<span class="w"> </span>snapshot<span class="w"> </span>-e<span class="w"> </span>/workspaces<span class="w"> </span>-e<span class="w"> </span>/tmp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-f<span class="w"> </span>/var/lib/sandal/snapshot/agent-toolchain.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>agent-toolchain-build
+
+sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
+</code></pre></div>
+<p><code>-e</code> excludes a path tree; the resulting <code>.sqfs</code> holds your installed packages, the <code>claude-code</code> binary, and the SSH server config — and nothing else. See <a href="../../commands/snapshot/"><code>sandal snapshot</code></a> for include/exclude semantics.</p>
+<h3 id="use-the-toolchain-on-every-subsequent-run">Use the toolchain on every subsequent run<a class="headerlink" href="#use-the-toolchain-on-every-subsequent-run" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Fresh ephemeral session that reuses the toolchain</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/agent-toolchain.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-session<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>bash
+</code></pre></div>
+<p>The right-most <code>-lw</code> wins for <code>ENTRYPOINT</code>/<code>CMD</code>/<code>User</code>, but our toolchain snapshot doesn't define those — it's only system files — so the base image's defaults still apply. Subsequent sessions skip the package install entirely; the layer is a read-only squashfs on disk.</p>
+<p>To share with a teammate: copy <code>agent-toolchain.sqfs</code> to their machine, drop it under <code>/var/lib/sandal/snapshot/</code>, and they run the same command. No registry, no Dockerfile.</p>
+<hr />
+<h2 id="ephemerality-modes-which-one-to-pick">Ephemerality modes — which one to pick<a class="headerlink" href="#ephemerality-modes-which-one-to-pick" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Flag</th>
+<th>Where writes go</th>
+<th>Cost</th>
+<th>Lost on exit?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>tmpfs</strong></td>
+<td><code>-tmp &lt;MB&gt;</code></td>
+<td>RAM</td>
+<td>Capped at the MB you allocate</td>
+<td>Yes (always)</td>
+<td>Short interactive agent loops, fastest iteration, no disk I/O</td>
+</tr>
+<tr>
+<td><strong>disk overlay</strong></td>
+<td><code>--rm</code> (no <code>-tmp</code>)</td>
+<td><code>/var/lib/sandal/changedir/&lt;name&gt;</code></td>
+<td>Disk space until exit</td>
+<td>Yes (deleted by <code>--rm</code>)</td>
+<td>Long-running agent jobs that exceed RAM (large builds, big test suites)</td>
+</tr>
+<tr>
+<td><strong>snapshot per task</strong></td>
+<td><code>-snapshot &lt;path&gt;</code> + <code>sandal snapshot</code></td>
+<td>Disk overlay → captured into a <code>.sqfs</code></td>
+<td>Disk; one <code>.sqfs</code> per session you keep</td>
+<td>No — you choose what to keep</td>
+<td>Reviewable / shareable / replayable agent runs</td>
+</tr>
+</tbody>
+</table>
+<p><code>-tmp</code> is the right default for interactive agent sessions. The agent is going to install things, generate cache files, and create scratch dirs you don't care about; routing them to RAM means they never touch your disk and disappear automatically. Reach for <code>--rm</code> (disk overlay) only if a build is too big to fit in tmpfs. Reach for snapshot-per-task when you want to <strong>save</strong> the result of an agent session — for code review, for replay on another machine, or to fork two parallel agent runs from a common baseline.</p>
+<details class="info">
+<summary>Stacking ephemerality modes</summary>
+<p>These compose. A common pattern is: <strong>base image</strong> + <strong>toolchain snapshot</strong> (Pattern C) as <code>-lw</code> layers, <strong><code>-tmp</code></strong> for the per-session change dir, <strong><code>-v</code></strong> for the project. The base and toolchain are immutable and shared; per-session writes are RAM-only; project edits go straight to git.</p>
+</details>
+<hr />
+<h2 id="hardening-limiting-the-agents-blast-radius">Hardening: limiting the agent's blast radius<a class="headerlink" href="#hardening-limiting-the-agents-blast-radius" title="Permanent link">&para;</a></h2>
+<p>Agents can read every file they can <code>cat</code> and run every binary on <code>PATH</code>. The defaults above already block most of the host, but you should know the dials.</p>
+<h3 id="narrow-bind-mounts">Narrow bind-mounts<a class="headerlink" href="#narrow-bind-mounts" title="Permanent link">&para;</a></h3>
+<p>Mount only the project. <strong>Do not</strong> bind-mount <code>$HOME</code>, <code>~/.ssh</code>, <code>~/.aws</code>, <code>~/.config</code>, the Docker socket, or <code>/</code>:</p>
+<div class="highlight"><span class="filename">Good: just the project</span><pre><span></span><code>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project
+</code></pre></div>
+<div class="highlight"><span class="filename">Bad: don&#x27;t do these</span><pre><span></span><code>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">&quot;</span>:/home/vscode<span class="w">             </span><span class="c1"># exposes your SSH/AWS/GPG keys</span>
+-v<span class="w"> </span>/var/run/docker.sock:/var/run/docker.sock<span class="w">  </span><span class="c1"># container can launch host containers</span>
+-v<span class="w"> </span>/:/host<span class="w">                          </span><span class="c1"># full host filesystem</span>
+</code></pre></div>
+<p>Each <code>-v</code> is a bind mount with no copy-on-write — what the agent writes lands directly on the host path. Pick the smallest possible target.</p>
+<h3 id="dont-inherit-host-env-vars">Don't inherit host env vars<a class="headerlink" href="#dont-inherit-host-env-vars" title="Permanent link">&para;</a></h3>
+<p><code>-env-all</code> ships your entire host environment (including any <code>AWS_*</code>, <code>GITHUB_TOKEN</code>, agent API keys, shell history vars) into the container. Use <a href="../../commands/run/#-env-pass-value"><code>-env-pass</code></a> with an explicit allowlist instead:</p>
+<div class="highlight"><span class="filename">Pass exactly the API key the agent needs, nothing else</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-env-pass<span class="w"> </span>ANTHROPIC_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-env-pass<span class="w"> </span>TZ<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>bash
+</code></pre></div>
+<p><code>-env-pass</code> does <strong>not</strong> accept <code>KEY=VALUE</code> form — it reads the named variable from your current environment and forwards just that name. That makes it harder to accidentally bake credentials into a script you check in.</p>
+<h3 id="run-as-an-unprivileged-user">Run as an unprivileged user<a class="headerlink" href="#run-as-an-unprivileged-user" title="Permanent link">&para;</a></h3>
+<p><code>-user vscode</code> (or any non-root UID) prevents the agent from running <code>apt install</code> system-wide, modifying <code>/etc</code>, or tampering with the base image. Combine with <a href="../../commands/run/#-ns-user-string"><code>-ns-user</code></a> for user-namespace mapping when you want the container's UID space remapped against the host:</p>
+<div class="highlight"><span class="filename">Unprivileged user inside, mapped through a user namespace</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-ns-user<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>bash
+</code></pre></div>
+<h3 id="read-only-base-layers">Read-only base layers<a class="headerlink" href="#read-only-base-layers" title="Permanent link">&para;</a></h3>
+<p>The <code>-lw</code> layers are already immutable — the agent's writes go to the change dir overlay. For belt-and-braces, <a href="../../commands/run/#-ro-bool"><code>-ro</code></a> makes the merged rootfs read-only too, forcing the agent to write only to bind-mounted paths and tmpfs. Useful for very locked-down sessions where the base toolchain should never be modified, even ephemerally.</p>
+<div class="admonition note">
+<p class="admonition-title">The agent can still trash <code>/workspace</code></p>
+<p>None of these flags protect the bind-mounted project directory — that's host disk by definition, and any agent write lands there. <strong>Commit before each agent session</strong>, treat the bind-mount as the only durable surface, and rely on <code>git reset --hard</code> if the agent makes a mess.</p>
+</div>
+<hr />
+<h2 id="putting-it-together-a-hardened-recommended-profile">Putting it together — a hardened recommended profile<a class="headerlink" href="#putting-it-together-a-hardened-recommended-profile" title="Permanent link">&para;</a></h2>
+<p>This is the configuration to start from for a typical "Claude Code in VS Code, ephemeral, hardened" session. Combine Pattern A (Remote-SSH), Pattern C (toolchain snapshot), the COW workspace, and the hardening flags:</p>
+<div class="highlight"><span class="filename">Production-ish profile</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/agent-toolchain.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/real<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>agent-box<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-tmp<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-dir<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:2222:22<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-env-pass<span class="w"> </span>ANTHROPIC_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--<span class="w"> </span>/usr/sbin/sshd<span class="w"> </span>-D
+</code></pre></div>
+<ul>
+<li>Base image + cached toolchain snapshot</li>
+<li>COW workspace at <code>/workspace</code> — agent edits stay in the overlay; promote with <code>rsync /workspace/ /real/</code></li>
+<li>4 GB tmpfs for ephemeral writes (overlay + agent caches)</li>
+<li>Unprivileged user</li>
+<li>SSH on host-loopback only</li>
+<li>One environment variable forwarded explicitly</li>
+<li>No host secrets, no Docker socket</li>
+</ul>
+<p>Connect VS Code Remote-SSH to <code>vscode@127.0.0.1:2222</code>, open <code>/workspace</code>, and start working. When you're happy with what the agent did, promote with <code>rsync -a --delete /workspace/ /real/</code> from inside the container — or do the diff-and-apply review on the host, comparing <code>/real</code> against the live overlay via <code>sandal exec agent-box -- diff -ru /real /workspace</code>.</p>
+<hr />
+<h2 id="tear-down">Tear down<a class="headerlink" href="#tear-down" title="Permanent link">&para;</a></h2>
+<div class="highlight"><span class="filename">Stop and remove</span><pre><span></span><code>sandal<span class="w"> </span>stop<span class="w"> </span>agent-box
+sandal<span class="w"> </span>rm<span class="w"> </span>agent-box
+</code></pre></div>
+<p>The host project at <code>$PWD</code> and any toolchain <code>.sqfs</code> files are kept. To wipe sandal's image cache and orphaned change dirs as well, see <a href="../../commands/clear/"><code>sandal clear</code></a> (<code>-images</code>, <code>-orphans</code>, <code>-temp</code>, <code>-dry-run</code>).</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../commands/run/"><code>sandal run</code></a> — full flag reference, including <code>-tmp</code>, <code>-lw</code>, <code>-v</code>, <code>-p</code>, <code>-ns-*</code>, <code>-env-pass</code>, <code>-user</code>, <code>-ro</code></li>
+<li><a href="../../commands/exec/"><code>sandal exec</code></a> — run commands inside an existing container; the basis for the Pattern B terminal profile</li>
+<li><a href="../../commands/snapshot/"><code>sandal snapshot</code></a> — capture toolchain or session state into a portable squashfs</li>
+<li><a href="../../commands/daemon/"><code>sandal daemon</code></a> — keep an agent box alive across reboots with <code>--startup</code></li>
+<li><a href="../../commands/clear/"><code>sandal clear</code></a> — clean up unreferenced images and orphan change dirs</li>
+<li><a href="https://code.visualstudio.com/docs/remote/ssh">VS Code Remote-SSH documentation</a> — upstream reference for the editor side of Pattern A</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

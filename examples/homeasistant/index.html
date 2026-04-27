@@ -1,0 +1,1908 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://ahmetozer.github.io/sandal/examples/homeasistant/">
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../vscode-agent/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../sandal_icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Home Assistant - Sandal</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-tokens.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/sandal-overrides.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Home Assistant - Sandal" />
+<meta property="og:image" content="https://ahmetozer.github.io/sandal/assets/images/social/examples/homeasistant.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://ahmetozer.github.io/sandal/examples/homeasistant/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Home Assistant - Sandal" />
+<meta property="twitter:image" content="https://ahmetozer.github.io/sandal/assets/images/social/examples/homeasistant.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#home-assistant" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Sandal" class="md-header__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Sandal
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Home Assistant
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../setup/" class="md-tabs__link">
+          
+  
+  
+  Setup
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../commands/" class="md-tabs__link">
+          
+  
+  
+  Commands
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Sandal" class="md-nav__button md-logo" aria-label="Sandal" data-md-component="logo">
+      
+  <img src="../../sandal_logo.png" alt="logo">
+
+    </a>
+    Sandal
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ahmetozer/sandal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ahmetozer/sandal
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/attach/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/clear/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/cmd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/completion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Completion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/daemon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daemon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/exec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/inspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inspect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/kill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/ps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/rerun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rerun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/snapshot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/stop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../commands/vm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Assistant
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persisting-config-with-a-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persisting /config with a volume
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persisting-changes-with-sandal-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persisting changes with sandal snapshot
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Persisting changes with sandal snapshot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#first-run-write-some-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First run — write some state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-a-snapshot-config-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save a snapshot — config only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reuse-the-config-snapshot-as-a-lw-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reuse the config snapshot as a -lw layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#combining-a-volume-and-a-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combining a volume and a snapshot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-starting-at-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-starting at boot
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Auto-starting at boot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#install-the-daemon-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install the daemon service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register-home-assistant-as-a-startup-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Register Home Assistant as a startup container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#check-status-restart-stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check status, restart, stop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#updating-home-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating Home Assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backups
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tear-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tear down
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vscode-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VS Code AI coding agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persisting-config-with-a-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persisting /config with a volume
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persisting-changes-with-sandal-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persisting changes with sandal snapshot
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Persisting changes with sandal snapshot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#first-run-write-some-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First run — write some state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-a-snapshot-config-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save a snapshot — config only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reuse-the-config-snapshot-as-a-lw-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reuse the config snapshot as a -lw layer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#combining-a-volume-and-a-snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combining a volume and a snapshot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-starting-at-boot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-starting at boot
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Auto-starting at boot">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#install-the-daemon-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install the daemon service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register-home-assistant-as-a-startup-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Register Home Assistant as a startup container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#check-status-restart-stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check status, restart, stop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#updating-home-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating Home Assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backups
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tear-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tear down
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="home-assistant">Home Assistant<a class="headerlink" href="#home-assistant" title="Permanent link">&para;</a></h1>
+<p>Run <a href="https://www.home-assistant.io/">Home Assistant Core</a> inside a sandal container straight from the official <code>ghcr.io/home-assistant/home-assistant</code> image — no Docker, no Home Assistant OS, just sandal and the static binary.</p>
+<p>This guide walks through:</p>
+<ul>
+<li>Pulling and running the Home Assistant image with <a href="../../commands/run/"><code>sandal run</code></a></li>
+<li>Persisting the <code>/config</code> directory with a volume mount or <a href="../../commands/snapshot/"><code>sandal snapshot</code></a></li>
+<li>Auto-starting the container at boot with <a href="../../commands/daemon/"><code>sandal daemon</code></a></li>
+</ul>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>The fastest way to verify everything works — pull the image and expose Home Assistant on port <code>8123</code>:</p>
+<div class="highlight"><span class="filename">Try Home Assistant in one command</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123
+</code></pre></div>
+<p>Open <a href="http://localhost:8123">http://localhost:8123</a> in your browser. The image's default <code>ENTRYPOINT</code> (<code>/init</code>) starts s6-overlay and brings Home Assistant up — sandal reads <code>ENTRYPOINT</code>, <code>CMD</code>, <code>ENV</code>, and <code>WorkingDir</code> directly from the OCI manifest, so no extra command is needed after the image reference.</p>
+<div class="admonition note">
+<p class="admonition-title">Tags</p>
+<p><code>ghcr.io/home-assistant/home-assistant</code> publishes architecture-specific tags. <code>:stable</code> resolves to the latest stable release for your architecture. Use <code>:beta</code> for pre-releases, <code>:dev</code> for the development branch, or pin a specific version like <code>:2026.4</code>.</p>
+</div>
+<p><code>--rm</code> deletes the container's overlay on exit. Anything Home Assistant wrote — your onboarding account, the configuration database, automations — is gone. The next two sections show how to keep it.</p>
+<h2 id="persisting-config-with-a-volume">Persisting <code>/config</code> with a volume<a class="headerlink" href="#persisting-config-with-a-volume" title="Permanent link">&para;</a></h2>
+<p>The simplest persistence pattern is a host-path bind mount. Home Assistant writes everything stateful under <code>/config</code>; mount a host directory there and you can stop, restart, or rebuild the container without losing data.</p>
+<div class="highlight"><span class="filename">Run Home Assistant with a host-mounted config dir</span><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>/mnt/homeassistant/config
+
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/mnt/homeassistant/config:/config
+</code></pre></div>
+<p>The <code>-v</code> flag accepts <code>host:container</code> form. Anything Home Assistant writes under <code>/config</code> (e.g. <code>configuration.yaml</code>, <code>home-assistant_v2.db</code>, <code>.storage/</code>) lands in <code>/mnt/homeassistant/config</code> on the host and is durable across container removals.</p>
+<details class="info">
+<summary>Why a volume instead of the overlay?</summary>
+<p>Sandal containers default to copy-on-write: writes go to the container's <em>change dir</em> and merge with the lower layer at read time. That's perfect for ephemeral changes, but the SQLite database and recorder writes Home Assistant performs are heavy and constant — bind-mounting <code>/config</code> lets them hit the host filesystem directly with no overlay overhead, and makes the data trivially backup-able with regular host tools.</p>
+</details>
+<h2 id="persisting-changes-with-sandal-snapshot">Persisting changes with <code>sandal snapshot</code><a class="headerlink" href="#persisting-changes-with-sandal-snapshot" title="Permanent link">&para;</a></h2>
+<p>If you don't want a host bind mount — for example, you want to keep the entire Home Assistant state as a single portable squashfs file you can copy to another machine — use <a href="../../commands/snapshot/"><code>sandal snapshot</code></a> instead.</p>
+<p><code>sandal snapshot</code> captures the container's <em>change dir</em> (everything the container wrote on top of its image) into a <code>.sqfs</code> image. On the next <code>sandal run</code> with the same <code>-name</code>, that snapshot is automatically reattached as a lower layer and your previous state reappears inside the container.</p>
+<h3 id="first-run-write-some-state">First run — write some state<a class="headerlink" href="#first-run-write-some-state" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Start Home Assistant; complete onboarding in the browser</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123
+</code></pre></div>
+<p>While the container is running, complete the onboarding wizard at <a href="http://localhost:8123">http://localhost:8123</a>. Home Assistant writes the new owner account, integrations, and the recorder DB to <code>/config</code> inside the container.</p>
+<h3 id="save-a-snapshot-config-only">Save a snapshot — config only<a class="headerlink" href="#save-a-snapshot-config-only" title="Permanent link">&para;</a></h3>
+<p>In a second terminal, capture <strong>just the <code>/config</code> directory</strong> into a portable squashfs. Excluding everything else keeps Python caches, apk indexes, and <code>/tmp</code> writes out of the image so you end up with a small, self-contained "Home Assistant configuration" file:</p>
+<div class="highlight"><span class="filename">Snapshot only /config</span><pre><span></span><code>sandal<span class="w"> </span>snapshot<span class="w"> </span>-i<span class="w"> </span>/config<span class="w"> </span>homeassistant
+/var/lib/sandal/snapshot/homeassistant.sqfs
+</code></pre></div>
+<p><code>-i /config</code> tells sandal to include only paths under <code>/config</code>; the resulting squashfs holds your <code>configuration.yaml</code>, <code>.storage/</code>, the recorder DB, dashboards, and automations — and nothing else. By default the file lands at <code>SANDAL_SNAPSHOT_DIR/&lt;name&gt;.sqfs</code> (<code>/var/lib/sandal/snapshot/homeassistant.sqfs</code>). Use <code>-f</code> to write it somewhere else — handy for backups onto a USB drive or an SD card:</p>
+<div class="highlight"><span class="filename">Config snapshot to a custom path</span><pre><span></span><code>sandal<span class="w"> </span>snapshot<span class="w"> </span>-i<span class="w"> </span>/config<span class="w"> </span>-f<span class="w"> </span>/mnt/usb/ha-config-2026-04-25.sqfs<span class="w"> </span>homeassistant
+</code></pre></div>
+<h3 id="reuse-the-config-snapshot-as-a-lw-layer">Reuse the config snapshot as a <code>-lw</code> layer<a class="headerlink" href="#reuse-the-config-snapshot-as-a-lw-layer" title="Permanent link">&para;</a></h3>
+<p>Because the snapshot is a regular squashfs image, you can mount it back into a fresh container with <code>-lw</code> — the same flag you use for the Home Assistant image. Stack the config squashfs on top of the upstream image and the next <code>sandal run</code> boots with your saved configuration in place:</p>
+<div class="highlight"><span class="filename">Stop the running container</span><pre><span></span><code>sandal<span class="w"> </span>stop<span class="w"> </span>homeassistant
+</code></pre></div>
+<div class="highlight"><span class="filename">Run a fresh container with the saved config layered in</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/homeassistant.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123
+</code></pre></div>
+<p>The right-most <code>-lw</code> wins for <code>ENTRYPOINT</code>/<code>CMD</code>/<code>WorkingDir</code>, but our config snapshot doesn't define any of those — it's just a <code>/config</code> tree — so Home Assistant's own entrypoint still runs, and <code>/config</code> is now populated from the snapshot. This is the <strong>recommended</strong> pattern: your configuration is a single portable file, and you can ship it to another machine, version it, or roll back by simply swapping which <code>.sqfs</code> file you pass to <code>-lw</code>.</p>
+<div class="highlight"><span class="filename">Run with a snapshot stored on removable media</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>/mnt/usb/ha-config-2026-04-25.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123
+</code></pre></div>
+<details class="info">
+<summary>Snapshot auto-attach vs explicit <code>-lw</code></summary>
+<p>Sandal auto-attaches the default snapshot file at <code>SANDAL_SNAPSHOT_DIR/&lt;name&gt;.sqfs</code> when a container runs under the same <code>-name</code>. Passing the snapshot explicitly with <code>-lw</code> is the more flexible form: you can pin a specific config file, ship it to another host, or stack multiple config snapshots together. The two mechanisms don't conflict, but using <code>-lw</code> makes the dependency obvious in the command line.</p>
+</details>
+<details class="info">
+<summary>Successive snapshots are merged</summary>
+<p><code>sandal snapshot -i /config homeassistant</code> is safe to re-run — sandal mounts the previous <code>homeassistant.sqfs</code> as a read-only overlay underneath the current change dir before squashing, so accumulated <code>/config</code> changes are preserved across snapshots. See <a href="../../commands/snapshot/#how-it-works">How It Works</a> for the data flow.</p>
+</details>
+<h2 id="combining-a-volume-and-a-snapshot">Combining a volume and a snapshot<a class="headerlink" href="#combining-a-volume-and-a-snapshot" title="Permanent link">&para;</a></h2>
+<p>The two persistence mechanisms compose. A common production pattern is:</p>
+<ul>
+<li><strong>Volume</strong> for <code>/config</code> — fast direct-to-disk SQLite writes, easy host-side backup</li>
+<li><strong>Snapshot</strong> for system-level changes — extra apk packages, custom Python deps, tweaks under <code>/etc</code></li>
+</ul>
+<div class="highlight"><span class="filename">Volume for state, snapshot for system tweaks</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/mnt/homeassistant/config:/config
+
+<span class="c1"># After installing extra packages or editing system files:</span>
+sandal<span class="w"> </span>snapshot<span class="w"> </span>-e<span class="w"> </span>/config<span class="w"> </span>homeassistant
+</code></pre></div>
+<p><code>-e /config</code> excludes the config dir from the snapshot — it lives on the host volume, so there's no point shoving it into the squashfs too.</p>
+<p>If you'd rather keep <code>/config</code> inside a squashfs (no host volume) and capture system tweaks separately, take two snapshots with disjoint scopes and stack both with <code>-lw</code>:</p>
+<div class="highlight"><span class="filename">Two scoped snapshots stacked back as -lw layers</span><pre><span></span><code>sandal<span class="w"> </span>snapshot<span class="w"> </span>-i<span class="w"> </span>/config<span class="w"> </span>-f<span class="w"> </span>/var/lib/sandal/snapshot/ha-config.sqfs<span class="w"> </span>homeassistant
+sandal<span class="w"> </span>snapshot<span class="w"> </span>-e<span class="w"> </span>/config<span class="w"> </span>-f<span class="w"> </span>/var/lib/sandal/snapshot/ha-system.sqfs<span class="w"> </span>homeassistant
+
+sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/ha-system.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/ha-config.sqfs<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123
+</code></pre></div>
+<h2 id="auto-starting-at-boot">Auto-starting at boot<a class="headerlink" href="#auto-starting-at-boot" title="Permanent link">&para;</a></h2>
+<p>For a real home installation you want Home Assistant up after every reboot. The sandal daemon handles this with the <code>-d</code> (detached) and <code>--startup</code> flags.</p>
+<h3 id="install-the-daemon-service">Install the daemon service<a class="headerlink" href="#install-the-daemon-service" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">One-time service install (systemd or OpenRC)</span><pre><span></span><code>sudo<span class="w"> </span>sandal<span class="w"> </span>daemon<span class="w"> </span>-install
+sudo<span class="w"> </span>service<span class="w"> </span>sandal<span class="w"> </span>start
+</code></pre></div>
+<p>See <a href="../../commands/daemon/"><code>sandal daemon</code></a> for service-management details.</p>
+<h3 id="register-home-assistant-as-a-startup-container">Register Home Assistant as a startup container<a class="headerlink" href="#register-home-assistant-as-a-startup-container" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Register Home Assistant as a daemon-managed container</span><pre><span></span><code>sudo<span class="w"> </span>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--startup<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/mnt/homeassistant/config:/config
+</code></pre></div>
+<ul>
+<li><code>-d</code> runs the container in the background.</li>
+<li><code>--startup</code> registers it with the daemon so it's re-provisioned on boot and <strong>automatically restarted if the process exits</strong>.</li>
+</ul>
+<p>The daemon proxies <code>SIGTERM</code> / <code>SIGINT</code> / <code>SIGQUIT</code> to the container during shutdown and gives Home Assistant 30 seconds to exit gracefully before sending <code>SIGKILL</code> — enough time for the recorder to flush state.</p>
+<h3 id="check-status-restart-stop">Check status, restart, stop<a class="headerlink" href="#check-status-restart-stop" title="Permanent link">&para;</a></h3>
+<div class="highlight"><span class="filename">Day-to-day operations</span><pre><span></span><code>sandal<span class="w"> </span>ps<span class="w">                       </span><span class="c1"># see all containers and their status</span>
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>homeassistant<span class="w"> </span>--<span class="w"> </span>ha<span class="w"> </span>core<span class="w"> </span>info<span class="w">   </span><span class="c1"># run a command inside</span>
+sandal<span class="w"> </span>rerun<span class="w"> </span>homeassistant<span class="w">      </span><span class="c1"># restart with the original arguments</span>
+sandal<span class="w"> </span>stop<span class="w"> </span>homeassistant<span class="w">       </span><span class="c1"># graceful stop (SIGTERM, 30s timeout)</span>
+sandal<span class="w"> </span><span class="nb">kill</span><span class="w"> </span>homeassistant<span class="w">       </span><span class="c1"># SIGKILL if it&#39;s wedged</span>
+</code></pre></div>
+<p>See <a href="../../commands/ps/"><code>sandal ps</code></a>, <a href="../../commands/exec/"><code>sandal exec</code></a>, <a href="../../commands/stop/"><code>sandal stop</code></a>, and <a href="../../commands/kill/"><code>sandal kill</code></a> for the full flag set.</p>
+<h2 id="updating-home-assistant">Updating Home Assistant<a class="headerlink" href="#updating-home-assistant" title="Permanent link">&para;</a></h2>
+<p>Sandal caches each pulled image as a single squashfs in <code>SANDAL_IMAGE_DIR</code> keyed by the tag, so <code>-lw ghcr.io/home-assistant/home-assistant:stable</code> reuses the cached file on every subsequent run. To pick up a newer build of <code>:stable</code>, drop the cached image so the next <code>sandal run</code> re-pulls a fresh one:</p>
+<div class="highlight"><span class="filename">Update to the latest stable release</span><pre><span></span><code><span class="c1"># Stop and remove the running container so the cached image becomes unreferenced</span>
+sandal<span class="w"> </span>stop<span class="w"> </span>homeassistant
+sandal<span class="w"> </span>rm<span class="w"> </span>homeassistant
+
+<span class="c1"># Clear images that no container references — the old :stable squashfs is one of them</span>
+sandal<span class="w"> </span>clear<span class="w"> </span>-images
+
+<span class="c1"># Start it again with the same arguments — the new manifest is pulled fresh</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--startup<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>ghcr.io/home-assistant/home-assistant:stable<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-name<span class="w"> </span>homeassistant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="m">0</span>.0.0.0:8123:8123<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/mnt/homeassistant/config:/config
+</code></pre></div>
+<p>See <a href="../../commands/clear/"><code>sandal clear</code></a> for the full set of cleanup scopes (<code>-images</code>, <code>-snapshots</code>, <code>-orphans</code>, <code>-temp</code>, …) and the <code>-dry-run</code> preview. Your <code>-v /mnt/homeassistant/config:/config</code> volume and any saved snapshot files are <em>not</em> touched by <code>sandal clear</code>, so all your Home Assistant state survives the upgrade.</p>
+<h2 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h2>
+<p>With this setup, a complete backup is just two paths on the host:</p>
+<ul>
+<li><code>/mnt/homeassistant/config/</code> — the live config volume (rsync, restic, borg, …)</li>
+<li><code>/var/lib/sandal/snapshot/homeassistant.sqfs</code> — the system-tweaks snapshot, if you use one</li>
+</ul>
+<p>Snapshots are squashfs images and are portable — copy <code>homeassistant.sqfs</code> to a new machine, drop it in <code>SANDAL_SNAPSHOT_DIR</code> (or pass <code>-snapshot /path/to/file.sqfs</code> to <code>sandal run</code>), and the new host picks up exactly where the old one left off.</p>
+<h2 id="tear-down">Tear down<a class="headerlink" href="#tear-down" title="Permanent link">&para;</a></h2>
+<div class="highlight"><span class="filename">Remove the container and its overlay</span><pre><span></span><code>sandal<span class="w"> </span>stop<span class="w"> </span>homeassistant
+sandal<span class="w"> </span>rm<span class="w"> </span>homeassistant
+</code></pre></div>
+<p>The host volume at <code>/mnt/homeassistant/config</code> and any saved snapshot files are kept — delete them manually if you want a fully clean slate.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../commands/run/"><code>sandal run</code></a> — full flag reference</li>
+<li><a href="../../commands/snapshot/"><code>sandal snapshot</code></a> — include/exclude filters and merge behavior</li>
+<li><a href="../../commands/daemon/"><code>sandal daemon</code></a> — service install, signal proxy, restart-on-exit</li>
+<li><a href="https://github.com/home-assistant/core/pkgs/container/home-assistant">Home Assistant Core docker image</a> — upstream tag list</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+      
+        <script src="../../assets/external/unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>
