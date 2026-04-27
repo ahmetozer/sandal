@@ -45,6 +45,14 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 				}
 				slog.Debug("daemon", slog.String("action", "healthCheck"), slog.Any("len", len((conts))), slog.String("cont", cont.Name), slog.Bool("running", isRunning))
 				if !isRunning {
+					// Release any rehydrated forward session for this
+					// container. contRecover takes care of cleanup for
+					// containers it restarts (Forwards.Add replaces the
+					// session), but if Startup=false there is no recover
+					// path and the rehydrated listener would leak. Stop
+					// the named entry; if the recover path then fires it
+					// will install a fresh session.
+					host.Forwards.Stop(cont.Name)
 					if cont.Startup {
 						go contRecover(cont)
 					} else {

@@ -3,7 +3,6 @@
 package host
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
-	"github.com/ahmetozer/sandal/pkg/container/forward"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
@@ -216,37 +214,30 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 	//   - inside VM: AF_VSOCK listeners bound in the VM root netns, accepting
 	//               connections from the physical host's BootWithForwards
 	//               host listeners and dialing into the in-VM container.
-	stopForward := func() {}
-	if len(c.Ports) > 0 {
-		forward.AssignIDs(c.Ports)
-		dialer, dErr := forward.StartNetnsDialer(c.ContPid, c.Ports)
-		if dErr != nil {
-			slog.Warn("forward: start netns dialer", "err", dErr)
-		} else {
-			ctx, cancel := context.WithCancel(context.Background())
-			var (
-				stop func()
-				sErr error
-			)
-			if os.Getenv("SANDAL_VM") != "" {
-				stop, sErr = forward.StartVsock(ctx, c.Name, c.Ports, dialer)
-			} else {
-				stop, sErr = forward.Start(ctx, c.Name, c.Ports, dialer)
-			}
-			if sErr != nil {
-				slog.Warn("forward: start listeners", "err", sErr)
-				cancel()
-				dialer.Close()
-			} else {
-				stopForward = func() {
-					stop()
-					cancel()
-					dialer.Close()
-				}
-			}
-		}
+	//
+	// Lifecycle ownership differs by mode:
+	//   - foreground (!c.Background): cleanup runs from this stack frame's
+	//     defer, fired when cmd.Wait() returns at the bottom of crun.
+	//   - background in daemon (c.Background && env.IsDaemon): the session
+	//     is handed to host.Forwards. The wait goroutine below calls
+	//     Forwards.Stop(c.Name) when the container exits.
+	//   - background outside daemon: nothing can host the listeners past
+	//     this function's return — log and skip.
+	session, sErr := startForward(c)
+	if sErr != nil {
+		slog.Warn("forward: start", "err", sErr)
 	}
-	defer stopForward()
+	switch {
+	case session == nil:
+		// no -p flags or no daemon path; nothing to do.
+	case !c.Background:
+		defer session.close()
+	case env.IsDaemon:
+		Forwards.Add(c.Name, session)
+	default:
+		slog.Warn("forward: -p ignored for -d without daemon; use -startup or run in foreground", "name", c.Name)
+		session.close()
+	}
 
 	// Start PTY relay for interactive (foreground) containers only.
 	// Background containers with socket console have their own PTY reader.
@@ -296,9 +287,17 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 	}
 
 	if c.Background {
+		// Capture the session pointer so the wait goroutine releases
+		// exactly the session it created. Without this, a wait fired
+		// after a contRecover-driven restart would clobber the new
+		// session and orphan the old listener (port stuck "in use").
+		ownedSession := session
+		registered := env.IsDaemon && session != nil
 		go func() {
 			cmd.Process.Wait()
-			// Clean up console resources when the container exits
+			if registered {
+				Forwards.Remove(c.Name, ownedSession)
+			}
 			if consoleCleanup != nil {
 				consoleCleanup()
 			}

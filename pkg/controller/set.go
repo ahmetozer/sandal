@@ -48,8 +48,14 @@ func setContainerByMemory(c *config.Config) error {
 
 	for i := range containerList {
 		if containerList[i].Name == c.Name {
-
-			if !bytes.Equal(containerList[i].Json(), c.Json()) {
+			// When callers obtained c via GetContainer, c and
+			// containerList[i] are the SAME pointer; comparing JSON
+			// would always show "unchanged" even though the caller just
+			// mutated fields like ContPid. Force a disk write in that
+			// case so on-disk state never lags behind in-memory state.
+			if containerList[i] == c {
+				setContainerByDisk(c)
+			} else if !bytes.Equal(containerList[i].Json(), c.Json()) {
 				setContainerByDisk(c)
 			}
 			containerList[i] = c
