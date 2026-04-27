@@ -2,146 +2,146 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://sandal.ahmetozer.org/beta/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/attach/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/build/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/clear/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/cmd/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/completion/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/daemon/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/exec/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/export/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/inspect/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/kill/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/ps/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/rerun/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/rm/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/run/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/snapshot/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/stop/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/commands/vm/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/architecture/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/boot-sequence/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/cli-commands/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/container-runtime/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/daemon-controller/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/guest-init/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/image-management/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/kvm-hypervisor/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/networking/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/virtio-devices/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/design/virtiofs-fuse/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/examples/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/examples/homeasistant/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/examples/vscode-agent/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/setup/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
     <url>
          <loc>https://sandal.ahmetozer.org/beta/setup/configuration/</loc>
-         <lastmod>2026-04-26</lastmod>
+         <lastmod>2026-04-27</lastmod>
     </url>
 </urlset>
