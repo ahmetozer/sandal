@@ -54,14 +54,16 @@ type forwardRegistry struct {
 var Forwards = &forwardRegistry{sessions: map[string]*forwardSession{}}
 
 // Add registers a session for name, stopping any existing session in
-// that slot first. This handles container-restart races where a new
-// session is built before the wait goroutine for the old one fires.
+// that slot first. Skips stopping if the existing entry is the same
+// pointer (idempotent re-registration).
 func (r *forwardRegistry) Add(name string, s *forwardSession) {
 	r.mu.Lock()
 	old := r.sessions[name]
 	r.sessions[name] = s
 	r.mu.Unlock()
-	old.close()
+	if old != nil && old != s {
+		old.close()
+	}
 }
 
 // Has reports whether a session is currently registered for name.
@@ -72,11 +74,18 @@ func (r *forwardRegistry) Has(name string) bool {
 	return ok
 }
 
-// Stop tears down the session for name. No-op if absent.
-func (r *forwardRegistry) Stop(name string) {
+// Remove deletes name from the registry only if the currently-stored
+// session is exactly s, then closes s unconditionally. The CAS-style
+// check prevents a wait goroutine for an old container from clobbering
+// a new session that was registered during a restart race.
+func (r *forwardRegistry) Remove(name string, s *forwardSession) {
+	if s == nil {
+		return
+	}
 	r.mu.Lock()
-	s := r.sessions[name]
-	delete(r.sessions, name)
+	if r.sessions[name] == s {
+		delete(r.sessions, name)
+	}
 	r.mu.Unlock()
 	s.close()
 }

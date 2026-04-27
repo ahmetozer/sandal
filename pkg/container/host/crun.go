@@ -287,15 +287,21 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 	}
 
 	if c.Background {
+		// Capture the session pointer so the wait goroutine releases
+		// exactly the session it created. Without this, a wait fired
+		// after a contRecover-driven restart would clobber the new
+		// session and orphan the old listener (port stuck "in use").
+		ownedSession := session
+		registered := env.IsDaemon && session != nil
+		waitPid := cmd.Process.Pid
+		slog.Info("crun: wait goroutine starting", "name", c.Name, "pid", waitPid, "registered", registered)
 		go func() {
-			cmd.Process.Wait()
-			// Release the port-forward session installed above, if any.
-			// Has() avoids touching the registry mutex when there was
-			// nothing to register (no -p, or no daemon path).
-			if Forwards.Has(c.Name) {
-				Forwards.Stop(c.Name)
+			ws, werr := cmd.Process.Wait()
+			slog.Info("crun: wait goroutine returned", "name", c.Name, "pid", waitPid, "exit", ws, "err", werr)
+			if registered {
+				Forwards.Remove(c.Name, ownedSession)
+				slog.Info("crun: forward session removed", "name", c.Name)
 			}
-			// Clean up console resources when the container exits
 			if consoleCleanup != nil {
 				consoleCleanup()
 			}
