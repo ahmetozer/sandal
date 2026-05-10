@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/lib/dhcp"
@@ -87,9 +88,9 @@ func (l *Link) configureDHCPv6() error {
 		return err
 	}
 
-	slog.Info("dhcpv6 lease obtained", "interface", l.Id, "ip", lease.CIDR(), "dns", lease.DNS)
+	slog.Info("dhcpv6 lease obtained", "interface", l.Id, "ip", lease.CIDR(), "dns", lease.DNS,
+		"t1", lease.T1, "t2", lease.T2, "valid", lease.ValidLifetime)
 
-	// Apply the obtained IP to the interface
 	nLink, err := netlink.LinkByName(l.Id)
 	if err != nil {
 		return err
@@ -104,9 +105,14 @@ func (l *Link) configureDHCPv6() error {
 	}
 	l.Addr = append(l.Addr, addr)
 
-	// DHCPv6 doesn't provide a gateway — IPv6 gateways come from
-	// Router Advertisements which the kernel handles automatically
-	// when the interface is up.
+	// Spawn the renewal loop in a detached goroutine. The loop's lifetime is
+	// the container's PID 1 — process exit cancels via container teardown.
+	loopCtx, loopCancel := context.WithCancel(context.Background())
+	registerDHCPv6LoopCancel(l.Id, loopCancel)
+
+	r := newNARefresher(client, nLink, lease, l.Id)
+	loop := dhcp.NewLeaseLoop(r, dhcp.LeaseTimes{T1: lease.T1, T2: lease.T2, Valid: lease.ValidLifetime})
+	go loop.Run(loopCtx)
 
 	return nil
 }
@@ -118,4 +124,29 @@ func (l *Link) ResolvDHCP() []net.IP {
 	// they're not stored on the Link currently.
 	// This is a placeholder for when DNS propagation is added.
 	return nil
+}
+
+var (
+	dhcpv6LoopMu      sync.Mutex
+	dhcpv6LoopCancels = make(map[string]context.CancelFunc)
+)
+
+func registerDHCPv6LoopCancel(iface string, cancel context.CancelFunc) {
+	dhcpv6LoopMu.Lock()
+	defer dhcpv6LoopMu.Unlock()
+	if old, ok := dhcpv6LoopCancels[iface]; ok {
+		old()
+	}
+	dhcpv6LoopCancels[iface] = cancel
+}
+
+// CancelAllDHCPv6Loops cancels every running DHCPv6 lease loop in this process.
+// Called from container shutdown so loops exit and send Release.
+func CancelAllDHCPv6Loops() {
+	dhcpv6LoopMu.Lock()
+	defer dhcpv6LoopMu.Unlock()
+	for iface, cancel := range dhcpv6LoopCancels {
+		cancel()
+		delete(dhcpv6LoopCancels, iface)
+	}
 }
