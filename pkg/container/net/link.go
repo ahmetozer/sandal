@@ -64,6 +64,11 @@ type Link struct {
 
 	DHCPv4 bool `json:",omitempty"`
 	DHCPv6 bool `json:",omitempty"`
+
+	// Dynamic, when true (the default), means this link's IPv6 prefix is
+	// renumbered automatically when the upstream prefix changes. Set
+	// `dynamic=false` on the -net flag to opt out (for hand-pinned IPv6).
+	Dynamic bool `json:",omitempty"`
 }
 
 type Links []Link
