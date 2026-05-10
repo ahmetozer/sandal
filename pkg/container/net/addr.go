@@ -160,9 +160,9 @@ func pickIID(a Addrs) []byte {
 	return iid
 }
 
-// replaceGlobal returns a copy of a with any global IPv6 entry replaced by
+// ReplaceGlobal returns a copy of a with any global IPv6 entry replaced by
 // the supplied newGlobal. Existing IPv4 and link-local/ULA entries are kept.
-func (a Addrs) replaceGlobal(newGlobal net.IPNet) Addrs {
+func (a Addrs) ReplaceGlobal(newGlobal net.IPNet) Addrs {
 	out := make(Addrs, 0, len(a)+1)
 	added := false
 	_, ll, _ := net.ParseCIDR("fe80::/10")
