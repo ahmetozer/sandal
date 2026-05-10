@@ -52,7 +52,7 @@ func CreateDefaultBridge() (netlink.Link, error) {
 	if err != nil {
 		return nil, err
 	}
-	if env.UpstreamInterface != "" {
+	if env.UpstreamInterface != "" && env.IPv6Mode != "off" {
 		filtered := addrs[:0]
 		for _, a := range addrs {
 			if a.IP.To4() != nil {
