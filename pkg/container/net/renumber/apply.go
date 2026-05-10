@@ -57,6 +57,9 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 		if !isRunning(c) {
 			continue
 		}
+		if c.NS.Get("net").IsHost {
+			continue
+		}
 		ips, err := a.renumberContainer(c, prefix, &shadow)
 		if err != nil {
 			slog.Warn("renumber: container failed", "name", c.Name, "err", err)

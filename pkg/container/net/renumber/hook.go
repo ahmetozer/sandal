@@ -41,6 +41,9 @@ func OnContainerStart(c *config.Config) {
 	if p == nil || c == nil {
 		return
 	}
+	if c.NS.Get("net").IsHost {
+		return
+	}
 	WithApplyLock(func() {
 		links, err := cnet.ToLinks(&c.Net)
 		if err != nil {
@@ -66,6 +69,9 @@ func OnContainerStop(c *config.Config) {
 	p := activeNDP
 	hookMu.Unlock()
 	if p == nil || c == nil {
+		return
+	}
+	if c.NS.Get("net").IsHost {
 		return
 	}
 	WithApplyLock(func() {
