@@ -45,10 +45,21 @@ func CreateDefaultBridge() (netlink.Link, error) {
 		return nil, err
 	}
 
-	// Bare Linux: assign static IPs from SANDAL_HOST_NET
+	// Bare Linux: assign static IPs from SANDAL_HOST_NET. When dynamic-IPv6
+	// is configured (SANDAL_UPSTREAM_IF set), only the IPv4 portion is
+	// applied here — the IPv6 prefix is owned by the renumber service.
 	addrs, err := stringToAddrs(env.DefaultHostNet)
 	if err != nil {
 		return nil, err
+	}
+	if env.UpstreamInterface != "" {
+		filtered := addrs[:0]
+		for _, a := range addrs {
+			if a.IP.To4() != nil {
+				filtered = append(filtered, a)
+			}
+		}
+		addrs = filtered
 	}
 	err = addrs.Add(masterlink)
 	if err != nil {
