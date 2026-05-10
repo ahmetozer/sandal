@@ -4,6 +4,7 @@ package renumber
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"runtime"
 
@@ -20,7 +21,12 @@ func SwapContainerAddr(contPid int, ifaceName string, oldPrefix *net.IPNet, newA
 		return fmt.Errorf("invalid contPid %d", contPid)
 	}
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	unlockOK := true
+	defer func() {
+		if unlockOK {
+			runtime.UnlockOSThread()
+		}
+	}()
 
 	hostNS, err := netns.Get()
 	if err != nil {
@@ -37,7 +43,12 @@ func SwapContainerAddr(contPid int, ifaceName string, oldPrefix *net.IPNet, newA
 	if err := netns.Set(contNS); err != nil {
 		return fmt.Errorf("setns container: %w", err)
 	}
-	defer netns.Set(hostNS)
+	defer func() {
+		if err := netns.Set(hostNS); err != nil {
+			slog.Error("netns: failed to restore host ns, tainting thread", "err", err)
+			unlockOK = false
+		}
+	}()
 
 	link, err := netlink.LinkByName(ifaceName)
 	if err != nil {
