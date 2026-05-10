@@ -24,6 +24,14 @@ type DefaultApplier struct {
 
 // Apply runs the bridge → containers → NDP proxy sequence.
 func (a *DefaultApplier) Apply(ctx context.Context, prefix *net.IPNet) error {
+	var outerErr error
+	WithApplyLock(func() {
+		outerErr = a.applyLocked(ctx, prefix)
+	})
+	return outerErr
+}
+
+func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) error {
 	if prefix == nil {
 		return fmt.Errorf("apply: nil prefix")
 	}
