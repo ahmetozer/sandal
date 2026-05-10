@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/net"
+	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
@@ -43,6 +45,31 @@ func (dc DaemonConfig) Start() error {
 	os.MkdirAll(env.BaseRootfsDir, 0o0660)
 
 	net.CreateDefaultBridge()
+
+	// Dynamic IPv6 service. Spawned only when SANDAL_UPSTREAM_IF is set.
+	renumberCtx, renumberCancel := context.WithCancel(context.Background())
+	if env.UpstreamInterface != "" && env.IPv6Mode != "off" {
+		var src renumber.Source
+		switch env.IPv6Mode {
+		case "pd":
+			src = renumber.NewPDSource(env.UpstreamInterface, env.IPv6PDHint)
+		default: // "ndp-proxy"
+			src = renumber.NewRASource(env.UpstreamInterface)
+		}
+		applier := &renumber.DefaultApplier{BridgeName: net.DefaultBridgeInterface}
+		if env.IPv6Mode != "pd" {
+			proxy, err := renumber.NewNDPProxy(env.UpstreamInterface)
+			if err != nil {
+				slog.Error("renumber: NDP proxy init failed; service disabled", "err", err)
+			} else {
+				applier.Proxy = proxy
+			}
+		}
+		svc := renumber.NewService(src, applier, 0)
+		go svc.Run(renumberCtx)
+		slog.Info("renumber: service started", "upstream", env.UpstreamInterface, "mode", env.IPv6Mode)
+	}
+	defer renumberCancel()
 
 	for _, mod := range []string{"vhost_net", "vhost_vsock"} {
 		if err := modprobe.Load(mod); err != nil {
