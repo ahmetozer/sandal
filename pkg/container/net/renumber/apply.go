@@ -45,12 +45,19 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 	if err != nil {
 		return fmt.Errorf("controller.Containers: %w", err)
 	}
+
+	// shadow is a live slice of pointers — mutations to c.Net inside
+	// renumberContainer are immediately visible to subsequent IPRequest calls,
+	// preventing two containers without a preserved IID from picking the same IID.
+	shadow := make([]*config.Config, len(conts))
+	copy(shadow, conts)
+
 	containerIPs := make([]net.IP, 0, len(conts))
 	for _, c := range conts {
 		if !isRunning(c) {
 			continue
 		}
-		ips, err := a.renumberContainer(c, prefix)
+		ips, err := a.renumberContainer(c, prefix, &shadow)
 		if err != nil {
 			slog.Warn("renumber: container failed", "name", c.Name, "err", err)
 			continue
@@ -98,7 +105,9 @@ func (a *DefaultApplier) renumberBridge(prefix *net.IPNet) (*net.IPNet, error) {
 
 // renumberContainer rewrites the container's links under `prefix` and persists
 // the change to its config. Returns the new container global IPv6 addresses.
-func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet) ([]net.IP, error) {
+// reserved is the full live slice of all containers; mutations to c.Net are
+// visible to subsequent IPRequest calls so no two containers pick the same IID.
+func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, reserved *[]*config.Config) ([]net.IP, error) {
 	links, err := cnet.ToLinks(&c.Net)
 	if err != nil {
 		return nil, fmt.Errorf("ToLinks: %w", err)
@@ -113,7 +122,7 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet) 
 		if iid := pickIIDLocal(link.Addr); iid != nil {
 			newIP = withIID(prefix, iid)
 		} else {
-			ip, err := cnet.IPRequest(&[]*config.Config{c}, prefix)
+			ip, err := cnet.IPRequest(reserved, prefix)
 			if err != nil {
 				return nil, fmt.Errorf("IPRequest: %w", err)
 			}
@@ -136,6 +145,8 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet) 
 	}
 
 	c.Net = *links
+	// c is already a pointer in *reserved, so the updated Addr is visible
+	// to the next IPRequest call for subsequent containers.
 	if err := controller.SetContainer(c); err != nil {
 		return newIPs, fmt.Errorf("controller.SetContainer: %w", err)
 	}
