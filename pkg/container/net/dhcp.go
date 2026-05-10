@@ -105,14 +105,51 @@ func (l *Link) configureDHCPv6() error {
 	}
 	l.Addr = append(l.Addr, addr)
 
-	// Spawn the renewal loop in a detached goroutine. The loop's lifetime is
-	// the container's PID 1 — process exit cancels via container teardown.
+	// Spawn a self-restarting renewal supervisor. If the lease loop exits
+	// (lease fully expired), the supervisor reattempts ObtainLease with
+	// exponential-ish backoff. Cancelled from CancelAllDHCPv6Loops.
 	loopCtx, loopCancel := context.WithCancel(context.Background())
 	registerDHCPv6LoopCancel(l.Id, loopCancel)
 
-	r := newNARefresher(client, nLink, lease, l.Id)
-	loop := dhcp.NewLeaseLoop(r, dhcp.LeaseTimes{T1: lease.T1, T2: lease.T2, Valid: lease.ValidLifetime})
-	go loop.Run(loopCtx)
+	go func(initialLease *dhcp.Lease6) {
+		current := initialLease
+		backoff := 5 * time.Second
+		for {
+			r := newNARefresher(client, nLink, current, l.Id)
+			loop := dhcp.NewLeaseLoop(r, dhcp.LeaseTimes{T1: current.T1, T2: current.T2, Valid: current.ValidLifetime})
+			loop.Run(loopCtx)
+			if loopCtx.Err() != nil {
+				return
+			}
+			// Loop exited due to expiry. Sleep, then re-Solicit.
+			select {
+			case <-loopCtx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			if backoff < 60*time.Second {
+				backoff *= 2
+			}
+			solicitCtx, cancel := context.WithTimeout(loopCtx, 30*time.Second)
+			next, err := client.ObtainLease(solicitCtx)
+			cancel()
+			if err != nil {
+				slog.Warn("dhcp6: re-solicit failed", "iface", l.Id, "err", err)
+				continue
+			}
+			// New lease obtained — replace kernel addr if changed.
+			if !current.ClientIP.Equal(next.ClientIP) {
+				old := &netlink.Addr{IPNet: &net.IPNet{IP: current.ClientIP, Mask: net.CIDRMask(128, 128)}}
+				_ = netlink.AddrDel(nLink, old)
+			}
+			add := &netlink.Addr{IPNet: &net.IPNet{IP: next.ClientIP, Mask: net.CIDRMask(128, 128)}}
+			if err := netlink.AddrAdd(nLink, add); err != nil {
+				slog.Warn("dhcp6: addr add after re-solicit", "iface", l.Id, "err", err)
+			}
+			current = next
+			backoff = 5 * time.Second
+		}
+	}(lease)
 
 	return nil
 }
