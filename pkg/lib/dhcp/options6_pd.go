@@ -2,6 +2,7 @@ package dhcp
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 )
 
@@ -75,7 +76,7 @@ func parseIAPD(d []byte) *IAPD {
 
 func parseIAPrefix(d []byte) (IAPrefix, error) {
 	if len(d) < 25 {
-		return IAPrefix{}, errIAPrefixTooShort
+		return IAPrefix{}, fmt.Errorf("dhcp6: IA_PREFIX option data < 25 bytes")
 	}
 	p := IAPrefix{
 		PreferredLifetime: binary.BigEndian.Uint32(d[0:4]),
@@ -106,8 +107,3 @@ func Option6IAPrefixOpt(p IAPrefix) Option6 {
 	return Option6{Code: Opt6IAPrefix, Data: d}
 }
 
-var errIAPrefixTooShort = parseError("dhcp6: IA_PREFIX option data < 25 bytes")
-
-type parseError string
-
-func (e parseError) Error() string { return string(e) }
