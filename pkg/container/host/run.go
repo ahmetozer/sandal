@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -63,6 +64,10 @@ func Run(c *config.Config) error {
 
 	// Starting proccess
 	exitCode, err := crun(c, imgEnv)
+
+	if err == nil {
+		renumber.OnContainerStart(c)
+	}
 
 	if !c.Remove && !c.Background {
 		c.Status = fmt.Sprintf("exit %d", exitCode)

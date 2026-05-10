@@ -10,6 +10,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/console"
 	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	"github.com/ahmetozer/sandal/pkg/container/net"
+	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/vishvananda/netlink"
 )
@@ -19,6 +20,8 @@ import (
 // calling it multiple times is safe (unmounting an already-unmounted
 // path is a no-op).
 func CleanupResources(c *config.Config) {
+	renumber.OnContainerStop(c)
+
 	if err := UmountRootfs(c); err != nil {
 		for _, e := range err {
 			slog.Debug("cleanupResources", "umount", slog.Any("error", e))

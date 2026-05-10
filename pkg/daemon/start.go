@@ -63,6 +63,7 @@ func (dc DaemonConfig) Start() error {
 				slog.Error("renumber: NDP proxy init failed; service disabled", "err", err)
 			} else {
 				applier.Proxy = proxy
+				renumber.SetActiveNDPProxy(proxy)
 			}
 		}
 		svc := renumber.NewService(src, applier, 0)
