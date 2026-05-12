@@ -285,6 +285,8 @@ Allocation configuration of /etc/hosts file.
     sandal run -lw / -net "ip=dhcp" -- bash          # dual-stack (DHCPv4 + DHCPv6)
     sandal run -lw / -net "ip=dhcp4" -- bash         # IPv4 only
     sandal run -lw / -net "ip=dhcp6" -- bash         # IPv6 only
+    # Opt out of automatic IPv6 renumbering for this link
+    sandal run -lw / -net "ip=fd00:internal::42/64;dynamic=false" -- bash
     ```
 
 ??? info "DHCP"
@@ -299,6 +301,21 @@ Allocation configuration of /etc/hosts file.
 
     The DHCP client retransmits every 2 seconds for up to 30 seconds. The
     obtained IP, default gateway, and DNS servers are applied automatically.
+
+    For `ip=dhcp` / `ip=dhcp6`, sandal keeps the lease renewed by sending
+    Renew at T1 and Rebind at T2 from inside the container, re-Soliciting
+    with backoff if the lease fully expires. Release is sent on container
+    shutdown.
+
+??? info "dynamic="
+
+    Controls whether the [Dynamic IPv6](../setup/dynamic-ipv6.md) renumber service
+    is allowed to overwrite this link's global IPv6 when the upstream prefix
+    changes.
+
+    - **`dynamic=true`** (default) — link is included in automatic renumber.
+    - **`dynamic=false`** — link is skipped. Use when you have pinned a literal
+      global IPv6 you do not want overwritten.
 
     **macOS (VM mode):** When running on macOS, containers default to DHCPv4
     automatically. The container's interface receives the VM's original MAC
