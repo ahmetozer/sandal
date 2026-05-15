@@ -3,6 +3,7 @@
 package renumber
 
 import (
+	"net"
 	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -32,60 +33,61 @@ func WithApplyLock(f func()) {
 	f()
 }
 
-// OnContainerStart adds proxy entries for every global IPv6 on the container's
-// links. No-op when NDP proxy is not active.
-func OnContainerStart(c *config.Config) {
+// ReconcileProxyForRunning computes the desired NDP-proxy set from the
+// currently-running containers and reconciles the kernel proxy table. Safe to
+// call repeatedly from the daemon's health-check tick.
+//
+// isAlive (optional) tells the reconciler whether a container's kernel PID is
+// still alive. Pass nil to skip the kernel-PID check (then the config Status
+// field is the only liveness signal — see F11). Callers in the daemon should
+// supply a callback wrapping crt.IsPidRunning so stale "running" statuses
+// (e.g. after a daemon crash) don't keep proxy entries pinned.
+func ReconcileProxyForRunning(conts []*config.Config, isAlive func(*config.Config) bool) {
 	hookMu.Lock()
 	p := activeNDP
 	hookMu.Unlock()
-	if p == nil || c == nil {
-		return
-	}
-	if c.NS.Get("net").IsHost {
+	if p == nil {
 		return
 	}
 	WithApplyLock(func() {
-		links, err := cnet.ToLinks(&c.Net)
-		if err != nil {
-			return
-		}
-		for _, l := range *links {
-			for _, a := range l.Addr {
-				if a.IP.To4() != nil {
+		var desired []net.IP
+		for _, c := range conts {
+			if c == nil || !IsRunning(c) {
+				continue
+			}
+			if isAlive != nil && !isAlive(c) {
+				continue
+			}
+			// VM containers manage their own IPv6 inside the guest (F2).
+			if c.VM != "" {
+				continue
+			}
+			if c.NS.Get("net").IsHost {
+				continue
+			}
+			links, err := cnet.ToLinks(&c.Net)
+			if err != nil {
+				continue
+			}
+			for _, l := range *links {
+				if !l.Dynamic {
 					continue
 				}
-				if a.IP.IsLinkLocalUnicast() || isULA(a.IP) {
+				// In-container DHCPv6 owns this link's IPv6 (F9).
+				if l.DHCPv6 {
 					continue
 				}
-				_ = p.Add(a.IP)
+				for _, a := range l.Addr {
+					if a.IP.To4() != nil {
+						continue
+					}
+					if a.IP.IsLinkLocalUnicast() || isULA(a.IP) {
+						continue
+					}
+					desired = append(desired, a.IP)
+				}
 			}
 		}
-	})
-}
-
-// OnContainerStop removes proxy entries for the container's IPs.
-func OnContainerStop(c *config.Config) {
-	hookMu.Lock()
-	p := activeNDP
-	hookMu.Unlock()
-	if p == nil || c == nil {
-		return
-	}
-	if c.NS.Get("net").IsHost {
-		return
-	}
-	WithApplyLock(func() {
-		links, err := cnet.ToLinks(&c.Net)
-		if err != nil {
-			return
-		}
-		for _, l := range *links {
-			for _, a := range l.Addr {
-				if a.IP.To4() != nil {
-					continue
-				}
-				_ = p.Remove(a.IP)
-			}
-		}
+		p.Reconcile(desired)
 	})
 }

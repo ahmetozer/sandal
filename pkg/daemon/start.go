@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -49,6 +50,16 @@ func (dc DaemonConfig) Start() error {
 	// Dynamic IPv6 service. Spawned only when SANDAL_UPSTREAM_IF is set.
 	renumberCtx, renumberCancel := context.WithCancel(context.Background())
 	if env.UpstreamInterface != "" && env.IPv6Mode != "off" {
+		// Validate mode explicitly to surface typos like "ndp_proxy" (F21).
+		switch env.IPv6Mode {
+		case "ndp-proxy", "pd":
+			// ok
+		default:
+			slog.Error("renumber: invalid SANDAL_IPV6_MODE; expected 'ndp-proxy', 'pd', or 'off'",
+				"got", env.IPv6Mode)
+			renumberCancel()
+			return fmt.Errorf("invalid SANDAL_IPV6_MODE %q", env.IPv6Mode)
+		}
 		var src renumber.Source
 		switch env.IPv6Mode {
 		case "pd":
@@ -58,7 +69,7 @@ func (dc DaemonConfig) Start() error {
 		}
 		applier := &renumber.DefaultApplier{BridgeName: net.DefaultBridgeInterface}
 		if env.IPv6Mode != "pd" {
-			proxy, err := renumber.NewNDPProxy(env.UpstreamInterface)
+			proxy, err := renumber.NewNDPProxy(env.UpstreamInterface, net.DefaultBridgeInterface)
 			if err != nil {
 				slog.Error("renumber: NDP proxy init failed; service disabled", "err", err)
 			} else {

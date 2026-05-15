@@ -1,6 +1,6 @@
 //go:build linux
 
-package renumber
+package sysctl
 
 import (
 	"fmt"
@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// readSysctl reads a sysctl value (e.g. "net/ipv6/conf/eth0/accept_ra").
+// Read reads a sysctl value (e.g. "net/ipv6/conf/eth0/accept_ra").
 // Both dotted and slashed forms are accepted.
-func readSysctl(key string) (string, error) {
+func Read(key string) (string, error) {
 	path := "/proc/sys/" + strings.ReplaceAll(key, ".", "/")
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -20,24 +20,24 @@ func readSysctl(key string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
-// writeSysctl sets a sysctl value.
-func writeSysctl(key, value string) error {
+// Write sets a sysctl value.
+func Write(key, value string) error {
 	path := "/proc/sys/" + strings.ReplaceAll(key, ".", "/")
 	return os.WriteFile(path, []byte(value), 0o644)
 }
 
-// EnsureSysctl reads `key`; if its value is not `want`, sets it. Logs at info
+// Ensure reads `key`; if its value is not `want`, sets it. Logs at info
 // when a change is made; logs at warn if the write fails. Returns the actual
 // value after the attempt.
-func EnsureSysctl(key, want string) (string, error) {
-	current, err := readSysctl(key)
+func Ensure(key, want string) (string, error) {
+	current, err := Read(key)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", key, err)
 	}
 	if current == want {
 		return current, nil
 	}
-	if err := writeSysctl(key, want); err != nil {
+	if err := Write(key, want); err != nil {
 		slog.Warn("sysctl write failed", "key", key, "want", want, "current", current, "err", err)
 		return current, err
 	}

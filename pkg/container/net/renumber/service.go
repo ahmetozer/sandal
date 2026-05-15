@@ -32,6 +32,10 @@ type Service struct {
 	pending *net.IPNet
 	current *net.IPNet
 	running bool
+	// drainWG tracks in-flight drain goroutines so Run() can wait for them
+	// before calling Source.Stop() (F15). This prevents Source.Stop's side
+	// effects (e.g. DHCPv6 Release) from racing an in-flight applier.Apply.
+	drainWG sync.WaitGroup
 
 	debounce time.Duration
 }
@@ -47,7 +51,13 @@ func NewService(src Source, app Applier, debounce time.Duration) *Service {
 // Run blocks until ctx is canceled.
 func (s *Service) Run(ctx context.Context) {
 	events := s.source.Run(ctx)
-	defer s.source.Stop()
+	defer func() {
+		// Wait for in-flight drains before stopping the source so
+		// Source.Stop (e.g. DHCPv6 Release) cannot race a half-finished
+		// applier.Apply (F15).
+		s.drainWG.Wait()
+		s.source.Stop()
+	}()
 
 	for {
 		select {
@@ -74,29 +84,36 @@ func (s *Service) enqueue(ctx context.Context, p *net.IPNet) {
 		return
 	}
 	s.running = true
+	s.drainWG.Add(1)
 	s.mu.Unlock()
-	go s.drain(ctx)
+	go func() {
+		defer s.drainWG.Done()
+		s.drain(ctx)
+	}()
 }
 
 func (s *Service) drain(ctx context.Context) {
-	defer func() {
-		s.mu.Lock()
-		s.running = false
-		s.mu.Unlock()
-	}()
-
 	for {
+		// Atomically observe `pending` AND surrender `running` if there's
+		// nothing to do. An enqueue arriving after this lock release sees
+		// `running == false` and starts a new drain. There is no longer a
+		// window where pending could be set with no goroutine to read it (F14).
 		s.mu.Lock()
 		next := s.pending
 		s.pending = nil
-		s.mu.Unlock()
 		if next == nil {
+			s.running = false
+			s.mu.Unlock()
 			return
 		}
+		s.mu.Unlock()
 
 		// Debounce: coalesce any further events that arrive in this window.
 		select {
 		case <-ctx.Done():
+			s.mu.Lock()
+			s.running = false
+			s.mu.Unlock()
 			return
 		case <-time.After(s.debounce):
 		}
@@ -109,6 +126,9 @@ func (s *Service) drain(ctx context.Context) {
 
 		if err := s.applier.Apply(ctx, next); err != nil {
 			slog.Error("renumber: apply failed", "prefix", next, "err", err)
+			s.mu.Lock()
+			s.running = false
+			s.mu.Unlock()
 			return
 		}
 		s.mu.Lock()

@@ -113,8 +113,8 @@ func TestIsRunning(t *testing.T) {
 		{"healthy", &config.Config{ContPid: 1234, Status: "running"}, true},
 	}
 	for _, tc := range cases {
-		if got := isRunning(tc.c); got != tc.want {
-			t.Errorf("%s: isRunning got %v want %v", tc.name, got, tc.want)
+		if got := IsRunning(tc.c); got != tc.want {
+			t.Errorf("%s: IsRunning got %v want %v", tc.name, got, tc.want)
 		}
 	}
 }
@@ -126,4 +126,77 @@ func mustParseAddr(t *testing.T, s string) netlink.Addr {
 		t.Fatal(err)
 	}
 	return netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
+}
+
+// TestIPRequestSeesIntraContainerAllocations exercises the invariant that
+// `applyLocked` depends on for F4: when two dynamic links inside the SAME
+// container need IPs (no preserved IIDs), the second IPRequest must observe
+// the first link's freshly-allocated IP via the shared reserved slice. The
+// only way this works is if c.Net is updated between the two allocations.
+//
+// This test asserts the contract: a config c that mirrors apply.go's
+// "shadow" slice, with c.Net mutated between IPRequest calls, yields
+// distinct IPs.
+func TestIPRequestSeesIntraContainerAllocations(t *testing.T) {
+	_, prefix, _ := net.ParseCIDR("2001:db8:abcd:1234::/64")
+
+	// One container with the bridge IP at ::1 already occupying the first
+	// host bit; subsequent allocations start at ::2.
+	c := &config.Config{
+		Name: "two-link",
+		Net: cnet.Links{
+			cnet.Link{Id: "a", Dynamic: true, Addr: cnet.Addrs{}},
+			cnet.Link{Id: "b", Dynamic: true, Addr: cnet.Addrs{}},
+		},
+	}
+	reserved := []*config.Config{c}
+
+	// Iteration 0 — allocate for link 0; mutate c.Net so iteration 1
+	// observes the new IP via addrInUse (the apply.go fix).
+	ip0, err := cnet.IPRequest(&reserved, prefix)
+	if err != nil {
+		t.Fatalf("IPRequest #1: %v", err)
+	}
+	links := c.Net.(cnet.Links)
+	links[0].Addr = links[0].Addr.ReplaceGlobal(net.IPNet{IP: ip0, Mask: prefix.Mask})
+	c.Net = links
+
+	// Iteration 1 — allocate for link 1.
+	ip1, err := cnet.IPRequest(&reserved, prefix)
+	if err != nil {
+		t.Fatalf("IPRequest #2: %v", err)
+	}
+
+	if ip0.Equal(ip1) {
+		t.Fatalf("intra-container IID collision: link0=%s link1=%s", ip0, ip1)
+	}
+}
+
+// TestIPRequestCollidesWhenContainerNetNotUpdated demonstrates the failure
+// mode: if c.Net is NOT mutated between IPRequest calls (the pre-fix
+// behavior of apply.go), the second call returns the same IP as the first.
+func TestIPRequestCollidesWhenContainerNetNotUpdated(t *testing.T) {
+	_, prefix, _ := net.ParseCIDR("2001:db8:abcd:1234::/64")
+
+	c := &config.Config{
+		Name: "buggy",
+		Net: cnet.Links{
+			cnet.Link{Id: "a", Dynamic: true, Addr: cnet.Addrs{}},
+			cnet.Link{Id: "b", Dynamic: true, Addr: cnet.Addrs{}},
+		},
+	}
+	reserved := []*config.Config{c}
+
+	ip0, err := cnet.IPRequest(&reserved, prefix)
+	if err != nil {
+		t.Fatalf("IPRequest #1: %v", err)
+	}
+	// Intentionally do NOT update c.Net.
+	ip1, err := cnet.IPRequest(&reserved, prefix)
+	if err != nil {
+		t.Fatalf("IPRequest #2: %v", err)
+	}
+	if !ip0.Equal(ip1) {
+		t.Fatalf("expected collision without c.Net update, got ip0=%s ip1=%s", ip0, ip1)
+	}
 }

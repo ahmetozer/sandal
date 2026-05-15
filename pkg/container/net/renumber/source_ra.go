@@ -6,8 +6,10 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/lib/sysctl"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -33,20 +35,28 @@ func (s *RASource) Stop() {}
 
 func (s *RASource) run(ctx context.Context) {
 	// Ensure accept_ra and forwarding are sane.
-	_, _ = EnsureSysctl("net.ipv6.conf.all.forwarding", "1")
-	_, _ = EnsureSysctl("net.ipv6.conf."+s.UpstreamIf+".accept_ra", "2")
-
-	// Initial poll.
-	if p := s.poll(); p != nil {
-		s.current = p
-		select {
-		case s.out <- p:
-		case <-ctx.Done():
-			return
-		}
+	if _, err := sysctl.Ensure("net.ipv6.conf.all.forwarding", "1"); err != nil {
+		slog.Warn("ra: cannot enable IPv6 forwarding; ndp-proxy mode will not forward upstream traffic", "err", err)
+	}
+	if _, err := sysctl.Ensure("net.ipv6.conf."+s.UpstreamIf+".accept_ra", "2"); err != nil {
+		slog.Warn("ra: cannot set accept_ra=2 on upstream interface", "iface", s.UpstreamIf, "err", err)
 	}
 
 	for {
+		// Poll on every iteration — not just at startup — so that any
+		// prefix change that landed during a netlink-subscription gap
+		// (ENOBUFS, transient subscribe failure, retry sleep) is picked
+		// up on the next pass (F12).
+		if p := s.poll(); p != nil {
+			if s.current == nil || !cidrEqual(s.current, p) {
+				s.current = p
+				select {
+				case s.out <- p:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
 		if err := s.subscribeOnce(ctx); err != nil {
 			slog.Warn("ra: subscribe error, retrying", "err", err)
 		}
@@ -61,13 +71,27 @@ func (s *RASource) run(ctx context.Context) {
 func (s *RASource) subscribeOnce(ctx context.Context) error {
 	updates := make(chan netlink.AddrUpdate, 16)
 	doneSub := make(chan struct{})
+	// Use sync.Once to make closing doneSub idempotent: both the deferred
+	// close below and the ErrorCallback (which closes to force re-subscribe
+	// on ENOBUFS) may want to close it.
+	var closeOnce sync.Once
+	closeDone := func() { closeOnce.Do(func() { close(doneSub) }) }
+
 	if err := netlink.AddrSubscribeWithOptions(updates, doneSub, netlink.AddrSubscribeOptions{
 		ListExisting: false,
+		// Surface netlink errors that the library would otherwise swallow
+		// (e.g. ENOBUFS on socket overflow). Closing doneSub forces a
+		// re-subscribe; the outer loop's re-poll (F12) then catches up on
+		// any prefix change that occurred during the blind window (F13).
+		ErrorCallback: func(err error) {
+			slog.Warn("ra: netlink subscription error", "err", err)
+			closeDone()
+		},
 	}); err != nil {
-		close(doneSub)
+		closeDone()
 		return err
 	}
-	defer close(doneSub)
+	defer closeDone()
 
 	link, err := netlink.LinkByName(s.UpstreamIf)
 	if err != nil {

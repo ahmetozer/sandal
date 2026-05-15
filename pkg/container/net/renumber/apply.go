@@ -54,18 +54,27 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 
 	containerIPs := make([]net.IP, 0, len(conts))
 	for _, c := range conts {
-		if !isRunning(c) {
+		if !IsRunning(c) {
+			continue
+		}
+		// VM containers have their own kernel and renumber via in-VM RA
+		// on sandal0; host must not poke the netns (F2).
+		if c.VM != "" {
 			continue
 		}
 		if c.NS.Get("net").IsHost {
 			continue
 		}
 		ips, err := a.renumberContainer(c, prefix, &shadow)
+		// Append IPs before checking err: the in-kernel netns is the
+		// source of truth for what the proxy must advertise. Disk-write
+		// failures in renumberContainer leave the kernel state advanced,
+		// so the proxy table should still reflect it (F17).
+		containerIPs = append(containerIPs, ips...)
 		if err != nil {
 			slog.Warn("renumber: container failed", "name", c.Name, "err", err)
 			continue
 		}
-		containerIPs = append(containerIPs, ips...)
 	}
 
 	if a.Proxy != nil {
@@ -121,6 +130,11 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 		if !link.Dynamic {
 			continue
 		}
+		// In-container DHCPv6 owns this link's IPv6; the renumber service
+		// must not fight the client (F9).
+		if link.DHCPv6 {
+			continue
+		}
 		var newIP net.IP
 		if iid := pickIIDLocal(link.Addr); iid != nil {
 			newIP = withIID(prefix, iid)
@@ -133,23 +147,29 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 		}
 
 		oldGlobal := pickGlobalLocal(link.Addr)
-		var oldPrefix *net.IPNet
-		if oldGlobal != nil {
-			oldPrefix = oldGlobal.IPNet
-		}
 		if c.ContPid > 0 {
-			if err := SwapContainerAddr(c.ContPid, link.Id, oldPrefix, &net.IPNet{IP: newIP, Mask: prefix.Mask}); err != nil {
-				return nil, fmt.Errorf("SwapContainerAddr: %w", err)
+			ifname := link.Name
+			if ifname == "" {
+				ifname = link.Id
+			}
+			var oldIP net.IP
+			if oldGlobal != nil {
+				oldIP = oldGlobal.IP
+			}
+			if err := SwapContainerAddrByOldIP(c.ContPid, ifname, oldIP, &net.IPNet{IP: newIP, Mask: prefix.Mask}); err != nil {
+				return nil, fmt.Errorf("SwapContainerAddrByOldIP: %w", err)
 			}
 		}
 
 		(*links)[i].Addr = link.Addr.ReplaceGlobal(net.IPNet{IP: newIP, Mask: prefix.Mask})
+		// Make this iteration's new IP visible to the next iteration's
+		// IPRequest (intra-container IID-collision guard, F4). c is a
+		// pointer also in *reserved, so subsequent containers also see
+		// up-to-date state.
+		c.Net = *links
 		newIPs = append(newIPs, newIP)
 	}
 
-	c.Net = *links
-	// c is already a pointer in *reserved, so the updated Addr is visible
-	// to the next IPRequest call for subsequent containers.
 	if err := controller.SetContainer(c); err != nil {
 		return newIPs, fmt.Errorf("controller.SetContainer: %w", err)
 	}
@@ -216,7 +236,7 @@ func withIID(prefix *net.IPNet, iid []byte) net.IP {
 	return out
 }
 
-func isRunning(c *config.Config) bool {
+func IsRunning(c *config.Config) bool {
 	if c == nil {
 		return false
 	}

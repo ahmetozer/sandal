@@ -14,7 +14,6 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
 	"github.com/ahmetozer/sandal/pkg/container/net"
-	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -204,10 +203,6 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
-	// Notify renumber service so it can install NDP proxy entries for the
-	// container's IPs while the container is actually running.
-	renumber.OnContainerStart(c)
 
 	// Start port-forwarding for -p flags. A dedicated goroutine pinned to
 	// one OS thread is setns'd into the container's network+mount namespaces

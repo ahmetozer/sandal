@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/lib/dhcp"
@@ -19,9 +20,10 @@ type PDSource struct {
 	UpstreamIf string
 	HintLen    string // SANDAL_IPV6_PD_HINT — empty = no hint
 
-	out    chan *net.IPNet
-	client *dhcp.Client6
-	lease  *dhcp.PDLease
+	out         chan *net.IPNet
+	client      *dhcp.Client6
+	lease       *dhcp.PDLease
+	releaseOnce sync.Once
 }
 
 func NewPDSource(upstream, hintLen string) *PDSource {
@@ -33,10 +35,16 @@ func (s *PDSource) Run(ctx context.Context) <-chan *net.IPNet {
 	return s.out
 }
 
+// Stop releases any in-flight DHCPv6-PD lease. Safe to call from multiple
+// goroutines — only the first call actually issues a Release (F6). Both
+// Service.Run's deferred Source.Stop and the lease loop's deferred Release
+// (via pdRefresher.Release) route through here.
 func (s *PDSource) Stop() {
-	if s.lease != nil && s.client != nil {
-		_ = s.client.ReleasePDLease(s.lease)
-	}
+	s.releaseOnce.Do(func() {
+		if s.lease != nil && s.client != nil {
+			_ = s.client.ReleasePDLease(s.lease)
+		}
+	})
 }
 
 func (s *PDSource) run(ctx context.Context) {
@@ -60,8 +68,13 @@ func (s *PDSource) cycle(ctx context.Context) error {
 	s.client = client
 	var hint *dhcp.PrefixHint
 	if s.HintLen != "" {
-		v, _ := strconv.ParseUint(s.HintLen, 10, 8)
-		if v > 0 {
+		v, err := strconv.ParseUint(s.HintLen, 10, 8)
+		switch {
+		case err != nil:
+			slog.Warn("pd: invalid SANDAL_IPV6_PD_HINT, ignoring", "value", s.HintLen, "err", err)
+		case v == 0 || v > 128:
+			slog.Warn("pd: SANDAL_IPV6_PD_HINT out of range (1..128), ignoring", "value", v)
+		default:
 			hint = &dhcp.PrefixHint{Length: uint8(v)}
 		}
 	}
@@ -86,11 +99,18 @@ func (s *PDSource) publish(ctx context.Context, delegated *net.IPNet) error {
 	if sub == nil {
 		return fmt.Errorf("pd: cannot sub-allocate /64 from %s", delegated)
 	}
-	select {
-	case s.out <- sub:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	// Drain-and-replace: never block the lease loop on a slow consumer (F8).
+	// If a stale prefix is parked in the cap-1 channel, drop it; the next
+	// reader gets the latest value.
+	for {
+		select {
+		case s.out <- sub:
+			return nil
+		case <-s.out:
+			// drop stale value, retry send
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
 
@@ -136,8 +156,8 @@ func (r *pdRefresher) Rebind(ctx context.Context) (time.Duration, time.Duration,
 }
 
 func (r *pdRefresher) Release() error {
-	if r.src.lease == nil {
-		return nil
-	}
-	return r.src.client.ReleasePDLease(r.src.lease)
+	// Route through the same sync.Once gate as PDSource.Stop so Service
+	// shutdown and lease-loop deferred Release cannot double-Release (F6).
+	r.src.Stop()
+	return nil
 }
