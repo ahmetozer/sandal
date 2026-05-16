@@ -33,7 +33,7 @@ var (
 	DefaultHostNet string
 
 	// IPv6 dynamic prefix configuration.
-	UpstreamInterface string // SANDAL_UPSTREAM_IF — empty disables the dynamic-IPv6 service
+	UpstreamInterface string // SANDAL_UPSTREAM_IF — empty triggers auto-detect from default route at daemon start
 	IPv6Mode          string // SANDAL_IPV6_MODE — "ndp-proxy" | "pd" | "off"
 	IPv6PDHint        string // SANDAL_IPV6_PD_HINT — optional prefix length hint for DHCPv6-PD
 

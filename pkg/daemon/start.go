@@ -47,7 +47,17 @@ func (dc DaemonConfig) Start() error {
 
 	net.CreateDefaultBridge()
 
-	// Dynamic IPv6 service. Spawned only when SANDAL_UPSTREAM_IF is set.
+	// Dynamic IPv6 service. Spawned only when an upstream interface is
+	// known — either configured via SANDAL_UPSTREAM_IF or auto-detected
+	// from the host's default route.
+	if env.UpstreamInterface == "" {
+		if iface, err := net.DetectUpstream(); err != nil {
+			slog.Warn("renumber: SANDAL_UPSTREAM_IF empty and auto-detect failed; service disabled", "err", err)
+		} else {
+			slog.Info("renumber: auto-detected upstream interface", "iface", iface)
+			env.UpstreamInterface = iface
+		}
+	}
 	renumberCtx, renumberCancel := context.WithCancel(context.Background())
 	if env.UpstreamInterface != "" && env.IPv6Mode != "off" {
 		// Validate mode explicitly to surface typos like "ndp_proxy" (F21).
