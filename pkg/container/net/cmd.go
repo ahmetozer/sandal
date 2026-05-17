@@ -36,6 +36,7 @@ func parseCmd(cmd string, conts *[]*config.Config, idx int) (Link, error) {
 
 	myar := strings.Split(cmd, ";")
 	myIf := Link{Id: randomString(10)}
+	myIf.Dynamic = true
 	// Inside the VM guest, the host has already pre-created the virtio-net
 	// devices in the same order as the user's -net flags. Pin Id/Name to the
 	// matching ethN so Link.defaults() and the in-guest configurator address
@@ -95,6 +96,15 @@ func parseCmd(cmd string, conts *[]*config.Config, idx int) (Link, error) {
 			myIf.Ether, err = net.ParseMAC(kv[1])
 			if err != nil {
 				return myIf, err
+			}
+		case "dynamic":
+			switch kv[1] {
+			case "false", "no", "0":
+				myIf.Dynamic = false
+			case "true", "yes", "1":
+				myIf.Dynamic = true
+			default:
+				return myIf, fmt.Errorf("invalid dynamic=%q", kv[1])
 			}
 		case "mtu":
 			myIf.Mtu, err = strconv.Atoi(kv[1])

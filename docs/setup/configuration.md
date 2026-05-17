@@ -80,6 +80,27 @@ Immutable images are require to be mounted to operating system for using at cont
 
 Default host network configuration.
 
+### SANDAL_UPSTREAM_IF
+
+Interface name (e.g. `eth0`, `enp1s0`) that the daemon watches for upstream IPv6 prefix changes.  
+**Empty (default): auto-detect from the host's default route at daemon start.** Set explicitly to override.  
+See [Dynamic IPv6](dynamic-ipv6.md).
+
+### SANDAL_IPV6_MODE
+
+Selects how the upstream prefix is learned. One of:
+
+- *empty (default)* — auto-detect from the upstream interface state. Picks `pd` if a routed delegation is visible (a non-`/64` IPv6 route via the upstream installed by something other than the kernel/RA), otherwise picks `ndp-proxy`.
+- `ndp-proxy` — same `/64` on upstream and `sandal0`, with kernel NDP proxy entries on the upstream for each container IP. Use this if your upstream router announces an on-link `/64` via RA.
+- `pd` — sandal runs a DHCPv6-PD client on the upstream interface and sub-allocates a `/64` for `sandal0`. Use this if your upstream supports DHCPv6 Prefix Delegation.
+- `off` — feature disabled even when `SANDAL_UPSTREAM_IF` is set; `sandal0` keeps `SANDAL_HOST_NET`'s static IPv6.
+
+See [Dynamic IPv6](dynamic-ipv6.md).
+
+### SANDAL_IPV6_PD_HINT
+
+Optional prefix length hint sent in DHCPv6-PD requests (e.g. `60` to ask the server for a `/60`). Only meaningful when `SANDAL_IPV6_MODE=pd`. Empty (the default) sends no hint.
+
 ### SANDAL_SOCKET
 
 Socket location of the sandal state service.

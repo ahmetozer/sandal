@@ -64,6 +64,76 @@ type Link struct {
 
 	DHCPv4 bool `json:",omitempty"`
 	DHCPv6 bool `json:",omitempty"`
+
+	// Dynamic, when true (the default), means this link's IPv6 prefix is
+	// renumbered automatically when the upstream prefix changes. Set
+	// `dynamic=false` on the -net flag to opt out (for hand-pinned IPv6).
+	//
+	// Persisted via custom JSON marshaling: legacy configs may lack the
+	// "Dynamic" key, and a plain `json:",omitempty"` bool would default
+	// those to false on decode — silently opting every legacy container
+	// out of the renumber service. The marshal/unmarshal pair below treats
+	// "key absent" as the documented default of true.
+	Dynamic bool `json:"-"`
+}
+
+// linkJSON mirrors Link exactly except it captures Dynamic as a pointer so
+// "absent" and "explicitly false" are distinguishable.
+type linkJSON struct {
+	Mtu     int                 `json:",omitempty"`
+	Id      string              `json:",omitempty"`
+	Master  string              `json:",omitempty"`
+	Type    string              `json:",omitempty"`
+	Name    string              `json:",omitempty"`
+	Ether   net.HardwareAddr    `json:",omitempty"`
+	Addr    Addrs               `json:",omitempty"`
+	Route   Addrs               `json:",omitempty"`
+	DHCPv4  bool                `json:",omitempty"`
+	DHCPv6  bool                `json:",omitempty"`
+	Dynamic *bool               `json:"Dynamic,omitempty"`
+}
+
+func (l Link) MarshalJSON() ([]byte, error) {
+	d := l.Dynamic
+	out := linkJSON{
+		Mtu:     l.Mtu,
+		Id:      l.Id,
+		Master:  l.Master,
+		Type:    l.Type,
+		Name:    l.Name,
+		Ether:   l.Ether,
+		Addr:    l.Addr,
+		Route:   l.Route,
+		DHCPv4:  l.DHCPv4,
+		DHCPv6:  l.DHCPv6,
+		Dynamic: &d,
+	}
+	return json.Marshal(out)
+}
+
+func (l *Link) UnmarshalJSON(data []byte) error {
+	var in linkJSON
+	if err := json.Unmarshal(data, &in); err != nil {
+		return err
+	}
+	l.Mtu = in.Mtu
+	l.Id = in.Id
+	l.Master = in.Master
+	l.Type = in.Type
+	l.Name = in.Name
+	l.Ether = in.Ether
+	l.Addr = in.Addr
+	l.Route = in.Route
+	l.DHCPv4 = in.DHCPv4
+	l.DHCPv6 = in.DHCPv6
+	if in.Dynamic == nil {
+		// Legacy configs lack the key. Default to the documented
+		// behavior: dynamic renumber is enabled.
+		l.Dynamic = true
+	} else {
+		l.Dynamic = *in.Dynamic
+	}
+	return nil
 }
 
 type Links []Link
@@ -346,10 +416,11 @@ func (links Links) FinalizeLinks() error {
 			if err != nil {
 				return err
 			}
-			err = netlink.LinkSetName(link, links[i].findFreeNewEthName())
-			if err != nil {
+			newName := links[i].findFreeNewEthName()
+			if err := netlink.LinkSetName(link, newName); err != nil {
 				return err
 			}
+			links[i].Name = newName
 		}
 	}
 	return nil

@@ -45,6 +45,8 @@ func ipIncrement(i net.IP, n *net.IPNet) (net.IP, error) {
 }
 
 func lastIP(n *net.IPNet) net.IP {
+	// IPv6 sentinel: the loop below uses this only for its mask geometry,
+	// not as a real address. Any /128 IPv6 works; "fd::/128" was historic.
 	lastIp, lastMask, _ := net.ParseCIDR("fd::/128")
 	size := 16
 	if n.IP.To4() != nil {
@@ -126,4 +128,61 @@ func GetAddrsByName(InterfaceName string) (addrs Addrs, err error) {
 	}
 
 	return
+}
+
+// pickGlobal returns the first global (non-link-local, non-ULA) address from a.
+func pickGlobal(a Addrs) *Addr {
+	_, ll, _ := net.ParseCIDR("fe80::/10")
+	_, ula, _ := net.ParseCIDR("fc00::/7")
+	for i := range a {
+		ip := a[i].IP
+		if ip.To4() != nil {
+			continue
+		}
+		if ll.Contains(ip) || ula.Contains(ip) {
+			continue
+		}
+		return &a[i]
+	}
+	return nil
+}
+
+// pickIID returns the interface-identifier (lower 64 bits) of the first global
+// IPv6 address in a, or nil if there isn't one.
+func pickIID(a Addrs) []byte {
+	g := pickGlobal(a)
+	if g == nil {
+		return nil
+	}
+	ip := g.IP.To16()
+	iid := make([]byte, 8)
+	copy(iid, ip[8:16])
+	return iid
+}
+
+// ReplaceGlobal returns a copy of a with any global IPv6 entry replaced by
+// the supplied newGlobal. Existing IPv4 and link-local/ULA entries are kept.
+func (a Addrs) ReplaceGlobal(newGlobal net.IPNet) Addrs {
+	out := make(Addrs, 0, len(a)+1)
+	added := false
+	_, ll, _ := net.ParseCIDR("fe80::/10")
+	_, ula, _ := net.ParseCIDR("fc00::/7")
+	for _, e := range a {
+		if e.IP.To4() != nil {
+			out = append(out, e)
+			continue
+		}
+		if ll.Contains(e.IP) || ula.Contains(e.IP) {
+			out = append(out, e)
+			continue
+		}
+		if !added {
+			out = append(out, Addr{IP: newGlobal.IP, IPNet: &net.IPNet{IP: newGlobal.IP, Mask: newGlobal.Mask}})
+			added = true
+		}
+	}
+	if !added {
+		out = append(out, Addr{IP: newGlobal.IP, IPNet: &net.IPNet{IP: newGlobal.IP, Mask: newGlobal.Mask}})
+	}
+	return out
 }

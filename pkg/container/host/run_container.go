@@ -4,6 +4,8 @@ package host
 
 import (
 	"fmt"
+	"log/slog"
+	gonet "net"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/net"
@@ -59,6 +61,26 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 	err = controller.SetContainer(c)
 	if err != nil {
 		return err
+	}
+
+	// Best-effort: drop any stale neighbor-cache entries on the bridge for
+	// the IPs this container is about to claim. Otherwise a restart that
+	// reuses the previous IPs can sit behind a STALE/FAILED entry pointing
+	// at the dead veth's MAC until the kernel times it out.
+	if links, lerr := net.ToLinks(&c.Net); lerr == nil && links != nil {
+		var reusedIPs []gonet.IP
+		for _, l := range *links {
+			for _, a := range l.Addr {
+				if a.IP != nil {
+					reusedIPs = append(reusedIPs, a.IP)
+				}
+			}
+		}
+		if len(reusedIPs) > 0 {
+			if err := net.FlushNeighForIPs(net.DefaultBridgeInterface, reusedIPs); err != nil {
+				slog.Warn("flush stale neighbor cache failed", "iface", net.DefaultBridgeInterface, "err", err)
+			}
+		}
 	}
 
 	return Run(c)

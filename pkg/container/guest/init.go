@@ -92,6 +92,12 @@ func ContainerInitProc() {
 				err = netlink.RouteAdd(&netlink.Route{
 					Dst: IPv4.IPNet,
 					Gw:  IPv4.IP,
+					// Lower priority than the kernel default (which is 0,
+					// translated to 1024 for IPv6 / kernel-default for IPv4)
+					// so any RA-derived or DHCP-installed default wins when
+					// present. Prevents the static fallback from shadowing
+					// a real upstream default at the same metric.
+					Priority: 2048,
 				})
 				if err != nil {
 					slog.Warn("unable to add gateway", "IPv4", IPv4, "err", err)
@@ -101,8 +107,9 @@ func ContainerInitProc() {
 			_, b, _ = net.HasRoute(net.Ipv6DefaultGatewayTestIp())
 			if !b && IPv6.IP != nil {
 				err = netlink.RouteAdd(&netlink.Route{
-					Dst: IPv6.IPNet,
-					Gw:  IPv6.IP,
+					Dst:      IPv6.IPNet,
+					Gw:       IPv6.IP,
+					Priority: 2048, // see IPv4 comment above.
 				})
 				if err != nil {
 					slog.Warn("unable to add gateway", "IPv6", IPv6, "err", err)
@@ -113,6 +120,21 @@ func ContainerInitProc() {
 			err = links.FinalizeLinks()
 			if err != nil {
 				return err
+			}
+
+			// Gratuitous ARP / unsolicited NA for every configured
+			// address so peers overwrite any stale cache pointing at a
+			// previous container's MAC. Best-effort: errors are logged
+			// inside the helper, never block container start. The first
+			// packet per address is sent synchronously; retransmits run
+			// in background goroutines.
+			for i := range *links {
+				l := &(*links)[i]
+				ifname := l.Name
+				if ifname == "" {
+					ifname = l.Id
+				}
+				net.AnnounceLinkAddrs(ifname, l.Addr)
 			}
 		}
 

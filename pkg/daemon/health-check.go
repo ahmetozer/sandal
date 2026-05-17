@@ -10,6 +10,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/sandal"
@@ -60,6 +61,23 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 					}
 				}
 			}
+			// After per-container checks, reconcile NDP proxy entries on
+			// the upstream interface (no-op when dynamic IPv6 is not
+			// configured or proxy is nil). Pass an isAlive callback that
+			// consults the kernel PID so post-crash stale "running"
+			// statuses and "killed"-status containers don't keep proxy
+			// entries pinned.
+			renumber.ReconcileProxyForRunning(conts, func(c *config.Config) bool {
+				pid := c.ContPid
+				if c.VM != "" {
+					pid = c.HostPid
+				}
+				if pid == 0 {
+					return false
+				}
+				alive, _ := crt.IsPidRunning(pid)
+				return alive
+			})
 		}
 	}
 
