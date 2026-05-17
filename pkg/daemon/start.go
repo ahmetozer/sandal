@@ -59,8 +59,16 @@ func (dc DaemonConfig) Start() error {
 		}
 	}
 	renumberCtx, renumberCancel := context.WithCancel(context.Background())
+	// Auto-detect IPv6 mode when the operator left it unset. The detector
+	// reads the upstream interface's address+route state; on ambiguous
+	// hosts it falls back to "ndp-proxy". Set SANDAL_IPV6_MODE explicitly
+	// to override.
+	if env.UpstreamInterface != "" && env.IPv6Mode == "" {
+		env.IPv6Mode = net.DetectIPv6Mode(env.UpstreamInterface)
+		slog.Info("renumber: auto-detected IPv6 mode", "iface", env.UpstreamInterface, "mode", env.IPv6Mode)
+	}
 	if env.UpstreamInterface != "" && env.IPv6Mode != "off" {
-		// Validate mode explicitly to surface typos like "ndp_proxy" (F21).
+		// Validate mode explicitly to surface typos like "ndp_proxy".
 		switch env.IPv6Mode {
 		case "ndp-proxy", "pd":
 			// ok
@@ -70,6 +78,14 @@ func (dc DaemonConfig) Start() error {
 			renumberCancel()
 			return fmt.Errorf("invalid SANDAL_IPV6_MODE %q", env.IPv6Mode)
 		}
+		// Configure host sysctls up-front so the renumber service and any
+		// containers that come up afterwards see correct forwarding /
+		// accept_ra / proxy_ndp state from the start.
+		renumber.ApplyHostSysctls(renumber.HostSysctlsConfig{
+			Upstream: env.UpstreamInterface,
+			Bridge:   net.DefaultBridgeInterface,
+			Mode:     env.IPv6Mode,
+		})
 		var src renumber.Source
 		switch env.IPv6Mode {
 		case "pd":

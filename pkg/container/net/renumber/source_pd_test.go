@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// TestPublishDoesNotBlockWhenChanFull covers F8: the PD source's `publish`
-// method runs synchronously inside Renew/Rebind via the lease loop. The
-// outgoing channel `s.out` has capacity 1, so if a previous prefix is
-// still parked in the buffer, the cap-1 channel is full and `publish`
-// blocks — freezing the lease loop. The contract: publish must replace
-// any pending value rather than block.
+// TestPublishDoesNotBlockWhenChanFull: the PD source's `publish` method
+// runs synchronously inside Renew/Rebind via the lease loop. The outgoing
+// channel `s.out` has capacity 1, so if a previous prefix is still parked
+// in the buffer, the cap-1 channel is full and `publish` blocks — freezing
+// the lease loop. The contract: publish must replace any pending value
+// rather than block.
 func TestPublishDoesNotBlockWhenChanFull(t *testing.T) {
 	s := &PDSource{out: make(chan *net.IPNet, 1)}
 
@@ -57,8 +57,8 @@ func newCIDR(s string) (*net.IPNet, error) {
 	return n, err
 }
 
-// TestPDSourceStopIsIdempotent covers F6: PDSource.Stop() can be invoked by
-// both Service.Run()'s deferred Source.Stop and the lease loop's deferred
+// TestPDSourceStopIsIdempotent: PDSource.Stop() can be invoked by both
+// Service.Run()'s deferred Source.Stop and the lease loop's deferred
 // Release on shutdown. Calling Stop twice must not crash, must not double-
 // release. We can exercise the wrapper directly with no client/lease set:
 // Stop should be a no-op in that state, and a second call also a no-op.

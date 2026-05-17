@@ -39,9 +39,9 @@ func WithApplyLock(f func()) {
 //
 // isAlive (optional) tells the reconciler whether a container's kernel PID is
 // still alive. Pass nil to skip the kernel-PID check (then the config Status
-// field is the only liveness signal — see F11). Callers in the daemon should
-// supply a callback wrapping crt.IsPidRunning so stale "running" statuses
-// (e.g. after a daemon crash) don't keep proxy entries pinned.
+// field is the only liveness signal). Callers in the daemon should supply a
+// callback wrapping crt.IsPidRunning so stale "running" statuses (e.g. after
+// a daemon crash) don't keep proxy entries pinned.
 func ReconcileProxyForRunning(conts []*config.Config, isAlive func(*config.Config) bool) {
 	hookMu.Lock()
 	p := activeNDP
@@ -58,7 +58,7 @@ func ReconcileProxyForRunning(conts []*config.Config, isAlive func(*config.Confi
 			if isAlive != nil && !isAlive(c) {
 				continue
 			}
-			// VM containers manage their own IPv6 inside the guest (F2).
+			// VM containers manage their own IPv6 inside the guest.
 			if c.VM != "" {
 				continue
 			}
@@ -73,7 +73,7 @@ func ReconcileProxyForRunning(conts []*config.Config, isAlive func(*config.Confi
 				if !l.Dynamic {
 					continue
 				}
-				// In-container DHCPv6 owns this link's IPv6 (F9).
+				// In-container DHCPv6 owns this link's IPv6.
 				if l.DHCPv6 {
 					continue
 				}

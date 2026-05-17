@@ -36,7 +36,7 @@ func (s *PDSource) Run(ctx context.Context) <-chan *net.IPNet {
 }
 
 // Stop releases any in-flight DHCPv6-PD lease. Safe to call from multiple
-// goroutines — only the first call actually issues a Release (F6). Both
+// goroutines — only the first call actually issues a Release. Both
 // Service.Run's deferred Source.Stop and the lease loop's deferred Release
 // (via pdRefresher.Release) route through here.
 func (s *PDSource) Stop() {
@@ -99,7 +99,7 @@ func (s *PDSource) publish(ctx context.Context, delegated *net.IPNet) error {
 	if sub == nil {
 		return fmt.Errorf("pd: cannot sub-allocate /64 from %s", delegated)
 	}
-	// Drain-and-replace: never block the lease loop on a slow consumer (F8).
+	// Drain-and-replace: never block the lease loop on a slow consumer.
 	// If a stale prefix is parked in the cap-1 channel, drop it; the next
 	// reader gets the latest value.
 	for {
@@ -157,7 +157,7 @@ func (r *pdRefresher) Rebind(ctx context.Context) (time.Duration, time.Duration,
 
 func (r *pdRefresher) Release() error {
 	// Route through the same sync.Once gate as PDSource.Stop so Service
-	// shutdown and lease-loop deferred Release cannot double-Release (F6).
+	// shutdown and lease-loop deferred Release cannot double-Release.
 	r.src.Stop()
 	return nil
 }

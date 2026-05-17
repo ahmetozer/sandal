@@ -58,7 +58,7 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 			continue
 		}
 		// VM containers have their own kernel and renumber via in-VM RA
-		// on sandal0; host must not poke the netns (F2).
+		// on sandal0; host must not poke the netns.
 		if c.VM != "" {
 			continue
 		}
@@ -69,7 +69,7 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 		// Append IPs before checking err: the in-kernel netns is the
 		// source of truth for what the proxy must advertise. Disk-write
 		// failures in renumberContainer leave the kernel state advanced,
-		// so the proxy table should still reflect it (F17).
+		// so the proxy table should still reflect it.
 		containerIPs = append(containerIPs, ips...)
 		if err != nil {
 			slog.Warn("renumber: container failed", "name", c.Name, "err", err)
@@ -131,7 +131,7 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 			continue
 		}
 		// In-container DHCPv6 owns this link's IPv6; the renumber service
-		// must not fight the client (F9).
+		// must not fight the client.
 		if link.DHCPv6 {
 			continue
 		}
@@ -153,8 +153,23 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 				ifname = link.Id
 			}
 			var oldIP net.IP
-			if oldGlobal != nil {
+			switch {
+			case oldGlobal != nil:
+				// Normal renumber path: replace the existing global
+				// (its IID is preserved in newIP via withIID).
 				oldIP = oldGlobal.IP
+			default:
+				// No global to replace — container was created during a
+				// gap state (e.g. upstream had no public IPv6 when the
+				// container started). Use any non-link-local IPv6 still
+				// on the link (typically the ULA from SANDAL_HOST_NET) to
+				// locate the netns link by address. The current
+				// SwapContainerAddrByOldIP semantics then delete that
+				// fallback address before adding newAddr, so the container
+				// transitions ULA → global.
+				if alt := pickLookupAddrLocal(link.Addr); alt != nil {
+					oldIP = alt.IP
+				}
 			}
 			if err := SwapContainerAddrByOldIP(c.ContPid, ifname, oldIP, &net.IPNet{IP: newIP, Mask: prefix.Mask}); err != nil {
 				return nil, fmt.Errorf("SwapContainerAddrByOldIP: %w", err)
@@ -163,9 +178,9 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 
 		(*links)[i].Addr = link.Addr.ReplaceGlobal(net.IPNet{IP: newIP, Mask: prefix.Mask})
 		// Make this iteration's new IP visible to the next iteration's
-		// IPRequest (intra-container IID-collision guard, F4). c is a
-		// pointer also in *reserved, so subsequent containers also see
-		// up-to-date state.
+		// IPRequest — guards against intra-container IID collisions when
+		// one container has multiple dynamic links. c is a pointer also
+		// in *reserved, so subsequent containers also see up-to-date state.
 		c.Net = *links
 		newIPs = append(newIPs, newIP)
 	}
@@ -199,6 +214,27 @@ func pickGlobalLocal(a cnet.Addrs) *cnet.Addr {
 			continue
 		}
 		if ll.Contains(ip) || ula.Contains(ip) {
+			continue
+		}
+		return &a[i]
+	}
+	return nil
+}
+
+// pickLookupAddrLocal returns the first non-IPv4, non-link-local address in
+// the list — global or ULA. Used by the renumber path as a fallback "anchor"
+// to locate a link inside a container netns when no global address exists
+// yet (e.g. gap state where the container started before upstream IPv6 was
+// available). The returned address is suitable for an address-based netns
+// lookup; the caller decides whether to also delete it.
+func pickLookupAddrLocal(a cnet.Addrs) *cnet.Addr {
+	_, ll, _ := net.ParseCIDR("fe80::/10")
+	for i := range a {
+		ip := a[i].IP
+		if ip.To4() != nil {
+			continue
+		}
+		if ll.Contains(ip) {
 			continue
 		}
 		return &a[i]

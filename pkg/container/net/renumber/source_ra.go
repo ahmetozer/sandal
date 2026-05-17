@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ahmetozer/sandal/pkg/lib/sysctl"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -34,19 +33,15 @@ func (s *RASource) Run(ctx context.Context) <-chan *net.IPNet {
 func (s *RASource) Stop() {}
 
 func (s *RASource) run(ctx context.Context) {
-	// Ensure accept_ra and forwarding are sane.
-	if _, err := sysctl.Ensure("net.ipv6.conf.all.forwarding", "1"); err != nil {
-		slog.Warn("ra: cannot enable IPv6 forwarding; ndp-proxy mode will not forward upstream traffic", "err", err)
-	}
-	if _, err := sysctl.Ensure("net.ipv6.conf."+s.UpstreamIf+".accept_ra", "2"); err != nil {
-		slog.Warn("ra: cannot set accept_ra=2 on upstream interface", "iface", s.UpstreamIf, "err", err)
-	}
+	// Host sysctls (accept_ra, forwarding, proxy_ndp) are configured
+	// centrally in daemon/start.go via renumber.ApplyHostSysctls before
+	// this goroutine starts.
 
 	for {
 		// Poll on every iteration — not just at startup — so that any
 		// prefix change that landed during a netlink-subscription gap
 		// (ENOBUFS, transient subscribe failure, retry sleep) is picked
-		// up on the next pass (F12).
+		// up on the next pass.
 		if p := s.poll(); p != nil {
 			if s.current == nil || !cidrEqual(s.current, p) {
 				s.current = p
@@ -81,8 +76,8 @@ func (s *RASource) subscribeOnce(ctx context.Context) error {
 		ListExisting: false,
 		// Surface netlink errors that the library would otherwise swallow
 		// (e.g. ENOBUFS on socket overflow). Closing doneSub forces a
-		// re-subscribe; the outer loop's re-poll (F12) then catches up on
-		// any prefix change that occurred during the blind window (F13).
+		// re-subscribe; the outer loop's re-poll then catches up on any
+		// prefix change that occurred during the blind window.
 		ErrorCallback: func(err error) {
 			slog.Warn("ra: netlink subscription error", "err", err)
 			closeDone()

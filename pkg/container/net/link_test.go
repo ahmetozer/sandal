@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-// TestLinkDynamicDefaultsTrueOnMissingKey covers F3: configs persisted before
-// commit d654ec5 (which added the Dynamic field) lack the key entirely. The
-// zero-value of bool is false, which silently opts those containers out of the
-// renumber service. The contract: a missing "Dynamic" key must decode to
+// TestLinkDynamicDefaultsTrueOnMissingKey: legacy configs persisted before
+// the Dynamic field existed lack the key entirely. The zero-value of bool
+// is false, which would silently opt those containers out of the renumber
+// service. The contract: a missing "Dynamic" key must decode to
 // Dynamic == true.
 func TestLinkDynamicDefaultsTrueOnMissingKey(t *testing.T) {
 	raw := []byte(`{"Id":"abc","Name":"eth0"}`)

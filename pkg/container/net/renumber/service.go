@@ -33,7 +33,7 @@ type Service struct {
 	current *net.IPNet
 	running bool
 	// drainWG tracks in-flight drain goroutines so Run() can wait for them
-	// before calling Source.Stop() (F15). This prevents Source.Stop's side
+	// before calling Source.Stop(). This prevents Source.Stop's side
 	// effects (e.g. DHCPv6 Release) from racing an in-flight applier.Apply.
 	drainWG sync.WaitGroup
 
@@ -54,7 +54,7 @@ func (s *Service) Run(ctx context.Context) {
 	defer func() {
 		// Wait for in-flight drains before stopping the source so
 		// Source.Stop (e.g. DHCPv6 Release) cannot race a half-finished
-		// applier.Apply (F15).
+		// applier.Apply.
 		s.drainWG.Wait()
 		s.source.Stop()
 	}()
@@ -96,8 +96,8 @@ func (s *Service) drain(ctx context.Context) {
 	for {
 		// Atomically observe `pending` AND surrender `running` if there's
 		// nothing to do. An enqueue arriving after this lock release sees
-		// `running == false` and starts a new drain. There is no longer a
-		// window where pending could be set with no goroutine to read it (F14).
+		// `running == false` and starts a new drain. There is no window
+		// where pending could be set with no goroutine to read it.
 		s.mu.Lock()
 		next := s.pending
 		s.pending = nil

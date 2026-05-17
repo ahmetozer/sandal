@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/ahmetozer/sandal/pkg/lib/sysctl"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -22,23 +21,22 @@ import (
 //
 // Interface indices are looked up per-operation rather than cached at
 // construct time so we survive a bridge or upstream interface being
-// destroyed and recreated (F18).
+// destroyed and recreated.
 type NDPProxy struct {
 	upstream string // upstream interface name (e.g. eth0)
 	bridge   string // bridge interface name (e.g. sandal0)
 }
 
-// NewNDPProxy constructs a manager for the named upstream interface and ensures
-// proxy_ndp is enabled. Returns an error if either interface cannot be found.
+// NewNDPProxy constructs a manager for the named upstream interface. Both
+// link existences are verified up-front; the proxy_ndp sysctl is configured
+// centrally in daemon/start.go via renumber.ApplyHostSysctls and is not
+// re-applied here.
 func NewNDPProxy(upstream, bridge string) (*NDPProxy, error) {
 	if _, err := netlink.LinkByName(upstream); err != nil {
 		return nil, fmt.Errorf("ndpproxy: link %q: %w", upstream, err)
 	}
 	if _, err := netlink.LinkByName(bridge); err != nil {
 		return nil, fmt.Errorf("ndpproxy: bridge link %q: %w", bridge, err)
-	}
-	if _, err := sysctl.Ensure("net.ipv6.conf."+upstream+".proxy_ndp", "1"); err != nil {
-		return nil, fmt.Errorf("ndpproxy: enable proxy_ndp: %w", err)
 	}
 	return &NDPProxy{upstream: upstream, bridge: bridge}, nil
 }

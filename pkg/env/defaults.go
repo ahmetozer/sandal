@@ -34,7 +34,7 @@ var (
 
 	// IPv6 dynamic prefix configuration.
 	UpstreamInterface string // SANDAL_UPSTREAM_IF — empty triggers auto-detect from default route at daemon start
-	IPv6Mode          string // SANDAL_IPV6_MODE — "ndp-proxy" | "pd" | "off"
+	IPv6Mode          string // SANDAL_IPV6_MODE — "ndp-proxy" | "pd" | "off"; empty triggers auto-detect via net.DetectIPv6Mode at daemon start
 	IPv6PDHint        string // SANDAL_IPV6_PD_HINT — optional prefix length hint for DHCPv6-PD
 
 	Get func(EnvName, DefaultValue string) string
@@ -93,7 +93,7 @@ func init() {
 		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123::1/64")
 
 		UpstreamInterface = Get("SANDAL_UPSTREAM_IF", "")
-		IPv6Mode = Get("SANDAL_IPV6_MODE", "ndp-proxy")
+		IPv6Mode = Get("SANDAL_IPV6_MODE", "")
 		IPv6PDHint = Get("SANDAL_IPV6_PD_HINT", "")
 
 		DaemonSocket = Get("SANDAL_SOCKET", path.Join(RunDir, "sandal.sock"))

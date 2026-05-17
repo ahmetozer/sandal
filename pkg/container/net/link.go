@@ -69,11 +69,11 @@ type Link struct {
 	// renumbered automatically when the upstream prefix changes. Set
 	// `dynamic=false` on the -net flag to opt out (for hand-pinned IPv6).
 	//
-	// Persisted via custom JSON marshaling: pre-d654ec5 configs lack the
+	// Persisted via custom JSON marshaling: legacy configs may lack the
 	// "Dynamic" key, and a plain `json:",omitempty"` bool would default
 	// those to false on decode — silently opting every legacy container
 	// out of the renumber service. The marshal/unmarshal pair below treats
-	// "key absent" as the documented default of true (F3).
+	// "key absent" as the documented default of true.
 	Dynamic bool `json:"-"`
 }
 
@@ -127,8 +127,8 @@ func (l *Link) UnmarshalJSON(data []byte) error {
 	l.DHCPv4 = in.DHCPv4
 	l.DHCPv6 = in.DHCPv6
 	if in.Dynamic == nil {
-		// Legacy configs (pre-d654ec5) lack the key. Default to the
-		// documented behavior: dynamic renumber is enabled.
+		// Legacy configs lack the key. Default to the documented
+		// behavior: dynamic renumber is enabled.
 		l.Dynamic = true
 	} else {
 		l.Dynamic = *in.Dynamic

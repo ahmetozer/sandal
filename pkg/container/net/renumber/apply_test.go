@@ -100,6 +100,49 @@ func TestPickIIDLocalReturnsNilWhenNoGlobal(t *testing.T) {
 	}
 }
 
+// TestPickLookupAddrLocalFallsBackToULA: when a container is in gap state
+// (created before upstream IPv6 arrived) it has only a ULA on its link.
+// The renumber path needs a way to locate the netns link without a global
+// IPv6 — pickLookupAddrLocal returns the ULA so the address-based lookup
+// in SwapContainerAddrByOldIP still works.
+func TestPickLookupAddrLocalFallsBackToULA(t *testing.T) {
+	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
+	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123::5"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123::5"), Mask: net.CIDRMask(64, 128)}}
+	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.5"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.5"), Mask: net.CIDRMask(24, 32)}}
+
+	got := pickLookupAddrLocal(cnet.Addrs{v4, ll, ula})
+	if got == nil {
+		t.Fatal("pickLookupAddrLocal returned nil; expected the ULA")
+	}
+	if !got.IP.Equal(ula.IP) {
+		t.Fatalf("pickLookupAddrLocal: got %s, want %s", got.IP, ula.IP)
+	}
+}
+
+// TestPickLookupAddrLocalPrefersFirstNonLinkLocal documents the contract:
+// the function returns the FIRST suitable entry, leaving ordering decisions
+// to the caller. (Compare with pickGlobalLocal which is stricter.)
+func TestPickLookupAddrLocalPrefersFirstNonLinkLocal(t *testing.T) {
+	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
+	global := cnet.Addr{IP: net.ParseIP("2001:db8::1"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8::1"), Mask: net.CIDRMask(64, 128)}}
+	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123::5"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123::5"), Mask: net.CIDRMask(64, 128)}}
+
+	got := pickLookupAddrLocal(cnet.Addrs{ll, global, ula})
+	if got == nil || !got.IP.Equal(global.IP) {
+		t.Fatalf("expected the global (first non-LL), got %v", got)
+	}
+}
+
+// TestPickLookupAddrLocalReturnsNilWhenOnlyLinkLocalOrIPv4 confirms there is
+// no fallback beyond ULA/global IPv6.
+func TestPickLookupAddrLocalReturnsNilWhenOnlyLinkLocalOrIPv4(t *testing.T) {
+	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
+	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.5"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.5"), Mask: net.CIDRMask(24, 32)}}
+	if got := pickLookupAddrLocal(cnet.Addrs{ll, v4}); got != nil {
+		t.Errorf("pickLookupAddrLocal: expected nil for IPv4+LL-only set, got %v", got)
+	}
+}
+
 func TestIsRunning(t *testing.T) {
 	cases := []struct {
 		name string
@@ -129,10 +172,11 @@ func mustParseAddr(t *testing.T, s string) netlink.Addr {
 }
 
 // TestIPRequestSeesIntraContainerAllocations exercises the invariant that
-// `applyLocked` depends on for F4: when two dynamic links inside the SAME
-// container need IPs (no preserved IIDs), the second IPRequest must observe
-// the first link's freshly-allocated IP via the shared reserved slice. The
-// only way this works is if c.Net is updated between the two allocations.
+// `applyLocked` depends on: when two dynamic links inside the SAME
+// container need IPs (no preserved IIDs), the second IPRequest must
+// observe the first link's freshly-allocated IP via the shared reserved
+// slice. The only way this works is if c.Net is updated between the two
+// allocations.
 //
 // This test asserts the contract: a config c that mirrors apply.go's
 // "shadow" slice, with c.Net mutated between IPRequest calls, yields
