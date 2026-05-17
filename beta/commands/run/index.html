@@ -512,6 +512,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/dynamic-ipv6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic IPv6
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2587,6 +2615,8 @@ sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </s
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ip=dhcp&quot;</span><span class="w"> </span>--<span class="w"> </span>bash<span class="w">          </span><span class="c1"># dual-stack (DHCPv4 + DHCPv6)</span>
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ip=dhcp4&quot;</span><span class="w"> </span>--<span class="w"> </span>bash<span class="w">         </span><span class="c1"># IPv4 only</span>
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ip=dhcp6&quot;</span><span class="w"> </span>--<span class="w"> </span>bash<span class="w">         </span><span class="c1"># IPv6 only</span>
+<span class="c1"># Opt out of automatic IPv6 renumbering for this link</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-net<span class="w"> </span><span class="s2">&quot;ip=fd00:internal::42/64;dynamic=false&quot;</span><span class="w"> </span>--<span class="w"> </span>bash
 </code></pre></div>
 </dd>
 </dl>
@@ -2602,6 +2632,21 @@ allocated address.</p>
 </ul>
 <p>The DHCP client retransmits every 2 seconds for up to 30 seconds. The
 obtained IP, default gateway, and DNS servers are applied automatically.</p>
+<p>For <code>ip=dhcp</code> / <code>ip=dhcp6</code>, sandal keeps the lease renewed by sending
+Renew at T1 and Rebind at T2 from inside the container, re-Soliciting
+with backoff if the lease fully expires. Release is sent on container
+shutdown.</p>
+</details>
+<details class="info">
+<summary>dynamic=</summary>
+<p>Controls whether the <a href="../../setup/dynamic-ipv6/">Dynamic IPv6</a> renumber service
+is allowed to overwrite this link's global IPv6 when the upstream prefix
+changes.</p>
+<ul>
+<li><strong><code>dynamic=true</code></strong> (default) — link is included in automatic renumber.</li>
+<li><strong><code>dynamic=false</code></strong> — link is skipped. Use when you have pinned a literal
+  global IPv6 you do not want overwritten.</li>
+</ul>
 <p><strong>macOS (VM mode):</strong> When running on macOS, containers default to DHCPv4
 automatically. The container's interface receives the VM's original MAC
 address so that the VZ NAT network accepts its frames. No manual <code>-net</code>
