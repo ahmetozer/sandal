@@ -83,18 +83,19 @@ Default host network configuration.
 ### SANDAL_UPSTREAM_IF
 
 Interface name (e.g. `eth0`, `enp1s0`) that the daemon watches for upstream IPv6 prefix changes.  
-Empty by default — leave unset to disable dynamic IPv6.  
+**Empty (default): auto-detect from the host's default route at daemon start.** Set explicitly to override.  
 See [Dynamic IPv6](dynamic-ipv6.md).
 
 ### SANDAL_IPV6_MODE
 
 Selects how the upstream prefix is learned. One of:
 
-- `ndp-proxy` (default) — same `/64` on upstream and `sandal0`, with kernel NDP proxy entries on the upstream for each container IP.
-- `pd` — sandal runs a DHCPv6-PD client on the upstream interface and sub-allocates a `/64` for `sandal0`.
+- *empty (default)* — auto-detect from the upstream interface state. Picks `pd` if a routed delegation is visible (a non-`/64` IPv6 route via the upstream installed by something other than the kernel/RA), otherwise picks `ndp-proxy`.
+- `ndp-proxy` — same `/64` on upstream and `sandal0`, with kernel NDP proxy entries on the upstream for each container IP. Use this if your upstream router announces an on-link `/64` via RA.
+- `pd` — sandal runs a DHCPv6-PD client on the upstream interface and sub-allocates a `/64` for `sandal0`. Use this if your upstream supports DHCPv6 Prefix Delegation.
 - `off` — feature disabled even when `SANDAL_UPSTREAM_IF` is set; `sandal0` keeps `SANDAL_HOST_NET`'s static IPv6.
 
-Only consulted when `SANDAL_UPSTREAM_IF` is non-empty. See [Dynamic IPv6](dynamic-ipv6.md).
+See [Dynamic IPv6](dynamic-ipv6.md).
 
 ### SANDAL_IPV6_PD_HINT
 
