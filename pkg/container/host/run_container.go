@@ -58,6 +58,18 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 		return err
 	}
 
+	if err := c.NS.Validate(); err != nil {
+		return err
+	}
+
+	// --ns-net <target> tells sandal to join an existing netns; combining
+	// it with -net flags (which configure interfaces in the container's
+	// netns) is almost never the user's intent and would mutate the
+	// joined netns. Refuse rather than silently mutate.
+	if netConf := c.NS.Get("net"); netConf.IsUserDefined && len(networkFlags) > 0 {
+		return fmt.Errorf("--ns-net %q cannot be combined with -net flags: refusing to modify a joined network namespace", netConf.String())
+	}
+
 	err = controller.SetContainer(c)
 	if err != nil {
 		return err

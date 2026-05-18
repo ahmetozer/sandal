@@ -341,6 +341,19 @@ the same for every kind:
 The join forms (`<pid>`, `pid:<pid>`, `file:<path>`) require the target
 namespace to already exist and to be accessible to the caller.
 
+**Restrictions on `sandal run`:**
+
+- `--ns-mnt` accepts only `host` or empty (new). Joining a foreign mount
+  namespace conflicts with sandal's overlay rootfs setup.
+- `--ns-pid` accepts only `host` or empty (new). Joining a pidns from
+  the child requires an extra fork that is not yet implemented; without
+  it `unix.Exec` would leave the user binary in the host pidns.
+- `--ns-net <target>` cannot be combined with `-net` flags — adding
+  interfaces would mutate the joined namespace.
+
+All target syntaxes (`<pid>`, `pid:<pid>`, `file:<path>`) are fully
+supported by `sandal exec`, which uses `setns()` from a re-entry helper.
+
 Examples:
 
 ```bash
