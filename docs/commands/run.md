@@ -337,6 +337,7 @@ the same for every kind:
 | `<pid>` | Join the namespace currently used by process `<pid>`, resolved via `/proc/<pid>/ns/<kind>`. |
 | `pid:<pid>` | Same as bare `<pid>` — explicit form for readability. |
 | `file:<path>` | Join the namespace pinned at `<path>` (e.g. `/var/run/netns/foo` created by `ip netns add foo`). |
+| `cont:<name>` | Join the namespace of an already-running sandal container by name. Resolved to `pid:<N>` at parse time. |
 
 The join forms (`<pid>`, `pid:<pid>`, `file:<path>`) require the target
 namespace to already exist and to be accessible to the caller.
@@ -365,6 +366,9 @@ sandal run -lw alpine --ns-net file:/var/run/netns/web -- ip addr
 
 # share the network namespace of an existing process (e.g. another container's init)
 sandal run -lw alpine --ns-net pid:12345 -- ip addr
+
+# share the network namespace of another running sandal container by name
+sandal run -lw alpine --ns-net cont:mytestcont1 -- ip addr
 ```
 
 ---
