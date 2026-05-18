@@ -101,13 +101,13 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 		}
 	}
 
-	// !Switching custom namespace while container create not supported.
-	// ?The reason is it will impacted daemon due to proccess based impact
-	// // Switch custom namespaces before starting new command
-	// err = c.NS.SetNS()
-	// if err != nil {
-	// 	return 1, err
-	// }
+	// Note: user-defined namespace targets (--ns-<kind> pid:N or file:/path)
+	// are NOT joined here in the host parent. Calling setns() in the parent
+	// would (a) poison the daemon's threads with foreign namespace state
+	// across requests, and (b) fail for mnt because Go's runtime keeps
+	// fs->users > 1. The join is performed in the sandal-child via
+	// guest.ContainerInitProc → joinUserDefinedNamespaces, where the
+	// process is fresh and short-lived.
 
 	// Allocate a PTY for interactive containers when -t is passed
 	// so the shell gets a real terminal (isatty=true, job control works).
@@ -184,7 +184,11 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 
 	c.Status = crt.ContainerStatusRunning
 
-	if !c.NS.Get("net").IsHost {
+	// Skip link creation when the container shares the host netns
+	// (nothing to provision) or joins an existing one via --ns-net <target>
+	// (the joined namespace is the user's; sandal must not mutate it).
+	netConf := c.NS.Get("net")
+	if !netConf.IsHost && !netConf.IsUserDefined {
 		links, err := net.ToLinks(&c.Net)
 		if err != nil {
 			return 1, err

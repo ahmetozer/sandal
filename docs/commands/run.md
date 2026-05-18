@@ -324,45 +324,94 @@ Allocation configuration of /etc/hosts file.
 
 ---
 
+### Namespace flags (`-ns-<kind>`)
+
+Each `-ns-<kind>` flag controls how the container relates to one Linux namespace
+(`cgroup`, `ipc`, `mnt`, `net`, `pid`, `user`, `uts`). The accepted values are
+the same for every kind:
+
+| Value | Effect |
+| --- | --- |
+| *(unset)* | Create a fresh namespace for the container. Default for all kinds except `user`. |
+| `host` | Share the host's namespace — no isolation for this kind. Default for `user`. |
+| `<pid>` | Join the namespace currently used by process `<pid>`, resolved via `/proc/<pid>/ns/<kind>`. |
+| `pid:<pid>` | Same as bare `<pid>` — explicit form for readability. |
+| `file:<path>` | Join the namespace pinned at `<path>` (e.g. `/var/run/netns/foo` created by `ip netns add foo`). |
+| `cont:<name>` | Join the namespace of an already-running sandal container by name. Resolved to `pid:<N>` at parse time. |
+
+The join forms (`<pid>`, `pid:<pid>`, `file:<path>`) require the target
+namespace to already exist and to be accessible to the caller.
+
+**Restrictions on `sandal run`:**
+
+- `--ns-mnt` accepts only `host` or empty (new). Joining a foreign mount
+  namespace conflicts with sandal's overlay rootfs setup.
+- `--ns-pid` accepts only `host` or empty (new). Joining a pidns from
+  the child requires an extra fork that is not yet implemented; without
+  it `unix.Exec` would leave the user binary in the host pidns.
+- `--ns-net <target>` cannot be combined with `-net` flags — adding
+  interfaces would mutate the joined namespace.
+
+All target syntaxes (`<pid>`, `pid:<pid>`, `file:<path>`) are fully
+supported by `sandal exec`, which uses `setns()` from a re-entry helper.
+
+Examples:
+
+```bash
+# share the host's network stack
+sandal run -lw alpine --ns-net host -- ip addr
+
+# join a named netns previously created with `ip netns add web`
+sandal run -lw alpine --ns-net file:/var/run/netns/web -- ip addr
+
+# share the network namespace of an existing process (e.g. another container's init)
+sandal run -lw alpine --ns-net pid:12345 -- ip addr
+
+# share the network namespace of another running sandal container by name
+sandal run -lw alpine --ns-net cont:mytestcont1 -- ip addr
+```
+
+---
+
 ### `-ns-cgroup string`
 
-:   cgroup namespace or host
+:   cgroup namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values.
 
 ---
 
 ### `-ns-ipc string`
 
-:   ipc namespace or host
+:   ipc namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values.
 
 ---
 
 ### `-ns-mnt string`
 
-:   mnt namespace or host
+:   mnt namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values.
 
 ---
 
 ### `-ns-net string`
 
-:   net namespace or host
+:   net namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values.
 
 ---
 
 ### `-ns-pid string`
 
-:   pid namespace or host
+:   pid namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values.
 
 ---
 
 ### `-ns-user string`
 
-:   user namespace or host
+:   user namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values. Defaults to `host`.
 
 ---
 
 ### `-ns-uts string`
 
-:   uts namespace or host
+:   uts namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values.
 
 ---
 

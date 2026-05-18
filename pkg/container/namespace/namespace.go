@@ -7,10 +7,19 @@ import (
 	"syscall"
 )
 
+// Cloneflags returns the CLONE_NEW* bitmask of namespaces that should be
+// freshly created. Entries marked IsHost (share the host) or IsUserDefined
+// (join an existing target via SetNS) are skipped — CLONE_NEW* semantically
+// means "make a new one", which is the opposite of joining.
+//
+// Note: setns(CLONE_NEWNS) requires the calling thread's fs_struct to be
+// private (fs->users == 1). Callers that combine this bitmask with a later
+// setns into a user-defined mnt namespace (e.g. Enter) must also unshare
+// CLONE_NEWNS explicitly — see enter_linux.go.
 func (NS Namespaces) Cloneflags() uintptr {
 	var Cloneflags uintptr
 	for name, conf := range NS {
-		if conf.IsHost {
+		if conf.IsHost || conf.IsUserDefined {
 			continue
 		}
 		Cloneflags |= namespaceList[name]

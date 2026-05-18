@@ -5,6 +5,7 @@ package namespace
 import (
 	"fmt"
 	"os"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -51,6 +52,18 @@ func Enter(pid int, ns Namespaces) error {
 
 	if err := ns.Unshare(); err != nil {
 		return fmt.Errorf("unshare: %w", err)
+	}
+	// setns(CLONE_NEWNS) into the target mnt namespace requires the
+	// calling thread's fs_struct to be private (fs->users == 1). When mnt
+	// is being created (IsUserDefined=false, IsHost=false), Cloneflags
+	// already included CLONE_NEWNS and ns.Unshare() handled this. When mnt
+	// is user-defined, Cloneflags() skips it (we are not creating one), so
+	// we must unshare CLONE_NEWNS here explicitly to get a private fs_struct
+	// before SetNS attempts setns(CLONE_NEWNS).
+	if mntConf, ok := ns["mnt"]; ok && mntConf.IsUserDefined {
+		if err := unix.Unshare(syscall.CLONE_NEWNS); err != nil {
+			return fmt.Errorf("unshare CLONE_NEWNS for user-defined mnt: %w", err)
+		}
 	}
 	if err := ns.SetNS(); err != nil {
 		return fmt.Errorf("setns: %w", err)

@@ -58,6 +58,36 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 		return err
 	}
 
+	if err := c.NS.Validate(); err != nil {
+		return err
+	}
+
+	// Resolve cont:<name> shorthand to pid:<N> using the live container
+	// list fetched above. Self-references fail naturally — the new
+	// container isn't in conts yet because SetContainer hasn't run.
+	if err := c.NS.Resolve(func(name string) (int, error) {
+		for _, oc := range conts {
+			if oc.Name != name {
+				continue
+			}
+			if oc.ContPid <= 0 {
+				return 0, fmt.Errorf("container %q is not running", name)
+			}
+			return oc.ContPid, nil
+		}
+		return 0, fmt.Errorf("container %q not found", name)
+	}); err != nil {
+		return err
+	}
+
+	// --ns-net <target> tells sandal to join an existing netns; combining
+	// it with -net flags (which configure interfaces in the container's
+	// netns) is almost never the user's intent and would mutate the
+	// joined netns. Refuse rather than silently mutate.
+	if netConf := c.NS.Get("net"); netConf.IsUserDefined && len(networkFlags) > 0 {
+		return fmt.Errorf("--ns-net %q cannot be combined with -net flags: refusing to modify a joined network namespace", netConf.String())
+	}
+
 	err = controller.SetContainer(c)
 	if err != nil {
 		return err

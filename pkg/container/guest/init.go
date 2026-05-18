@@ -58,6 +58,15 @@ func ContainerInitProc() {
 			return fmt.Errorf("no executable is provided")
 		}
 
+		// Join any user-defined namespaces requested via --ns-<kind> <target>.
+		// Must happen after the config load above (which reads files in the
+		// host mntns via the controller's state dir) and before any subsequent
+		// step that depends on the final namespace set. This locks the
+		// goroutine to its OS thread for the rest of init through unix.Exec.
+		if err := joinUserDefinedNamespaces(c.NS); err != nil {
+			return err
+		}
+
 		if err := unix.Sethostname([]byte(c.Name)); err != nil {
 			return fmt.Errorf("unable to set hostname %s", err)
 		}
@@ -67,7 +76,10 @@ func ContainerInitProc() {
 			netlink.LinkSetUp(k)
 		}
 
-		if !c.NS.Get("net").IsHost {
+		// Configure container-side links only when sandal manages the netns.
+		// For host-share or user-defined joins, the netns is not ours to touch.
+		netConf := c.NS.Get("net")
+		if !netConf.IsHost && !netConf.IsUserDefined {
 
 			links, err := net.ToLinks(&c.Net)
 			if err != nil {
