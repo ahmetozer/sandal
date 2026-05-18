@@ -1301,6 +1301,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#namespace-flags-ns-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Namespace flags (-ns-&lt;kind&gt;)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#-ns-cgroup-string" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2079,6 +2090,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#namespace-flags-ns-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Namespace flags (-ns-&lt;kind&gt;)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#-ns-cgroup-string" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2653,39 +2675,105 @@ address so that the VZ NAT network accepts its frames. No manual <code>-net</cod
 flag is needed — DHCP is used by default.</p>
 </details>
 <hr />
+<h3 id="namespace-flags-ns-kind">Namespace flags (<code>-ns-&lt;kind&gt;</code>)<a class="headerlink" href="#namespace-flags-ns-kind" title="Permanent link">&para;</a></h3>
+<p>Each <code>-ns-&lt;kind&gt;</code> flag controls how the container relates to one Linux namespace
+(<code>cgroup</code>, <code>ipc</code>, <code>mnt</code>, <code>net</code>, <code>pid</code>, <code>user</code>, <code>uts</code>). The accepted values are
+the same for every kind:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(unset)</em></td>
+<td>Create a fresh namespace for the container. Default for all kinds except <code>user</code>.</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>Share the host's namespace — no isolation for this kind. Default for <code>user</code>.</td>
+</tr>
+<tr>
+<td><code>&lt;pid&gt;</code></td>
+<td>Join the namespace currently used by process <code>&lt;pid&gt;</code>, resolved via <code>/proc/&lt;pid&gt;/ns/&lt;kind&gt;</code>.</td>
+</tr>
+<tr>
+<td><code>pid:&lt;pid&gt;</code></td>
+<td>Same as bare <code>&lt;pid&gt;</code> — explicit form for readability.</td>
+</tr>
+<tr>
+<td><code>file:&lt;path&gt;</code></td>
+<td>Join the namespace pinned at <code>&lt;path&gt;</code> (e.g. <code>/var/run/netns/foo</code> created by <code>ip netns add foo</code>).</td>
+</tr>
+<tr>
+<td><code>cont:&lt;name&gt;</code></td>
+<td>Join the namespace of an already-running sandal container by name. Resolved to <code>pid:&lt;N&gt;</code> at parse time.</td>
+</tr>
+</tbody>
+</table>
+<p>The join forms (<code>&lt;pid&gt;</code>, <code>pid:&lt;pid&gt;</code>, <code>file:&lt;path&gt;</code>) require the target
+namespace to already exist and to be accessible to the caller.</p>
+<p><strong>Restrictions on <code>sandal run</code>:</strong></p>
+<ul>
+<li><code>--ns-mnt</code> accepts only <code>host</code> or empty (new). Joining a foreign mount
+  namespace conflicts with sandal's overlay rootfs setup.</li>
+<li><code>--ns-pid</code> accepts only <code>host</code> or empty (new). Joining a pidns from
+  the child requires an extra fork that is not yet implemented; without
+  it <code>unix.Exec</code> would leave the user binary in the host pidns.</li>
+<li><code>--ns-net &lt;target&gt;</code> cannot be combined with <code>-net</code> flags — adding
+  interfaces would mutate the joined namespace.</li>
+</ul>
+<p>All target syntaxes (<code>&lt;pid&gt;</code>, <code>pid:&lt;pid&gt;</code>, <code>file:&lt;path&gt;</code>) are fully
+supported by <code>sandal exec</code>, which uses <code>setns()</code> from a re-entry helper.</p>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># share the host&#39;s network stack</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine<span class="w"> </span>--ns-net<span class="w"> </span>host<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>addr
+
+<span class="c1"># join a named netns previously created with `ip netns add web`</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine<span class="w"> </span>--ns-net<span class="w"> </span>file:/var/run/netns/web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>addr
+
+<span class="c1"># share the network namespace of an existing process (e.g. another container&#39;s init)</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine<span class="w"> </span>--ns-net<span class="w"> </span>pid:12345<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>addr
+
+<span class="c1"># share the network namespace of another running sandal container by name</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine<span class="w"> </span>--ns-net<span class="w"> </span>cont:mytestcont1<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>addr
+</code></pre></div>
+<hr />
 <h3 id="-ns-cgroup-string"><code>-ns-cgroup string</code><a class="headerlink" href="#-ns-cgroup-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>cgroup namespace or host</dd>
+<dd>cgroup namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values.</dd>
 </dl>
 <hr />
 <h3 id="-ns-ipc-string"><code>-ns-ipc string</code><a class="headerlink" href="#-ns-ipc-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>ipc namespace or host</dd>
+<dd>ipc namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values.</dd>
 </dl>
 <hr />
 <h3 id="-ns-mnt-string"><code>-ns-mnt string</code><a class="headerlink" href="#-ns-mnt-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>mnt namespace or host</dd>
+<dd>mnt namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values.</dd>
 </dl>
 <hr />
 <h3 id="-ns-net-string"><code>-ns-net string</code><a class="headerlink" href="#-ns-net-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>net namespace or host</dd>
+<dd>net namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values.</dd>
 </dl>
 <hr />
 <h3 id="-ns-pid-string"><code>-ns-pid string</code><a class="headerlink" href="#-ns-pid-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>pid namespace or host</dd>
+<dd>pid namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values.</dd>
 </dl>
 <hr />
 <h3 id="-ns-user-string"><code>-ns-user string</code><a class="headerlink" href="#-ns-user-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>user namespace or host</dd>
+<dd>user namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values. Defaults to <code>host</code>.</dd>
 </dl>
 <hr />
 <h3 id="-ns-uts-string"><code>-ns-uts string</code><a class="headerlink" href="#-ns-uts-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>uts namespace or host</dd>
+<dd>uts namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values.</dd>
 </dl>
 <hr />
 <h3 id="-p-value"><code>-p value</code><a class="headerlink" href="#-p-value" title="Permanent link">&para;</a></h3>
