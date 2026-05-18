@@ -58,8 +58,8 @@ sandal run [flags] <image> [command] [args...]
 | `--cpu` | CPU limit | `--cpu 2` |
 | `-user` | Run as user | `-user nobody:nogroup` |
 | `-privileged` | Grant all capabilities | |
-| `-ns-pid` | PID namespace (host/new/pid) | `-ns-pid host` |
-| `-ns-net` | Network namespace | `-ns-net host` |
+| `-ns-pid` | PID namespace target | `-ns-pid host`, `-ns-pid pid:1234` |
+| `-ns-net` | Network namespace target | `-ns-net file:/var/run/netns/web` |
 | `-startup` | Auto-restart on daemon boot | |
 | `-lw` | Additional lower directories | `-lw /extra/layer` |
 | `-tmp` | Tmpfs-backed changes (ephemeral) | |
