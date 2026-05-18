@@ -2,7 +2,11 @@
 
 package namespace
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // Validate checks for namespace target combinations that sandal cannot
 // safely handle on the create path (`sandal run`). Call after Defaults().
@@ -28,6 +32,43 @@ func (NS Namespaces) Validate() error {
 	}
 	if pid, ok := NS["pid"]; ok && pid.IsUserDefined {
 		return fmt.Errorf("--ns-pid only accepts 'host' or empty (new) on `sandal run`; got %q — joining a pidns requires an extra fork in the child that is not yet implemented", pid.String())
+	}
+	for name, conf := range NS {
+		if !conf.IsUserDefined {
+			continue
+		}
+		if err := validateTargetSyntax(conf.String()); err != nil {
+			return fmt.Errorf("--ns-%s %q: %w", name, conf.String(), err)
+		}
+	}
+	return nil
+}
+
+// validateTargetSyntax accepts the three forms documented in set.go:
+//
+//   - "<pid>"      bare positive integer
+//   - "pid:<pid>"  positive integer after the "pid:" prefix
+//   - "file:<path>" non-empty path after the "file:" prefix
+//
+// Anything else is rejected so the failure surfaces at parse time on the
+// host, not inside the sandal-child after cmd.Start().
+func validateTargetSyntax(v string) error {
+	if v == "" {
+		return fmt.Errorf("empty target")
+	}
+	if strings.HasPrefix(v, "file:") {
+		if len(v) <= len("file:") {
+			return fmt.Errorf("file: target requires a path")
+		}
+		return nil
+	}
+	num := v
+	if strings.HasPrefix(v, "pid:") {
+		num = v[len("pid:"):]
+	}
+	pid, err := strconv.Atoi(num)
+	if err != nil || pid <= 0 {
+		return fmt.Errorf("target must be <pid>, pid:<pid>, or file:<path>")
 	}
 	return nil
 }

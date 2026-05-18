@@ -75,3 +75,54 @@ func TestValidateMntHostAllowed(t *testing.T) {
 		t.Fatalf("Validate(mnt=host, pid=host) = %v, want nil", err)
 	}
 }
+
+func TestValidateRejectsMalformedTarget(t *testing.T) {
+	cases := []struct {
+		name, value string
+	}{
+		{"garbage-prefix", "garbage:weird:input"},
+		{"empty-after-pid", "pid:"},
+		{"empty-after-file", "file:"},
+		{"non-numeric-bare", "abc"},
+		{"non-numeric-after-pid", "pid:abc"},
+		{"negative-pid", "-1"},
+		{"zero-pid", "0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := tc.value
+			ns := Namespaces{
+				"net": NamespaceConf{UserValue: &v, IsUserDefined: true},
+			}
+			err := ns.Validate()
+			if err == nil {
+				t.Fatalf("Validate(--ns-net %q) = nil, want syntax error", tc.value)
+			}
+			if !strings.Contains(err.Error(), "--ns-net") {
+				t.Fatalf("error %q does not mention --ns-net", err)
+			}
+		})
+	}
+}
+
+func TestValidateAcceptsAllThreeTargetForms(t *testing.T) {
+	cases := []string{
+		"1",
+		"12345",
+		"pid:1",
+		"pid:99999",
+		"file:/var/run/netns/foo",
+		"file:/some/other/path",
+	}
+	for _, tc := range cases {
+		t.Run(tc, func(t *testing.T) {
+			v := tc
+			ns := Namespaces{
+				"net": NamespaceConf{UserValue: &v, IsUserDefined: true},
+			}
+			if err := ns.Validate(); err != nil {
+				t.Fatalf("Validate(--ns-net %q) = %v, want nil", tc, err)
+			}
+		})
+	}
+}
