@@ -46,13 +46,11 @@ func (nsConf NamespaceConf) String() (namespaceValue string) {
 	return
 }
 
+// Get returns the NamespaceConf for the given namespace. A missing key
+// yields the zero value (NamespaceConf{} = IsHost=false, IsUserDefined=false
+// = "create new"), which is a safe default for callers that may run before
+// Defaults() has filled the map (e.g. partially-constructed build configs).
 func (NS Namespaces) Get(name Name) NamespaceConf {
-	if NS != nil {
-		_, k := NS[name]
-		if !k {
-			panic("unexpected namespace is called")
-		}
-	}
 	return NS[name]
 }
 
