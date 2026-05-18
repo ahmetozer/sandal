@@ -3,6 +3,8 @@ package controller
 import "fmt"
 
 func DeleteContainer(Name string) error {
+	containerListMu.Lock()
+	defer containerListMu.Unlock()
 	for i := range containerList {
 		if containerList[i].Name == Name {
 			containerList[i] = containerList[len(containerList)-1]
