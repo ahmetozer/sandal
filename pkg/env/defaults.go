@@ -2,9 +2,11 @@ package env
 
 import (
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 )
 
 var (
@@ -90,7 +92,7 @@ func init() {
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseImmutableImageDir = Get("SANDAL_IMMUTABLEIMAGEDIR", path.Join(RunDir, "immutable"))
 
-		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123::1/64")
+		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123::1/120")
 
 		UpstreamInterface = Get("SANDAL_UPSTREAM_IF", "")
 		IPv6Mode = Get("SANDAL_IPV6_MODE", "")
@@ -108,4 +110,27 @@ func init() {
 
 	os.Setenv("TERM", Get("TERM", TERM))
 
+	warnIfHostNetIPv6TooBroad(DefaultHostNet)
+}
+
+// warnIfHostNetIPv6TooBroad emits a warning for any IPv6 CIDR in
+// SANDAL_HOST_NET whose mask is shorter than /64. The renumber path always
+// stamps a /64 on the public side using the lower 64 bits as the IID, so a
+// broader-than-/64 ULA lets the allocator pick addresses that collapse to the
+// same public address after renumber.
+func warnIfHostNetIPv6TooBroad(hostNet string) {
+	for _, part := range strings.Split(hostNet, ",") {
+		_, ipnet, err := net.ParseCIDR(strings.TrimSpace(part))
+		if err != nil {
+			continue
+		}
+		if ipnet.IP.To4() != nil {
+			continue
+		}
+		ones, _ := ipnet.Mask.Size()
+		if ones < 64 {
+			slog.Warn("SANDAL_HOST_NET: IPv6 mask shorter than /64 may cause public address collisions after renumber",
+				"cidr", strings.TrimSpace(part), "mask", ones)
+		}
+	}
 }

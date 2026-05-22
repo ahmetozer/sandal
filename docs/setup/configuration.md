@@ -21,7 +21,7 @@ System variable information:
   SANDAL_TEMP_DIR                                               /tmp/sandal/lib/tmp                 /var/lib/sandal/tmp
   SANDAL_ROOTFSDIR                                              /tmp/sandal/run/rootfs              /var/run/sandal/rootfs
   SANDAL_IMMUTABLEIMAGEDIR                                      /tmp/sandal/run/immutable           /var/run/sandal/immutable
-  SANDAL_HOST_NET           172.19.0.1/24,fd34:0135:0127::1/64  172.19.0.1/24,fd34:0135:0127::1/64  172.16.0.1/24,fd34:0135:0123::1/64
+  SANDAL_HOST_NET           172.19.0.1/24,fd34:0135:0127::1/64  172.19.0.1/24,fd34:0135:0127::1/64  172.16.0.1/24,fd34:0135:0123::1/120
   SANDAL_SOCKET                                                 /tmp/sandal/run/sandal.sock         /var/run/sandal/sandal.sock
   SANDAL_LOG_LEVEL          debug                               debug                               warn
 ```

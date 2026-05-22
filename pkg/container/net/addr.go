@@ -90,7 +90,7 @@ func (a Addrs) Add(link netlink.Link) error {
 	return nil
 }
 
-// Example input "172.16.0.1/24,fd34:0135:0123::1/64"
+// Example input "172.16.0.1/24,fd34:0135:0123::1/120"
 func stringToAddrs(ips string) (Addrs, error) {
 	var addrs Addrs
 

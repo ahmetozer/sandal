@@ -43,7 +43,7 @@ After the daemon comes up:
 # Bridge has the public /64 from your upstream
 ip -6 addr show dev sandal0
 #  2001:db8:3b0a:4f00::1/64                        ← public, mirrored from eth0
-#  fd34:135:123::1/64                                ← static ULA (kept as fallback)
+#  fd34:135:123::1/120                               ← static ULA (kept as fallback)
 #  172.16.0.1/24                                     ← static IPv4
 
 # Daemon log shows what was picked
@@ -60,7 +60,7 @@ After `sandal run`:
 # Container's IPv6
 sandal exec web -- ip -6 addr show dev eth0 scope global
 #  2001:db8:3b0a:4f00::2/64                        ← public
-#  fd34:135:123::2/64                                ← ULA (host-local)
+#  fd34:135:123::2/120                               ← ULA (host-local)
 
 # Host is announcing it to the LAN
 ip -6 neigh show proxy dev eth0
@@ -115,7 +115,7 @@ The `dynamic=false` token tells the renumber service to leave this container alo
 
 ### Disable dynamic IPv6 entirely
 
-If you want `sandal0` to keep the static IPv6 from `SANDAL_HOST_NET` (default `fd34:0135:0123::1/64`) and never track an upstream:
+If you want `sandal0` to keep the static IPv6 from `SANDAL_HOST_NET` (default `fd34:0135:0123::1/120`) and never track an upstream:
 
 ```bash
 export SANDAL_IPV6_MODE=off
@@ -157,7 +157,7 @@ Bridge state determines what containers are allocated:
 | Daemon not running (CLI-only `sandal run`) | IPv4 + static ULA from `SANDAL_HOST_NET` |
 | `SANDAL_IPV6_MODE=off` | IPv4 + static ULA |
 
-The static ULA (`fd34:135:123::/64` by default) is always kept as a fallback so containers can talk to each other and to the host even before — or instead of — a public IPv6 is available.
+The static ULA (`fd34:135:123::/120` by default) is always kept as a fallback so containers can talk to each other and to the host even before — or instead of — a public IPv6 is available.
 
 ## Verifying a prefix change
 
