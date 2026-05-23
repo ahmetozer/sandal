@@ -1754,7 +1754,7 @@ System<span class="w"> </span>variable<span class="w"> </span>information:
 <span class="w">  </span>SANDAL_TEMP_DIR<span class="w">                                               </span>/tmp/sandal/lib/tmp<span class="w">                 </span>/var/lib/sandal/tmp
 <span class="w">  </span>SANDAL_ROOTFSDIR<span class="w">                                              </span>/tmp/sandal/run/rootfs<span class="w">              </span>/var/run/sandal/rootfs
 <span class="w">  </span>SANDAL_IMMUTABLEIMAGEDIR<span class="w">                                      </span>/tmp/sandal/run/immutable<span class="w">           </span>/var/run/sandal/immutable
-<span class="w">  </span>SANDAL_HOST_NET<span class="w">           </span><span class="m">172</span>.19.0.1/24,fd34:0135:0127::1/64<span class="w">  </span><span class="m">172</span>.19.0.1/24,fd34:0135:0127::1/64<span class="w">  </span><span class="m">172</span>.16.0.1/24,fd34:0135:0123::1/64
+<span class="w">  </span>SANDAL_HOST_NET<span class="w">           </span><span class="m">172</span>.19.0.1/24,fd34:0135:0127::1/64<span class="w">  </span><span class="m">172</span>.19.0.1/24,fd34:0135:0127::1/64<span class="w">  </span><span class="m">172</span>.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64
 <span class="w">  </span>SANDAL_SOCKET<span class="w">                                                 </span>/tmp/sandal/run/sandal.sock<span class="w">         </span>/var/run/sandal/sandal.sock
 <span class="w">  </span>SANDAL_LOG_LEVEL<span class="w">          </span>debug<span class="w">                               </span>debug<span class="w">                               </span>warn
 </code></pre></div>
@@ -1790,7 +1790,20 @@ This has no effect unless you have been set -chdir argument while starting up th
 <h3 id="sandal_immutableimagedir">SANDAL_IMMUTABLEIMAGEDIR<a class="headerlink" href="#sandal_immutableimagedir" title="Permanent link">&para;</a></h3>
 <p>Immutable images are require to be mounted to operating system for using at containers.</p>
 <h3 id="sandal_host_net">SANDAL_HOST_NET<a class="headerlink" href="#sandal_host_net" title="Permanent link">&para;</a></h3>
-<p>Default host network configuration.</p>
+<p>Default host network configuration. Comma-separated list of CIDRs for the <code>sandal0</code> bridge — typically one IPv4 entry, one ULA IPv6 entry, and one public-prefix template.</p>
+<p>Two template placeholders are supported, both prefixed <code>u</code> for "upstream-derived":</p>
+<ul>
+<li><strong><code>%uv4%</code></strong> — upstream interface's IPv4 written as two zero-suppressed hex hextets (e.g. <code>192.168.1.15</code> → <code>c0a8:10f</code>). Resolved <strong>once at startup</strong> from the first global IPv4 on <code>SANDAL_UPSTREAM_IF</code>, falling back to the default-route interface. Substitutes <code>0:0</code> + warning when no IPv4 is available.</li>
+<li><strong><code>%uv6%</code></strong> — upstream IPv6 prefix's first four hextets, no trailing colon (e.g. <code>2a00:1d35:3b0a:4f00::/64</code> → <code>2a00:1d35:3b0a:4f00</code>). <strong>Re-resolved on every upstream prefix event</strong> by the renumber service. Entries containing <code>%uv6%</code> are "dynamic" — they are not applied at bridge create but are reconciled by the renumber service against the live prefix.</li>
+</ul>
+<p>Default: <code>172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64</code></p>
+<p>With host IPv4 <code>192.168.1.15</code> and ISP prefix <code>2a00:1d35:3b0a:4f00::/64</code> this resolves to:</p>
+<div class="highlight"><pre><span></span><code>172.16.0.1/24                              (static IPv4)
+fd34:0135:0123:0:c0a8:10f::1/120           (static ULA, IPv4 in IID)
+2a00:1d35:3b0a:4f00:c0a8:10f::1/64         (dynamic — public, IPv4 in IID)
+</code></pre></div>
+<p>The dynamic entry is <strong>owned by the template</strong>: the renumber service applies it verbatim. If you write your own SANDAL_HOST_NET without <code>%uv6%</code>, the renumber service falls back to the historical <code>bridgeIID</code> + <code>withIID</code> stamp instead.</p>
+<p>To disable both embeddings, write a value with no tokens: <code>SANDAL_HOST_NET="172.16.0.1/24,fd34:0135:0123::1/120"</code>.</p>
 <h3 id="sandal_upstream_if">SANDAL_UPSTREAM_IF<a class="headerlink" href="#sandal_upstream_if" title="Permanent link">&para;</a></h3>
 <p>Interface name (e.g. <code>eth0</code>, <code>enp1s0</code>) that the daemon watches for upstream IPv6 prefix changes.<br />
 <strong>Empty (default): auto-detect from the host's default route at daemon start.</strong> Set explicitly to override.<br />
