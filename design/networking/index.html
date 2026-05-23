@@ -1563,7 +1563,7 @@
 </code></pre></div>
 <h3 id="bridge-modes">Bridge Modes<a class="headerlink" href="#bridge-modes" title="Permanent link">&para;</a></h3>
 <p><strong>Bare metal Linux</strong>:
-- Bridge gets a static IP from <code>SANDAL_HOST_NET</code> (default: <code>172.16.0.1/24,fd34:0135:0123::1/64</code>)
+- Bridge gets static + dynamic addresses from <code>SANDAL_HOST_NET</code> (default: <code>172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64</code>). <code>%uv4%</code> resolves to the host's IPv4 as hex hextets at startup; <code>%uv6%</code> resolves to the upstream prefix's high 64 bits on each renumber event.
 - Containers get IPs from the same subnet
 - Host acts as gateway, uses iptables NAT for internet access</p>
 <p><strong>Inside KVM VM</strong> (when sandal itself runs in a VM):

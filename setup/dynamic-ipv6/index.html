@@ -1743,9 +1743,11 @@
 <p>After the daemon comes up:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Bridge has the public /64 from your upstream</span>
 ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>sandal0
-<span class="c1">#  2001:db8:3b0a:4f00::1/64                        ← public, mirrored from eth0</span>
-<span class="c1">#  fd34:135:123::1/64                                ← static ULA (kept as fallback)</span>
+<span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::1/64                ← public, mirrored from eth0</span>
+<span class="c1">#  fd34:135:123:0:c0a8:10f::1/120                   ← static ULA (kept as fallback)</span>
 <span class="c1">#  172.16.0.1/24                                     ← static IPv4</span>
+<span class="c1"># (The :c0a8:10f tail is the host&#39;s IPv4 (192.168.1.15 here) baked into the IID</span>
+<span class="c1">#  by the default SANDAL_HOST_NET template — preserved across upstream renumber.)</span>
 
 <span class="c1"># Daemon log shows what was picked</span>
 journalctl<span class="w"> </span>-u<span class="w"> </span>sandal<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>renumber
@@ -1757,12 +1759,12 @@ journalctl<span class="w"> </span>-u<span class="w"> </span>sandal<span class="w
 <p>After <code>sandal run</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Container&#39;s IPv6</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global
-<span class="c1">#  2001:db8:3b0a:4f00::2/64                        ← public</span>
-<span class="c1">#  fd34:135:123::2/64                                ← ULA (host-local)</span>
+<span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::2/64                ← public (same IID tail as the host)</span>
+<span class="c1">#  fd34:135:123:0:c0a8:10f::2/120                   ← ULA (host-local)</span>
 
 <span class="c1"># Host is announcing it to the LAN</span>
 ip<span class="w"> </span>-6<span class="w"> </span>neigh<span class="w"> </span>show<span class="w"> </span>proxy<span class="w"> </span>dev<span class="w"> </span>eth0
-<span class="c1">#  2001:db8:3b0a:4f00::2 proxy</span>
+<span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::2 proxy</span>
 
 <span class="c1"># Quick reachability test from the container</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ping<span class="w"> </span>-6<span class="w"> </span>-c<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">2606</span>:4700:4700::1111
@@ -1793,7 +1795,7 @@ sandal<span class="w"> </span>daemon
 </code></pre></div>
 <p>The <code>dynamic=false</code> token tells the renumber service to leave this container alone. Other containers on the same bridge keep renumbering normally.</p>
 <h3 id="disable-dynamic-ipv6-entirely">Disable dynamic IPv6 entirely<a class="headerlink" href="#disable-dynamic-ipv6-entirely" title="Permanent link">&para;</a></h3>
-<p>If you want <code>sandal0</code> to keep the static IPv6 from <code>SANDAL_HOST_NET</code> (default <code>fd34:0135:0123::1/64</code>) and never track an upstream:</p>
+<p>If you want <code>sandal0</code> to keep only the static IPv6 from <code>SANDAL_HOST_NET</code> (the static ULA portion of the default, <code>fd34:0135:0123:0:%uv4%::1/120</code>) and never track an upstream:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SANDAL_IPV6_MODE</span><span class="o">=</span>off
 sandal<span class="w"> </span>daemon
 </code></pre></div>
@@ -1839,7 +1841,7 @@ sandal<span class="w"> </span>daemon
 </tr>
 </tbody>
 </table>
-<p>The static ULA (<code>fd34:135:123::/64</code> by default) is always kept as a fallback so containers can talk to each other and to the host even before — or instead of — a public IPv6 is available.</p>
+<p>The static ULA (<code>fd34:135:123::/120</code> by default) is always kept as a fallback so containers can talk to each other and to the host even before — or instead of — a public IPv6 is available.</p>
 <h2 id="verifying-a-prefix-change">Verifying a prefix change<a class="headerlink" href="#verifying-a-prefix-change" title="Permanent link">&para;</a></h2>
 <p>Easiest way to confirm renumber works end-to-end is to inject a test prefix on eth0 and watch the chain react:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Before</span>
