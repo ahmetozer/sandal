@@ -92,7 +92,7 @@ func init() {
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseImmutableImageDir = Get("SANDAL_IMMUTABLEIMAGEDIR", path.Join(RunDir, "immutable"))
 
-		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123::1/120")
+		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123:0:%v4%::1/120")
 
 		UpstreamInterface = Get("SANDAL_UPSTREAM_IF", "")
 		IPv6Mode = Get("SANDAL_IPV6_MODE", "")
@@ -120,7 +120,14 @@ func init() {
 // same public address after renumber.
 func warnIfHostNetIPv6TooBroad(hostNet string) {
 	for _, part := range strings.Split(hostNet, ",") {
-		_, ipnet, err := net.ParseCIDR(strings.TrimSpace(part))
+		trimmed := strings.TrimSpace(part)
+		// Treat the %v4% template token as "0:0" purely for mask validation.
+		// The substitution can't change the CIDR mask, only the IID hextets,
+		// so this is a safe pre-pass that lets the validator run before the
+		// real resolver (which lives in pkg/container/net and would cause an
+		// import cycle if called from here).
+		candidate := strings.ReplaceAll(trimmed, "%v4%", "0:0")
+		_, ipnet, err := net.ParseCIDR(candidate)
 		if err != nil {
 			continue
 		}
@@ -130,7 +137,7 @@ func warnIfHostNetIPv6TooBroad(hostNet string) {
 		ones, _ := ipnet.Mask.Size()
 		if ones < 64 {
 			slog.Warn("SANDAL_HOST_NET: IPv6 mask shorter than /64 may cause public address collisions after renumber",
-				"cidr", strings.TrimSpace(part), "mask", ones)
+				"cidr", trimmed, "mask", ones)
 		}
 	}
 }

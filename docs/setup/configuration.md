@@ -21,7 +21,7 @@ System variable information:
   SANDAL_TEMP_DIR                                               /tmp/sandal/lib/tmp                 /var/lib/sandal/tmp
   SANDAL_ROOTFSDIR                                              /tmp/sandal/run/rootfs              /var/run/sandal/rootfs
   SANDAL_IMMUTABLEIMAGEDIR                                      /tmp/sandal/run/immutable           /var/run/sandal/immutable
-  SANDAL_HOST_NET           172.19.0.1/24,fd34:0135:0127::1/64  172.19.0.1/24,fd34:0135:0127::1/64  172.16.0.1/24,fd34:0135:0123::1/120
+  SANDAL_HOST_NET           172.19.0.1/24,fd34:0135:0127::1/64  172.19.0.1/24,fd34:0135:0127::1/64  172.16.0.1/24,fd34:0135:0123:0:%v4%::1/120
   SANDAL_SOCKET                                                 /tmp/sandal/run/sandal.sock         /var/run/sandal/sandal.sock
   SANDAL_LOG_LEVEL          debug                               debug                               warn
 ```
@@ -78,7 +78,13 @@ Immutable images are require to be mounted to operating system for using at cont
 
 ### SANDAL_HOST_NET
 
-Default host network configuration.
+Default host network configuration. Comma-separated list of CIDRs for the `sandal0` bridge — typically one IPv4 and one IPv6 entry.
+
+The IPv6 portion supports a `%v4%` placeholder that expands at startup to the host's primary IPv4 written as two hex hextets (e.g. `192.168.1.15` → `c0a8:10f`). This embeds the host's IPv4 inside the IPv6 IID so the same identifier survives upstream renumber and shows up in both the ULA and the public-mirrored address. Source IPv4: the first global, non-loopback, non-link-local IPv4 on `SANDAL_UPSTREAM_IF`, falling back to the default-route interface. When no IPv4 is available, `%v4%` expands to `0:0` and a warning is logged.
+
+Default: `172.16.0.1/24,fd34:0135:0123:0:%v4%::1/120` — host with IPv4 `192.168.1.15` resolves to `172.16.0.1/24,fd34:0135:0123:0:c0a8:10f::1/120`.
+
+To disable IPv4 embedding, write your own value without the token, e.g. `SANDAL_HOST_NET="172.16.0.1/24,fd34:0135:0123::1/120"`.
 
 ### SANDAL_UPSTREAM_IF
 

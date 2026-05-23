@@ -194,14 +194,39 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 // pickIIDLocal mirrors cnet.pickIID but works on the package-typed cnet.Addrs
 // (returned by cnet.ToLinks). Kept here because cnet.pickIID is unexported and
 // would require an exported wrapper to reach from this package.
+//
+// Selection order: prefer an existing global IID (so subsequent renumbers
+// keep the same tail), then fall back to the ULA IID (so the first renumber
+// preserves whatever IID structure SANDAL_HOST_NET established — e.g. a
+// %v4%-derived embedding). Returns nil only when no usable address exists.
 func pickIIDLocal(a cnet.Addrs) []byte {
-	g := pickGlobalLocal(a)
-	if g == nil {
-		return nil
+	if g := pickGlobalLocal(a); g != nil {
+		return ipToIID(g.IP)
 	}
-	ip := g.IP.To16()
+	if u := pickULALocal(a); u != nil {
+		return ipToIID(u.IP)
+	}
+	return nil
+}
+
+func pickULALocal(a cnet.Addrs) *cnet.Addr {
+	_, ula, _ := net.ParseCIDR("fc00::/7")
+	for i := range a {
+		ip := a[i].IP
+		if ip.To4() != nil {
+			continue
+		}
+		if ula.Contains(ip) {
+			return &a[i]
+		}
+	}
+	return nil
+}
+
+func ipToIID(ip net.IP) []byte {
+	v6 := ip.To16()
 	iid := make([]byte, 8)
-	copy(iid, ip[8:16])
+	copy(iid, v6[8:16])
 	return iid
 }
 
@@ -242,18 +267,32 @@ func pickLookupAddrLocal(a cnet.Addrs) *cnet.Addr {
 	return nil
 }
 
+// bridgeIID extracts an IID from the bridge's existing addresses. Prefers
+// an existing global address (so subsequent renumbers keep the same tail),
+// then falls back to the ULA so the first renumber preserves whatever IID
+// structure SANDAL_HOST_NET established — e.g. a %v4%-derived embedding.
+// Returns [...::1] only when neither global nor ULA exists.
 func bridgeIID(addrs []netlink.Addr) []byte {
+	var ulaIID []byte
 	for _, a := range addrs {
 		if a.IP.IsLinkLocalUnicast() {
 			continue
 		}
 		if isULA(a.IP) {
+			if ulaIID == nil {
+				ip := a.IP.To16()
+				ulaIID = make([]byte, 8)
+				copy(ulaIID, ip[8:16])
+			}
 			continue
 		}
 		ip := a.IP.To16()
 		iid := make([]byte, 8)
 		copy(iid, ip[8:16])
 		return iid
+	}
+	if ulaIID != nil {
+		return ulaIID
 	}
 	iid := make([]byte, 8)
 	iid[7] = 1

@@ -51,7 +51,7 @@ func CreateDefaultBridge() (netlink.Link, error) {
 	// is dormant (e.g. upstream RA hasn't arrived yet, or upstream has no
 	// global IPv6). The renumber service's renumberBridge() ADDS its
 	// dynamic global prefix on top of the ULA — both coexist.
-	addrs, err := stringToAddrs(env.DefaultHostNet)
+	addrs, err := stringToAddrs(ResolveHostNet(env.DefaultHostNet))
 	if err != nil {
 		return nil, err
 	}
