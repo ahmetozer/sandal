@@ -117,7 +117,7 @@ The `dynamic=false` token tells the renumber service to leave this container alo
 
 ### Disable dynamic IPv6 entirely
 
-If you want `sandal0` to keep the static IPv6 from `SANDAL_HOST_NET` (default `fd34:0135:0123:0:%v4%::1/120` — `%v4%` expands to the host IPv4 as hex hextets) and never track an upstream:
+If you want `sandal0` to keep only the static IPv6 from `SANDAL_HOST_NET` (the static ULA portion of the default, `fd34:0135:0123:0:%uv4%::1/120`) and never track an upstream:
 
 ```bash
 export SANDAL_IPV6_MODE=off

@@ -334,7 +334,7 @@ func ListContainers() ([]config.Config, error) {
 | `SANDAL_IMAGE_DIR` | `$SANDAL_LIB_DIR/images` | Cached OCI images |
 | `SANDAL_ROOTFSDIR` | `$SANDAL_LIB_DIR/rootfs` | Container root filesystems |
 | `SANDAL_CHANGE_DIR` | `$SANDAL_LIB_DIR/changes` | Overlay upper directories |
-| `SANDAL_HOST_NET` | `172.16.0.1/24,fd34:0135:0123:0:%v4%::1/120` | Default bridge subnet (`%v4%` expands to host IPv4 as hex hextets) |
+| `SANDAL_HOST_NET` | `172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64` | Default bridge subnet. `%uv4%` expands to host IPv4 as hex hextets (one-shot). `%uv6%` expands to the upstream prefix's high 64 bits (re-resolved on each prefix event). |
 | `SANDAL_LOG_LEVEL` | `warn` | Logging level |
 | `SANDAL_DAEMON_SOCKET` | `$SANDAL_RUN_DIR/sandal.sock` | Daemon Unix socket path |
 

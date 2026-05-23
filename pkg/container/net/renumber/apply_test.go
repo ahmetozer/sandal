@@ -95,7 +95,7 @@ func TestPickIIDLocal(t *testing.T) {
 // TestPickIIDLocalFallsBackToULA: when a container is in gap state (created
 // before upstream IPv6 arrived), it has only a ULA + link-local. The renumber
 // path must extract the ULA's IID so the next-prefix stamp preserves the IID
-// structure SANDAL_HOST_NET established (notably the %v4% IPv4 embedding).
+// structure SANDAL_HOST_NET established (notably the %uv4% IPv4 embedding).
 func TestPickIIDLocalFallsBackToULA(t *testing.T) {
 	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
 	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), Mask: net.CIDRMask(120, 128)}}

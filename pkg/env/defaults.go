@@ -92,7 +92,7 @@ func init() {
 		BaseRootfsDir = Get("SANDAL_ROOTFSDIR", path.Join(RunDir, "rootfs"))
 		BaseImmutableImageDir = Get("SANDAL_IMMUTABLEIMAGEDIR", path.Join(RunDir, "immutable"))
 
-		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123:0:%v4%::1/120")
+		DefaultHostNet = Get("SANDAL_HOST_NET", "172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64")
 
 		UpstreamInterface = Get("SANDAL_UPSTREAM_IF", "")
 		IPv6Mode = Get("SANDAL_IPV6_MODE", "")
@@ -119,14 +119,14 @@ func init() {
 // broader-than-/64 ULA lets the allocator pick addresses that collapse to the
 // same public address after renumber.
 func warnIfHostNetIPv6TooBroad(hostNet string) {
+	// Treat template tokens as zero hextets purely for mask validation.
+	// Neither substitution can change the CIDR mask — only IID/prefix
+	// hextets — so this lets the validator run on raw templates without
+	// importing pkg/container/net (which would cause a cycle).
+	tokenSub := strings.NewReplacer("%uv4%", "0:0", "%uv6%", "0:0:0:0")
 	for _, part := range strings.Split(hostNet, ",") {
 		trimmed := strings.TrimSpace(part)
-		// Treat the %v4% template token as "0:0" purely for mask validation.
-		// The substitution can't change the CIDR mask, only the IID hextets,
-		// so this is a safe pre-pass that lets the validator run before the
-		// real resolver (which lives in pkg/container/net and would cause an
-		// import cycle if called from here).
-		candidate := strings.ReplaceAll(trimmed, "%v4%", "0:0")
+		candidate := tokenSub.Replace(trimmed)
 		_, ipnet, err := net.ParseCIDR(candidate)
 		if err != nil {
 			continue
