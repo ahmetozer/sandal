@@ -41,7 +41,7 @@ func CreateDefaultBridge() error {
 ### Bridge Modes
 
 **Bare metal Linux**:
-- Bridge gets a static IP from `SANDAL_HOST_NET` (default: `172.16.0.1/24,fd34:0135:0123::1/64`)
+- Bridge gets static + dynamic addresses from `SANDAL_HOST_NET` (default: `172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64`). `%uv4%` resolves to the host's IPv4 as hex hextets at startup; `%uv6%` resolves to the upstream prefix's high 64 bits on each renumber event.
 - Containers get IPs from the same subnet
 - Host acts as gateway, uses iptables NAT for internet access
 

@@ -4,6 +4,7 @@ package net
 
 import (
 	"os"
+	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
@@ -45,13 +46,12 @@ func CreateDefaultBridge() (netlink.Link, error) {
 		return nil, err
 	}
 
-	// Bare Linux: assign static IPs from SANDAL_HOST_NET. The full set
-	// (IPv4 + ULA IPv6) is always applied so the bridge has a usable
-	// fallback when dynamic IPv6 is configured but the renumber service
-	// is dormant (e.g. upstream RA hasn't arrived yet, or upstream has no
-	// global IPv6). The renumber service's renumberBridge() ADDS its
-	// dynamic global prefix on top of the ULA — both coexist.
-	addrs, err := stringToAddrs(env.DefaultHostNet)
+	// Bare Linux: assign static IPs from SANDAL_HOST_NET. Only static
+	// entries (no %uv6% token) are applied here — dynamic entries owe
+	// their values to the live upstream prefix and are reconciled by the
+	// renumber service on each prefix event.
+	static, _ := SplitHostNet(env.DefaultHostNet)
+	addrs, err := stringToAddrs(strings.Join(static, ","))
 	if err != nil {
 		return nil, err
 	}

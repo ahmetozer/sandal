@@ -21,7 +21,7 @@ System variable information:
   SANDAL_TEMP_DIR                                               /tmp/sandal/lib/tmp                 /var/lib/sandal/tmp
   SANDAL_ROOTFSDIR                                              /tmp/sandal/run/rootfs              /var/run/sandal/rootfs
   SANDAL_IMMUTABLEIMAGEDIR                                      /tmp/sandal/run/immutable           /var/run/sandal/immutable
-  SANDAL_HOST_NET           172.19.0.1/24,fd34:0135:0127::1/64  172.19.0.1/24,fd34:0135:0127::1/64  172.16.0.1/24,fd34:0135:0123::1/64
+  SANDAL_HOST_NET           172.19.0.1/24,fd34:0135:0127::1/64  172.19.0.1/24,fd34:0135:0127::1/64  172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64
   SANDAL_SOCKET                                                 /tmp/sandal/run/sandal.sock         /var/run/sandal/sandal.sock
   SANDAL_LOG_LEVEL          debug                               debug                               warn
 ```
@@ -78,7 +78,26 @@ Immutable images are require to be mounted to operating system for using at cont
 
 ### SANDAL_HOST_NET
 
-Default host network configuration.
+Default host network configuration. Comma-separated list of CIDRs for the `sandal0` bridge — typically one IPv4 entry, one ULA IPv6 entry, and one public-prefix template.
+
+Two template placeholders are supported, both prefixed `u` for "upstream-derived":
+
+- **`%uv4%`** — upstream interface's IPv4 written as two zero-suppressed hex hextets (e.g. `192.168.1.15` → `c0a8:10f`). Resolved **once at startup** from the first global IPv4 on `SANDAL_UPSTREAM_IF`, falling back to the default-route interface. Substitutes `0:0` + warning when no IPv4 is available.
+- **`%uv6%`** — upstream IPv6 prefix's first four hextets, no trailing colon (e.g. `2a00:1d35:3b0a:4f00::/64` → `2a00:1d35:3b0a:4f00`). **Re-resolved on every upstream prefix event** by the renumber service. Entries containing `%uv6%` are "dynamic" — they are not applied at bridge create but are reconciled by the renumber service against the live prefix.
+
+Default: `172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64`
+
+With host IPv4 `192.168.1.15` and ISP prefix `2a00:1d35:3b0a:4f00::/64` this resolves to:
+
+```
+172.16.0.1/24                              (static IPv4)
+fd34:0135:0123:0:c0a8:10f::1/120           (static ULA, IPv4 in IID)
+2a00:1d35:3b0a:4f00:c0a8:10f::1/64         (dynamic — public, IPv4 in IID)
+```
+
+The dynamic entry is **owned by the template**: the renumber service applies it verbatim. If you write your own SANDAL_HOST_NET without `%uv6%`, the renumber service falls back to the historical `bridgeIID` + `withIID` stamp instead.
+
+To disable both embeddings, write a value with no tokens: `SANDAL_HOST_NET="172.16.0.1/24,fd34:0135:0123::1/120"`.
 
 ### SANDAL_UPSTREAM_IF
 

@@ -92,11 +92,86 @@ func TestPickIIDLocal(t *testing.T) {
 	}
 }
 
-func TestPickIIDLocalReturnsNilWhenNoGlobal(t *testing.T) {
+// TestPickIIDLocalFallsBackToULA: when a container is in gap state (created
+// before upstream IPv6 arrived), it has only a ULA + link-local. The renumber
+// path must extract the ULA's IID so the next-prefix stamp preserves the IID
+// structure SANDAL_HOST_NET established (notably the %uv4% IPv4 embedding).
+func TestPickIIDLocalFallsBackToULA(t *testing.T) {
 	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	ula := cnet.Addr{IP: net.ParseIP("fd00::1"), IPNet: &net.IPNet{IP: net.ParseIP("fd00::1"), Mask: net.CIDRMask(64, 128)}}
-	if got := pickIIDLocal(cnet.Addrs{ll, ula}); got != nil {
-		t.Errorf("pickIIDLocal: expected nil when no global, got %x", got)
+	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), Mask: net.CIDRMask(120, 128)}}
+	got := pickIIDLocal(cnet.Addrs{ll, ula})
+	want := []byte{0xac, 0x10, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02}
+	if !bytes.Equal(got, want) {
+		t.Errorf("pickIIDLocal ULA fallback: got %x, want %x", got, want)
+	}
+}
+
+// TestPickIIDLocalPrefersGlobalOverULA: once a global exists, it takes
+// precedence — the global address's IID is the long-lived identifier and
+// MUST stay stable across subsequent renumbers.
+func TestPickIIDLocalPrefersGlobalOverULA(t *testing.T) {
+	global := cnet.Addr{IP: net.ParseIP("2001:db8::42"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8::42"), Mask: net.CIDRMask(64, 128)}}
+	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), Mask: net.CIDRMask(120, 128)}}
+	got := pickIIDLocal(cnet.Addrs{ula, global})
+	want := []byte{0, 0, 0, 0, 0, 0, 0, 0x42}
+	if !bytes.Equal(got, want) {
+		t.Errorf("pickIIDLocal must prefer global over ULA: got %x, want %x", got, want)
+	}
+}
+
+func TestPickIIDLocalReturnsNilWhenOnlyLinkLocalOrIPv4(t *testing.T) {
+	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
+	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.5"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.5"), Mask: net.CIDRMask(24, 32)}}
+	if got := pickIIDLocal(cnet.Addrs{ll, v4}); got != nil {
+		t.Errorf("pickIIDLocal: expected nil when only LL/IPv4 present, got %x", got)
+	}
+}
+
+// TestBridgeIIDFallsBackToULA mirrors the pickIIDLocal test but for the
+// bridge code path that runs on real netlink.Addr.
+func TestBridgeIIDFallsBackToULA(t *testing.T) {
+	mustParse := func(s string) netlink.Addr {
+		ip, ipnet, err := net.ParseCIDR(s)
+		if err != nil {
+			t.Fatalf("parse %q: %v", s, err)
+		}
+		return netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
+	}
+	addrs := []netlink.Addr{
+		mustParse("fe80::1/64"),
+		mustParse("fd34:135:123:0:ac10:3::1/120"),
+	}
+	got := bridgeIID(addrs)
+	want := []byte{0xac, 0x10, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01}
+	if !bytes.Equal(got, want) {
+		t.Errorf("bridgeIID ULA fallback: got %x, want %x", got, want)
+	}
+}
+
+func TestBridgeIIDPrefersGlobalOverULA(t *testing.T) {
+	mustParse := func(s string) netlink.Addr {
+		ip, ipnet, err := net.ParseCIDR(s)
+		if err != nil {
+			t.Fatalf("parse %q: %v", s, err)
+		}
+		return netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
+	}
+	addrs := []netlink.Addr{
+		mustParse("fd34:135:123:0:ac10:3::1/120"),
+		mustParse("2001:db8::99/64"),
+	}
+	got := bridgeIID(addrs)
+	want := []byte{0, 0, 0, 0, 0, 0, 0, 0x99}
+	if !bytes.Equal(got, want) {
+		t.Errorf("bridgeIID must prefer global: got %x, want %x", got, want)
+	}
+}
+
+func TestBridgeIIDDefaultWhenEmpty(t *testing.T) {
+	got := bridgeIID(nil)
+	want := []byte{0, 0, 0, 0, 0, 0, 0, 1}
+	if !bytes.Equal(got, want) {
+		t.Errorf("bridgeIID empty fallback: got %x, want %x", got, want)
 	}
 }
 

@@ -99,6 +99,24 @@ func (c Config) Json() []byte {
 	return buf.Bytes()
 }
 
+// Clone returns a deep copy of c. All reference-typed fields (the NS map,
+// Capabilities' StringFlags slices, Volumes/Lower/Run*/PassEnv, HostArgs,
+// ContArgs, ImmutableImages, Net, Ports) are duplicated so mutating the
+// clone never affects the original. Implementation round-trips through
+// JSON: the same encoding controller.LoadFile and net.ToLinks already
+// rely on, so type behavior of Net (an `any`) matches the disk path.
+func (c *Config) Clone() *Config {
+	data, err := json.Marshal(c)
+	if err != nil {
+		panic(err)
+	}
+	var out Config
+	if err := json.Unmarshal(data, &out); err != nil {
+		panic(err)
+	}
+	return &out
+}
+
 type DefaultInformation struct {
 	ChangeDir string
 	RootFsDir string

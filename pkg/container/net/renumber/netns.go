@@ -13,9 +13,19 @@ import (
 )
 
 // SwapContainerAddrByOldIP enters the container's netns and finds the link
-// that currently carries `oldIP`. If found, it removes that address and adds
-// `newAddr`. This is robust to interface renames because the address itself
-// is the identifier.
+// that currently carries `oldIP`, then adds `newAddr`. The anchor (`oldIP`)
+// is used purely to locate the right interface; whether it is deleted
+// afterwards depends on its scope:
+//
+//   - If `oldIP` is a global IPv6 (i.e. the normal renumber case where a
+//     previous global is being replaced), it is deleted before `newAddr`
+//     is added — the bridge can hold only one global per prefix at a time.
+//   - If `oldIP` is a ULA (the gap-state case where the container only
+//     has its SANDAL_HOST_NET ULA), it is KEPT alongside `newAddr` so the
+//     container retains intra-bridge connectivity after the renumber. This
+//     mirrors how the bridge itself coexists ULA + public.
+//
+// Link-local addresses are never touched.
 //
 // If `oldIP` is nil, the function falls back to looking up by `ifaceName`
 // (caller-supplied) for backward compatibility / first-time use cases.
@@ -94,6 +104,13 @@ func SwapContainerAddrByOldIP(contPid int, ifaceName string, oldIP net.IP, newAd
 	}
 	for _, a := range addrs {
 		if a.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		// Keep ULAs on the container — they are the SANDAL_HOST_NET
+		// fallback used for intra-bridge connectivity and are not in
+		// scope for prefix-level renumber. The bridge itself coexists
+		// ULA + public via the same rule; containers should too.
+		if isULA(a.IP) {
 			continue
 		}
 		if oldIP != nil && !a.IP.Equal(oldIP) {

@@ -46,25 +46,34 @@ func setContainerByServer(c *config.Config) error {
 func setContainerByMemory(c *config.Config) error {
 	slog.Debug("setContainerByMemory", slog.Any("container", c.Name))
 
+	containerListMu.Lock()
+	defer containerListMu.Unlock()
+
+	// Deep-copy on the way in. The clone becomes the controller's sole
+	// reference to this Config; the caller keeps their original `c`.
+	// Combined with clone-on-read in containersFromMemory/GetContainer,
+	// no external goroutine ever holds a pointer to the live in-memory
+	// entry, so JSON encoders elsewhere can iterate map fields without
+	// racing concurrent mutators.
+	clone := c.Clone()
+	cJSON := c.Json()
+
+	// Only write to disk when content actually differs from what's
+	// already there. This breaks the inotify feedback loop where the
+	// disk-events handler reloaded the file and would re-write it
+	// verbatim. A missing file (ReadFile error) reads as nil bytes and
+	// reliably triggers the write.
+	if diskBytes, _ := os.ReadFile(c.ConfigFileLoc()); !bytes.Equal(diskBytes, cJSON) {
+		setContainerByDisk(c)
+	}
+
 	for i := range containerList {
-		if containerList[i].Name == c.Name {
-			// When callers obtained c via GetContainer, c and
-			// containerList[i] are the SAME pointer; comparing JSON
-			// would always show "unchanged" even though the caller just
-			// mutated fields like ContPid. Force a disk write in that
-			// case so on-disk state never lags behind in-memory state.
-			if containerList[i] == c {
-				setContainerByDisk(c)
-			} else if !bytes.Equal(containerList[i].Json(), c.Json()) {
-				setContainerByDisk(c)
-			}
-			containerList[i] = c
+		if containerList[i].Name == clone.Name {
+			containerList[i] = clone
 			return nil
 		}
 	}
-	containerList = append(containerList, c)
-	setContainerByDisk(c)
-
+	containerList = append(containerList, clone)
 	return nil
 }
 

@@ -144,7 +144,7 @@ func (s *RASource) poll() *net.IPNet {
 			continue
 		}
 		var validUntil time.Time
-		if a.ValidLft > 0 && a.ValidLft != 0xffffffff {
+		if a.ValidLft > 0 && uint32(a.ValidLft) != 0xffffffff {
 			validUntil = now.Add(time.Duration(a.ValidLft) * time.Second)
 		} else {
 			validUntil = now.Add(24 * time.Hour) // treat permanent as far future

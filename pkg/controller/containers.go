@@ -9,14 +9,16 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
 var (
-	Containers    func() ([]*config.Config, error)
-	containerList []*config.Config
+	Containers      func() ([]*config.Config, error)
+	containerList   []*config.Config
+	containerListMu sync.RWMutex
 )
 
 func init() {
@@ -29,7 +31,10 @@ func containersInit() ([]*config.Config, error) {
 		Containers = containersFromMemory
 		currentConrollerType = ControllerTypeMemory
 		// firstly load by disk
-		containerList, _ = containersFromDir()
+		initial, _ := containersFromDir()
+		containerListMu.Lock()
+		containerList = initial
+		containerListMu.Unlock()
 		return Containers()
 	}
 
@@ -47,8 +52,20 @@ func containersInit() ([]*config.Config, error) {
 
 }
 
+// containersFromMemory returns a snapshot of the in-memory container list.
+// Each returned Config is a deep clone of the live entry — the controller
+// retains sole ownership of the pointers it stores in containerList, so
+// callers can read or mutate the returned Configs freely without racing
+// concurrent daemon goroutines that hold or update other clones. Mutations
+// must be persisted via SetContainer to become visible to other readers.
 func containersFromMemory() ([]*config.Config, error) {
-	return containerList, nil
+	containerListMu.RLock()
+	defer containerListMu.RUnlock()
+	out := make([]*config.Config, len(containerList))
+	for i, c := range containerList {
+		out[i] = c.Clone()
+	}
+	return out, nil
 }
 
 func containersFromServer() ([]*config.Config, error) {

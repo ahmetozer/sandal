@@ -12,6 +12,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	cnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
 )
 
@@ -83,7 +84,96 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 	return nil
 }
 
+// renumberBridge picks between two paths based on whether SANDAL_HOST_NET
+// declares any dynamic (%uv6%-bearing) entries:
+//
+//  1. Dynamic entries present → reconcile the bridge against the resolved
+//     templates. The user's template fully owns the address (prefix + IID);
+//     bridgeIID/withIID is bypassed.
+//  2. No dynamic entries → fall back to the historical bridgeIID + withIID
+//     stamp. This preserves backward compatibility for hand-crafted
+//     SANDAL_HOST_NET values and exercises the ULA-IID fallback added in
+//     the prior spec.
 func (a *DefaultApplier) renumberBridge(prefix *net.IPNet) (*net.IPNet, error) {
+	_, dynamic := cnet.SplitHostNet(env.DefaultHostNet)
+	if len(dynamic) > 0 {
+		return a.reconcileDynamicEntries(prefix, dynamic)
+	}
+	return a.renumberBridgeFallback(prefix)
+}
+
+// reconcileDynamicEntries resolves each %uv6%-bearing template against the
+// current upstream prefix and converges sandal0's global address set to
+// exactly those resolved values.
+func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []string) (*net.IPNet, error) {
+	link, err := netlink.LinkByName(a.BridgeName)
+	if err != nil {
+		return nil, fmt.Errorf("link %q: %w", a.BridgeName, err)
+	}
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_V6)
+	if err != nil {
+		return nil, fmt.Errorf("addr list: %w", err)
+	}
+
+	type want struct {
+		ip   net.IP
+		mask net.IPMask
+	}
+	wanted := make(map[string]want, len(templates))
+	var primary *net.IPNet
+	for _, tpl := range templates {
+		resolved := cnet.ResolveDynamic(tpl, prefix)
+		ip, ipnet, perr := net.ParseCIDR(resolved)
+		if perr != nil {
+			slog.Warn("renumber: dynamic entry parse failed", "template", tpl, "resolved", resolved, "err", perr)
+			continue
+		}
+		key := (&net.IPNet{IP: ip, Mask: ipnet.Mask}).String()
+		wanted[key] = want{ip: ip, mask: ipnet.Mask}
+		if primary == nil {
+			primary = &net.IPNet{IP: ip, Mask: ipnet.Mask}
+		}
+	}
+
+	// Drop bridge globals that are not in the wanted set; keep LL and ULA
+	// (static entries) untouched.
+	for _, existing := range addrs {
+		if existing.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		if isULA(existing.IP) {
+			continue
+		}
+		key := (&net.IPNet{IP: existing.IP, Mask: existing.IPNet.Mask}).String()
+		if _, keep := wanted[key]; keep {
+			continue
+		}
+		if err := netlink.AddrDel(link, &existing); err != nil {
+			slog.Warn("bridge: addr del failed", "addr", existing, "err", err)
+		}
+	}
+
+	// Add wanted entries that aren't already on the link.
+	have := make(map[string]bool, len(addrs))
+	for _, existing := range addrs {
+		have[(&net.IPNet{IP: existing.IP, Mask: existing.IPNet.Mask}).String()] = true
+	}
+	for key, w := range wanted {
+		if have[key] {
+			continue
+		}
+		add := &netlink.Addr{IPNet: &net.IPNet{IP: w.ip, Mask: w.mask}}
+		if err := netlink.AddrAdd(link, add); err != nil && !strings.Contains(err.Error(), "exists") {
+			return nil, fmt.Errorf("addr add %s: %w", add.IPNet, err)
+		}
+	}
+
+	return primary, nil
+}
+
+// renumberBridgeFallback is the historical bridgeIID/withIID path. Used when
+// SANDAL_HOST_NET has no dynamic entries.
+func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) (*net.IPNet, error) {
 	link, err := netlink.LinkByName(a.BridgeName)
 	if err != nil {
 		return nil, fmt.Errorf("link %q: %w", a.BridgeName, err)
@@ -194,14 +284,39 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 // pickIIDLocal mirrors cnet.pickIID but works on the package-typed cnet.Addrs
 // (returned by cnet.ToLinks). Kept here because cnet.pickIID is unexported and
 // would require an exported wrapper to reach from this package.
+//
+// Selection order: prefer an existing global IID (so subsequent renumbers
+// keep the same tail), then fall back to the ULA IID (so the first renumber
+// preserves whatever IID structure SANDAL_HOST_NET established — e.g. a
+// %uv4%-derived embedding). Returns nil only when no usable address exists.
 func pickIIDLocal(a cnet.Addrs) []byte {
-	g := pickGlobalLocal(a)
-	if g == nil {
-		return nil
+	if g := pickGlobalLocal(a); g != nil {
+		return ipToIID(g.IP)
 	}
-	ip := g.IP.To16()
+	if u := pickULALocal(a); u != nil {
+		return ipToIID(u.IP)
+	}
+	return nil
+}
+
+func pickULALocal(a cnet.Addrs) *cnet.Addr {
+	_, ula, _ := net.ParseCIDR("fc00::/7")
+	for i := range a {
+		ip := a[i].IP
+		if ip.To4() != nil {
+			continue
+		}
+		if ula.Contains(ip) {
+			return &a[i]
+		}
+	}
+	return nil
+}
+
+func ipToIID(ip net.IP) []byte {
+	v6 := ip.To16()
 	iid := make([]byte, 8)
-	copy(iid, ip[8:16])
+	copy(iid, v6[8:16])
 	return iid
 }
 
@@ -242,18 +357,32 @@ func pickLookupAddrLocal(a cnet.Addrs) *cnet.Addr {
 	return nil
 }
 
+// bridgeIID extracts an IID from the bridge's existing addresses. Prefers
+// an existing global address (so subsequent renumbers keep the same tail),
+// then falls back to the ULA so the first renumber preserves whatever IID
+// structure SANDAL_HOST_NET established — e.g. a %uv4%-derived embedding.
+// Returns [...::1] only when neither global nor ULA exists.
 func bridgeIID(addrs []netlink.Addr) []byte {
+	var ulaIID []byte
 	for _, a := range addrs {
 		if a.IP.IsLinkLocalUnicast() {
 			continue
 		}
 		if isULA(a.IP) {
+			if ulaIID == nil {
+				ip := a.IP.To16()
+				ulaIID = make([]byte, 8)
+				copy(ulaIID, ip[8:16])
+			}
 			continue
 		}
 		ip := a.IP.To16()
 		iid := make([]byte, 8)
 		copy(iid, ip[8:16])
 		return iid
+	}
+	if ulaIID != nil {
+		return ulaIID
 	}
 	iid := make([]byte, 8)
 	iid[7] = 1
