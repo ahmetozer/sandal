@@ -32,42 +32,39 @@ func Kill(c *config.Config, signal int, second int) error {
 		}
 		return nil
 	}
-	ch := make(chan bool, 1)
-	kill := make(chan bool)
+	pid := c.ContPid
 
-	go func(killed chan<- bool) {
-		// SendSig(c.HostPid, 9)
-		crt.SendSig(c.ContPid, signal)
-		for {
-			b, _ := crt.IsPidRunning(c.ContPid)
-			if !b {
-				killed <- true
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-	}(kill)
+	// Deliver the signal once.
+	crt.SendSig(pid, signal)
 
-	if second >= 0 {
-		select {
-		case ret := <-kill:
-			ch <- ret
-		case <-time.After(time.Duration(second) * time.Second):
-			ch <- false
-		}
-	} else {
-		// Wait until exits
-		ch <- <-kill
+	// second == 0: fire-and-forget. Deliver the signal and return without
+	// waiting or tearing down state. The signal proxy, zombie reaper, and
+	// recovery's last-resort SIGKILL all pass 0 and poll for exit themselves;
+	// they must not block here and must not trigger cleanup on a process that
+	// may still be alive.
+	if second == 0 {
+		return nil
 	}
 
-	stat := <-ch
-
-	if !stat {
-		if second >= 0 {
-			return fmt.Errorf("unable to kill container pid %d in %d second", c.ContPid, second)
+	// Wait for the process to actually exit. second < 0 waits indefinitely;
+	// second > 0 polls until the deadline. There is no background goroutine,
+	// so nothing can leak; reading /proc never blocks (even for D-state pids),
+	// so the caller is blocked for at most `second`.
+	deadline := time.Now().Add(time.Duration(second) * time.Second)
+	exited := false
+	for {
+		if alive, _ := crt.IsPidRunning(pid); !alive {
+			exited = true
+			break
 		}
-		return fmt.Errorf("unable to kill container pid: %d", c.ContPid)
+		if second > 0 && !time.Now().Before(deadline) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
+	if !exited {
+		return fmt.Errorf("unable to kill container pid %d in %d second", pid, second)
 	}
 
 	c.Status = "killed"
