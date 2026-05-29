@@ -95,6 +95,13 @@ var recovering sync.Map // map[string]time.Time
 // mount) never runs its deferred release, so without a deadline a single
 // hang would stop the container from ever recovering again. Past the
 // deadline the claim is treated as stale and a fresh attempt is allowed.
+//
+// 90s assumes a recovery completes quickly, which holds for local-image
+// (-lw squashfs/disk) containers. A container whose -lw is a registry ref
+// can pull for up to the image-pull timeout (10m, see resolveLowerSource in
+// pkg/container/host/rootfs.go); such a recovery may cross this deadline and
+// get a second attempt stacked on it. Raise this above the pull timeout if
+// registry-backed startup containers are used.
 const maxRecoveryDuration = 90 * time.Second
 
 // dispatchRecovery starts contRecover for cont unless a recovery is already
@@ -108,7 +115,7 @@ func dispatchRecovery(cont *config.Config) {
 			slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery in flight, skipping"))
 			return
 		}
-		slog.Error("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery exceeded deadline, forcing retry"), slog.String("age", now.Sub(v.(time.Time)).String()))
+		slog.Warn("daemon", slog.String("cont", cont.Name), slog.String("msg", "previous recovery exceeded deadline (likely wedged in a mount/network syscall); forcing a fresh attempt"), slog.String("age", now.Sub(v.(time.Time)).String()), slog.String("deadline", maxRecoveryDuration.String()))
 	}
 	token := now
 	recovering.Store(cont.Name, token)

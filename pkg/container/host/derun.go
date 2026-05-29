@@ -13,6 +13,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 	"github.com/vishvananda/netlink"
@@ -69,8 +70,44 @@ func CleanupResources(c *config.Config) {
 // container would tear down that live container's rootfs — the backing-file
 // check prevents that.
 func reclaimStaleImmutableMounts(c *config.Config) {
-	prev, err := controller.GetContainer(c.Name)
-	if err != nil || prev == nil {
+	conts, err := controller.Containers()
+	if err != nil {
+		return
+	}
+
+	// busyLoops holds loop numbers currently claimed by *other* live
+	// containers. The immutable mount dir is keyed by loop number, so a loop
+	// that a running sibling re-acquired (e.g. two containers sharing a base
+	// image that landed on the same loop number) must never be reclaimed
+	// here — unmounting it would pull the rootfs lowerdir out from under that
+	// sibling. The backing-file check can't catch this on its own because the
+	// sibling may legitimately back the *same* file.
+	var prev *config.Config
+	busyLoops := map[int]struct{}{}
+	for _, c2 := range conts {
+		if c2 == nil {
+			continue
+		}
+		if c2.Name == c.Name {
+			prev = c2
+			continue
+		}
+		pid := c2.ContPid
+		if c2.VM != "" {
+			pid = c2.HostPid
+		}
+		if pid == 0 {
+			continue
+		}
+		if alive, _ := crt.IsPidRunning(pid); !alive {
+			continue
+		}
+		for j := range c2.ImmutableImages {
+			busyLoops[c2.ImmutableImages[j].LoopConfig.No] = struct{}{}
+		}
+	}
+
+	if prev == nil {
 		return
 	}
 
@@ -79,8 +116,12 @@ func reclaimStaleImmutableMounts(c *config.Config) {
 		if c.ImmutableImages.Contains(sq) {
 			continue // current run owns this image; normal cleanup handles it
 		}
+		if _, busy := busyLoops[sq.LoopConfig.No]; busy {
+			slog.Debug("reclaimStaleImmutableMounts", slog.String("cont", c.Name), slog.Int("loop", sq.LoopConfig.No), slog.String("msg", "loop held by live sibling, skipping"))
+			continue
+		}
 		if loopdev.BackingFile(sq.LoopConfig.No) != filepath.Clean(sq.File) {
-			continue // loop detached or reused by another container — leave it
+			continue // loop detached or reused by another file — leave it
 		}
 		if err := diskimage.Umount(&sq); err != nil {
 			slog.Debug("reclaimStaleImmutableMounts", slog.String("cont", c.Name), slog.String("file", sq.File), slog.Int("loop", sq.LoopConfig.No), slog.Any("error", err))
