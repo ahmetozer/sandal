@@ -55,7 +55,7 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 					// will install a fresh session.
 					host.Forwards.Stop(cont.Name)
 					if cont.Startup {
-						go contRecover(cont)
+						dispatchRecovery(cont)
 					} else {
 						slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovering bypassed"))
 					}
@@ -81,6 +81,43 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 		}
 	}
 
+}
+
+// recovering tracks containers with an in-flight contRecover, keyed by
+// name with the time the recovery was claimed. It serializes recovery per
+// container: without it the 3-second health-check tick stacks concurrent
+// restarts when a recovery outlasts one tick, and each host.Run grabs a
+// fresh loop device, leaking the previous run's immutable mount.
+var recovering sync.Map // map[string]time.Time
+
+// maxRecoveryDuration bounds how long an in-flight claim is honored. A
+// goroutine wedged in an uninterruptible syscall (e.g. a stalled squashfs
+// mount) never runs its deferred release, so without a deadline a single
+// hang would stop the container from ever recovering again. Past the
+// deadline the claim is treated as stale and a fresh attempt is allowed.
+const maxRecoveryDuration = 90 * time.Second
+
+// dispatchRecovery starts contRecover for cont unless a recovery is already
+// in flight and still within maxRecoveryDuration. Only the (single-threaded)
+// health-check loop calls this, so the Load/Store pair needs no extra
+// locking; recovery goroutines only ever CompareAndDelete their own claim.
+func dispatchRecovery(cont *config.Config) {
+	now := time.Now()
+	if v, busy := recovering.Load(cont.Name); busy {
+		if now.Sub(v.(time.Time)) < maxRecoveryDuration {
+			slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery in flight, skipping"))
+			return
+		}
+		slog.Error("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery exceeded deadline, forcing retry"), slog.String("age", now.Sub(v.(time.Time)).String()))
+	}
+	token := now
+	recovering.Store(cont.Name, token)
+	go func() {
+		// CompareAndDelete (not Delete) so a zombie goroutine that finally
+		// unblocks after the deadline can't clear a newer recovery's claim.
+		defer recovering.CompareAndDelete(cont.Name, token)
+		contRecover(cont)
+	}()
 }
 
 func contRecover(cont *config.Config) {

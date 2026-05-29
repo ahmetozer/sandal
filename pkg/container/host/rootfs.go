@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
@@ -75,7 +76,11 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 			progressCh := make(chan progress.Event, 16)
 			renderDone := progress.StartRenderer(progressCh, os.Stderr)
 
-			sqfsPath, pullErr := containerimage.Pull(context.Background(), fullSource, env.BaseImageDir, progressCh)
+			// Bound the pull so a stalled registry can't wedge a recovery
+			// goroutine forever (see daemon health-check recovery guard).
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			sqfsPath, pullErr := containerimage.Pull(ctx, fullSource, env.BaseImageDir, progressCh)
+			cancel()
 			close(progressCh)
 			<-renderDone
 
