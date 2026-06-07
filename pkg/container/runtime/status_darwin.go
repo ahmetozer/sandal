@@ -22,3 +22,9 @@ func isPidAlive(pid int) (bool, error) {
 	}
 	return true, nil
 }
+
+// processStartTime has no portable equivalent on macOS; return 0 so identity
+// checks degrade to liveness-only. The daemon container lifecycle is Linux-only.
+func processStartTime(pid int) (uint64, error) {
+	return 0, nil
+}
