@@ -23,6 +23,16 @@ type Config struct {
 	Created int64
 	HostPid int
 	ContPid int
+
+	// HostPidStart / ContPidStart are the kernel start-times
+	// (/proc/<pid>/stat field 22) of HostPid / ContPid, captured right after
+	// the process is spawned. Paired with the pid they form an identity that
+	// survives a daemon restart and defeats PID reuse: a recycled pid has a
+	// different start-time, so liveness/kill checks won't act on an unrelated
+	// process. 0 means "unknown" — checks degrade to plain liveness.
+	HostPidStart uint64
+	ContPidStart uint64
+
 	TmpSize       uint
 	ChangeDirSize string // Change dir disk image size (e.g. "128m", "1g", default "128m")
 	ChangeDirType string // "auto", "folder", "image"
@@ -81,6 +91,18 @@ var (
 	TypeInt    int
 	TypeUint   uint
 )
+
+// MonitorPidIdentity returns the pid to watch for liveness and its expected
+// start-time. VM containers are tracked by HostPid (the KVM process; their
+// host-side ContPid is never set); native containers by ContPid. Pair the
+// returned pid with the start-time via runtime.IsPidRunningAs so a recycled pid
+// is not mistaken for the container.
+func (c *Config) MonitorPidIdentity() (pid int, startTime uint64) {
+	if c.VM != "" {
+		return c.HostPid, c.HostPidStart
+	}
+	return c.ContPid, c.ContPidStart
+}
 
 func NewContainer() Config {
 	Config := Config{}
