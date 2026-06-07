@@ -29,6 +29,12 @@ func Run(c *config.Config, onPlaced func()) error {
 	// mount squasfs
 	squashfsImages, err := mountRootfs(c)
 	if err != nil {
+		// mountRootfs may have already mounted some immutable lower images
+		// before failing (e.g. a transient squashfs/overlay error after one
+		// loop was mounted). Tear those partial mounts down so a failed
+		// (re)start can't leak loop devices / immutable mounts (audit: the
+		// failed-recovery storm that orphaned 16 mounts on mrs2).
+		CleanupResources(c)
 		return fmt.Errorf("error mount: %v", err)
 	}
 

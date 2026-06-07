@@ -358,8 +358,14 @@ func UmountRootfs(c *config.Config) []error {
 	}
 
 	for _, sq := range c.ImmutableImages {
-		err := diskimage.Umount(&sq)
-		if err != nil {
+		// Don't unmount a base image that another live container's overlay still
+		// references — immutable mounts are shared read-only and reused across
+		// containers (the container's own overlay was already unmounted above).
+		if diskimage.ImmutableInUse(sq.MountDir) {
+			slog.Debug("UmountRootfs", slog.String("action", "keep shared immutable"), slog.String("mountDir", sq.MountDir))
+			continue
+		}
+		if err := diskimage.Umount(&sq); err != nil {
 			errs = append(errs, err)
 		}
 	}
