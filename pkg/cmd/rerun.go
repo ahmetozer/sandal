@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 func Rerun(args []string) error {
@@ -25,7 +26,15 @@ func Rerun(args []string) error {
 		return err
 	}
 
-	err = host.Kill(c, 9, 5)
+	// Hold the per-name lifecycle lock across the kill so it can't race a
+	// concurrent run/recover, then release before Run (which re-acquires the
+	// same lock). sandal.Kill routes VM containers to their HostPid.
+	release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
+	if err != nil {
+		return fmt.Errorf("acquire lifecycle lock: %w", err)
+	}
+	err = sandal.Kill(c, 9, 5)
+	release()
 	if err != nil {
 		return err
 	}

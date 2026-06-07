@@ -3,6 +3,7 @@
 package net
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -10,6 +11,14 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
+
+// errIsEEXIST reports whether err is (or wraps) EEXIST. Used to tolerate
+// re-adding an address that is already present. Uses errors.Is rather than a
+// type assertion so a wrapped error (fmt.wrapError, *os.SyscallError, *net.OpError
+// from the netlink receive path) is classified instead of panicking the process.
+func errIsEEXIST(err error) bool {
+	return errors.Is(err, unix.EEXIST)
+}
 
 type Addr struct {
 	IP    net.IP
@@ -70,8 +79,9 @@ func (a Addr) Add(link netlink.Link) error {
 	}
 
 	if err := netlink.AddrAdd(link, addrNet); err != nil {
-		// if its not file exists error, return error
-		if unix.Errno(err.(unix.Errno)) != unix.EEXIST {
+		// Tolerate "already exists"; surface anything else. errors.Is (not a
+		// type assertion) so a wrapped non-Errno error doesn't panic.
+		if !errIsEEXIST(err) {
 			return err
 		}
 	}

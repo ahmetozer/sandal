@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
@@ -62,6 +63,13 @@ func Stop(args []string) error {
 }
 
 func stopContainer(name string, signal, timeout int) error {
+	// Serialize with run/recover/kill/rm for this name.
+	release, err := namelock.Acquire(name, namelock.DefaultTimeout)
+	if err != nil {
+		return fmt.Errorf("acquire lifecycle lock: %w", err)
+	}
+	defer release()
+
 	cont, err := controller.GetContainer(name)
 	if err != nil {
 		return err

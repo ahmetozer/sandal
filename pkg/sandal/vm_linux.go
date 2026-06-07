@@ -20,6 +20,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
 	"github.com/ahmetozer/sandal/pkg/container/forward"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
@@ -41,6 +42,18 @@ import (
 // guest inside SANDAL_VM_ARGS so the in-guest container init can apply the
 // same configuration to the matching ethN inside the VM.
 func RunInKVM(c *config.Config, netFlags []string) error {
+	// Serialize VM placement per name across processes (CLI ↔ daemon recovery)
+	// so two actors can't both pass the running-check and double-boot the VM,
+	// leaving one KVM child detached (audit L2/L3). For the daemon recovery /
+	// background path forkVMProcess publishes HostPid and returns, so the lock
+	// is held only across placement; a foreground `sandal run -vm` holds it for
+	// the VM's lifetime — the same scope as a foreground native run.
+	release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
+	if err != nil {
+		return fmt.Errorf("acquire lifecycle lock for %q: %w", c.Name, err)
+	}
+	defer release()
+
 	if running, _ := crt.IsContainerRunning(c.Name); running {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
@@ -252,6 +265,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 
 	// Foreground mode: register and boot directly in this process
 	c.HostPid = os.Getpid()
+	c.HostPidStart, _ = crt.ProcessStartTime(c.HostPid)
 	c.VM = "kvm"
 	c.Status = "running"
 	if err := controller.SetContainer(c); err != nil {
@@ -263,9 +277,11 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		}
 	}()
 
-	// Start host-side socket relay for vsock
+	// Start host-side socket relay for vsock; stop it when the VM exits so the
+	// vsock ports are released (audit L9).
 	if len(socketMounts) > 0 {
-		go StartHostSocketRelay(socketMounts)
+		stopRelay := StartHostSocketRelay(socketMounts)
+		defer stopRelay()
 	}
 
 	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports)
@@ -302,20 +318,26 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	}
 
 	c.HostPid = cmd.Process.Pid
+	c.HostPidStart, _ = crt.ProcessStartTime(c.HostPid)
 	c.VM = "kvm"
 	c.Status = "running"
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
 
-	// Start host-side socket relay for vsock
+	// Start host-side socket relay for vsock; the wait goroutine below stops it
+	// when the VM child exits so a recovered VM can rebind the ports (audit L9).
+	var stopRelay func()
 	if len(socketMounts) > 0 {
-		go StartHostSocketRelay(socketMounts)
+		stopRelay = StartHostSocketRelay(socketMounts)
 	}
 
 	// Wait for child to exit and update status
 	go func() {
 		waitErr := cmd.Wait()
+		if stopRelay != nil {
+			stopRelay()
+		}
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
@@ -335,57 +357,83 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	return nil
 }
 
-// StartHostSocketRelay starts a vsock listener for each socket mount.
-func StartHostSocketRelay(sockets []SocketMount) {
+// StartHostSocketRelay starts a vsock listener for each socket mount and
+// returns a stop func that closes every listener fd. Closing a listener makes
+// its blocked Accept return, so the accept goroutine exits — no leaked
+// listener/goroutine. The caller MUST invoke stop when the VM exits, otherwise
+// the deterministic ports (5000+i) stay bound and a recovered/restarted VM with
+// the same socket mounts fails to rebind (EADDRINUSE) and its relays silently
+// never come up (audit L9).
+func StartHostSocketRelay(sockets []SocketMount) func() {
+	fds := make([]int, 0, len(sockets))
 	for i, sm := range sockets {
 		port := uint32(5000 + i)
-		go hostRelaySocket(sm.HostPath, port)
+		fd, err := listenVsock(port)
+		if err != nil {
+			slog.Warn("vsock relay listen failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+			continue
+		}
+		fds = append(fds, fd)
+		go acceptRelayLoop(fd, sm.HostPath, port)
+	}
+	return func() {
+		for _, fd := range fds {
+			unix.Close(fd)
+		}
 	}
 }
 
-// hostRelaySocket listens on AF_VSOCK at the given port and for each accepted
-// connection, dials the host Unix socket and performs bidirectional relay.
-func hostRelaySocket(hostPath string, port uint32) {
+// listenVsock binds and listens an AF_VSOCK stream socket on port, returning the
+// listening fd. The fd is closed by the caller's stop func to tear the relay down.
+func listenVsock(port uint32) (int, error) {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
-		slog.Warn("vsock socket failed", slog.Any("err", err))
-		return
+		return -1, fmt.Errorf("vsock socket: %w", err)
 	}
 	if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: port}); err != nil {
 		unix.Close(fd)
-		slog.Warn("vsock bind failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
-		return
+		return -1, fmt.Errorf("vsock bind: %w", err)
 	}
 	if err := unix.Listen(fd, 8); err != nil {
 		unix.Close(fd)
-		slog.Warn("vsock listen failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
-		return
+		return -1, fmt.Errorf("vsock listen: %w", err)
 	}
+	return fd, nil
+}
 
+// acceptRelayLoop accepts vsock connections until fd is closed (Accept then
+// errors), relaying each to the host Unix socket.
+func acceptRelayLoop(fd int, hostPath string, port uint32) {
 	for {
 		nfd, _, err := unix.Accept(fd)
 		if err != nil {
-			slog.Warn("vsock accept failed", slog.Uint64("port", uint64(port)), slog.Any("err", err))
+			// fd was closed by the relay's stop func, or a transient accept
+			// error — either way this listener is finished.
+			slog.Debug("vsock accept loop exit", slog.Uint64("port", uint64(port)), slog.Any("err", err))
 			return
 		}
-		go func(clientFD int) {
-			vsockFile := os.NewFile(uintptr(clientFD), fmt.Sprintf("vsock-client:%d", port))
-			defer vsockFile.Close()
-
-			hostConn, err := net.Dial("unix", hostPath)
-			if err != nil {
-				slog.Warn("host socket dial failed", slog.String("path", hostPath), slog.Any("err", err))
-				return
-			}
-			defer hostConn.Close()
-
-			done := make(chan struct{})
-			go func() {
-				io.Copy(hostConn, vsockFile)
-				done <- struct{}{}
-			}()
-			io.Copy(vsockFile, hostConn)
-			<-done
-		}(nfd)
+		go relayConn(nfd, hostPath, port)
 	}
+}
+
+// relayConn performs bidirectional relay between an accepted vsock connection
+// and the host Unix socket.
+func relayConn(clientFD int, hostPath string, port uint32) {
+	vsockFile := os.NewFile(uintptr(clientFD), fmt.Sprintf("vsock-client:%d", port))
+	defer vsockFile.Close()
+
+	hostConn, err := net.Dial("unix", hostPath)
+	if err != nil {
+		slog.Warn("host socket dial failed", slog.String("path", hostPath), slog.Any("err", err))
+		return
+	}
+	defer hostConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		io.Copy(hostConn, vsockFile)
+		done <- struct{}{}
+	}()
+	io.Copy(vsockFile, hostConn)
+	<-done
 }

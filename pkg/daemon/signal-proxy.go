@@ -9,9 +9,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/ahmetozer/sandal/pkg/container/host"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 func signalProxy(daemonKillRequested chan<- bool, wg *sync.WaitGroup) {
@@ -23,10 +23,14 @@ func signalProxy(daemonKillRequested chan<- bool, wg *sync.WaitGroup) {
 		sig := <-done
 		conts, _ := controller.Containers()
 		for _, cont := range conts {
-			// oldContPid := cont.ContPid
-			isRunning, err := crt.IsPidRunning(cont.ContPid)
+			// Monitor HostPid for VMs, ContPid for native — same rule and
+			// identity check as the health-check.
+			pid, wantStart := cont.MonitorPidIdentity()
+			isRunning, err := crt.IsPidRunningAs(pid, wantStart)
 			if cont.Startup && isRunning && err == nil {
-				host.Kill(cont, int(sig.(syscall.Signal)), 0)
+				// sandal.Kill routes VM containers to killVMHost (HostPid);
+				// host.Kill alone targets ContPid and never reaps a VM (L7).
+				sandal.Kill(cont, int(sig.(syscall.Signal)), 0)
 			}
 		}
 		// syscall.Kill(os.Getpid(), sig.(syscall.Signal))

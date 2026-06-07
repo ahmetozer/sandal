@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
@@ -27,18 +28,45 @@ type ImageChangeMount struct {
 }
 
 // imageChangeMounts tracks active image-backed change dir mounts for cleanup.
-var imageChangeMounts = map[string]*ImageChangeMount{}
+// It is a process-global shared by concurrent daemon recovery goroutines (the
+// `recovering` map only serializes per name, so different-named recoveries run
+// in parallel and hit this map at the same time). imageChangeMountsMu guards
+// every access; without it concurrent Register/Unregister fatal the daemon with
+// an unrecoverable "concurrent map writes".
+var (
+	imageChangeMounts   = map[string]*ImageChangeMount{}
+	imageChangeMountsMu sync.Mutex
+)
 
 func RegisterImageChangeMount(changeDir string, mount *ImageChangeMount) {
+	imageChangeMountsMu.Lock()
+	defer imageChangeMountsMu.Unlock()
 	imageChangeMounts[changeDir] = mount
 }
 
 func GetImageChangeMount(changeDir string) *ImageChangeMount {
+	imageChangeMountsMu.Lock()
+	defer imageChangeMountsMu.Unlock()
 	return imageChangeMounts[changeDir]
 }
 
 func UnregisterImageChangeMount(changeDir string) {
+	imageChangeMountsMu.Lock()
+	defer imageChangeMountsMu.Unlock()
 	delete(imageChangeMounts, changeDir)
+}
+
+// TakeImageChangeMount atomically returns and removes the mount for changeDir.
+// Callers tearing a mount down use this so the lookup and removal happen under
+// one lock: two goroutines can't both observe the same entry and Cleanup() it
+// twice (a double unmount/loop-detach). Returns nil if absent. Cleanup() should
+// be called on the result OUTSIDE the lock since it does slow unmount/detach I/O.
+func TakeImageChangeMount(changeDir string) *ImageChangeMount {
+	imageChangeMountsMu.Lock()
+	defer imageChangeMountsMu.Unlock()
+	m := imageChangeMounts[changeDir]
+	delete(imageChangeMounts, changeDir)
+	return m
 }
 
 // prepareImageChangeDir creates a sparse ext4 disk image, loop-mounts it,

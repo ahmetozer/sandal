@@ -10,7 +10,11 @@ import (
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
-func Run(c *config.Config) error {
+// Run sets up and starts a container. onPlaced (may be nil) is forwarded to
+// crun and invoked once the child's pid is published, so a caller holding the
+// per-name lifecycle lock can release it as soon as placement is committed
+// rather than across the foreground Wait. See crun for details.
+func Run(c *config.Config, onPlaced func()) error {
 
 	// When a startup container is delegated to the daemon, skip local
 	// cleanup and rootfs setup — the daemon will handle the full lifecycle.
@@ -25,6 +29,12 @@ func Run(c *config.Config) error {
 	// mount squasfs
 	squashfsImages, err := mountRootfs(c)
 	if err != nil {
+		// mountRootfs may have already mounted some immutable lower images
+		// before failing (e.g. a transient squashfs/overlay error after one
+		// loop was mounted). Tear those partial mounts down so a failed
+		// (re)start can't leak loop devices / immutable mounts (audit: the
+		// failed-recovery storm that orphaned 16 mounts on mrs2).
+		CleanupResources(c)
 		return fmt.Errorf("error mount: %v", err)
 	}
 
@@ -62,7 +72,7 @@ func Run(c *config.Config) error {
 	controller.SetContainer(c)
 
 	// Starting proccess
-	exitCode, err := crun(c, imgEnv)
+	exitCode, err := crun(c, imgEnv, onPlaced)
 
 	if !c.Remove && !c.Background {
 		c.Status = fmt.Sprintf("exit %d", exitCode)

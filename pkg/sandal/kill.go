@@ -57,7 +57,9 @@ func killVMHost(c *config.Config, timeout int) error {
 		if running, _ := crt.IsPidRunning(pid); !running {
 			c.Status = "killed"
 			c.HostPid = 0
+			c.HostPidStart = 0
 			c.ContPid = 0
+			c.ContPidStart = 0
 			host.CleanupResources(c)
 			controller.SetContainer(c)
 			return nil

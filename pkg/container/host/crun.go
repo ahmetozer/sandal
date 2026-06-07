@@ -21,8 +21,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Container run time
-func crun(c *config.Config, imageEnv []string) (int, error) {
+// Container run time.
+//
+// onPlaced, if non-nil, is invoked exactly once right after the child's pid+
+// identity have been published — i.e. once placement is committed and a
+// concurrent IsContainerRunning would observe this container. Callers pass the
+// lifecycle-lock release here so the lock is dropped as soon as placement is
+// done, rather than being held across the (possibly long-lived) foreground
+// Wait. It is NOT called on the daemon-delegation early return, where no local
+// placement happens.
+func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, retErr error) {
 	c.Status = crt.ContainerStatusCreating
 	var err error
 
@@ -154,6 +162,47 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 
 	c.ContPid = cmd.Process.Pid
 
+	// Capture the kernel start-time so the recorded pid carries a stable
+	// identity (defeats PID reuse), then persist pid+identity IMMEDIATELY —
+	// before any provisioning below that can fail or be interrupted by daemon
+	// shutdown. Otherwise that window leaves a live child the daemon doesn't
+	// track, and the next health tick starts a duplicate (audit L1/L4).
+	if st, stErr := crt.ProcessStartTime(c.ContPid); stErr == nil {
+		c.ContPidStart = st
+	} else {
+		slog.Warn("crun: capture start-time", "pid", c.ContPid, "error", stErr)
+	}
+	c.Status = crt.ContainerStatusRunning
+	if perr := controller.SetContainer(c); perr != nil {
+		slog.Warn("crun: persist pid", "name", c.Name, "error", perr)
+	}
+
+	// Placement is committed: the pid+identity are published, so a concurrent
+	// run/recover will now see this container as running. Drop the lifecycle
+	// lock (if the caller passed its release here) so it isn't held across the
+	// veth setup below or the long-lived foreground Wait — otherwise a
+	// `sandal kill`/`stop`/`rm` of this container would block on the lock.
+	if onPlaced != nil {
+		onPlaced()
+	}
+
+	// childOwned flips true once the child is handed to the background wait
+	// goroutine or reaped by the inline foreground Wait. Until then, any error
+	// return must not leak the running child: the deferred guard kills+reaps it
+	// and clears the persisted identity so no orphan survives and the recorded
+	// pid never points at a dead/abandoned process (audit L1/L4).
+	childOwned := false
+	defer func() {
+		if retErr != nil && !childOwned {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+			c.ContPid = 0
+			c.ContPidStart = 0
+			c.Status = fmt.Sprintf("err %v", retErr)
+			controller.SetContainer(c)
+		}
+	}()
+
 	// Close the slave PTY fd in the parent now that the child has inherited it.
 	// This ensures when the child exits, all slave fds are closed and master
 	// read returns EIO, allowing the relay goroutine to terminate.
@@ -174,8 +223,7 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 	}
 
 	// c.NS.LoadNamespaceIDs(c.ContPid)
-
-	c.Status = crt.ContainerStatusRunning
+	// (status was set to running and persisted right after cmd.Start above.)
 
 	// Skip link creation when the container shares the host netns
 	// (nothing to provision) or joins an existing one via --ns-net <target>
@@ -290,6 +338,7 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 		// session and orphan the old listener (port stuck "in use").
 		ownedSession := session
 		registered := env.IsDaemon && session != nil
+		childOwned = true // the wait goroutine below now owns reaping
 		go func() {
 			cmd.Process.Wait()
 			if registered {
@@ -306,6 +355,7 @@ func crun(c *config.Config, imageEnv []string) (int, error) {
 	}
 
 	sig, err := cmd.Process.Wait()
+	childOwned = true // child reaped inline; no orphan for the deferred guard
 	if err != nil && err.Error() == "waitid: no child processes" {
 		err = nil
 	}

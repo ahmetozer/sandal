@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
@@ -75,7 +76,11 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 			progressCh := make(chan progress.Event, 16)
 			renderDone := progress.StartRenderer(progressCh, os.Stderr)
 
-			sqfsPath, pullErr := containerimage.Pull(context.Background(), fullSource, env.BaseImageDir, progressCh)
+			// Bound the pull so a stalled registry can't wedge a recovery
+			// goroutine forever (see daemon health-check recovery guard).
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			sqfsPath, pullErr := containerimage.Pull(ctx, fullSource, env.BaseImageDir, progressCh)
+			cancel()
 			close(progressCh)
 			<-renderDone
 
@@ -327,11 +332,13 @@ func UmountRootfs(c *config.Config) []error {
 	// Skipped when the caller manages the change-dir backing across
 	// multiple runs (sandal build, see ChangeDirManaged).
 	if !c.ChangeDirManaged {
-		if mount := overlayfs.GetImageChangeMount(c.ChangeDir); mount != nil {
+		// Atomically claim-and-remove the mount so a concurrent teardown of the
+		// same change dir can't observe the same entry and Cleanup() it twice
+		// (double unmount / loop-detach). Cleanup runs outside the registry lock.
+		if mount := overlayfs.TakeImageChangeMount(c.ChangeDir); mount != nil {
 			if cleanupErr := mount.Cleanup(); cleanupErr != nil {
 				errs = append(errs, fmt.Errorf("image change dir cleanup: %w", cleanupErr))
 			}
-			overlayfs.UnregisterImageChangeMount(c.ChangeDir)
 		}
 
 		// Clean up stale change dir mounts from previous runs whose
@@ -351,8 +358,14 @@ func UmountRootfs(c *config.Config) []error {
 	}
 
 	for _, sq := range c.ImmutableImages {
-		err := diskimage.Umount(&sq)
-		if err != nil {
+		// Don't unmount a base image that another live container's overlay still
+		// references — immutable mounts are shared read-only and reused across
+		// containers (the container's own overlay was already unmounted above).
+		if diskimage.ImmutableInUse(sq.MountDir) {
+			slog.Debug("UmountRootfs", slog.String("action", "keep shared immutable"), slog.String("mountDir", sq.MountDir))
+			continue
+		}
+		if err := diskimage.Umount(&sq); err != nil {
 			errs = append(errs, err)
 		}
 	}

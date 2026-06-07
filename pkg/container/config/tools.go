@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"path"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -41,4 +42,20 @@ func (c *Config) ConfigFileLoc() string {
 
 func ConfigFileLoc(name string) string {
 	return path.Join(env.BaseStateDir, name+".json")
+}
+
+// NameFromConfigFile is the inverse of ConfigFileLoc for a state file's base
+// name: "my.app.json" -> ("my.app", true). It strips the ".json" suffix rather
+// than splitting on ".", so names containing dots (which ValidateName permits)
+// survive. Returns ok=false when base is not a ".json" file or the decoded name
+// is not a valid container name.
+func NameFromConfigFile(base string) (string, bool) {
+	name, ok := strings.CutSuffix(base, ".json")
+	if !ok {
+		return "", false
+	}
+	if ValidateName(name) != nil {
+		return "", false
+	}
+	return name, true
 }
