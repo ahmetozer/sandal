@@ -64,11 +64,30 @@ func (w *Watcher) parseEvents(buf []byte) error {
 			name = string(bytes.TrimRight(nameBytes, "\x00"))
 		}
 
+		// IN_Q_OVERFLOW (delivered with Wd = -1) means the kernel dropped
+		// events because the queue filled. It must NOT be fatal: returning an
+		// error here propagates out of Watch() and kills the watcher for the
+		// daemon's lifetime, after which every removal is missed and startup
+		// containers get resurrected (audit L8). Skip it; the daemon's
+		// disk-authoritative reconcile recovers any state missed during the
+		// overflow burst.
+		if event.Mask&unix.IN_Q_OVERFLOW != 0 {
+			slog.Warn("parseEvents", slog.String("event", "IN_Q_OVERFLOW"),
+				slog.String("action", "queue overflowed; events dropped, will reconcile"))
+			offset += inotifyEventBaseSize + int(event.Len)
+			continue
+		}
+
 		w.mu.RLock()
 		dirPath, ok := w.watchMap[int(event.Wd)]
 		w.mu.RUnlock()
 		if !ok {
-			return fmt.Errorf("unknown watch descriptor: %d", event.Wd)
+			// Unknown watch descriptor (e.g. a watch already removed, or a
+			// stray sentinel). Skip rather than killing the whole watcher.
+			slog.Debug("parseEvents", slog.String("action", "skip unknown watch descriptor"),
+				slog.Int("wd", int(event.Wd)))
+			offset += inotifyEventBaseSize + int(event.Len)
+			continue
 		}
 
 		fullPath := filepath.Join(dirPath, name)

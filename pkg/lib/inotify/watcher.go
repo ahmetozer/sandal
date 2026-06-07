@@ -88,6 +88,12 @@ func (w *Watcher) Watch() error {
 		default:
 			n, err := unix.Read(w.fd, buf)
 			if err != nil {
+				// A signal-interrupted read is transient; retry instead of
+				// killing the watcher (the daemon installs signal handlers,
+				// so EINTR is reachable here).
+				if err == unix.EINTR {
+					continue
+				}
 				return fmt.Errorf("read error: %w", err)
 			}
 
