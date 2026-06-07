@@ -332,11 +332,13 @@ func UmountRootfs(c *config.Config) []error {
 	// Skipped when the caller manages the change-dir backing across
 	// multiple runs (sandal build, see ChangeDirManaged).
 	if !c.ChangeDirManaged {
-		if mount := overlayfs.GetImageChangeMount(c.ChangeDir); mount != nil {
+		// Atomically claim-and-remove the mount so a concurrent teardown of the
+		// same change dir can't observe the same entry and Cleanup() it twice
+		// (double unmount / loop-detach). Cleanup runs outside the registry lock.
+		if mount := overlayfs.TakeImageChangeMount(c.ChangeDir); mount != nil {
 			if cleanupErr := mount.Cleanup(); cleanupErr != nil {
 				errs = append(errs, fmt.Errorf("image change dir cleanup: %w", cleanupErr))
 			}
-			overlayfs.UnregisterImageChangeMount(c.ChangeDir)
 		}
 
 		// Clean up stale change dir mounts from previous runs whose

@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -27,6 +29,11 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 		case <-daemonKillRequested:
 			return
 		case <-time.After(3 * time.Second):
+			// Disk-authoritative reconcile first, so the per-container checks
+			// below act on state that matches disk even if the inotify watcher
+			// missed events (audit L6/L8).
+			reconcileState()
+
 			conts, err := controller.Containers()
 			if err != nil {
 				slog.Warn("unable to get containers", "err", err.Error())
@@ -34,13 +41,11 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 			for c := range conts {
 				cont := (conts)[c]
 
-				// For VM containers, monitor HostPid (the KVM process);
-				// for regular containers, monitor ContPid.
-				checkPid := cont.ContPid
-				if cont.VM != "" {
-					checkPid = cont.HostPid
-				}
-				isRunning, err := crt.IsPidRunning(checkPid)
+				// Monitor HostPid for VMs (the KVM process), ContPid for
+				// regular containers, and verify the start-time so a recycled
+				// pid isn't mistaken for a still-running container.
+				checkPid, wantStart := cont.MonitorPidIdentity()
+				isRunning, err := crt.IsPidRunningAs(checkPid, wantStart)
 				if err != nil {
 					slog.Warn("unable to get container status", "cont", cont.Name, "err", err.Error())
 				}
@@ -68,14 +73,11 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 			// statuses and "killed"-status containers don't keep proxy
 			// entries pinned.
 			renumber.ReconcileProxyForRunning(conts, func(c *config.Config) bool {
-				pid := c.ContPid
-				if c.VM != "" {
-					pid = c.HostPid
-				}
+				pid, wantStart := c.MonitorPidIdentity()
 				if pid == 0 {
 					return false
 				}
-				alive, _ := crt.IsPidRunning(pid)
+				alive, _ := crt.IsPidRunningAs(pid, wantStart)
 				return alive
 			})
 		}
@@ -88,41 +90,45 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 // container: without it the 3-second health-check tick stacks concurrent
 // restarts when a recovery outlasts one tick, and each host.Run grabs a
 // fresh loop device, leaking the previous run's immutable mount.
-var recovering sync.Map // map[string]time.Time
+// recovering holds names with an in-flight recovery goroutine, so the 3-second
+// health-check tick doesn't stack duplicate goroutines for the same container
+// while a recovery is still running. Cross-process and cross-goroutine
+// exclusion (against CLI run/kill/rm and against another recovery) is enforced
+// by the per-name lifecycle lock that contRecover takes; this set only avoids
+// redundant local goroutines.
+var recovering sync.Map // map[string]struct{}
 
-// maxRecoveryDuration bounds how long an in-flight claim is honored. A
-// goroutine wedged in an uninterruptible syscall (e.g. a stalled squashfs
-// mount) never runs its deferred release, so without a deadline a single
-// hang would stop the container from ever recovering again. Past the
-// deadline the claim is treated as stale and a fresh attempt is allowed.
-//
-// 90s assumes a recovery completes quickly, which holds for local-image
-// (-lw squashfs/disk) containers. A container whose -lw is a registry ref
-// can pull for up to the image-pull timeout (10m, see resolveLowerSource in
-// pkg/container/host/rootfs.go); such a recovery may cross this deadline and
-// get a second attempt stacked on it. Raise this above the pull timeout if
-// registry-backed startup containers are used.
-const maxRecoveryDuration = 90 * time.Second
+// recoveryWG tracks in-flight recovery goroutines so the shutdown path can
+// drain them before tearing containers down — otherwise a recovery that is
+// mid-placement when the daemon exits orphans a freshly started child (L1).
+var recoveryWG sync.WaitGroup
 
-// dispatchRecovery starts contRecover for cont unless a recovery is already
-// in flight and still within maxRecoveryDuration. Only the (single-threaded)
-// health-check loop calls this, so the Load/Store pair needs no extra
-// locking; recovery goroutines only ever CompareAndDelete their own claim.
+// shuttingDown, once set by the shutdown path, makes dispatchRecovery refuse to
+// launch new recoveries while the daemon is winding down.
+var shuttingDown atomic.Bool
+
+// beginShutdown stops new recoveries and blocks until in-flight ones finish.
+// Called from the daemon shutdown path before containers are torn down.
+func beginShutdown() {
+	shuttingDown.Store(true)
+	recoveryWG.Wait()
+}
+
+// dispatchRecovery starts contRecover for cont unless a recovery is already in
+// flight for that name or the daemon is shutting down. Only the
+// (single-threaded) health-check loop calls this.
 func dispatchRecovery(cont *config.Config) {
-	now := time.Now()
-	if v, busy := recovering.Load(cont.Name); busy {
-		if now.Sub(v.(time.Time)) < maxRecoveryDuration {
-			slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery in flight, skipping"))
-			return
-		}
-		slog.Warn("daemon", slog.String("cont", cont.Name), slog.String("msg", "previous recovery exceeded deadline (likely wedged in a mount/network syscall); forcing a fresh attempt"), slog.String("age", now.Sub(v.(time.Time)).String()), slog.String("deadline", maxRecoveryDuration.String()))
+	if shuttingDown.Load() {
+		return
 	}
-	token := now
-	recovering.Store(cont.Name, token)
+	if _, busy := recovering.LoadOrStore(cont.Name, struct{}{}); busy {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery in flight, skipping"))
+		return
+	}
+	recoveryWG.Add(1)
 	go func() {
-		// CompareAndDelete (not Delete) so a zombie goroutine that finally
-		// unblocks after the deadline can't clear a newer recovery's claim.
-		defer recovering.CompareAndDelete(cont.Name, token)
+		defer recoveryWG.Done()
+		defer recovering.Delete(cont.Name)
 		contRecover(cont)
 	}()
 }
@@ -131,6 +137,24 @@ func contRecover(cont *config.Config) {
 	if cont.Status == "stop" {
 		return
 	}
+
+	// Take the cross-process per-name lifecycle lock so this recovery cannot run
+	// concurrently with a CLI run/kill/rm for the same name, nor with another
+	// recovery. This is held across the kill+placement and replaces the old
+	// wall-clock deadline that could stack a second recovery and double-start
+	// the container (audit L2). Non-blocking: if another actor owns the name,
+	// skip this round; the next tick retries once they release.
+	release, ok, lerr := namelock.TryAcquire(cont.Name)
+	if lerr != nil {
+		slog.Warn("daemon", slog.String("cont", cont.Name), slog.String("msg", "lifecycle lock error"), slog.Any("err", lerr))
+		return
+	}
+	if !ok {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "name busy, deferring recovery to next tick"))
+		return
+	}
+	defer release() // idempotent; the VM/native paths may release earlier
+
 	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
 
 	// Clean up stale resources (console sockets, mounts, cgroups) left
@@ -147,8 +171,8 @@ func contRecover(cont *config.Config) {
 	// "running" because it was never updated. Since the health check
 	// already confirmed the PID is dead, treat any non-"stop" status
 	// as recoverable.
-	isAlive, _ := crt.IsPidRunning(cont.ContPid)
-	if isAlive {
+	contPid, contStart := cont.MonitorPidIdentity()
+	if isAlive, _ := crt.IsPidRunningAs(contPid, contStart); isAlive {
 		slog.Debug("daemon", slog.Any("status", cont.Status), slog.String("cont", cont.Name), slog.String("msg", "process still alive, skipping recovery"))
 		return
 	}
@@ -163,9 +187,14 @@ func contRecover(cont *config.Config) {
 		return
 	}
 
-	// If the container is already running (started by another path),
-	// skip recovery to avoid duplicate instances.
-	if isRunning, _ := crt.IsPidRunning(latest.ContPid); isRunning {
+	// Re-check under the lock: the user may have stopped it (status "stop") or
+	// it may have been started by another path since detection.
+	if latest.Status == "stop" {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "status stop, skipping recovery"))
+		return
+	}
+	latestPid, latestStart := latest.MonitorPidIdentity()
+	if isRunning, _ := crt.IsPidRunningAs(latestPid, latestStart); isRunning {
 		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
 		return
 	}
@@ -176,21 +205,21 @@ func contRecover(cont *config.Config) {
 	}
 
 	if latest.VM != "" {
-		// VM container: re-run the full sandal.Run() pipeline which goes
-		// through RunInKVM() again (re-pulls images, re-allocates network,
-		// re-builds initrd, boots KVM).
-		err = sandal.Run(latest.HostArgs[2:])
-		if err != nil {
+		// VM recovery re-runs the full sandal.Run() pipeline, which goes through
+		// RunInKVM() and takes the per-name lock ITSELF. Release ours first to
+		// avoid a self-deadlock (flock contends even within one process).
+		release()
+		if err = sandal.Run(latest.HostArgs[2:]); err != nil {
 			slog.Error("recover vm", slog.String("cont", latest.Name), slog.Any("error", err))
 		}
 		slog.Info("recover", slog.String("cont", latest.Name), slog.String("type", "vm"))
 		return
 	}
 
-	err = host.Run(latest)
-	if err != nil {
+	// Native recovery: pass release as onPlaced so the lifecycle lock drops as
+	// soon as the recovered child's pid is published.
+	if err = host.Run(latest, release); err != nil {
 		slog.Error("recover", slog.Any("error", err))
 	}
 	slog.Info("recover", slog.String("cont", latest.Name))
-
 }

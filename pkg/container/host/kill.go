@@ -34,6 +34,17 @@ func Kill(c *config.Config, signal int, second int) error {
 	}
 	pid := c.ContPid
 
+	// Identity guard: only signal if pid is still THIS container. If it's dead,
+	// or recycled to an unrelated process (different start-time), signalling it
+	// would kill an innocent process — treat it as already stopped and clean up.
+	if alive, _ := crt.IsPidRunningAs(pid, c.ContPidStart); !alive {
+		c.Status = "killed"
+		c.ContPid = 0
+		c.ContPidStart = 0
+		CleanupResources(c)
+		return controller.SetContainer(c)
+	}
+
 	// Deliver the signal once.
 	crt.SendSig(pid, signal)
 
@@ -53,7 +64,9 @@ func Kill(c *config.Config, signal int, second int) error {
 	deadline := time.Now().Add(time.Duration(second) * time.Second)
 	exited := false
 	for {
-		if alive, _ := crt.IsPidRunning(pid); !alive {
+		// Identity-aware so our process exiting (even if the pid is instantly
+		// recycled by an unrelated process) counts as exited.
+		if alive, _ := crt.IsPidRunningAs(pid, c.ContPidStart); !alive {
 			exited = true
 			break
 		}
@@ -69,6 +82,7 @@ func Kill(c *config.Config, signal int, second int) error {
 
 	c.Status = "killed"
 	c.ContPid = 0
+	c.ContPidStart = 0
 	CleanupResources(c)
 	controller.SetContainer(c)
 

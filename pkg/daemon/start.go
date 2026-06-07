@@ -13,9 +13,11 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/modprobe"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 type DaemonConfig struct {
@@ -29,7 +31,7 @@ func (dc DaemonConfig) Start() error {
 
 	go func() {
 		if dc.DiskReloadInterval == 0 {
-			dc.loadByEvent()
+			dc.superviseDiskEvents()
 		}
 	}()
 
@@ -130,6 +132,12 @@ func (dc DaemonConfig) Start() error {
 	go daemonControlHealthCheck(daemonKillRequested, &wg)
 	wg.Wait()
 
+	// Stop launching new recoveries and wait for any in-flight recovery to
+	// finish before tearing down. Otherwise a recovery that is mid-placement
+	// when the daemon exits leaves a freshly started child untracked and
+	// orphaned, and the next daemon start spawns a duplicate (audit L1).
+	beginShutdown()
+
 	// Release port-forward listeners before tearing down containers so
 	// in-flight relays don't dial into netns that's about to disappear.
 	host.Forwards.StopAll()
@@ -140,6 +148,19 @@ func (dc DaemonConfig) Start() error {
 		slog.Error("unable to deprovision container during close process", "error", err.Error())
 	} else {
 		for _, cont := range conts {
+			// VM children are Setsid session leaders detached from the daemon's
+			// process group; host.DeRunContainer targets ContPid (the in-VM pid,
+			// invisible from the host), so reap daemon-managed (startup) VMs by
+			// their KVM HostPid directly (audit L7).
+			if cont.VM != "" {
+				if cont.Startup {
+					pid, wantStart := cont.MonitorPidIdentity()
+					if alive, _ := crt.IsPidRunningAs(pid, wantStart); alive {
+						sandal.Kill(cont, 9, 10)
+					}
+				}
+				continue
+			}
 			// Do not kill containers, which is executed before daemon
 			if cont.HostPid == DaemonPid {
 				host.DeRunContainer(cont)

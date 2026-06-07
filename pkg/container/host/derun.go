@@ -92,14 +92,11 @@ func reclaimStaleImmutableMounts(c *config.Config) {
 			prev = c2
 			continue
 		}
-		pid := c2.ContPid
-		if c2.VM != "" {
-			pid = c2.HostPid
-		}
+		pid, wantStart := c2.MonitorPidIdentity()
 		if pid == 0 {
 			continue
 		}
-		if alive, _ := crt.IsPidRunning(pid); !alive {
+		if alive, _ := crt.IsPidRunningAs(pid, wantStart); !alive {
 			continue
 		}
 		for j := range c2.ImmutableImages {

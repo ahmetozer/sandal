@@ -8,6 +8,7 @@ import (
 	gonet "net"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
@@ -30,6 +31,17 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 	if err := config.ValidateName(c.Name); err != nil {
 		return err
 	}
+
+	// Serialize placement per name across every process (a second CLI run, or a
+	// daemon recovery) so two actors can't both pass the "already running" check
+	// below and double-start the container, leaving one instance detached
+	// (audit L3). Held across crun's first pid-publishing SetContainer; inner
+	// helpers (Run/crun/DeRunContainer/Kill) run under it and never re-acquire.
+	release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
+	if err != nil {
+		return fmt.Errorf("acquire lifecycle lock for %q: %w", c.Name, err)
+	}
+	defer release()
 
 	conts, err := controller.Containers()
 	if err != nil {
@@ -113,5 +125,8 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 		}
 	}
 
-	return Run(c)
+	// Pass release as onPlaced so the lifecycle lock is dropped the moment
+	// crun publishes the pid, not held across a foreground container's lifetime.
+	// The deferred release above is then an idempotent no-op.
+	return Run(c, release)
 }
