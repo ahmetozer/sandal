@@ -14,6 +14,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/host/clean"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -89,11 +90,8 @@ func Clear(args []string) error {
 				continue
 			}
 		}
-		pid := c.ContPid
-		if pid == 0 && c.VM != "" {
-			pid = c.HostPid
-		}
-		isRunning, err := crt.IsPidRunning(pid)
+		pid, wantStart := c.MonitorPidIdentity()
+		isRunning, err := crt.IsPidRunningAs(pid, wantStart)
 		if err != nil {
 			slog.Error("unable to get container status", "container", c.Name, "err", err)
 		}
@@ -201,7 +199,24 @@ func Clear(args []string) error {
 			if !toRemove[c.Name] {
 				continue
 			}
+			// Lock per name and re-verify it isn't running under the lock, so a
+			// bulk clear can't tear down a container the daemon (re)started
+			// since the snapshot was taken (audit L5).
+			release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
+			if err != nil {
+				slog.Error("clear: acquire lifecycle lock", "container", c.Name, "err", err)
+				continue
+			}
+			if latest, gerr := controller.GetContainer(c.Name); gerr == nil {
+				pid, wantStart := latest.MonitorPidIdentity()
+				if alive, _ := crt.IsPidRunningAs(pid, wantStart); alive {
+					slog.Warn("clear: skipping now-running container", "container", c.Name)
+					release()
+					continue
+				}
+			}
 			host.DeRunContainer(c)
+			release()
 		}
 	}
 

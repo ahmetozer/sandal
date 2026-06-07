@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/sandal"
@@ -63,8 +64,18 @@ func Kill(args []string) error {
 
 	var lastErr error
 	for _, name := range names {
+		// Hold the per-name lifecycle lock so a kill can't race a concurrent
+		// daemon recovery / run of the same name (which would kill the wrong
+		// instance or leave one detached).
+		release, err := namelock.Acquire(name, namelock.DefaultTimeout)
+		if err != nil {
+			fmt.Printf("kill %s: %s\n", name, err)
+			lastErr = err
+			continue
+		}
 		c, err := controller.GetContainer(name)
 		if err != nil {
+			release()
 			fmt.Printf("kill %s: %s\n", name, err)
 			lastErr = err
 			continue
@@ -73,6 +84,7 @@ func Kill(args []string) error {
 			fmt.Printf("kill %s: %s\n", name, err)
 			lastErr = err
 		}
+		release()
 	}
 	return lastErr
 }

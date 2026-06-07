@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 )
@@ -36,11 +37,8 @@ func Rm(args []string) error {
 
 	if all {
 		for _, c := range conts {
-			pid := c.ContPid
-			if pid == 0 && c.VM != "" {
-				pid = c.HostPid
-			}
-			isRunning, _ := crt.IsPidRunning(pid)
+			pid, wantStart := c.MonitorPidIdentity()
+			isRunning, _ := crt.IsPidRunningAs(pid, wantStart)
 			if !isRunning {
 				names = append(names, c.Name)
 			}
@@ -52,30 +50,48 @@ func Rm(args []string) error {
 	}
 
 	var errs []error
-RequestedContainers:
 	for _, name := range names {
+		exists := false
 		for _, c := range conts {
 			if c.Name == name {
-				pid := c.ContPid
-				if pid == 0 && c.VM != "" {
-					pid = c.HostPid
-				}
-				isRunning, err := crt.IsPidRunning(pid)
-
-				if err != nil {
-					errs = append(errs, fmt.Errorf("unable to check existence of '%s' container: %v", c.Name, err))
-				}
-				if isRunning {
-					errs = append(errs, fmt.Errorf("container %s is running, please stop it first", c.Name))
-					continue RequestedContainers
-				}
-
-				c.Remove = true
-				host.DeRunContainer(c)
-				continue RequestedContainers
+				exists = true
+				break
 			}
 		}
-		errs = append(errs, fmt.Errorf("container %s is not found", name))
+		if !exists {
+			errs = append(errs, fmt.Errorf("container %s is not found", name))
+			continue
+		}
+
+		// Hold the per-name lifecycle lock and re-read the latest config under
+		// it, so we never tear down (and delete the config/rootfs of) a
+		// container the daemon just (re)started between our snapshot and now,
+		// which would leave that fresh instance detached (audit L5).
+		release, err := namelock.Acquire(name, namelock.DefaultTimeout)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("rm %s: acquire lifecycle lock: %w", name, err))
+			continue
+		}
+
+		c, err := controller.GetContainer(name)
+		if err != nil {
+			release()
+			errs = append(errs, fmt.Errorf("container %s is not found", name))
+			continue
+		}
+
+		pid, wantStart := c.MonitorPidIdentity()
+		if isRunning, rerr := crt.IsPidRunningAs(pid, wantStart); rerr != nil {
+			errs = append(errs, fmt.Errorf("unable to check existence of '%s' container: %v", name, rerr))
+		} else if isRunning {
+			release()
+			errs = append(errs, fmt.Errorf("container %s is running, please stop it first", name))
+			continue
+		}
+
+		c.Remove = true
+		host.DeRunContainer(c)
+		release()
 	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)
