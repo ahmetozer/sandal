@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1746,7 +1746,7 @@ ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>
 <span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::1/64                ← public, mirrored from eth0</span>
 <span class="c1">#  fd34:135:123:0:c0a8:10f::1/120                   ← static ULA (kept as fallback)</span>
 <span class="c1">#  172.16.0.1/24                                     ← static IPv4</span>
-<span class="c1"># (The :c0a8:10f tail is the host&#39;s IPv4 (192.168.1.15 here) baked into the IID</span>
+<span class="c1"># (The :c0a8:10f tail is the host's IPv4 (192.168.1.15 here) baked into the IID</span>
 <span class="c1">#  by the default SANDAL_HOST_NET template — preserved across upstream renumber.)</span>
 
 <span class="c1"># Daemon log shows what was picked</span>
@@ -1757,7 +1757,7 @@ journalctl<span class="w"> </span>-u<span class="w"> </span>sandal<span class="w
 <span class="c1">#  renumber: applying                          prefix=2001:db8:3b0a:4f00::/64</span>
 </code></pre></div>
 <p>After <code>sandal run</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Container&#39;s IPv6</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># Container's IPv6</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global
 <span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::2/64                ← public (same IID tail as the host)</span>
 <span class="c1">#  fd34:135:123:0:c0a8:10f::2/120                   ← ULA (host-local)</span>
@@ -1790,7 +1790,7 @@ sandal<span class="w"> </span>daemon
 <p>For a container whose address should not change — e.g. a stable internal service:</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>internal<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-net<span class="w"> </span><span class="s2">&quot;ip=fd00:internal::42/64;dynamic=false&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-net<span class="w"> </span><span class="s2">"ip=fd00:internal::42/64;dynamic=false"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>/run.sh
 </code></pre></div>
 <p>The <code>dynamic=false</code> token tells the renumber service to leave this container alone. Other containers on the same bridge keep renumbering normally.</p>
@@ -1809,7 +1809,7 @@ sandal<span class="w"> </span>daemon
 <p>If the container does <code>ip=dhcp6</code> for its network config, sandal recognises that the container is managing its own IPv6 lease and skips renumbering for that link:</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>dhcp-managed<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-net<span class="w"> </span><span class="s2">&quot;ip=dhcp6&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-net<span class="w"> </span><span class="s2">"ip=dhcp6"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>/run.sh
 </code></pre></div>
 <p>The container keeps whatever address its DHCPv6 client got. The host-side renumber service won't touch it.</p>
@@ -1930,8 +1930,8 @@ sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>
 </table>
 <p>Set in your systemd unit:</p>
 <div class="highlight"><span class="filename">/etc/systemd/system/sandal.service.d/override.conf</span><pre><span></span><code><span class="k">[Service]</span>
-<span class="na">Environment</span><span class="o">=</span><span class="s">&quot;SANDAL_UPSTREAM_IF=eth0&quot;</span>
-<span class="na">Environment</span><span class="o">=</span><span class="s">&quot;SANDAL_IPV6_MODE=ndp-proxy&quot;</span>
+<span class="na">Environment</span><span class="o">=</span><span class="s">"SANDAL_UPSTREAM_IF=eth0"</span>
+<span class="na">Environment</span><span class="o">=</span><span class="s">"SANDAL_IPV6_MODE=ndp-proxy"</span>
 </code></pre></div>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1993,7 +1993,7 @@ sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1579,7 +1579,7 @@
 </div>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <p>Pull an image from a registry and run a one-off command:</p>
-<div class="highlight"><span class="filename">Run a command in alpine</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;hello from sandal&quot;</span>
+<div class="highlight"><span class="filename">Run a command in alpine</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"hello from sandal"</span>
 </code></pre></div>
 <p><code>-lw</code> accepts any OCI image reference (Docker Hub short names, <code>ghcr.io/...</code>, <code>public.ecr.aws/...</code>, etc.). The image is pulled once, flattened to squashfs, and cached for subsequent runs.</p>
 <h2 id="run-the-images-default-command">Run the image's default command<a class="headerlink" href="#run-the-images-default-command" title="Permanent link">&para;</a></h2>
@@ -1597,12 +1597,12 @@
 <p>Limit CPU and memory with <code>--cpu</code> and <code>--memory</code>. On Linux, limits are enforced via cgroup v2. On macOS, they are applied to the host-side VM configuration:</p>
 <div class="highlight"><span class="filename">Half a CPU, 256MB of memory</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>--cpu<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--memory<span class="w"> </span>256M<span class="w"> </span>--<span class="w"> </span>sh
 </code></pre></div>
-<div class="highlight"><span class="filename">Two CPUs, 1GiB of memory</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>python:3-slim<span class="w"> </span>--rm<span class="w"> </span>--cpu<span class="w"> </span><span class="m">2</span><span class="w"> </span>--memory<span class="w"> </span>1Gi<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;print(&#39;ok&#39;)&quot;</span>
+<div class="highlight"><span class="filename">Two CPUs, 1GiB of memory</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>python:3-slim<span class="w"> </span>--rm<span class="w"> </span>--cpu<span class="w"> </span><span class="m">2</span><span class="w"> </span>--memory<span class="w"> </span>1Gi<span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"print('ok')"</span>
 </code></pre></div>
 <h2 id="passing-environment-variables">Passing environment variables<a class="headerlink" href="#passing-environment-variables" title="Permanent link">&para;</a></h2>
 <p>Pass individual variables from the host with <code>-env-pass</code> (no value injection — the name is read from your shell):</p>
-<div class="highlight"><span class="filename">Forward a single variable</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MY_TOKEN</span><span class="o">=</span><span class="s2">&quot;s3cret&quot;</span>
-sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>-env-pass<span class="w"> </span>MY_TOKEN<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;echo &quot;$MY_TOKEN&quot;&#39;</span>
+<div class="highlight"><span class="filename">Forward a single variable</span><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MY_TOKEN</span><span class="o">=</span><span class="s2">"s3cret"</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>-env-pass<span class="w"> </span>MY_TOKEN<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">'echo "$MY_TOKEN"'</span>
 </code></pre></div>
 <p>Or send every host variable with <code>-env-all</code>:</p>
 <div class="highlight"><span class="filename">Forward all host environment variables</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>--rm<span class="w"> </span>-env-all<span class="w"> </span>--<span class="w"> </span>env
@@ -1617,7 +1617,7 @@ sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </s
 <h2 id="layer-multiple-images">Layer multiple images<a class="headerlink" href="#layer-multiple-images" title="Permanent link">&para;</a></h2>
 <p>Stack images by repeating <code>-lw</code>. The right-most image wins for <code>ENTRYPOINT</code>, <code>CMD</code>, <code>WorkingDir</code>, and <code>User</code>; <code>ENV</code> accumulates with later images overriding earlier ones.</p>
 <p>A common pattern is combining a <strong>single-binary Go image</strong> (typically built <code>FROM scratch</code> — no shell, no package manager, just the binary) with <strong>alpine</strong> to get shell and debugging tools alongside the binary:</p>
-<div class="highlight"><span class="filename">alpine shell/tools + hello-world (single-binary scratch image)</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-lw<span class="w"> </span>hello-world:latest<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span>ash<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo shell is avaible and hello as well; ./hello&quot;</span>
+<div class="highlight"><span class="filename">alpine shell/tools + hello-world (single-binary scratch image)</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-lw<span class="w"> </span>hello-world:latest<span class="w"> </span>--rm<span class="w"> </span>--<span class="w"> </span>ash<span class="w"> </span>-c<span class="w"> </span><span class="s2">"echo shell is avaible and hello as well; ./hello"</span>
 </code></pre></div>
 <h2 id="ephemeral-in-memory-rootfs-linux-only">Ephemeral in-memory rootfs (Linux only)<a class="headerlink" href="#ephemeral-in-memory-rootfs-linux-only" title="Permanent link">&para;</a></h2>
 <p>On Linux, add <code>-tmp &lt;MB&gt;</code> to back the overlay with a host tmpfs instead of disk — useful for throwaway environments, nested sandal/docker runs, or filesystems that don't support overlayfs upper (fat32, exfat). This flag has no effect on macOS, where the overlay already lives inside the VM:</p>
@@ -1692,7 +1692,7 @@ sandal<span class="w"> </span>attach<span class="w"> </span><span class="nb">bg<
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1620,7 +1620,7 @@
 <span class="w">    </span><span class="nx">ContPid</span><span class="w">       </span><span class="kt">int</span><span class="w">                 </span><span class="c1">// Container-side PID (unused for VM containers)</span>
 <span class="w">    </span><span class="nx">TmpSize</span><span class="w">       </span><span class="kt">uint</span><span class="w">                </span><span class="c1">// Tmpfs size in MB (0 = disabled)</span>
 <span class="w">    </span><span class="nx">ChangeDirSize</span><span class="w"> </span><span class="kt">string</span><span class="w">              </span><span class="c1">// Change dir disk image size</span>
-<span class="w">    </span><span class="nx">ChangeDirType</span><span class="w"> </span><span class="kt">string</span><span class="w">              </span><span class="c1">// &quot;auto&quot;, &quot;folder&quot;, &quot;image&quot;</span>
+<span class="w">    </span><span class="nx">ChangeDirType</span><span class="w"> </span><span class="kt">string</span><span class="w">              </span><span class="c1">// "auto", "folder", "image"</span>
 <span class="w">    </span><span class="nx">ChangeDir</span><span class="w">     </span><span class="kt">string</span><span class="w">              </span><span class="c1">// Overlay upper/work directory</span>
 <span class="w">    </span><span class="nx">RootfsDir</span><span class="w">     </span><span class="kt">string</span><span class="w">              </span><span class="c1">// Mounted root filesystem path</span>
 <span class="w">    </span><span class="nx">Snapshot</span><span class="w">      </span><span class="kt">string</span><span class="w">              </span><span class="c1">// Snapshot output path</span>
@@ -1639,7 +1639,7 @@
 <span class="w">    </span><span class="nx">PassEnv</span><span class="w">       </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">StringFlags</span><span class="w"> </span><span class="c1">// Pass specific env vars</span>
 <span class="w">    </span><span class="nx">Net</span><span class="w">           </span><span class="kt">any</span><span class="w">                 </span><span class="c1">// Network interface specs</span>
 <span class="w">    </span><span class="nx">Ports</span><span class="w">         </span><span class="p">[]</span><span class="nx">forward</span><span class="p">.</span><span class="nx">PortMapping</span><span class="w"> </span><span class="c1">// Port forwarding mappings</span>
-<span class="w">    </span><span class="nx">VM</span><span class="w">            </span><span class="kt">string</span><span class="w">              </span><span class="c1">// VM mode: &quot;&quot; (direct), &quot;kvm&quot;, &quot;vz&quot;</span>
+<span class="w">    </span><span class="nx">VM</span><span class="w">            </span><span class="kt">string</span><span class="w">              </span><span class="c1">// VM mode: "" (direct), "kvm", "vz"</span>
 <span class="w">    </span><span class="nx">ContArgs</span><span class="w">      </span><span class="p">[]</span><span class="kt">string</span><span class="w">            </span><span class="c1">// Command to execute</span>
 <span class="w">    </span><span class="nx">HostArgs</span><span class="w">      </span><span class="p">[]</span><span class="kt">string</span><span class="w">            </span><span class="c1">// Original CLI args (used for daemon recovery)</span>
 <span class="w">    </span><span class="nx">MemoryLimit</span><span class="w">   </span><span class="kt">string</span><span class="w">              </span><span class="c1">// Cgroup memory limit (VM: used for VM RAM)</span>
@@ -1689,8 +1689,8 @@
 <div class="highlight"><pre><span></span><code>main_linux.go (VM guest path):
 
   guest.VMInit()                                      ◄── Stage 1-6: mount filesystems, VirtioFS
-  env.SetDefault(&quot;SANDAL_STATE_DIR&quot;, &quot;/tmp/sandal-state&quot;)  ◄── Redirect state to tmpfs
-  env.BaseStateDir = &quot;/tmp/sandal-state&quot;
+  env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")  ◄── Redirect state to tmpfs
+  env.BaseStateDir = "/tmp/sandal-state"
   cmd.Main()                                          ◄── Re-dispatch: sandal run → RunContainer()
     └── RunContainer()
           ├── SetContainer(c) → writes to /tmp/sandal-state/  ◄── Local tmpfs, not VirtioFS
@@ -1705,7 +1705,7 @@
 2. Pull alpine:latest -&gt; squashfs cache (~/.sandal-vm/images/)
 3. Download Linux kernel -&gt; cache (~/.sandal-vm/kernel/)
 4. Build initrd: embed sandal binary + kernel modules
-5. Build kernel cmdline: SANDAL_VM_ARGS=&lt;base64([&quot;run&quot;,&quot;alpine:latest&quot;,&quot;/bin/sh&quot;])&gt;
+5. Build kernel cmdline: SANDAL_VM_ARGS=&lt;base64(["run","alpine:latest","/bin/sh"])&gt;
 6. Create sandal0 bridge, allocate IP from subnet
 7. Create KVM VM:
    a. Open /dev/kvm
@@ -1824,7 +1824,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

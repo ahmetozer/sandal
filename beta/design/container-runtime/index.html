@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1638,7 +1638,7 @@
 <span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">ns</span><span class="w"> </span><span class="nx">Namespaces</span><span class="p">)</span><span class="w"> </span><span class="nx">CloneFlags</span><span class="p">()</span><span class="w"> </span><span class="kt">uintptr</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">flags</span><span class="w"> </span><span class="kt">uintptr</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">ns</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// empty = create new</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">""</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c1">// empty = create new</span>
 <span class="w">            </span><span class="nx">flags</span><span class="w"> </span><span class="o">|=</span><span class="w"> </span><span class="nx">nameToFlag</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span><span class="w">  </span><span class="c1">// e.g., CLONE_NEWPID</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">    </span><span class="p">}</span>
@@ -1726,13 +1726,13 @@
 </code></pre></div>
 <p><strong>Pivot Root</strong> isolates the container's view:
 <div class="highlight"><pre><span></span><code><span class="c1">// mount.go</span>
-<span class="nx">unix</span><span class="p">.</span><span class="nx">Mount</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_PRIVATE</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_REC</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">)</span>
+<span class="nx">unix</span><span class="p">.</span><span class="nx">Mount</span><span class="p">(</span><span class="s">""</span><span class="p">,</span><span class="w"> </span><span class="s">"/"</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_PRIVATE</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_REC</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">)</span>
 <span class="nx">syscall</span><span class="p">.</span><span class="nx">PivotRoot</span><span class="p">(</span><span class="nx">newRoot</span><span class="p">,</span><span class="w"> </span><span class="nx">pivotDir</span><span class="p">)</span>
 <span class="nx">unix</span><span class="p">.</span><span class="nx">Unmount</span><span class="p">(</span><span class="nx">pivotDir</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">MNT_DETACH</span><span class="p">)</span>
 </code></pre></div></p>
 <h3 id="volume-mounts">Volume Mounts<a class="headerlink" href="#volume-mounts" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="c1">// mount.go - for each -v /host/path:/container/path</span>
-<span class="nx">unix</span><span class="p">.</span><span class="nx">Mount</span><span class="p">(</span><span class="nx">hostPath</span><span class="p">,</span><span class="w"> </span><span class="nx">containerPath</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_BIND</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_REC</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">)</span>
+<span class="nx">unix</span><span class="p">.</span><span class="nx">Mount</span><span class="p">(</span><span class="nx">hostPath</span><span class="p">,</span><span class="w"> </span><span class="nx">containerPath</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_BIND</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">MS_REC</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">)</span>
 </code></pre></div>
 <p>Volume paths are validated to prevent escaping the container rootfs via <code>..</code> traversal.</p>
 <h2 id="capability-management">Capability Management<a class="headerlink" href="#capability-management" title="Permanent link">&para;</a></h2>
@@ -1770,7 +1770,7 @@ SYS_CHROOT, KILL, AUDIT_WRITE
   |     Generate override /proc/meminfo content (matching limit)
   |
   +-- If cpuLimit set:
-  |     Parse &quot;2&quot; -&gt; &quot;200000 100000&quot; (200ms quota per 100ms period)
+  |     Parse "2" -&gt; "200000 100000" (200ms quota per 100ms period)
   |     Write to /sys/fs/cgroup/sandal/&lt;name&gt;/cpu.max
   |     Generate override /proc/cpuinfo (matching CPU count)
   |
@@ -1781,9 +1781,9 @@ SYS_CHROOT, KILL, AUDIT_WRITE
 <h2 id="process-lifecycle">Process Lifecycle<a class="headerlink" href="#process-lifecycle" title="Permanent link">&para;</a></h2>
 <h3 id="fork-and-exec">Fork and Exec<a class="headerlink" href="#fork-and-exec" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>host/crun.go</code></p>
-<div class="highlight"><pre><span></span><code><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">(</span><span class="s">&quot;/proc/self/exe&quot;</span><span class="p">)</span><span class="w">  </span><span class="c1">// Re-exec self</span>
-<span class="nx">cmd</span><span class="p">.</span><span class="nx">Env</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Environ</span><span class="p">(),</span><span class="w"> </span><span class="s">&quot;SANDAL_CHILD=&quot;</span><span class="o">+</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
-<span class="nx">cmd</span><span class="p">.</span><span class="nx">SysProcAttr</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SysProcAttr</span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">(</span><span class="s">"/proc/self/exe"</span><span class="p">)</span><span class="w">  </span><span class="c1">// Re-exec self</span>
+<span class="nx">cmd</span><span class="p">.</span><span class="nx">Env</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Environ</span><span class="p">(),</span><span class="w"> </span><span class="s">"SANDAL_CHILD="</span><span class="o">+</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+<span class="nx">cmd</span><span class="p">.</span><span class="nx">SysProcAttr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SysProcAttr</span><span class="p">{</span>
 <span class="w">    </span><span class="nx">Cloneflags</span><span class="p">:</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">NS</span><span class="p">.</span><span class="nx">CloneFlags</span><span class="p">(),</span><span class="w">  </span><span class="c1">// CLONE_NEWPID | CLONE_NEWNS | ...</span>
 <span class="w">    </span><span class="nx">Pdeathsig</span><span class="p">:</span><span class="w">  </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGKILL</span><span class="p">,</span><span class="w">      </span><span class="c1">// Kill child if parent dies</span>
 <span class="p">}</span>
@@ -1793,7 +1793,7 @@ SYS_CHROOT, KILL, AUDIT_WRITE
 <h3 id="signal-forwarding">Signal Forwarding<a class="headerlink" href="#signal-forwarding" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>host/crun.go</code></p>
 <p>The parent process forwards signals to the container:
-<div class="highlight"><pre><span></span><code><span class="nx">signal</span><span class="p">.</span><span class="nx">Notify</span><span class="p">(</span><span class="nx">sigCh</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGINT</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="nx">signal</span><span class="p">.</span><span class="nx">Notify</span><span class="p">(</span><span class="nx">sigCh</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGINT</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span><span class="p">,</span><span class="w"> </span><span class="p">...)</span>
 <span class="k">go</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">sig</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">sigCh</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nx">cmd</span><span class="p">.</span><span class="nx">Process</span><span class="p">.</span><span class="nx">Signal</span><span class="p">(</span><span class="nx">sig</span><span class="p">)</span>
@@ -1813,7 +1813,7 @@ SYS_CHROOT, KILL, AUDIT_WRITE
 </ol>
 <h3 id="user-switching">User Switching<a class="headerlink" href="#user-switching" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>guest/user.go</code></p>
-<div class="highlight"><pre><span></span><code>switchUser(spec)   // spec = &quot;user:group&quot; or &quot;uid:gid&quot;
+<div class="highlight"><pre><span></span><code>switchUser(spec)   // spec = "user:group" or "uid:gid"
   |
   +-- Resolve user/group names to UID/GID (from /etc/passwd, /etc/group)
   +-- prctl(PR_SET_KEEPCAPS, 1) -&gt; preserve caps across setuid
@@ -1830,8 +1830,8 @@ SYS_CHROOT, KILL, AUDIT_WRITE
 <span class="w">    </span><span class="nx">HostPid</span><span class="w">       </span><span class="kt">int</span><span class="w">                           </span><span class="c1">// Host PID of container process</span>
 <span class="w">    </span><span class="nx">ContPid</span><span class="w">       </span><span class="kt">int</span><span class="w">                           </span><span class="c1">// PID inside container (usually 1)</span>
 <span class="w">    </span><span class="nx">TmpSize</span><span class="w">       </span><span class="kt">uint</span><span class="w">                          </span><span class="c1">// Tmpfs size in MB (0 = disabled)</span>
-<span class="w">    </span><span class="nx">ChangeDirSize</span><span class="w"> </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// Change dir disk image size (e.g. &quot;128m&quot;)</span>
-<span class="w">    </span><span class="nx">ChangeDirType</span><span class="w"> </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// &quot;auto&quot;, &quot;folder&quot;, &quot;image&quot;</span>
+<span class="w">    </span><span class="nx">ChangeDirSize</span><span class="w"> </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// Change dir disk image size (e.g. "128m")</span>
+<span class="w">    </span><span class="nx">ChangeDirType</span><span class="w"> </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// "auto", "folder", "image"</span>
 <span class="w">    </span><span class="nx">ChangeDir</span><span class="w">     </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// Overlay upper directory path</span>
 <span class="w">    </span><span class="nx">RootfsDir</span><span class="w">     </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// Merged overlay mount point</span>
 <span class="w">    </span><span class="nx">Snapshot</span><span class="w">      </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// Snapshot output path</span>
@@ -1859,7 +1859,7 @@ SYS_CHROOT, KILL, AUDIT_WRITE
 <span class="w">    </span><span class="nx">PassEnv</span><span class="w">       </span><span class="nx">wrapper</span><span class="p">.</span><span class="nx">StringFlags</span><span class="w">           </span><span class="c1">// Pass specific env vars</span>
 <span class="w">    </span><span class="nx">Net</span><span class="w">           </span><span class="kt">any</span><span class="w">                           </span><span class="c1">// Network interface specifications</span>
 <span class="w">    </span><span class="nx">Ports</span><span class="w">         </span><span class="p">[]</span><span class="nx">forward</span><span class="p">.</span><span class="nx">PortMapping</span><span class="w">         </span><span class="c1">// Port forwarding mappings</span>
-<span class="w">    </span><span class="nx">VM</span><span class="w">            </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// &quot;&quot; = no VM, &quot;kvm&quot; = KVM, &quot;vz&quot; = VZ</span>
+<span class="w">    </span><span class="nx">VM</span><span class="w">            </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// "" = no VM, "kvm" = KVM, "vz" = VZ</span>
 <span class="w">    </span><span class="nx">MemoryLimit</span><span class="w">   </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// Memory cgroup limit</span>
 <span class="w">    </span><span class="nx">CPULimit</span><span class="w">      </span><span class="kt">string</span><span class="w">                        </span><span class="c1">// CPU cgroup limit</span>
 <span class="p">}</span>
@@ -1932,7 +1932,7 @@ SYS_CHROOT, KILL, AUDIT_WRITE
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

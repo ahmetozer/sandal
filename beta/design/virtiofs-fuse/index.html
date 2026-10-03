@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1598,7 +1598,7 @@
 <div class="highlight"><pre><span></span><code>Guest Kernel                          Host (sandal process)
 +------------------+                  +---------------------------+
 | Application      |                  | VirtioFSDevice            |
-|   read(&quot;/data&quot;)  |                  |                           |
+|   read("/data")  |                  |                           |
 +--------+---------+                  |  +---------------------+  |
          |                            |  | FUSE Request Handler|  |
 +--------+---------+                  |  |                     |  |
@@ -1619,17 +1619,17 @@
 <h2 id="device-structure">Device Structure<a class="headerlink" href="#device-structure" title="Permanent link">&para;</a></h2>
 <p><strong>File</strong>: <code>pkg/vm/kvm/virtiofs.go</code></p>
 <div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">VirtioFSDevice</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">tag</span><span class="w">      </span><span class="kt">string</span><span class="w">          </span><span class="c1">// Mount tag (e.g., &quot;fs-0&quot;)</span>
+<span class="w">    </span><span class="nx">tag</span><span class="w">      </span><span class="kt">string</span><span class="w">          </span><span class="c1">// Mount tag (e.g., "fs-0")</span>
 <span class="w">    </span><span class="nx">hostPath</span><span class="w"> </span><span class="kt">string</span><span class="w">          </span><span class="c1">// Host directory to share</span>
 <span class="w">    </span><span class="nx">readOnly</span><span class="w"> </span><span class="kt">bool</span><span class="w">            </span><span class="c1">// Disable write operations</span>
 
 <span class="w">    </span><span class="c1">// Node management</span>
 <span class="w">    </span><span class="nx">mu</span><span class="w">       </span><span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
-<span class="w">    </span><span class="nx">nodes</span><span class="w">    </span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">string</span><span class="w">   </span><span class="c1">// nodeID -&gt; host path</span>
+<span class="w">    </span><span class="nx">nodes</span><span class="w">    </span><span class="kt">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="kt">string</span><span class="w">   </span><span class="c1">// nodeID -&gt; host path</span>
 <span class="w">    </span><span class="nx">nextNode</span><span class="w"> </span><span class="kt">uint64</span><span class="w">              </span><span class="c1">// Next node ID to allocate</span>
 
 <span class="w">    </span><span class="c1">// File handle management</span>
-<span class="w">    </span><span class="nx">handles</span><span class="w">    </span><span class="kd">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="w">  </span><span class="c1">// fh -&gt; open file</span>
+<span class="w">    </span><span class="nx">handles</span><span class="w">    </span><span class="kt">map</span><span class="p">[</span><span class="kt">uint64</span><span class="p">]</span><span class="o">*</span><span class="nx">os</span><span class="p">.</span><span class="nx">File</span><span class="w">  </span><span class="c1">// fh -&gt; open file</span>
 <span class="w">    </span><span class="nx">nextHandle</span><span class="w"> </span><span class="kt">uint64</span><span class="w">               </span><span class="c1">// Next file handle to allocate</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -1796,7 +1796,7 @@ Node 2+:              Allocated on FUSE_LOOKUP, maps to hostPath + relative path
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="nx">id</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextNode</span>
 <span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextNode</span><span class="o">++</span>
-<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nodes</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">path</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nodes</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">path</span>
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">id</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -1806,7 +1806,7 @@ Node 2+:              Allocated on FUSE_LOOKUP, maps to hostPath + relative path
 <span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nx">Unlock</span><span class="p">()</span>
 <span class="w">    </span><span class="nx">fh</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextHandle</span>
 <span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">nextHandle</span><span class="o">++</span>
-<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">handles</span><span class="p">[</span><span class="nx">fh</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">f</span>
+<span class="w">    </span><span class="nx">d</span><span class="p">.</span><span class="nx">handles</span><span class="p">[</span><span class="nx">fh</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">f</span>
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">fh</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -1912,7 +1912,7 @@ Response: fuseAttrOut{Attr: updated_stat}
 <span class="w">    </span><span class="c1">// Concatenate readable descriptors into single request</span>
 <span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">reqBuf</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">readBufs</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">reqBuf</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">reqBuf</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="o">...</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">reqBuf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">reqBuf</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="p">...)</span>
 <span class="w">    </span><span class="p">}</span>
 
 <span class="w">    </span><span class="c1">// Parse header from concatenated buffer</span>
@@ -1929,7 +1929,7 @@ Response: fuseAttrOut{Attr: updated_stat}
 <span class="w">        </span><span class="nx">written</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">n</span>
 <span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">written</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">resp</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">break</span><span class="w"> </span><span class="p">}</span>
 <span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">uint32</span><span class="p">(</span><span class="nx">written</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kt">uint32</span><span class="p">(</span><span class="nx">written</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <h2 id="read-only-mode">Read-Only Mode<a class="headerlink" href="#read-only-mode" title="Permanent link">&para;</a></h2>
@@ -2058,7 +2058,7 @@ Response: fuseAttrOut{Attr: updated_stat}
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       
