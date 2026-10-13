@@ -102,7 +102,7 @@ To disable both embeddings, write a value with no tokens: `SANDAL_HOST_NET="172.
 ### SANDAL_UPSTREAM_IF
 
 Interface name (e.g. `eth0`, `enp1s0`) that the daemon watches for upstream IPv6 prefix changes.  
-**Empty (default): auto-detect from the host's default route at daemon start.** Set explicitly to override.  
+**Empty (default): auto-detect from the host's default route, retried every 5 s until one exists.** Set explicitly to override.  
 See [Dynamic IPv6](dynamic-ipv6.md).
 
 ### SANDAL_IPV6_MODE

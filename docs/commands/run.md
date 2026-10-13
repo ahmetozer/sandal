@@ -322,6 +322,13 @@ Allocation configuration of /etc/hosts file.
     address so that the VZ NAT network accepts its frames. No manual `-net`
     flag is needed — DHCP is used by default.
 
+??? info "Dynamic address (`%uv6%`)"
+
+    An `ip=` entry containing `%uv6%` is the container's public IPv6, resolved
+    against the current upstream prefix and updated when it rotates:
+    `-net "ip=192.0.2.23/24=%uv6%:192:0:2:23=fd00:db8::23/64"`.
+    Requires `sandal daemon`; see [Dynamic IPv6](../setup/dynamic-ipv6.md).
+
 ---
 
 ### Namespace flags (`-ns-<kind>`)

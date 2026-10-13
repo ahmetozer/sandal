@@ -42,7 +42,7 @@ After the daemon comes up:
 ```bash
 # Bridge has the public /64 from your upstream
 ip -6 addr show dev sandal0
-#  2001:db8:3b0a:4f00:c0a8:10f::1/64                ← public, mirrored from eth0
+#  2001:db8:3b0a:4f00:c0a8:10f::1/128              ← public, mirrored from eth0 (/128 in ndp-proxy, /64 in pd)
 #  fd34:135:123:0:c0a8:10f::1/120                   ← static ULA (kept as fallback)
 #  172.16.0.1/24                                     ← static IPv4
 # (The :c0a8:10f tail is the host's IPv4 (192.168.1.15 here) baked into the IID
@@ -61,12 +61,16 @@ After `sandal run`:
 ```bash
 # Container's IPv6
 sandal exec web -- ip -6 addr show dev eth0 scope global
-#  2001:db8:3b0a:4f00:c0a8:10f::2/64                ← public (same IID tail as the host)
+#  2001:db8:3b0a:4f00:c0a8:10f:0:2/128            ← public (IID mirrors the container's ULA)
 #  fd34:135:123:0:c0a8:10f::2/120                   ← ULA (host-local)
 
 # Host is announcing it to the LAN
 ip -6 neigh show proxy dev eth0
 #  2001:db8:3b0a:4f00:c0a8:10f::2 proxy
+
+# RA prefix route on the uplink (an alternative source when the uplink has no SLAAC address)
+ip -6 route show dev eth0
+#  2001:db8:3b0a:4f00::/64 proto kernel metric 256 expires 300sec   ← upstream /64 (also present when the router offers no SLAAC)
 
 # Quick reachability test from the container
 sandal exec web -- ping -6 -c 2 2606:4700:4700::1111
@@ -101,6 +105,27 @@ Auto-detect will pick `pd` mode if a delegated route is visible. If you want to 
 export SANDAL_IPV6_MODE=pd
 sandal daemon
 ```
+
+### Give a container a public IPv6 with a fixed interface ID
+
+Write the address as a dynamic address. `%uv6%` is replaced by the upstream
+prefix (high 64 bits), the same token `SANDAL_HOST_NET` uses, and is
+re-resolved whenever the prefix rotates:
+
+```bash
+sandal run -d --name web \
+    -net "ip=192.0.2.23/24=%uv6%:192:0:2:23=fd00:db8::23/64" \
+    -lw nginx:latest
+```
+
+With prefix `2001:db8:3b0a:4f00::/64` the container gets
+`2001:db8:3b0a:4f00:192:0:2:23`. After rotation to `2001:db8:77:1::/64` it
+becomes `2001:db8:77:1:192:0:2:23`, so firewall rules that match the
+interface-ID suffix keep working. Omit the mask (or write `/128`); sandal
+installs `/128` in ndp-proxy mode and the prefix length in pd mode.
+
+A literal global (e.g. `ip=2001:db8:9::7/64`) is static: sandal never
+renumbers or removes it.
 
 ### Pin a container to a fixed IPv6 (don't auto-renumber)
 
@@ -150,16 +175,40 @@ The container keeps whatever address its DHCPv6 client got. The host-side renumb
 
 ## What containers actually get
 
-Bridge state determines what containers are allocated:
+Which public IPv6 a container gets depends on its `-net` option:
 
-| Bridge state | New container's `eth0` |
+| `-net` | Public IPv6 |
 |---|---|
-| Daemon running, upstream has a public IPv6 | IPv4 + public IPv6 + ULA |
-| Daemon running, upstream has no global yet | IPv4 + ULA only — public IPv6 added later when upstream's prefix arrives |
-| Daemon not running (CLI-only `sandal run`) | IPv4 + static ULA from `SANDAL_HOST_NET` |
-| `SANDAL_IPV6_MODE=off` | IPv4 + static ULA |
+| no `ip=` (sandal allocates) | yes, IID mirrors the container's ULA |
+| `ip=` with a `%uv6%:…` dynamic address | yes, that address |
+| `ip=` with a literal public IPv6 | static, never renumbered |
+| `ip=` with IPv4/ULA only | no |
+| `dynamic=false` or `ip=dhcp6` | never touched |
+
+Without `sandal daemon`, or with `SANDAL_IPV6_MODE=off`, containers get only IPv4 and the ULA.
+
+The IPv6 gateway is always the bridge ULA, so prefix rotation never breaks the
+default route. Containers get their global at creation when the daemon already
+knows the prefix, otherwise within ~3 s.
 
 The static ULA (`fd34:135:123::/120` by default) is always kept as a fallback so containers can talk to each other and to the host even before — or instead of — a public IPv6 is available.
+
+### VMs
+
+`sandal run -vm` links follow the same rules, but the address is resolved once,
+when the VM boots. Sandal proxies it while it is inside the current prefix;
+after a prefix rotation restart the VM to pick up the new prefix.
+
+### Upstreams without SLAAC
+
+Some routers announce the prefix with autoconfiguration off and hand out
+addresses only via DHCPv6. Sandal learns the prefix from the on-link route the
+kernel installs from the router advertisement, so no address on the uplink is
+needed. Sandal0's own public address is proxied too, so the host has global
+IPv6 even when the uplink has none. Some routers with stateful DHCPv6 filter
+addresses they did not lease; if containers can't reach the internet, check
+with `tcpdump -i <uplink> icmp6` that the router's neighbour solicitations for
+the container address are answered.
 
 ## Verifying a prefix change
 
@@ -170,7 +219,7 @@ Easiest way to confirm renumber works end-to-end is to inject a test prefix on e
 sandal exec web -- ip -6 addr show dev eth0 scope global
 ip -6 neigh show proxy dev eth0
 
-# Inject a test prefix; sandal sees it within ~2 s
+# Inject a test prefix; sandal sees it within ~3 s
 sudo ip -6 addr add 2001:db8:test::1/64 dev eth0 valid_lft 7200 preferred_lft 7200
 
 # Wait a moment, then check again
@@ -197,9 +246,9 @@ No configuration is required — this is automatic for every container that uses
 
 ## Troubleshooting
 
-**Daemon log says `auto-detect failed; service disabled`.**
+**Daemon log says `no default route yet; retrying upstream auto-detect`.**
 
-The host has no default IPv6 or IPv4 route at daemon start. Fix the host's networking first, then restart sandal. Or set `SANDAL_UPSTREAM_IF=<iface>` explicitly to skip the auto-detect.
+The uplink isn't up yet (common when a `--startup` container creates it). Sandal retries every 5 s and starts as soon as a default route appears. Set `SANDAL_UPSTREAM_IF=<iface>` to skip detection.
 
 **Auto-detect picked the wrong interface (e.g. VPN tun0).**
 
@@ -247,7 +296,7 @@ Expected behavior. Renumber is a hard cutover — the old global is dropped and 
 - **One global prefix at a time.** If the upstream has multiple, sandal picks one (longest remaining valid lifetime) and stays sticky on it until it disappears.
 - **No connection preservation across renumber.** Open connections drop by design.
 - **IPv4 is unchanged.** The IPv4 portion of `SANDAL_HOST_NET` is still applied statically.
-- **Auto-detect happens once at daemon start.** If your default route flaps to a different interface later, restart the daemon to re-detect, or pin `SANDAL_UPSTREAM_IF` explicitly.
+- **The upstream interface is chosen once.** Detection retries until it succeeds, but the daemon does not switch interfaces afterwards; pin `SANDAL_UPSTREAM_IF` if the default route can move.
 
 ## Configuration reference
 
