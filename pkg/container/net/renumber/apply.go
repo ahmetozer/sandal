@@ -242,33 +242,13 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 			newIP = ip
 		}
 
-		oldGlobal := pickGlobalLocal(link.Addr)
 		if c.ContPid > 0 {
 			ifname := link.Name
 			if ifname == "" {
 				ifname = link.Id
 			}
-			var oldIP net.IP
-			switch {
-			case oldGlobal != nil:
-				// Normal renumber path: replace the existing global
-				// (its IID is preserved in newIP via withIID).
-				oldIP = oldGlobal.IP
-			default:
-				// No global to replace — container was created during a
-				// gap state (e.g. upstream had no public IPv6 when the
-				// container started). Use any non-link-local IPv6 still
-				// on the link (typically the ULA from SANDAL_HOST_NET) to
-				// locate the netns link by address. The current
-				// SwapContainerAddrByOldIP semantics then delete that
-				// fallback address before adding newAddr, so the container
-				// transitions ULA → global.
-				if alt := pickLookupAddrLocal(link.Addr); alt != nil {
-					oldIP = alt.IP
-				}
-			}
-			if err := SwapContainerAddrByOldIP(c.ContPid, ifname, oldIP, &net.IPNet{IP: newIP, Mask: prefix.Mask}); err != nil {
-				return nil, fmt.Errorf("SwapContainerAddrByOldIP: %w", err)
+			if err := SetContainerGlobals(c.ContPid, lookupAddrs(link.Addr), ifname, []net.IPNet{{IP: newIP, Mask: prefix.Mask}}); err != nil {
+				return nil, fmt.Errorf("SetContainerGlobals: %w", err)
 			}
 		}
 

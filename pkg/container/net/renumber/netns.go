@@ -3,6 +3,7 @@
 package renumber
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -10,26 +11,14 @@ import (
 
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 )
 
-// SwapContainerAddrByOldIP enters the container's netns and finds the link
-// that currently carries `oldIP`, then adds `newAddr`. The anchor (`oldIP`)
-// is used purely to locate the right interface; whether it is deleted
-// afterwards depends on its scope:
-//
-//   - If `oldIP` is a global IPv6 (i.e. the normal renumber case where a
-//     previous global is being replaced), it is deleted before `newAddr`
-//     is added — the bridge can hold only one global per prefix at a time.
-//   - If `oldIP` is a ULA (the gap-state case where the container only
-//     has its SANDAL_HOST_NET ULA), it is KEPT alongside `newAddr` so the
-//     container retains intra-bridge connectivity after the renumber. This
-//     mirrors how the bridge itself coexists ULA + public.
-//
-// Link-local addresses are never touched.
-//
-// If `oldIP` is nil, the function falls back to looking up by `ifaceName`
-// (caller-supplied) for backward compatibility / first-time use cases.
-func SwapContainerAddrByOldIP(contPid int, ifaceName string, oldIP net.IP, newAddr *net.IPNet) error {
+// SetContainerGlobals enters the container's netns, finds the link that
+// carries any of the lookup addresses (falling back to ifaceName), and
+// converges the globals the renumber service owns on that link to exactly
+// want. IPv4, link-local, ULA and static (non-owned) globals are untouched.
+func SetContainerGlobals(contPid int, lookup []net.IP, ifaceName string, want []net.IPNet) error {
 	if contPid <= 0 {
 		return fmt.Errorf("invalid contPid %d", contPid)
 	}
@@ -63,67 +52,76 @@ func SwapContainerAddrByOldIP(contPid int, ifaceName string, oldIP net.IP, newAd
 		}
 	}()
 
-	var target netlink.Link
-	if oldIP != nil {
-		links, err := netlink.LinkList()
-		if err != nil {
-			return fmt.Errorf("link list: %w", err)
-		}
-		for _, l := range links {
-			addrs, err := netlink.AddrList(l, netlink.FAMILY_V6)
-			if err != nil {
-				continue
-			}
-			for _, a := range addrs {
-				if a.IP.Equal(oldIP) {
-					target = l
-					break
-				}
-			}
-			if target != nil {
-				break
-			}
-		}
+	target, err := findLinkByAddrs(lookup, ifaceName)
+	if err != nil {
+		return err
 	}
-	if target == nil && ifaceName != "" {
-		// Fall back to by-name lookup (first-time renumber may not have an
-		// old IP, or oldIP could be on the host side rather than the netns).
-		var err error
-		target, err = netlink.LinkByName(ifaceName)
-		if err != nil {
-			return fmt.Errorf("link %q in container netns: %w", ifaceName, err)
-		}
-	}
-	if target == nil {
-		return fmt.Errorf("could not find interface for old IP %v / name %q in container netns", oldIP, ifaceName)
-	}
-
-	addrs, err := netlink.AddrList(target, netlink.FAMILY_V6)
+	have, err := netlink.AddrList(target, netlink.FAMILY_V6)
 	if err != nil {
 		return fmt.Errorf("addr list: %w", err)
 	}
-	for _, a := range addrs {
-		if a.IP.IsLinkLocalUnicast() {
-			continue
-		}
-		// Keep ULAs on the container — they are the SANDAL_HOST_NET
-		// fallback used for intra-bridge connectivity and are not in
-		// scope for prefix-level renumber. The bridge itself coexists
-		// ULA + public via the same rule; containers should too.
-		if isULA(a.IP) {
-			continue
-		}
-		if oldIP != nil && !a.IP.Equal(oldIP) {
-			continue
-		}
-		if err := netlink.AddrDel(target, &a); err != nil {
-			return fmt.Errorf("addr del %s: %w", a, err)
+	del, add := diffGlobals(have, want)
+	for i := range del {
+		if err := netlink.AddrDel(target, &del[i]); err != nil {
+			return fmt.Errorf("addr del %s: %w", del[i].IPNet, err)
 		}
 	}
-
-	add := &netlink.Addr{IPNet: newAddr}
-	if err := netlink.AddrAdd(target, add); err != nil {
-		return fmt.Errorf("addr add %s: %w", newAddr, err)
+	for i := range add {
+		if err := netlink.AddrAdd(target, &netlink.Addr{IPNet: &add[i]}); err != nil && !errors.Is(err, unix.EEXIST) {
+			return fmt.Errorf("addr add %s: %w", add[i].String(), err)
+		}
 	}
 	return nil
+}
+
+// findLinkByAddrs must run inside the target netns.
+func findLinkByAddrs(lookup []net.IP, ifaceName string) (netlink.Link, error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		return nil, fmt.Errorf("link list: %w", err)
+	}
+	for _, l := range links {
+		addrs, err := netlink.AddrList(l, netlink.FAMILY_ALL)
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			for _, ip := range lookup {
+				if a.IP.Equal(ip) {
+					return l, nil
+				}
+			}
+		}
+	}
+	if ifaceName == "" {
+		return nil, fmt.Errorf("no link carries %v and no interface name given", lookup)
+	}
+	l, err := netlink.LinkByName(ifaceName)
+	if err != nil {
+		return nil, fmt.Errorf("link %q in container netns: %w", ifaceName, err)
+	}
+	return l, nil
+}
+
+// diffGlobals returns the owned globals in have that are not wanted, and
+// the wanted addresses missing from have.
+func diffGlobals(have []netlink.Addr, want []net.IPNet) (del []netlink.Addr, add []net.IPNet) {
+	owned := ownedBy(want)
+	var cur []net.IPNet
+	for _, h := range have {
+		if !isGlobal(h.IP) {
+			continue
+		}
+		n := net.IPNet{IP: h.IP, Mask: h.IPNet.Mask}
+		cur = append(cur, n)
+		if owned(h.IP) && !containsAddr(want, n) {
+			del = append(del, h)
+		}
+	}
+	for _, w := range want {
+		if !containsAddr(cur, w) {
+			add = append(add, w)
+		}
+	}
+	return del, add
 }
