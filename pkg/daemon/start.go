@@ -152,7 +152,7 @@ func startRenumber(ctx context.Context) error {
 		})
 		renumber.EnsureHostSysctls()
 
-		applier := &renumber.DefaultApplier{BridgeName: net.DefaultBridgeInterface}
+		applier := &renumber.DefaultApplier{BridgeName: net.DefaultBridgeInterface, Upstream: upstream}
 		var src renumber.Source
 		if mode == "pd" {
 			src = renumber.NewPDSource(upstream, env.IPv6PDHint)

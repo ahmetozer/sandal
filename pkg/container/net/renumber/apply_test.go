@@ -4,6 +4,7 @@ package renumber
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"net"
 	"strings"
@@ -38,78 +39,6 @@ func TestWithIIDRespectsPrefixLength(t *testing.T) {
 	want := net.ParseIP("2001:db8:cafe::1").To16()
 	if !got.Equal(want) {
 		t.Errorf("withIID /48: got %s, want %s", got, want)
-	}
-}
-
-func TestBridgeIIDPicksFirstGlobal(t *testing.T) {
-	ll := mustParseAddr(t, "fe80::1/64")
-	ula := mustParseAddr(t, "fd00::1/64")
-	global := mustParseAddr(t, "2001:db8::abcd/64")
-	other := mustParseAddr(t, "2001:db8:9::ffff/64")
-
-	got := bridgeIID([]netlink.Addr{ll, ula, global, other})
-	want := []byte{0, 0, 0, 0, 0, 0, 0xab, 0xcd}
-	if !bytes.Equal(got, want) {
-		t.Errorf("bridgeIID: got %x, want %x", got, want)
-	}
-}
-
-func TestBridgeIIDFallsBackTo1WhenNoGlobal(t *testing.T) {
-	ll := mustParseAddr(t, "fe80::1/64")
-	ula := mustParseAddr(t, "fd00::1/64")
-
-	got := bridgeIID([]netlink.Addr{ll, ula})
-	want := []byte{0, 0, 0, 0, 0, 0, 0, 1}
-	if !bytes.Equal(got, want) {
-		t.Errorf("bridgeIID fallback: got %x, want %x", got, want)
-	}
-}
-
-// TestBridgeIIDFallsBackToULA checks that bridgeIID uses the ULA IID when the
-// bridge has no global address, using real netlink.Addr values.
-func TestBridgeIIDFallsBackToULA(t *testing.T) {
-	mustParse := func(s string) netlink.Addr {
-		ip, ipnet, err := net.ParseCIDR(s)
-		if err != nil {
-			t.Fatalf("parse %q: %v", s, err)
-		}
-		return netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
-	}
-	addrs := []netlink.Addr{
-		mustParse("fe80::1/64"),
-		mustParse("fd34:135:123:0:ac10:3::1/120"),
-	}
-	got := bridgeIID(addrs)
-	want := []byte{0xac, 0x10, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01}
-	if !bytes.Equal(got, want) {
-		t.Errorf("bridgeIID ULA fallback: got %x, want %x", got, want)
-	}
-}
-
-func TestBridgeIIDPrefersGlobalOverULA(t *testing.T) {
-	mustParse := func(s string) netlink.Addr {
-		ip, ipnet, err := net.ParseCIDR(s)
-		if err != nil {
-			t.Fatalf("parse %q: %v", s, err)
-		}
-		return netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
-	}
-	addrs := []netlink.Addr{
-		mustParse("fd34:135:123:0:ac10:3::1/120"),
-		mustParse("2001:db8::99/64"),
-	}
-	got := bridgeIID(addrs)
-	want := []byte{0, 0, 0, 0, 0, 0, 0, 0x99}
-	if !bytes.Equal(got, want) {
-		t.Errorf("bridgeIID must prefer global: got %x, want %x", got, want)
-	}
-}
-
-func TestBridgeIIDDefaultWhenEmpty(t *testing.T) {
-	got := bridgeIID(nil)
-	want := []byte{0, 0, 0, 0, 0, 0, 0, 1}
-	if !bytes.Equal(got, want) {
-		t.Errorf("bridgeIID empty fallback: got %x, want %x", got, want)
 	}
 }
 
@@ -399,5 +328,44 @@ func TestDesiredProxy(t *testing.T) {
 		if !want[ip.String()] {
 			t.Fatalf("unexpected proxy entry %s in %v", ip, got)
 		}
+	}
+}
+
+func TestFallbackBridgeIID(t *testing.T) {
+	mac, _ := net.ParseMAC("52:54:00:12:34:56")
+	sum := sha256.Sum256(append(append([]byte{}, mac...), []byte("sandal0")...))
+	ula := []byte{0, 0, 0, 0, 0, 0, 0, 1}
+	cases := []struct {
+		name string
+		mac  net.HardwareAddr
+		v4   net.IP
+		ula  []byte
+		want []byte
+	}{
+		{"mac hash", mac, net.IPv4(192, 0, 2, 10), ula, sum[:8]},
+		{"no mac → ipv4 layout", nil, net.IPv4(192, 0, 2, 10), ula, []byte{192, 0, 2, 10, 0, 0, 0, 1}},
+		{"no mac, no ipv4 → ula iid", nil, nil, []byte{0, 0, 0, 0, 0, 0, 0, 0x23}, []byte{0, 0, 0, 0, 0, 0, 0, 0x23}},
+		{"nothing → ::1", nil, nil, nil, []byte{0, 0, 0, 0, 0, 0, 0, 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := fallbackBridgeIID(tc.mac, tc.v4, tc.ula)
+			if !bytes.Equal(got, tc.want) {
+				t.Fatalf("fallbackBridgeIID = %x, want %x", got, tc.want)
+			}
+		})
+	}
+	if bytes.Equal(fallbackBridgeIID(mac, nil, nil), []byte{0, 0, 0, 0, 0, 0, 0, 1}) {
+		t.Fatal("mac-derived IID must never be ::1")
+	}
+}
+
+func TestULAIID(t *testing.T) {
+	got := ulaIID([]netlink.Addr{mustParseAddr(t, "fe80::1/64"), mustParseAddr(t, "2001:db8:1:2::9/128"), mustParseAddr(t, "fd00:db8:5::23/64")})
+	if !bytes.Equal(got, []byte{0, 0, 0, 0, 0, 0, 0, 0x23}) {
+		t.Fatalf("ulaIID = %x, want ULA iid ::23 (globals ignored)", got)
+	}
+	if ulaIID([]netlink.Addr{mustParseAddr(t, "fe80::1/64")}) != nil {
+		t.Fatal("no ULA → nil")
 	}
 }

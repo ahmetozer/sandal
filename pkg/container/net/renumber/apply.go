@@ -4,6 +4,7 @@ package renumber
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,6 +22,7 @@ import (
 // and reconciles the NDP proxy table on the upstream interface (when configured).
 type DefaultApplier struct {
 	BridgeName string    // typically "sandal0"
+	Upstream   string    // upstream interface name; its MAC seeds the fallback bridge IID
 	Proxy      *NDPProxy // nil when mode != ndp-proxy
 	// HostRoute installs sandal0's and containers' globals as /128. Set in
 	// ndp-proxy mode: the upstream /64 is on-link on the upstream interface,
@@ -79,11 +81,10 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 //
 //  1. Dynamic entries present → reconcile the bridge against the resolved
 //     templates. The user's template fully owns the address (prefix + IID);
-//     bridgeIID/withIID is bypassed.
-//  2. No dynamic entries → fall back to the historical bridgeIID + withIID
-//     stamp. This preserves backward compatibility for hand-crafted
-//     SANDAL_HOST_NET values and exercises the ULA-IID fallback added in
-//     the prior spec.
+//     withIID is bypassed.
+//  2. No dynamic entries → stamp fallbackBridgeIID onto the prefix via
+//     withIID. This preserves backward compatibility for hand-crafted
+//     SANDAL_HOST_NET values.
 func (a *DefaultApplier) renumberBridge(prefix *net.IPNet) ([]net.IP, error) {
 	_, dynamic := cnet.SplitHostNet(env.DefaultHostNet)
 	if len(dynamic) > 0 {
@@ -162,8 +163,8 @@ func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []
 	return ips, nil
 }
 
-// renumberBridgeFallback is the historical bridgeIID/withIID path. Used when
-// SANDAL_HOST_NET has no dynamic entries.
+// renumberBridgeFallback is the withIID path. Used when SANDAL_HOST_NET has
+// no dynamic entries.
 func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) ([]net.IP, error) {
 	link, err := netlink.LinkByName(a.BridgeName)
 	if err != nil {
@@ -174,7 +175,20 @@ func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) ([]net.IP, er
 		return nil, fmt.Errorf("addr list: %w", err)
 	}
 
-	iid := bridgeIID(addrs)
+	var mac net.HardwareAddr
+	var v4 net.IP
+	if up, err := netlink.LinkByName(a.Upstream); err == nil {
+		mac = up.Attrs().HardwareAddr
+		if v4s, err := netlink.AddrList(up, netlink.FAMILY_V4); err == nil {
+			for _, x := range v4s {
+				if x.IP.IsGlobalUnicast() {
+					v4 = x.IP
+					break
+				}
+			}
+		}
+	}
+	iid := fallbackBridgeIID(mac, v4, ulaIID(addrs))
 	newIP := withIID(prefix, iid)
 	newAddr := &net.IPNet{IP: newIP, Mask: a.bridgeMask(prefix.Mask)}
 
@@ -242,36 +256,38 @@ func reconcileContainer(c *config.Config, prefix *net.IPNet, mask net.IPMask) er
 	return errors.Join(errs...)
 }
 
-// bridgeIID extracts an IID from the bridge's existing addresses. Prefers
-// an existing global address (so subsequent renumbers keep the same tail),
-// then falls back to the ULA so the first renumber preserves whatever IID
-// structure SANDAL_HOST_NET established — e.g. a %uv4%-derived embedding.
-// Returns [...::1] only when neither global nor ULA exists.
-func bridgeIID(addrs []netlink.Addr) []byte {
-	var ulaIID []byte
+// ulaIID returns the interface identifier of the first ULA in addrs, or nil.
+func ulaIID(addrs []netlink.Addr) []byte {
 	for _, a := range addrs {
-		if a.IP.IsLinkLocalUnicast() {
-			continue
-		}
 		if isULA(a.IP) {
-			if ulaIID == nil {
-				ip := a.IP.To16()
-				ulaIID = make([]byte, 8)
-				copy(ulaIID, ip[8:16])
-			}
-			continue
+			iid := make([]byte, 8)
+			copy(iid, a.IP.To16()[8:16])
+			return iid
 		}
-		ip := a.IP.To16()
+	}
+	return nil
+}
+
+// fallbackBridgeIID picks sandal0's global IID when SANDAL_HOST_NET has no
+// %uv6% entry. Copying the ULA IID (typically ::1) collides with routers
+// that own <prefix>::1, so prefer a hash of the uplink MAC: unique per host,
+// stable across reboots and prefix rotations, never the SLAAC EUI-64 form,
+// and it does not publish the MAC. MAC-less uplinks (PPP, tun) fall back to
+// the %uv4%::1 layout, then to the ULA IID, then to ::1.
+func fallbackBridgeIID(mac net.HardwareAddr, v4 net.IP, ula []byte) []byte {
+	if len(mac) > 0 {
+		sum := sha256.Sum256(append(append([]byte{}, mac...), []byte("sandal0")...))
 		iid := make([]byte, 8)
-		copy(iid, ip[8:16])
+		copy(iid, sum[:8])
 		return iid
 	}
-	if ulaIID != nil {
-		return ulaIID
+	if v4 = v4.To4(); v4 != nil {
+		return []byte{v4[0], v4[1], v4[2], v4[3], 0, 0, 0, 1}
 	}
-	iid := make([]byte, 8)
-	iid[7] = 1
-	return iid
+	if len(ula) == 8 {
+		return ula
+	}
+	return []byte{0, 0, 0, 0, 0, 0, 0, 1}
 }
 
 func withIID(prefix *net.IPNet, iid []byte) net.IP {

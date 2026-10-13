@@ -269,6 +269,10 @@ Set `SANDAL_UPSTREAM_IF=<correct-iface>` in your service file or systemd unit.
 
 Set `SANDAL_IPV6_MODE=ndp-proxy` (or `pd`) explicitly.
 
+**The host itself has no IPv6 but containers do.**
+
+Check that sandal0's public address doesn't equal an address the router owns (often `<prefix>::1`). If you set `%uv6%` in SANDAL_HOST_NET yourself, pick an interface ID the router won't use.
+
 **`sandal0` shows only the ULA, no public IPv6.**
 
 The upstream interface doesn't currently have a public IPv6 address itself. Check:

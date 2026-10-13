@@ -95,7 +95,7 @@ fd34:0135:0123:0:c0a8:10f::1/120           (static ULA, IPv4 in IID)
 2001:db8:aaaa:1:c0a8:10f::1/64             (dynamic — public, IPv4 in IID)
 ```
 
-The dynamic entry is **owned by the template**: the renumber service applies it verbatim. If you write your own SANDAL_HOST_NET without `%uv6%`, the renumber service falls back to the historical `bridgeIID` + `withIID` stamp instead.
+The dynamic entry is **owned by the template**: the renumber service applies it verbatim. If you write your own SANDAL_HOST_NET without `%uv6%`, sandal0's public address uses a stable interface ID derived from a hash of the uplink's MAC address (falling back to the uplink IPv4 as `%uv4%::1`), so it never takes the router's typical `<prefix>::1`.
 
 To disable both embeddings, write a value with no tokens: `SANDAL_HOST_NET="172.16.0.1/24,fd34:0135:0123::1/120"`.
 
