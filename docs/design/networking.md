@@ -42,6 +42,7 @@ func CreateDefaultBridge() error {
 
 **Bare metal Linux**:
 - Bridge gets static + dynamic addresses from `SANDAL_HOST_NET` (default: `172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64`). `%uv4%` resolves to the host's IPv4 as hex hextets at startup; `%uv6%` resolves to the upstream prefix's high 64 bits on each renumber event.
+- Containers and VMs opt into a public IPv6 with a `%uv6%` dynamic address in `-net ip=` (`Link.DynamicAddr`), or implicitly when sandal allocates their addresses. It is resolved at creation from sandal0's current prefix, and for containers re-resolved by the renumber service (`pkg/container/net/renumber`) on every prefix change and health-check tick. In ndp-proxy mode globals are `/128` and proxied on the uplink; in pd mode they keep the delegated `/64`. Gateways are always the bridge ULA. The prefix is learned from an uplink address or, without SLAAC, from the RA on-link route.
 - Containers get IPs from the same subnet
 - Host acts as gateway, uses iptables NAT for internet access
 

@@ -38,14 +38,22 @@ type Service struct {
 	drainWG sync.WaitGroup
 
 	debounce time.Duration
+	// retryBackoff is the first wait before retrying a failed Apply; it
+	// doubles per consecutive failure up to maxRetryBackoff.
+	retryBackoff time.Duration
 }
+
+const (
+	defaultRetryBackoff = 5 * time.Second
+	maxRetryBackoff     = 60 * time.Second
+)
 
 // NewService constructs a service. debounce ≤ 0 → 2s default.
 func NewService(src Source, app Applier, debounce time.Duration) *Service {
 	if debounce <= 0 {
 		debounce = 2 * time.Second
 	}
-	return &Service{source: src, applier: app, debounce: debounce}
+	return &Service{source: src, applier: app, debounce: debounce, retryBackoff: defaultRetryBackoff}
 }
 
 // Run blocks until ctx is canceled.
@@ -93,6 +101,7 @@ func (s *Service) enqueue(ctx context.Context, p *net.IPNet) {
 }
 
 func (s *Service) drain(ctx context.Context) {
+	backoff := s.retryBackoff
 	for {
 		// Atomically observe `pending` AND surrender `running` if there's
 		// nothing to do. An enqueue arriving after this lock release sees
@@ -122,17 +131,37 @@ func (s *Service) drain(ctx context.Context) {
 			next = s.pending
 			s.pending = nil
 		}
+		// Mark next as current while it is applied: a duplicate is
+		// dropped, while any other prefix (including the previous one)
+		// queues behind it.
+		s.current = next
 		s.mu.Unlock()
 
 		if err := s.applier.Apply(ctx, next); err != nil {
-			slog.Error("renumber: apply failed", "prefix", next, "err", err)
+			slog.Error("renumber: apply failed", "prefix", next, "err", err, "retry_in", backoff)
+			// The host may now be half-way to next, so nothing is current:
+			// a revert to the old prefix must be applied, not deduplicated.
 			s.mu.Lock()
-			s.running = false
+			s.current = nil
 			s.mu.Unlock()
-			return
+			// Sources do not re-emit an unchanged prefix, so retry it here
+			// after a backoff. A newer prefix enqueued meanwhile wins.
+			select {
+			case <-ctx.Done():
+				s.mu.Lock()
+				s.running = false
+				s.mu.Unlock()
+				return
+			case <-time.After(backoff):
+			}
+			backoff = min(backoff*2, maxRetryBackoff)
+			s.mu.Lock()
+			if s.pending == nil {
+				s.pending = next
+			}
+			s.mu.Unlock()
+			continue
 		}
-		s.mu.Lock()
-		s.current = next
-		s.mu.Unlock()
+		backoff = s.retryBackoff
 	}
 }

@@ -88,13 +88,19 @@ func (s *RASource) subscribeOnce(ctx context.Context) error {
 	}
 	defer closeDone()
 
-	link, err := netlink.LinkByName(s.UpstreamIf)
-	if err != nil {
+	routeUpdates := make(chan netlink.RouteUpdate, 16)
+	if err := netlink.RouteSubscribeWithOptions(routeUpdates, doneSub, netlink.RouteSubscribeOptions{
+		ErrorCallback: func(err error) {
+			slog.Warn("ra: netlink route subscription error", "err", err)
+			closeDone()
+		},
+	}); err != nil {
+		closeDone()
 		return err
 	}
-	upstreamIdx := link.Attrs().Index
 
 	for {
+		var linkIndex int
 		select {
 		case <-ctx.Done():
 			return nil
@@ -102,25 +108,34 @@ func (s *RASource) subscribeOnce(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			if u.LinkIndex != upstreamIdx {
-				continue
-			}
 			if u.LinkAddress.IP.To4() != nil {
 				continue
 			}
-			next := s.poll()
-			if next == nil {
-				continue
-			}
-			if s.current != nil && cidrEqual(s.current, next) {
-				continue
-			}
-			s.current = next
-			select {
-			case s.out <- next:
-			case <-ctx.Done():
+			linkIndex = u.LinkIndex
+		case r, ok := <-routeUpdates:
+			if !ok {
 				return nil
 			}
+			if r.Dst == nil || r.Dst.IP.To4() != nil {
+				continue
+			}
+			linkIndex = r.LinkIndex
+		}
+		// Resolve per event: the uplink may appear after we subscribe or be
+		// recreated with a new index.
+		link, err := netlink.LinkByName(s.UpstreamIf)
+		if err != nil || linkIndex != link.Attrs().Index {
+			continue
+		}
+		next := s.poll()
+		if next == nil || (s.current != nil && cidrEqual(s.current, next)) {
+			continue
+		}
+		s.current = next
+		select {
+		case s.out <- next:
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
@@ -154,6 +169,9 @@ func (s *RASource) poll() *net.IPNet {
 			Mask: net.CIDRMask(64, 128),
 		}
 		cands = append(cands, Candidate{Prefix: prefix, ValidUntil: validUntil})
+	}
+	if routes, err := netlink.RouteList(link, netlink.FAMILY_V6); err == nil {
+		cands = append(cands, routeCandidates(routes, now)...)
 	}
 	return Select(cands, s.current)
 }

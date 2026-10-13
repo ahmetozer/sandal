@@ -5,6 +5,7 @@ package net
 import (
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -37,7 +38,7 @@ func TestPrefixToHextets(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"ISP /64", "2a00:1d35:3b0a:4f00::/64", "2a00:1d35:3b0a:4f00"},
+		{"documentation /64", "2001:db8:aaaa:1::/64", "2001:db8:aaaa:1"},
 		{"docs prefix", "2001:db8::/64", "2001:db8:0:0"},
 		{"compressed middle", "2001:db8:abcd:1234::/64", "2001:db8:abcd:1234"},
 	}
@@ -132,9 +133,9 @@ func TestResolveDynamic_WithPrefix(t *testing.T) {
 	t.Cleanup(func() { upstreamIPv4Fn = orig })
 	upstreamIPv4Fn = func() net.IP { return net.IPv4(192, 168, 1, 15) }
 
-	_, prefix, _ := net.ParseCIDR("2a00:1d35:3b0a:4f00::/64")
+	_, prefix, _ := net.ParseCIDR("2001:db8:aaaa:1::/64")
 	got := ResolveDynamic("%uv6%:%uv4%::1/64", prefix)
-	want := "2a00:1d35:3b0a:4f00:c0a8:10f::1/64"
+	want := "2001:db8:aaaa:1:c0a8:10f::1/64"
 	if got != want {
 		t.Fatalf("ResolveDynamic = %q, want %q", got, want)
 	}
@@ -143,7 +144,7 @@ func TestResolveDynamic_WithPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolved value must parse as CIDR: %v", err)
 	}
-	wantIP := net.ParseIP("2a00:1d35:3b0a:4f00:c0a8:10f::1")
+	wantIP := net.ParseIP("2001:db8:aaaa:1:c0a8:10f::1")
 	if !ip.Equal(wantIP) {
 		t.Fatalf("parsed IP = %s, want %s", ip, wantIP)
 	}
@@ -168,10 +169,155 @@ func TestResolveDynamic_NoIPv4Substitutes0_0(t *testing.T) {
 	t.Cleanup(func() { upstreamIPv4Fn = orig })
 	upstreamIPv4Fn = func() net.IP { return nil }
 
-	_, prefix, _ := net.ParseCIDR("2a00:1d35:3b0a:4f00::/64")
+	_, prefix, _ := net.ParseCIDR("2001:db8:aaaa:1::/64")
 	got := ResolveDynamic("%uv6%:%uv4%::1/64", prefix)
-	want := "2a00:1d35:3b0a:4f00:0:0::1/64"
+	want := "2001:db8:aaaa:1:0:0::1/64"
 	if got != want {
 		t.Fatalf("ResolveDynamic(no IPv4) = %q, want %q", got, want)
+	}
+}
+
+func TestParseDynamicAddr(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr string // substring of the expected error; "" means success
+	}{
+		{"no mask", "%uv6%:192:0:2:23", "%uv6%:192:0:2:23", ""},
+		{"explicit /128 is stripped", "%uv6%:192:0:2:23/128", "%uv6%:192:0:2:23", ""},
+		{"compressed IID", "%uv6%::23", "%uv6%::23", ""},
+		{"non-/128 rejected", "%uv6%:192:0:2:23/64", "", "mask"},
+		{"too many hextets", "%uv6%:1:2:3:4:5", "", "not an IPv6"},
+		{"%uv6% must be the high 64 bits", "fd00::%uv6%", "", "must start"},
+		{"%uv6% not at the start", "::%uv6%:1", "", "must start"},
+		{"literal is not dynamic", "2001:db8::1/128", "", "missing"},
+		{"%uv6% twice", "%uv6%:%uv6%", "", "more than once"},
+		{"%uv4% in the IID", "%uv6%:%uv4%::1", "", "%uv4%"},
+		{"all-zero IID", "%uv6%::", "", "all-zero"},
+		{"all-zero IID spelled out", "%uv6%:0:0:0:0/128", "", "all-zero"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseDynamicAddr(tc.in)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("parseDynamicAddr(%q) = %q, want error", tc.in, got)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("parseDynamicAddr(%q) error %q, want it to mention %q", tc.in, err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseDynamicAddr(%q): %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Fatalf("parseDynamicAddr(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveDynamicAddr(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return net.IPv4(198, 51, 100, 51) }
+
+	_, prefix, _ := net.ParseCIDR("2001:db8:1:2::/64")
+	got, err := ResolveDynamicAddr("%uv6%:192:0:2:23", prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Equal(net.ParseIP("2001:db8:1:2:192:0:2:23")) {
+		t.Fatalf("got %s, want 2001:db8:1:2:192:0:2:23", got)
+	}
+	if _, err := ResolveDynamicAddr("%uv6%:192:0:2:23", nil); err == nil {
+		t.Fatal("nil prefix must be an error")
+	}
+}
+
+func TestDynamicAddrFromIID(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return nil }
+
+	got := dynamicAddrFromIID(net.ParseIP("fd00:db8::23"))
+	if got != "%uv6%:0:0:0:23" {
+		t.Fatalf("dynamicAddrFromIID = %q, want %%uv6%%:0:0:0:23", got)
+	}
+	_, prefix, _ := net.ParseCIDR("2001:db8:1:2::/64")
+	ip, err := ResolveDynamicAddr(got, prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ip.Equal(net.ParseIP("2001:db8:1:2::23")) {
+		t.Fatalf("resolved %s, want 2001:db8:1:2::23", ip)
+	}
+}
+
+func mustParseAddr(t *testing.T, s string) Addr {
+	t.Helper()
+	ip, n, err := net.ParseCIDR(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Addr{IP: ip, IPNet: n}
+}
+
+func TestStaticBridgeAddrsDropsRenumberManagedGlobal(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return nil }
+
+	in := Addrs{
+		mustParseAddr(t, "192.0.2.1/24"),
+		mustParseAddr(t, "2001:db8:1:2::1/128"), // renumber-managed (listed first, like the kernel does)
+		mustParseAddr(t, "fd00:db8::1/64"),
+		mustParseAddr(t, "2001:db8:9::1/64"), // static global declared in SANDAL_HOST_NET
+	}
+	got := staticBridgeAddrs(in, "192.0.2.1/24,fd00:db8::1/64,2001:db8:9::1/64")
+	if len(got) != 3 {
+		t.Fatalf("got %d addrs, want 3: %v", len(got), got)
+	}
+	for _, a := range got {
+		if a.IP.Equal(net.ParseIP("2001:db8:1:2::1")) {
+			t.Fatalf("renumber-managed global must be dropped, got %v", got)
+		}
+	}
+}
+
+func TestBridgeDynamicPrefix(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return nil }
+
+	hostNet := "192.0.2.1/24,fd00:db8::1/64"
+	cases := []struct {
+		name       string
+		addrs      Addrs
+		wantPrefix string
+		wantOnes   int
+	}{
+		{"ndp-proxy /128", Addrs{mustParseAddr(t, "2001:db8:1:2::1/128"), mustParseAddr(t, "fd00:db8::1/64")}, "2001:db8:1:2::/64", 128},
+		{"pd /64", Addrs{mustParseAddr(t, "2001:db8:5:6::1/64"), mustParseAddr(t, "fd00:db8::1/64")}, "2001:db8:5:6::/64", 64},
+		{"no dynamic global yet", Addrs{mustParseAddr(t, "fd00:db8::1/64")}, "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, m := bridgeDynamicPrefix(tc.addrs, hostNet)
+			if tc.wantPrefix == "" {
+				if p != nil {
+					t.Fatalf("want nil prefix, got %s", p)
+				}
+				return
+			}
+			if p == nil || p.String() != tc.wantPrefix {
+				t.Fatalf("prefix = %v, want %s", p, tc.wantPrefix)
+			}
+			if ones, _ := m.Size(); ones != tc.wantOnes {
+				t.Fatalf("mask /%d, want /%d", ones, tc.wantOnes)
+			}
+		})
 	}
 }

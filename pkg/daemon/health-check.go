@@ -72,14 +72,17 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 			// consults the kernel PID so post-crash stale "running"
 			// statuses and "killed"-status containers don't keep proxy
 			// entries pinned.
-			renumber.ReconcileProxyForRunning(conts, func(c *config.Config) bool {
+			isAlive := func(c *config.Config) bool {
 				pid, wantStart := c.MonitorPidIdentity()
 				if pid == 0 {
 					return false
 				}
 				alive, _ := crt.IsPidRunningAs(pid, wantStart)
 				return alive
-			})
+			}
+			renumber.EnsureHostSysctls()
+			renumber.ReconcileContainersForRunning(conts, isAlive)
+			renumber.ReconcileProxyForRunning(conts, isAlive)
 		}
 	}
 

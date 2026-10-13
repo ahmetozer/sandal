@@ -65,6 +65,12 @@ type Link struct {
 	DHCPv4 bool `json:",omitempty"`
 	DHCPv6 bool `json:",omitempty"`
 
+	// DynamicAddr holds "%uv6%" addresses (no mask) for this link's global
+	// IPv6. The renumber service resolves them against the current upstream
+	// prefix and owns every global whose IID matches one of them; literal
+	// globals in Addr are static and never touched.
+	DynamicAddr []string `json:",omitempty"`
+
 	// Dynamic, when true (the default), means this link's IPv6 prefix is
 	// renumbered automatically when the upstream prefix changes. Set
 	// `dynamic=false` on the -net flag to opt out (for hand-pinned IPv6).
@@ -80,33 +86,35 @@ type Link struct {
 // linkJSON mirrors Link exactly except it captures Dynamic as a pointer so
 // "absent" and "explicitly false" are distinguishable.
 type linkJSON struct {
-	Mtu     int                 `json:",omitempty"`
-	Id      string              `json:",omitempty"`
-	Master  string              `json:",omitempty"`
-	Type    string              `json:",omitempty"`
-	Name    string              `json:",omitempty"`
-	Ether   net.HardwareAddr    `json:",omitempty"`
-	Addr    Addrs               `json:",omitempty"`
-	Route   Addrs               `json:",omitempty"`
-	DHCPv4  bool                `json:",omitempty"`
-	DHCPv6  bool                `json:",omitempty"`
-	Dynamic *bool               `json:"Dynamic,omitempty"`
+	Mtu         int              `json:",omitempty"`
+	Id          string           `json:",omitempty"`
+	Master      string           `json:",omitempty"`
+	Type        string           `json:",omitempty"`
+	Name        string           `json:",omitempty"`
+	Ether       net.HardwareAddr `json:",omitempty"`
+	Addr        Addrs            `json:",omitempty"`
+	Route       Addrs            `json:",omitempty"`
+	DHCPv4      bool             `json:",omitempty"`
+	DHCPv6      bool             `json:",omitempty"`
+	DynamicAddr []string         `json:",omitempty"`
+	Dynamic     *bool            `json:"Dynamic,omitempty"`
 }
 
 func (l Link) MarshalJSON() ([]byte, error) {
 	d := l.Dynamic
 	out := linkJSON{
-		Mtu:     l.Mtu,
-		Id:      l.Id,
-		Master:  l.Master,
-		Type:    l.Type,
-		Name:    l.Name,
-		Ether:   l.Ether,
-		Addr:    l.Addr,
-		Route:   l.Route,
-		DHCPv4:  l.DHCPv4,
-		DHCPv6:  l.DHCPv6,
-		Dynamic: &d,
+		Mtu:         l.Mtu,
+		Id:          l.Id,
+		Master:      l.Master,
+		Type:        l.Type,
+		Name:        l.Name,
+		Ether:       l.Ether,
+		Addr:        l.Addr,
+		Route:       l.Route,
+		DHCPv4:      l.DHCPv4,
+		DHCPv6:      l.DHCPv6,
+		DynamicAddr: l.DynamicAddr,
+		Dynamic:     &d,
 	}
 	return json.Marshal(out)
 }
@@ -126,6 +134,7 @@ func (l *Link) UnmarshalJSON(data []byte) error {
 	l.Route = in.Route
 	l.DHCPv4 = in.DHCPv4
 	l.DHCPv6 = in.DHCPv6
+	l.DynamicAddr = in.DynamicAddr
 	if in.Dynamic == nil {
 		// Legacy configs lack the key. Default to the documented
 		// behavior: dynamic renumber is enabled.
@@ -158,20 +167,23 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 			if l.Name == "" {
 				l.Name = l.Id
 			}
-			// KVM: host pre-allocates per-NIC addrs into SANDAL_VM_NET (a
-			// JSON array of Links — index N corresponds to ethN).
-			// VZ:  no SANDAL_VM_NET, container will DHCP on eth0.
-			if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
+			// KVM: the host parsed the same -net flag, allocated or resolved
+			// every address (including %uv6% dynamic globals, which the guest
+			// cannot resolve) and the gateways, and passed them in
+			// SANDAL_VM_NET (index N = ethN). It is authoritative whenever
+			// present. VZ: no SANDAL_VM_NET, the container DHCPs on eth0.
+			if !l.DHCPv4 && !l.DHCPv6 {
 				if vmLinks := loadVMNetLinks(); len(vmLinks) > 0 {
 					idx := vmLinkIndex(l.Id)
 					if idx >= 0 && idx < len(vmLinks) {
 						l.Addr = vmLinks[idx].Addr
 						l.Route = vmLinks[idx].Route
+						l.DynamicAddr = nil
 						if l.Ether == nil && len(vmLinks[idx].Ether) > 0 {
 							l.Ether = vmLinks[idx].Ether
 						}
 					}
-				} else {
+				} else if len(l.Addr) == 0 {
 					l.DHCPv4 = true
 				}
 			}
@@ -194,6 +206,13 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 	hostAddrs, err := GetAddrsByName(l.Master)
 	slog.Debug("hostAddrs", "interface", l.Master, slog.Any("addrs", hostAddrs))
 
+	var dynPrefix *net.IPNet
+	var dynMask net.IPMask
+	if err == nil && l.Master == DefaultBridgeInterface {
+		dynPrefix, dynMask = bridgeDynamicPrefix(hostAddrs, env.DefaultHostNet)
+		hostAddrs = staticBridgeAddrs(hostAddrs, env.DefaultHostNet)
+	}
+
 	// Allocate IP addresses to container for each subnet
 	if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
 		contAddrs := make(Addrs, 0)
@@ -210,6 +229,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 				})
 			}
 			l.Addr = contAddrs
+			l.DynamicAddr = autoDynamicAddr(l)
 			l.Route = append(hostAddrs, l.Route...)
 		}
 	}
@@ -219,6 +239,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 		l.Route = hostAddrs
 	}
 
+	l.Addr = append(l.Addr, resolveDynamicAtCreate(l, dynPrefix, dynMask)...)
 	return l
 }
 
@@ -424,4 +445,39 @@ func (links Links) FinalizeLinks() error {
 		}
 	}
 	return nil
+}
+
+// autoDynamicAddr gives a link whose addresses sandal allocated a global
+// that mirrors its ULA interface identifier. Links with explicit ip=
+// entries opt in by writing a %uv6% dynamic address themselves.
+func autoDynamicAddr(l Link) []string {
+	if !l.Dynamic || l.DHCPv6 || len(l.DynamicAddr) > 0 {
+		return l.DynamicAddr
+	}
+	for _, a := range l.Addr {
+		if a.IP.To4() == nil && isULAv6(a.IP) {
+			return []string{dynamicAddrFromIID(a.IP)}
+		}
+	}
+	return nil
+}
+
+// resolveDynamicAtCreate resolves a sandal0 link's dynamic addresses against
+// the bridge's current prefix so a new container, or a KVM VM whose
+// addresses are fixed at boot, starts with its global already in place.
+// Returns nil when no prefix is known yet; the daemon adds it later.
+func resolveDynamicAtCreate(l Link, prefix *net.IPNet, mask net.IPMask) Addrs {
+	if prefix == nil || !l.Dynamic || l.DHCPv6 || l.Master != DefaultBridgeInterface {
+		return nil
+	}
+	var out Addrs
+	for _, d := range l.DynamicAddr {
+		ip, err := ResolveDynamicAddr(d, prefix)
+		if err != nil {
+			slog.Warn("unable to resolve dynamic address", "addr", d, "err", err)
+			continue
+		}
+		out = append(out, Addr{IP: ip, IPNet: &net.IPNet{IP: ip, Mask: mask}})
+	}
+	return out
 }

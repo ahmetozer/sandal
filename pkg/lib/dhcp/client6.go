@@ -78,7 +78,7 @@ func (c *Client6) ObtainLease(ctx context.Context) (*Lease6, error) {
 	}
 
 	// REQUEST
-	if err := send6(conn, c.newRequest(txID, adv), c.serverAddr()); err != nil {
+	if err := sendUntil(ctx, conn, c.newRequest(txID, adv), c.serverAddr, 250*time.Millisecond); err != nil {
 		return nil, fmt.Errorf("dhcp6: REQUEST: %w", err)
 	}
 
@@ -96,7 +96,7 @@ func (c *Client6) solicitAdvertise(ctx context.Context, conn net.PacketConn, txI
 	retransmit := 2 * time.Second
 	buf := make([]byte, 1500)
 
-	if err := send6(conn, solicit, c.serverAddr()); err != nil {
+	if err := sendUntil(ctx, conn, solicit, c.serverAddr, 250*time.Millisecond); err != nil {
 		return nil, fmt.Errorf("dhcp6: SOLICIT: %w", err)
 	}
 	nextRetransmit := time.Now().Add(retransmit)
@@ -240,7 +240,7 @@ func (c *Client6) serverAddr() *net.UDPAddr {
 	return &net.UDPAddr{
 		IP:   net.ParseIP("ff02::1:2"),
 		Port: c.ServerPort,
-		Zone: c.iface.Name,
+		Zone: c.currentIface().Name,
 	}
 }
 
@@ -249,7 +249,7 @@ func (c *Client6) listen() (net.PacketConn, error) {
 		Control: func(network, address string, rc syscall.RawConn) error {
 			var sockErr error
 			rc.Control(func(fd uintptr) {
-				sockErr = setSockOpts6(fd, c.iface)
+				sockErr = setSockOpts6(fd, c.currentIface())
 			})
 			return sockErr
 		},
@@ -280,6 +280,33 @@ func (c *Client6) recv6(ctx context.Context, conn net.PacketConn, txID [3]byte, 
 		}
 		if pkt.MsgType == want {
 			return pkt, nil
+		}
+	}
+}
+
+// currentIface re-resolves the interface by index. The container link is
+// created under a temporary name and renamed (e.g. to eth0) after the
+// first lease, so the name captured at construction goes stale.
+func (c *Client6) currentIface() *net.Interface {
+	if ifc, err := net.InterfaceByIndex(c.iface.Index); err == nil {
+		return ifc
+	}
+	return c.iface
+}
+
+// sendUntil sends pkt, retrying transient failures every retry until it
+// succeeds or ctx ends. A fresh link's link-local stays tentative during
+// DAD (~1-2 s) and sendto to ff02::1:2 fails with EADDRNOTAVAIL until then.
+func sendUntil(ctx context.Context, conn net.PacketConn, pkt *Packet6, dst func() *net.UDPAddr, retry time.Duration) error {
+	for {
+		err := send6(conn, pkt, dst())
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w (last send error: %w)", ctx.Err(), err)
+		case <-time.After(retry):
 		}
 	}
 }
