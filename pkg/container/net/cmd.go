@@ -64,6 +64,14 @@ func parseCmd(cmd string, conts *[]*config.Config, idx int) (Link, error) {
 				case "dhcp6":
 					myIf.DHCPv6 = true
 				default:
+					if isDynamicEntry(ip) {
+						addr, derr := parseDynamicAddr(ip)
+						if derr != nil {
+							return myIf, derr
+						}
+						myIf.DynamicAddr = append(myIf.DynamicAddr, addr)
+						continue
+					}
 					IP, net, err := net.ParseCIDR(ip)
 					if err != nil {
 						slog.Debug(err.Error())

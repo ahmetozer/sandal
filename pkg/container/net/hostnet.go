@@ -38,7 +38,7 @@ func SplitHostNet(hostNet string) (static []string, dynamic []string) {
 		if trimmed == "" {
 			continue
 		}
-		if strings.Contains(trimmed, uv6Placeholder) {
+		if isDynamicEntry(trimmed) {
 			dynamic = append(dynamic, trimmed)
 			continue
 		}
@@ -137,4 +137,65 @@ func upstreamIPv4() net.IP {
 		return ip
 	}
 	return nil
+}
+
+// dynamicAddrProbe is a stand-in prefix used only to validate syntax.
+var dynamicAddrProbe = &net.IPNet{IP: net.ParseIP("2001:db8::"), Mask: net.CIDRMask(64, 128)}
+
+// isDynamicEntry reports whether a SANDAL_HOST_NET entry or -net ip= value
+// carries "%uv6%" and must be re-resolved on every upstream prefix event.
+func isDynamicEntry(s string) bool {
+	return strings.Contains(s, uv6Placeholder)
+}
+
+// parseDynamicAddr validates a container dynamic address from -net ip=
+// (e.g. "%uv6%:192:0:2:23") and returns it without a mask. The renumber
+// service picks the installed mask from the mode (/128 in ndp-proxy, the
+// prefix /64 in pd), so the only mask accepted here is an explicit /128.
+func parseDynamicAddr(s string) (string, error) {
+	if !isDynamicEntry(s) {
+		return "", fmt.Errorf("dynamic address %q: missing %s", s, uv6Placeholder)
+	}
+	if addr, mask, ok := strings.Cut(s, "/"); ok {
+		if mask != "128" {
+			return "", fmt.Errorf("dynamic address %q: mask must be omitted or /128", s)
+		}
+		s = addr
+	}
+	probe := strings.NewReplacer(
+		uv6Placeholder, prefixToHextets(dynamicAddrProbe),
+		uv4Placeholder, "0:0",
+	).Replace(s)
+	ip := net.ParseIP(probe)
+	if ip == nil || ip.To4() != nil {
+		return "", fmt.Errorf("dynamic address %q: not an IPv6 address", s)
+	}
+	if !dynamicAddrProbe.Contains(ip) {
+		return "", fmt.Errorf("dynamic address %q: %s must fill the high 64 bits", s, uv6Placeholder)
+	}
+	return s, nil
+}
+
+// ResolveDynamicAddr resolves a container dynamic address against prefix.
+func ResolveDynamicAddr(s string, prefix *net.IPNet) (net.IP, error) {
+	if prefix == nil {
+		return nil, fmt.Errorf("dynamic address %q: no upstream prefix", s)
+	}
+	ip := net.ParseIP(ResolveDynamic(s, prefix))
+	if ip == nil {
+		return nil, fmt.Errorf("dynamic address %q: invalid after resolve", s)
+	}
+	return ip, nil
+}
+
+// dynamicAddrFromIID returns the dynamic address that keeps ip's interface
+// identifier (low 64 bits) under whatever upstream prefix is current.
+func dynamicAddrFromIID(ip net.IP) string {
+	v6 := ip.To16()
+	return fmt.Sprintf("%s:%x:%x:%x:%x", uv6Placeholder,
+		uint16(v6[8])<<8|uint16(v6[9]),
+		uint16(v6[10])<<8|uint16(v6[11]),
+		uint16(v6[12])<<8|uint16(v6[13]),
+		uint16(v6[14])<<8|uint16(v6[15]),
+	)
 }

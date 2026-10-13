@@ -65,6 +65,12 @@ type Link struct {
 	DHCPv4 bool `json:",omitempty"`
 	DHCPv6 bool `json:",omitempty"`
 
+	// DynamicAddr holds "%uv6%" addresses (no mask) for this link's global
+	// IPv6. The renumber service resolves them against the current upstream
+	// prefix and owns every global whose IID matches one of them; literal
+	// globals in Addr are static and never touched.
+	DynamicAddr []string `json:",omitempty"`
+
 	// Dynamic, when true (the default), means this link's IPv6 prefix is
 	// renumbered automatically when the upstream prefix changes. Set
 	// `dynamic=false` on the -net flag to opt out (for hand-pinned IPv6).
@@ -80,33 +86,35 @@ type Link struct {
 // linkJSON mirrors Link exactly except it captures Dynamic as a pointer so
 // "absent" and "explicitly false" are distinguishable.
 type linkJSON struct {
-	Mtu     int                 `json:",omitempty"`
-	Id      string              `json:",omitempty"`
-	Master  string              `json:",omitempty"`
-	Type    string              `json:",omitempty"`
-	Name    string              `json:",omitempty"`
-	Ether   net.HardwareAddr    `json:",omitempty"`
-	Addr    Addrs               `json:",omitempty"`
-	Route   Addrs               `json:",omitempty"`
-	DHCPv4  bool                `json:",omitempty"`
-	DHCPv6  bool                `json:",omitempty"`
-	Dynamic *bool               `json:"Dynamic,omitempty"`
+	Mtu         int              `json:",omitempty"`
+	Id          string           `json:",omitempty"`
+	Master      string           `json:",omitempty"`
+	Type        string           `json:",omitempty"`
+	Name        string           `json:",omitempty"`
+	Ether       net.HardwareAddr `json:",omitempty"`
+	Addr        Addrs            `json:",omitempty"`
+	Route       Addrs            `json:",omitempty"`
+	DHCPv4      bool             `json:",omitempty"`
+	DHCPv6      bool             `json:",omitempty"`
+	DynamicAddr []string         `json:",omitempty"`
+	Dynamic     *bool            `json:"Dynamic,omitempty"`
 }
 
 func (l Link) MarshalJSON() ([]byte, error) {
 	d := l.Dynamic
 	out := linkJSON{
-		Mtu:     l.Mtu,
-		Id:      l.Id,
-		Master:  l.Master,
-		Type:    l.Type,
-		Name:    l.Name,
-		Ether:   l.Ether,
-		Addr:    l.Addr,
-		Route:   l.Route,
-		DHCPv4:  l.DHCPv4,
-		DHCPv6:  l.DHCPv6,
-		Dynamic: &d,
+		Mtu:         l.Mtu,
+		Id:          l.Id,
+		Master:      l.Master,
+		Type:        l.Type,
+		Name:        l.Name,
+		Ether:       l.Ether,
+		Addr:        l.Addr,
+		Route:       l.Route,
+		DHCPv4:      l.DHCPv4,
+		DHCPv6:      l.DHCPv6,
+		DynamicAddr: l.DynamicAddr,
+		Dynamic:     &d,
 	}
 	return json.Marshal(out)
 }
@@ -126,6 +134,7 @@ func (l *Link) UnmarshalJSON(data []byte) error {
 	l.Route = in.Route
 	l.DHCPv4 = in.DHCPv4
 	l.DHCPv6 = in.DHCPv6
+	l.DynamicAddr = in.DynamicAddr
 	if in.Dynamic == nil {
 		// Legacy configs lack the key. Default to the documented
 		// behavior: dynamic renumber is enabled.

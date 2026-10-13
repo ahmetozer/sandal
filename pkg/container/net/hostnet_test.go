@@ -175,3 +175,74 @@ func TestResolveDynamic_NoIPv4Substitutes0_0(t *testing.T) {
 		t.Fatalf("ResolveDynamic(no IPv4) = %q, want %q", got, want)
 	}
 }
+
+func TestParseDynamicAddr(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{"no mask", "%uv6%:192:0:2:23", "%uv6%:192:0:2:23", false},
+		{"explicit /128 is stripped", "%uv6%:192:0:2:23/128", "%uv6%:192:0:2:23", false},
+		{"compressed IID", "%uv6%::23", "%uv6%::23", false},
+		{"non-/128 rejected", "%uv6%:192:0:2:23/64", "", true},
+		{"too many hextets", "%uv6%:1:2:3:4:5", "", true},
+		{"%uv6% must be the high 64 bits", "fd00::%uv6%", "", true},
+		{"literal is not dynamic", "2001:db8::1/128", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseDynamicAddr(tc.in)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parseDynamicAddr(%q) = %q, want error", tc.in, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseDynamicAddr(%q): %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Fatalf("parseDynamicAddr(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveDynamicAddr(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return net.IPv4(198, 51, 100, 51) }
+
+	_, prefix, _ := net.ParseCIDR("2001:db8:1:2::/64")
+	got, err := ResolveDynamicAddr("%uv6%:192:0:2:23", prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Equal(net.ParseIP("2001:db8:1:2:192:0:2:23")) {
+		t.Fatalf("got %s, want 2001:db8:1:2:192:0:2:23", got)
+	}
+	if _, err := ResolveDynamicAddr("%uv6%:192:0:2:23", nil); err == nil {
+		t.Fatal("nil prefix must be an error")
+	}
+}
+
+func TestDynamicAddrFromIID(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return nil }
+
+	got := dynamicAddrFromIID(net.ParseIP("fd00:db8::23"))
+	if got != "%uv6%:0:0:0:23" {
+		t.Fatalf("dynamicAddrFromIID = %q, want %%uv6%%:0:0:0:23", got)
+	}
+	_, prefix, _ := net.ParseCIDR("2001:db8:1:2::/64")
+	ip, err := ResolveDynamicAddr(got, prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ip.Equal(net.ParseIP("2001:db8:1:2::23")) {
+		t.Fatalf("resolved %s, want 2001:db8:1:2::23", ip)
+	}
+}
