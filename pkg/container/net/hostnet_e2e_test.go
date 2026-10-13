@@ -179,13 +179,13 @@ func TestE2E_IPRequestWalksFromResolvedBridge(t *testing.T) {
 func TestE2E_DynamicEntryResolution(t *testing.T) {
 	setupDummyUpstream(t)
 
-	_, prefix, _ := net.ParseCIDR("2001:db8:3b0a:4f00::/64")
+	_, prefix, _ := net.ParseCIDR("2001:db8:aaaa:1::/64")
 	got := ResolveDynamic("%uv6%:%uv4%::1/64", prefix)
-	want := "2001:db8:3b0a:4f00:" + e2eIPv4Hextets + "::1/64"
+	want := "2001:db8:aaaa:1:" + e2eIPv4Hextets + "::1/64"
 	if got != want {
 		t.Fatalf("ResolveDynamic = %q, want %q", got, want)
 	}
-	wantIP := net.ParseIP("2001:db8:3b0a:4f00:" + e2eIPv4Hextets + "::1")
+	wantIP := net.ParseIP("2001:db8:aaaa:1:" + e2eIPv4Hextets + "::1")
 	gotIP, _, err := net.ParseCIDR(got)
 	if err != nil {
 		t.Fatalf("resolved value must parse: %v", err)
@@ -219,12 +219,12 @@ func TestE2E_PublicMirrorIIDPreservation(t *testing.T) {
 	}
 	iid := bridgeV6[8:16]
 
-	_, upstream, _ := net.ParseCIDR("2001:db8:3b0a:4f00::/64")
+	_, upstream, _ := net.ParseCIDR("2001:db8:aaaa:1::/64")
 	mirror := make(net.IP, 16)
 	copy(mirror, upstream.IP.To16())
 	copy(mirror[8:16], iid)
 
-	want := net.ParseIP("2001:db8:3b0a:4f00:c0a8:632a::1")
+	want := net.ParseIP("2001:db8:aaaa:1:c0a8:632a::1")
 	if !mirror.Equal(want) {
 		t.Errorf("public mirror = %s, want %s", mirror, want)
 	}

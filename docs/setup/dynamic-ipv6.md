@@ -33,7 +33,7 @@ Then start a container as usual:
 sandal run -d --name web -lw nginx:latest
 ```
 
-…and the container will have a public IPv6 like `2001:db8:3b0a:4f00::2` — reachable from any IPv6 device on your LAN.
+…and the container will have a public IPv6 like `2001:db8:aaaa:1::2` — reachable from any IPv6 device on your LAN.
 
 ## How to verify it's working
 
@@ -42,9 +42,9 @@ After the daemon comes up:
 ```bash
 # Bridge has the public /64 from your upstream
 ip -6 addr show dev sandal0
-#  2001:db8:3b0a:4f00:c0a8:10f::1/128              ← public, mirrored from eth0 (/128 in ndp-proxy, /64 in pd)
-#  fd34:135:123:0:c0a8:10f::1/120                   ← static ULA (kept as fallback)
-#  172.16.0.1/24                                     ← static IPv4
+#  2001:db8:aaaa:1:c0a8:10f::1/128  ← public, mirrored from eth0 (/128 in ndp-proxy, /64 in pd)
+#  fd34:135:123:0:c0a8:10f::1/120   ← static ULA (kept as fallback)
+#  172.16.0.1/24                    ← static IPv4
 # (The :c0a8:10f tail is the host's IPv4 (192.168.1.15 here) baked into the IID
 #  by the default SANDAL_HOST_NET template — preserved across upstream renumber.)
 
@@ -53,7 +53,7 @@ journalctl -u sandal -n 20 | grep -i renumber
 #  renumber: auto-detected upstream interface  iface=eth0
 #  renumber: auto-detected IPv6 mode           iface=eth0  mode=ndp-proxy
 #  renumber: service started                   upstream=eth0 mode=ndp-proxy
-#  renumber: applying                          prefix=2001:db8:3b0a:4f00::/64
+#  renumber: applying                          prefix=2001:db8:aaaa:1::/64
 ```
 
 After `sandal run`:
@@ -61,16 +61,16 @@ After `sandal run`:
 ```bash
 # Container's IPv6
 sandal exec web -- ip -6 addr show dev eth0 scope global
-#  2001:db8:3b0a:4f00:c0a8:10f:0:2/128            ← public (IID mirrors the container's ULA)
-#  fd34:135:123:0:c0a8:10f::2/120                   ← ULA (host-local)
+#  2001:db8:aaaa:1:c0a8:10f:0:2/128  ← public (IID mirrors the container's ULA)
+#  fd34:135:123:0:c0a8:10f::2/120    ← ULA (host-local)
 
 # Host is announcing it to the LAN
 ip -6 neigh show proxy dev eth0
-#  2001:db8:3b0a:4f00:c0a8:10f::2 proxy
+#  2001:db8:aaaa:1:c0a8:10f::2 proxy
 
 # RA prefix route on the uplink (an alternative source when the uplink has no SLAAC address)
 ip -6 route show dev eth0
-#  2001:db8:3b0a:4f00::/64 proto kernel metric 256 expires 300sec   ← upstream /64 (also present when the router offers no SLAAC)
+#  2001:db8:aaaa:1::/64 proto kernel metric 256 expires 300sec   ← upstream /64 (also present when the router offers no SLAAC)
 
 # Quick reachability test from the container
 sandal exec web -- ping -6 -c 2 2606:4700:4700::1111
@@ -118,8 +118,8 @@ sandal run -d --name web \
     -lw nginx:latest
 ```
 
-With prefix `2001:db8:3b0a:4f00::/64` the container gets
-`2001:db8:3b0a:4f00:192:0:2:23`. After rotation to `2001:db8:77:1::/64` it
+With prefix `2001:db8:aaaa:1::/64` the container gets
+`2001:db8:aaaa:1:192:0:2:23`. After rotation to `2001:db8:77:1::/64` it
 becomes `2001:db8:77:1:192:0:2:23`, so firewall rules that match the
 interface-ID suffix keep working. Omit the mask (or write `/128`); sandal
 installs `/128` in ndp-proxy mode and the prefix length in pd mode.

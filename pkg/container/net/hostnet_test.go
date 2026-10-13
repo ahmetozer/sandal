@@ -37,7 +37,7 @@ func TestPrefixToHextets(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"ISP /64", "2001:db8:3b0a:4f00::/64", "2001:db8:3b0a:4f00"},
+		{"documentation /64", "2001:db8:aaaa:1::/64", "2001:db8:aaaa:1"},
 		{"docs prefix", "2001:db8::/64", "2001:db8:0:0"},
 		{"compressed middle", "2001:db8:abcd:1234::/64", "2001:db8:abcd:1234"},
 	}
@@ -132,9 +132,9 @@ func TestResolveDynamic_WithPrefix(t *testing.T) {
 	t.Cleanup(func() { upstreamIPv4Fn = orig })
 	upstreamIPv4Fn = func() net.IP { return net.IPv4(192, 168, 1, 15) }
 
-	_, prefix, _ := net.ParseCIDR("2001:db8:3b0a:4f00::/64")
+	_, prefix, _ := net.ParseCIDR("2001:db8:aaaa:1::/64")
 	got := ResolveDynamic("%uv6%:%uv4%::1/64", prefix)
-	want := "2001:db8:3b0a:4f00:c0a8:10f::1/64"
+	want := "2001:db8:aaaa:1:c0a8:10f::1/64"
 	if got != want {
 		t.Fatalf("ResolveDynamic = %q, want %q", got, want)
 	}
@@ -143,7 +143,7 @@ func TestResolveDynamic_WithPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolved value must parse as CIDR: %v", err)
 	}
-	wantIP := net.ParseIP("2001:db8:3b0a:4f00:c0a8:10f::1")
+	wantIP := net.ParseIP("2001:db8:aaaa:1:c0a8:10f::1")
 	if !ip.Equal(wantIP) {
 		t.Fatalf("parsed IP = %s, want %s", ip, wantIP)
 	}
@@ -168,9 +168,9 @@ func TestResolveDynamic_NoIPv4Substitutes0_0(t *testing.T) {
 	t.Cleanup(func() { upstreamIPv4Fn = orig })
 	upstreamIPv4Fn = func() net.IP { return nil }
 
-	_, prefix, _ := net.ParseCIDR("2001:db8:3b0a:4f00::/64")
+	_, prefix, _ := net.ParseCIDR("2001:db8:aaaa:1::/64")
 	got := ResolveDynamic("%uv6%:%uv4%::1/64", prefix)
-	want := "2001:db8:3b0a:4f00:0:0::1/64"
+	want := "2001:db8:aaaa:1:0:0::1/64"
 	if got != want {
 		t.Fatalf("ResolveDynamic(no IPv4) = %q, want %q", got, want)
 	}
