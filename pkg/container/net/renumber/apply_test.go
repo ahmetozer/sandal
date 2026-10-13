@@ -163,10 +163,16 @@ func TestGlobalAndBridgeMask(t *testing.T) {
 
 func TestEligible(t *testing.T) {
 	running := func() *config.Config { return &config.Config{ContPid: 10, Status: "running"} }
-	vm := running()
-	vm.VM = "kvm"
+	// Host-side VM configs carry the KVM process in HostPid; ContPid is
+	// never set.
+	vm := &config.Config{HostPid: 20, Status: "running", VM: "kvm"}
+	vmNoPid := &config.Config{Status: "running", VM: "kvm"}
 	hostNet := running()
 	hostNet.NS = namespace.Namespaces{"net": {IsHost: true}}
+	joinedNet := running()
+	joinedNet.NS = namespace.Namespaces{"net": {IsUserDefined: true}}
+	exited := running()
+	exited.Status = "exit 0"
 	cases := []struct {
 		name    string
 		c       *config.Config
@@ -175,8 +181,11 @@ func TestEligible(t *testing.T) {
 	}{
 		{"nil", nil, nil, false},
 		{"running", running(), nil, true},
-		{"vm is eligible for proxying", vm, nil, true},
+		{"vm with HostPid only", vm, nil, true},
+		{"vm without HostPid", vmNoPid, nil, false},
+		{"exited", exited, nil, false},
 		{"host net", hostNet, nil, false},
+		{"user-defined net", joinedNet, nil, false},
 		{"dead pid", running(), func(*config.Config) bool { return false }, false},
 	}
 	for _, tc := range cases {
@@ -321,8 +330,8 @@ func TestDesiredProxy(t *testing.T) {
 		return cnet.Links{l}
 	}
 	cont := &config.Config{Name: "web", ContPid: 10, Status: "running", Net: link("192.0.2.23/24", "2001:db8:3:4:192:0:2:23/128", "fd00:db8::23/64")}
-	vm := &config.Config{Name: "vm1", ContPid: 11, Status: "running", VM: "kvm", Net: link("2001:db8:3:4::50/128")}
-	staleVM := &config.Config{Name: "vm2", ContPid: 12, Status: "running", VM: "kvm", Net: link("2001:db8:1:2::51/128")}
+	vm := &config.Config{Name: "vm1", HostPid: 11, Status: "running", VM: "kvm", Net: link("2001:db8:3:4::50/128")}
+	staleVM := &config.Config{Name: "vm2", HostPid: 12, Status: "running", VM: "kvm", Net: link("2001:db8:1:2::51/128")}
 	stopped := &config.Config{Name: "old", ContPid: 0, Status: "exit 0", Net: link("2001:db8:3:4::60/128")}
 	bridge := []net.IP{net.ParseIP("2001:db8:3:4::1")}
 

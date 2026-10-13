@@ -302,18 +302,26 @@ func (a *DefaultApplier) bridgeMask(m net.IPMask) net.IPMask {
 	return m
 }
 
-// eligible reports whether the renumber service tracks c: running, alive
-// (when isAlive is given) and not sharing the host netns. VMs are eligible
-// for NDP proxying but their addresses are fixed at boot, so callers that
-// enter a netns must skip c.VM != "" themselves.
+// eligible reports whether the renumber service tracks c: running by its
+// monitor pid (HostPid for VMs, ContPid otherwise), alive (when isAlive is
+// given) and in a netns sandal created (not the host's, not a joined one).
+// VMs are eligible for NDP proxying but their addresses are fixed at boot,
+// so callers that enter a netns must skip c.VM != "" themselves.
 func eligible(c *config.Config, isAlive func(*config.Config) bool) bool {
-	if !IsRunning(c) {
+	if c == nil {
+		return false
+	}
+	if strings.HasPrefix(c.Status, "exit") || strings.HasPrefix(c.Status, "err") {
+		return false
+	}
+	if pid, _ := c.MonitorPidIdentity(); pid == 0 {
 		return false
 	}
 	if isAlive != nil && !isAlive(c) {
 		return false
 	}
-	return !c.NS.Get("net").IsHost
+	netNS := c.NS.Get("net")
+	return !netNS.IsHost && !netNS.IsUserDefined
 }
 
 // wantGlobals resolves the globals l should carry under prefix. ok=false
