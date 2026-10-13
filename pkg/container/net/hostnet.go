@@ -199,3 +199,48 @@ func dynamicAddrFromIID(ip net.IP) string {
 		uint16(v6[14])<<8|uint16(v6[15]),
 	)
 }
+
+// staticBridgeAddrs drops sandal0 addresses that the renumber service
+// manages (the global mirrored from upstream). They rotate with the
+// upstream prefix, so they must never seed IPRequest or become a gateway;
+// containers and VMs get their global from DynamicAddr instead. IPv4, ULA
+// and addresses declared statically in SANDAL_HOST_NET are kept.
+func staticBridgeAddrs(addrs Addrs, hostNet string) Addrs {
+	static, _ := SplitHostNet(hostNet)
+	keep := make(Addrs, 0, len(addrs))
+	for _, a := range addrs {
+		if !isRenumberManaged(a, static) {
+			keep = append(keep, a)
+		}
+	}
+	return keep
+}
+
+// bridgeDynamicPrefix returns the /64 of sandal0's renumber-managed global
+// and that global's mask (/128 in ndp-proxy mode, the prefix mask in pd
+// mode), or nil when the renumber service has not applied a prefix yet.
+func bridgeDynamicPrefix(addrs Addrs, hostNet string) (*net.IPNet, net.IPMask) {
+	static, _ := SplitHostNet(hostNet)
+	for _, a := range addrs {
+		if !isRenumberManaged(a, static) {
+			continue
+		}
+		m64 := net.CIDRMask(64, 128)
+		return &net.IPNet{IP: a.IP.Mask(m64), Mask: m64}, a.IPNet.Mask
+	}
+	return nil, nil
+}
+
+// isRenumberManaged reports whether a is a global IPv6 address that is not
+// declared statically in SANDAL_HOST_NET.
+func isRenumberManaged(a Addr, static []string) bool {
+	if a.IP.To4() != nil || isULAv6(a.IP) || a.IP.IsLinkLocalUnicast() {
+		return false
+	}
+	for _, c := range static {
+		if cip, _, err := net.ParseCIDR(c); err == nil && cip.Equal(a.IP) {
+			return false
+		}
+	}
+	return true
+}

@@ -246,3 +246,69 @@ func TestDynamicAddrFromIID(t *testing.T) {
 		t.Fatalf("resolved %s, want 2001:db8:1:2::23", ip)
 	}
 }
+
+func mustParseAddr(t *testing.T, s string) Addr {
+	t.Helper()
+	ip, n, err := net.ParseCIDR(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Addr{IP: ip, IPNet: n}
+}
+
+func TestStaticBridgeAddrsDropsRenumberManagedGlobal(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return nil }
+
+	in := Addrs{
+		mustParseAddr(t, "192.0.2.1/24"),
+		mustParseAddr(t, "2001:db8:1:2::1/128"), // renumber-managed (listed first, like the kernel does)
+		mustParseAddr(t, "fd00:db8::1/64"),
+		mustParseAddr(t, "2001:db8:9::1/64"), // static global declared in SANDAL_HOST_NET
+	}
+	got := staticBridgeAddrs(in, "192.0.2.1/24,fd00:db8::1/64,2001:db8:9::1/64")
+	if len(got) != 3 {
+		t.Fatalf("got %d addrs, want 3: %v", len(got), got)
+	}
+	for _, a := range got {
+		if a.IP.Equal(net.ParseIP("2001:db8:1:2::1")) {
+			t.Fatalf("renumber-managed global must be dropped, got %v", got)
+		}
+	}
+}
+
+func TestBridgeDynamicPrefix(t *testing.T) {
+	orig := upstreamIPv4Fn
+	t.Cleanup(func() { upstreamIPv4Fn = orig })
+	upstreamIPv4Fn = func() net.IP { return nil }
+
+	hostNet := "192.0.2.1/24,fd00:db8::1/64"
+	cases := []struct {
+		name       string
+		addrs      Addrs
+		wantPrefix string
+		wantOnes   int
+	}{
+		{"ndp-proxy /128", Addrs{mustParseAddr(t, "2001:db8:1:2::1/128"), mustParseAddr(t, "fd00:db8::1/64")}, "2001:db8:1:2::/64", 128},
+		{"pd /64", Addrs{mustParseAddr(t, "2001:db8:5:6::1/64"), mustParseAddr(t, "fd00:db8::1/64")}, "2001:db8:5:6::/64", 64},
+		{"no dynamic global yet", Addrs{mustParseAddr(t, "fd00:db8::1/64")}, "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p, m := bridgeDynamicPrefix(tc.addrs, hostNet)
+			if tc.wantPrefix == "" {
+				if p != nil {
+					t.Fatalf("want nil prefix, got %s", p)
+				}
+				return
+			}
+			if p == nil || p.String() != tc.wantPrefix {
+				t.Fatalf("prefix = %v, want %s", p, tc.wantPrefix)
+			}
+			if ones, _ := m.Size(); ones != tc.wantOnes {
+				t.Fatalf("mask /%d, want /%d", ones, tc.wantOnes)
+			}
+		})
+	}
+}

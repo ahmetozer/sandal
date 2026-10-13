@@ -203,6 +203,13 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 	hostAddrs, err := GetAddrsByName(l.Master)
 	slog.Debug("hostAddrs", "interface", l.Master, slog.Any("addrs", hostAddrs))
 
+	var dynPrefix *net.IPNet
+	var dynMask net.IPMask
+	if err == nil && l.Master == DefaultBridgeInterface {
+		dynPrefix, dynMask = bridgeDynamicPrefix(hostAddrs, env.DefaultHostNet)
+		hostAddrs = staticBridgeAddrs(hostAddrs, env.DefaultHostNet)
+	}
+
 	// Allocate IP addresses to container for each subnet
 	if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
 		contAddrs := make(Addrs, 0)
@@ -219,6 +226,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 				})
 			}
 			l.Addr = contAddrs
+			l.DynamicAddr = autoDynamicAddr(l)
 			l.Route = append(hostAddrs, l.Route...)
 		}
 	}
@@ -228,6 +236,7 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 		l.Route = hostAddrs
 	}
 
+	l.Addr = append(l.Addr, resolveDynamicAtCreate(l, dynPrefix, dynMask)...)
 	return l
 }
 
@@ -433,4 +442,39 @@ func (links Links) FinalizeLinks() error {
 		}
 	}
 	return nil
+}
+
+// autoDynamicAddr gives a link whose addresses sandal allocated a global
+// that mirrors its ULA interface identifier. Links with explicit ip=
+// entries opt in by writing a %uv6% dynamic address themselves.
+func autoDynamicAddr(l Link) []string {
+	if !l.Dynamic || l.DHCPv6 || len(l.DynamicAddr) > 0 {
+		return l.DynamicAddr
+	}
+	for _, a := range l.Addr {
+		if a.IP.To4() == nil && isULAv6(a.IP) {
+			return []string{dynamicAddrFromIID(a.IP)}
+		}
+	}
+	return nil
+}
+
+// resolveDynamicAtCreate resolves a sandal0 link's dynamic addresses against
+// the bridge's current prefix so a new container, or a KVM VM whose
+// addresses are fixed at boot, starts with its global already in place.
+// Returns nil when no prefix is known yet; the daemon adds it later.
+func resolveDynamicAtCreate(l Link, prefix *net.IPNet, mask net.IPMask) Addrs {
+	if prefix == nil || !l.Dynamic || l.DHCPv6 || l.Master != DefaultBridgeInterface {
+		return nil
+	}
+	var out Addrs
+	for _, d := range l.DynamicAddr {
+		ip, err := ResolveDynamicAddr(d, prefix)
+		if err != nil {
+			slog.Warn("unable to resolve dynamic address", "addr", d, "err", err)
+			continue
+		}
+		out = append(out, Addr{IP: ip, IPNet: &net.IPNet{IP: ip, Mask: mask}})
+	}
+	return out
 }
