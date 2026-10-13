@@ -170,29 +170,22 @@ func pickIID(a Addrs) []byte {
 	return iid
 }
 
-// ReplaceGlobal returns a copy of a with any global IPv6 entry replaced by
-// the supplied newGlobal. Existing IPv4 and link-local/ULA entries are kept.
-func (a Addrs) ReplaceGlobal(newGlobal net.IPNet) Addrs {
-	out := make(Addrs, 0, len(a)+1)
-	added := false
+// ReplaceGlobals returns a copy of a without the global IPv6 entries for
+// which owned reports true, with want appended. IPv4, link-local, ULA and
+// non-owned (static) globals are kept in order.
+func (a Addrs) ReplaceGlobals(owned func(net.IP) bool, want []net.IPNet) Addrs {
+	out := make(Addrs, 0, len(a)+len(want))
 	_, ll, _ := net.ParseCIDR("fe80::/10")
 	_, ula, _ := net.ParseCIDR("fc00::/7")
 	for _, e := range a {
-		if e.IP.To4() != nil {
-			out = append(out, e)
+		isGlobal := e.IP.To4() == nil && !ll.Contains(e.IP) && !ula.Contains(e.IP)
+		if isGlobal && owned(e.IP) {
 			continue
 		}
-		if ll.Contains(e.IP) || ula.Contains(e.IP) {
-			out = append(out, e)
-			continue
-		}
-		if !added {
-			out = append(out, Addr{IP: newGlobal.IP, IPNet: &net.IPNet{IP: newGlobal.IP, Mask: newGlobal.Mask}})
-			added = true
-		}
+		out = append(out, e)
 	}
-	if !added {
-		out = append(out, Addr{IP: newGlobal.IP, IPNet: &net.IPNet{IP: newGlobal.IP, Mask: newGlobal.Mask}})
+	for _, w := range want {
+		out = append(out, Addr{IP: w.IP, IPNet: &net.IPNet{IP: w.IP, Mask: w.Mask}})
 	}
 	return out
 }

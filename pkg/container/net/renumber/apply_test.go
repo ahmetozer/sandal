@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	cnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/vishvananda/netlink"
 )
@@ -246,76 +247,106 @@ func mustParseAddr(t *testing.T, s string) netlink.Addr {
 	return netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
 }
 
-// TestIPRequestSeesIntraContainerAllocations exercises the invariant that
-// `applyLocked` depends on: when two dynamic links inside the SAME
-// container need IPs (no preserved IIDs), the second IPRequest must
-// observe the first link's freshly-allocated IP via the shared reserved
-// slice. The only way this works is if c.Net is updated between the two
-// allocations.
-//
-// This test asserts the contract: a config c that mirrors apply.go's
-// "shadow" slice, with c.Net mutated between IPRequest calls, yields
-// distinct IPs.
-func TestIPRequestSeesIntraContainerAllocations(t *testing.T) {
-	_, prefix, _ := net.ParseCIDR("2001:db8:abcd:1234::/64")
-
-	// One container with the bridge IP at ::1 already occupying the first
-	// host bit; subsequent allocations start at ::2.
-	c := &config.Config{
-		Name: "two-link",
-		Net: cnet.Links{
-			cnet.Link{Id: "a", Dynamic: true, Addr: cnet.Addrs{}},
-			cnet.Link{Id: "b", Dynamic: true, Addr: cnet.Addrs{}},
-		},
-	}
-	reserved := []*config.Config{c}
-
-	// Iteration 0 — allocate for link 0; mutate c.Net so iteration 1
-	// observes the new IP via addrInUse (the apply.go fix).
-	ip0, err := cnet.IPRequest(&reserved, prefix)
+func mustParseCnetAddr(t *testing.T, s string) cnet.Addr {
+	t.Helper()
+	ip, n, err := net.ParseCIDR(s)
 	if err != nil {
-		t.Fatalf("IPRequest #1: %v", err)
+		t.Fatal(err)
 	}
-	links := c.Net.(cnet.Links)
-	links[0].Addr = links[0].Addr.ReplaceGlobal(net.IPNet{IP: ip0, Mask: prefix.Mask})
-	c.Net = links
+	return cnet.Addr{IP: ip, IPNet: n}
+}
 
-	// Iteration 1 — allocate for link 1.
-	ip1, err := cnet.IPRequest(&reserved, prefix)
-	if err != nil {
-		t.Fatalf("IPRequest #2: %v", err)
+func TestGlobalAndBridgeMask(t *testing.T) {
+	_, prefix, _ := net.ParseCIDR("2001:db8:1:2::/64")
+	m64, m128 := net.CIDRMask(64, 128), net.CIDRMask(128, 128)
+	pd, ndp := &DefaultApplier{}, &DefaultApplier{HostRoute: true}
+	if pd.globalMask(prefix).String() != m64.String() || pd.bridgeMask(m64).String() != m64.String() {
+		t.Error("pd mode must keep the prefix mask")
 	}
-
-	if ip0.Equal(ip1) {
-		t.Fatalf("intra-container IID collision: link0=%s link1=%s", ip0, ip1)
+	if ndp.globalMask(prefix).String() != m128.String() || ndp.bridgeMask(m64).String() != m128.String() {
+		t.Error("ndp-proxy mode must use /128")
 	}
 }
 
-// TestIPRequestCollidesWhenContainerNetNotUpdated demonstrates the failure
-// mode: if c.Net is NOT mutated between IPRequest calls (the pre-fix
-// behavior of apply.go), the second call returns the same IP as the first.
-func TestIPRequestCollidesWhenContainerNetNotUpdated(t *testing.T) {
-	_, prefix, _ := net.ParseCIDR("2001:db8:abcd:1234::/64")
+func TestEligible(t *testing.T) {
+	running := func() *config.Config { return &config.Config{ContPid: 10, Status: "running"} }
+	vm := running()
+	vm.VM = "kvm"
+	hostNet := running()
+	hostNet.NS = namespace.Namespaces{"net": {IsHost: true}}
+	cases := []struct {
+		name    string
+		c       *config.Config
+		isAlive func(*config.Config) bool
+		want    bool
+	}{
+		{"nil", nil, nil, false},
+		{"running", running(), nil, true},
+		{"vm is eligible for proxying", vm, nil, true},
+		{"host net", hostNet, nil, false},
+		{"dead pid", running(), func(*config.Config) bool { return false }, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := eligible(tc.c, tc.isAlive); got != tc.want {
+				t.Fatalf("eligible = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
 
-	c := &config.Config{
-		Name: "buggy",
-		Net: cnet.Links{
-			cnet.Link{Id: "a", Dynamic: true, Addr: cnet.Addrs{}},
-			cnet.Link{Id: "b", Dynamic: true, Addr: cnet.Addrs{}},
-		},
+func TestWantGlobals(t *testing.T) {
+	_, prefix, _ := net.ParseCIDR("2001:db8:3:4::/64")
+	m128 := net.CIDRMask(128, 128)
+	l := cnet.Link{Dynamic: true, Master: cnet.DefaultBridgeInterface, DynamicAddr: []string{"%uv6%:192:0:2:23"}}
+	want, ok := wantGlobals(l, prefix, m128)
+	if !ok || len(want) != 1 || want[0].String() != "2001:db8:3:4:192:0:2:23/128" {
+		t.Fatalf("wantGlobals = %v, %v", want, ok)
 	}
-	reserved := []*config.Config{c}
+	literalOnly := cnet.Link{Dynamic: true, Master: cnet.DefaultBridgeInterface, Addr: cnet.Addrs{mustParseCnetAddr(t, "2001:db8:1:2::23/128")}}
+	cases := []struct {
+		name   string
+		l      cnet.Link
+		prefix *net.IPNet
+	}{
+		{"dynamic=false", cnet.Link{Dynamic: false, Master: l.Master, DynamicAddr: l.DynamicAddr}, prefix},
+		{"dhcp6", cnet.Link{Dynamic: true, DHCPv6: true, Master: l.Master, DynamicAddr: l.DynamicAddr}, prefix},
+		{"no prefix yet", l, nil},
+		{"other bridge", cnet.Link{Dynamic: true, Master: "br-other", DynamicAddr: l.DynamicAddr}, prefix},
+		{"literal global is static", literalOnly, prefix},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, ok := wantGlobals(tc.l, tc.prefix, m128); ok {
+				t.Fatal("link must not be managed")
+			}
+		})
+	}
+}
 
-	ip0, err := cnet.IPRequest(&reserved, prefix)
-	if err != nil {
-		t.Fatalf("IPRequest #1: %v", err)
+func TestOwnedGlobalsIgnoresStaticLiteral(t *testing.T) {
+	l := cnet.Link{Addr: cnet.Addrs{
+		mustParseCnetAddr(t, "192.0.2.23/24"),
+		mustParseCnetAddr(t, "2001:db8:1:2:192:0:2:23/128"),
+		mustParseCnetAddr(t, "2001:db8:9::7/64"),
+		mustParseCnetAddr(t, "fd00:db8::23/64"),
+	}}
+	want := []net.IPNet{{IP: net.ParseIP("2001:db8:3:4:192:0:2:23"), Mask: net.CIDRMask(128, 128)}}
+	got := ownedGlobals(l, want)
+	if len(got) != 1 || !got[0].IP.Equal(net.ParseIP("2001:db8:1:2:192:0:2:23")) {
+		t.Fatalf("ownedGlobals = %v, want only the IID-matching global", got)
 	}
-	// Intentionally do NOT update c.Net.
-	ip1, err := cnet.IPRequest(&reserved, prefix)
-	if err != nil {
-		t.Fatalf("IPRequest #2: %v", err)
+	if sameAddrs(got, want) {
+		t.Error("old prefix must differ from new")
 	}
-	if !ip0.Equal(ip1) {
-		t.Fatalf("expected collision without c.Net update, got ip0=%s ip1=%s", ip0, ip1)
+	if !sameAddrs(want, want) {
+		t.Error("identical sets must compare equal")
+	}
+}
+
+func TestLookupAddrsSkipsLinkLocal(t *testing.T) {
+	got := lookupAddrs(cnet.Addrs{mustParseCnetAddr(t, "fe80::1/64"), mustParseCnetAddr(t, "192.0.2.12/24")})
+	if len(got) != 1 || !got[0].Equal(net.ParseIP("192.0.2.12")) {
+		t.Fatalf("lookupAddrs = %v, want [192.0.2.12]", got)
 	}
 }

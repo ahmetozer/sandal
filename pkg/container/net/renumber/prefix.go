@@ -3,6 +3,7 @@
 package renumber
 
 import (
+	"bytes"
 	"net"
 	"time"
 )
@@ -60,6 +61,17 @@ func isLinkLocal(ip net.IP) bool {
 func isULA(ip net.IP) bool {
 	_, ula, _ := net.ParseCIDR("fc00::/7")
 	return ula.Contains(ip)
+}
+
+// isGlobal reports a global unicast IPv6: not IPv4, link-local or ULA.
+func isGlobal(ip net.IP) bool {
+	return ip.To4() == nil && !isLinkLocal(ip) && !isULA(ip)
+}
+
+// iidEqual compares the interface identifiers (low 64 bits) of two IPv6s.
+func iidEqual(a, b net.IP) bool {
+	a16, b16 := a.To16(), b.To16()
+	return a16 != nil && b16 != nil && bytes.Equal(a16[8:], b16[8:])
 }
 
 func cidrEqual(a, b *net.IPNet) bool {

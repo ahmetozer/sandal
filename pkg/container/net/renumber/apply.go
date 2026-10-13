@@ -21,6 +21,12 @@ import (
 type DefaultApplier struct {
 	BridgeName string    // typically "sandal0"
 	Proxy      *NDPProxy // nil when mode != ndp-proxy
+	// HostRoute installs sandal0's and containers' globals as /128. Set in
+	// ndp-proxy mode: the upstream /64 is on-link on the upstream interface,
+	// and a second on-link /64 on sandal0 would split the host's connected
+	// route and break neighbor discovery toward LAN hosts in that /64. In pd
+	// mode sandal owns the routed /64, so globals keep the prefix mask.
+	HostRoute bool
 }
 
 // Apply runs the bridge → containers → NDP proxy sequence.
@@ -266,7 +272,7 @@ func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, 
 			}
 		}
 
-		(*links)[i].Addr = link.Addr.ReplaceGlobal(net.IPNet{IP: newIP, Mask: prefix.Mask})
+		(*links)[i].Addr = link.Addr.ReplaceGlobals(func(net.IP) bool { return true }, []net.IPNet{{IP: newIP, Mask: prefix.Mask}})
 		// Make this iteration's new IP visible to the next iteration's
 		// IPRequest — guards against intra-container IID collisions when
 		// one container has multiple dynamic links. c is a pointer also
@@ -412,4 +418,112 @@ func IsRunning(c *config.Config) bool {
 		return false
 	}
 	return true
+}
+
+func (a *DefaultApplier) globalMask(prefix *net.IPNet) net.IPMask {
+	return a.bridgeMask(prefix.Mask)
+}
+
+func (a *DefaultApplier) bridgeMask(m net.IPMask) net.IPMask {
+	if a.HostRoute {
+		return net.CIDRMask(128, 128)
+	}
+	return m
+}
+
+// eligible reports whether the renumber service tracks c: running, alive
+// (when isAlive is given) and not sharing the host netns. VMs are eligible
+// for NDP proxying but their addresses are fixed at boot, so callers that
+// enter a netns must skip c.VM != "" themselves.
+func eligible(c *config.Config, isAlive func(*config.Config) bool) bool {
+	if !IsRunning(c) {
+		return false
+	}
+	if isAlive != nil && !isAlive(c) {
+		return false
+	}
+	return !c.NS.Get("net").IsHost
+}
+
+// wantGlobals resolves the globals l should carry under prefix. ok=false
+// means the link is not managed: dynamic=false, in-container DHCPv6, not on
+// sandal0, no upstream prefix yet, or no dynamic address (literal globals
+// are static).
+func wantGlobals(l cnet.Link, prefix *net.IPNet, mask net.IPMask) ([]net.IPNet, bool) {
+	if !l.Dynamic || l.DHCPv6 || prefix == nil || len(l.DynamicAddr) == 0 {
+		return nil, false
+	}
+	if l.Master != cnet.DefaultBridgeInterface {
+		return nil, false
+	}
+	want := make([]net.IPNet, 0, len(l.DynamicAddr))
+	for _, d := range l.DynamicAddr {
+		ip, err := cnet.ResolveDynamicAddr(d, prefix)
+		if err != nil {
+			slog.Warn("renumber: dynamic address resolve failed", "addr", d, "err", err)
+			continue
+		}
+		want = append(want, net.IPNet{IP: ip, Mask: mask})
+	}
+	return want, true
+}
+
+// ownedGlobals returns l's persisted globals that the renumber service owns:
+// those whose IID matches a wanted address. Static literal globals with
+// other IIDs are never returned.
+func ownedGlobals(l cnet.Link, want []net.IPNet) []net.IPNet {
+	owned := ownedBy(want)
+	var out []net.IPNet
+	for _, a := range l.Addr {
+		if isGlobal(a.IP) && owned(a.IP) {
+			out = append(out, net.IPNet{IP: a.IP, Mask: a.IPNet.Mask})
+		}
+	}
+	return out
+}
+
+func ownedBy(want []net.IPNet) func(net.IP) bool {
+	return func(ip net.IP) bool {
+		for _, w := range want {
+			if iidEqual(ip, w.IP) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// sameAddrs compares two address lists ignoring order; IP and mask must match.
+func sameAddrs(a, b []net.IPNet) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, x := range a {
+		if !containsAddr(b, x) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAddr(list []net.IPNet, x net.IPNet) bool {
+	for _, y := range list {
+		if x.IP.Equal(y.IP) && x.Mask.String() == y.Mask.String() {
+			return true
+		}
+	}
+	return false
+}
+
+// lookupAddrs lists every non-link-local address of a link. Any of them
+// locates the link inside the container netns, including IPv4-only links.
+func lookupAddrs(a cnet.Addrs) []net.IP {
+	var out []net.IP
+	for _, e := range a {
+		if e.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, e.IP)
+	}
+	return out
 }
