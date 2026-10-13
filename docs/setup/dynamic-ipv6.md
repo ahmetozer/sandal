@@ -33,7 +33,7 @@ Then start a container as usual:
 sandal run -d --name web -lw nginx:latest
 ```
 
-…and the container will have a public IPv6 like `2001:db8:aaaa:1::2` — reachable from any IPv6 device on your LAN.
+…and the container will have a public IPv6 made of the upstream prefix and its ULA's interface identifier, like `2001:db8:aaaa:1:c0a8:10f:0:2` (see below) — reachable from any IPv6 device on your LAN.
 
 ## How to verify it's working
 
@@ -124,6 +124,10 @@ becomes `2001:db8:77:1:192:0:2:23`, so firewall rules that match the
 interface-ID suffix keep working. Omit the mask (or write `/128`); sandal
 installs `/128` in ndp-proxy mode and the prefix length in pd mode.
 
+The addresses above are placeholders. Explicit `ip=` addresses must be inside
+`sandal0`'s subnets (from `SANDAL_HOST_NET`, `172.16.0.1/24` and
+`fd34:135:123::/120` by default) so the bridge ULA gateway is on-link.
+
 A literal global (e.g. `ip=2001:db8:9::7/64`) is static: sandal never
 renumbers or removes it.
 
@@ -134,7 +138,7 @@ For a container whose address should not change — e.g. a stable internal servi
 ```bash
 sandal run -d --name internal \
     -lw alpine:latest \
-    -net "ip=fd00:internal::42/64;dynamic=false" \
+    -net "ip=fd00:db8::42/64;dynamic=false" \
     -- /run.sh
 ```
 
@@ -212,26 +216,29 @@ the container address are answered.
 
 ## Verifying a prefix change
 
-Easiest way to confirm renumber works end-to-end is to inject a test prefix on eth0 and watch the chain react:
+Sandal stays on the current prefix for as long as it is still present on the uplink (as an address or a router-advertised on-link route). Adding a second prefix changes nothing; sandal switches only after the current one is removed or expires. Run this drill on a lab host — on a LAN with a live router, its next advertisement brings the current prefix back:
 
 ```bash
 # Before
 sandal exec web -- ip -6 addr show dev eth0 scope global
 ip -6 neigh show proxy dev eth0
 
-# Inject a test prefix; sandal sees it within ~3 s
-sudo ip -6 addr add 2001:db8:test::1/64 dev eth0 valid_lft 7200 preferred_lft 7200
+# Add a test prefix; sandal keeps the current one while it is present
+sudo ip -6 addr add 2001:db8:aaaa:2::1/64 dev eth0 valid_lft 7200 preferred_lft 7200
 
-# Wait a moment, then check again
+# Remove the current prefix (its address and on-link route); sandal switches within ~3 s
+sudo ip -6 addr del 2001:db8:aaaa:1::10/64 dev eth0    # eth0's current address, if any
+sudo ip -6 route del 2001:db8:aaaa:1::/64 dev eth0
+
 sleep 5
-sandal exec web -- ip -6 addr show dev eth0 scope global    # new prefix
+sandal exec web -- ip -6 addr show dev eth0 scope global    # now in 2001:db8:aaaa:2::/64
 ip -6 neigh show proxy dev eth0                              # entry flipped
 
-# Clean up
-sudo ip -6 addr del 2001:db8:test::1/64 dev eth0
+# Clean up: the original prefix returns with the router's next advertisement
+sudo ip -6 addr del 2001:db8:aaaa:2::1/64 dev eth0
 ```
 
-The container retains its IPv6 interface-identifier across the renumber, so `::2` stays `::2` even when the `/64` changes — handy for DNS records that reference the host part.
+The container keeps its interface identifier across the renumber, so `…:c0a8:10f:0:2` keeps that suffix when the `/64` changes — handy for DNS records and firewall rules that reference the host part.
 
 ## In-container DHCPv6 renewal
 
@@ -244,11 +251,15 @@ When you start a container with `-net "ip=dhcp6"`, sandal keeps the DHCPv6 lease
 
 No configuration is required — this is automatic for every container that uses DHCPv6.
 
+## Upgrading
+
+Containers created by older sandal versions keep their old addresses and IPv6 gateway: sandal does not migrate them. Recreate them (`sandal rm <name>`, then `sandal run …`) to get dynamic addresses, the ULA gateway and `%uv6%` support.
+
 ## Troubleshooting
 
 **Daemon log says `no default route yet; retrying upstream auto-detect`.**
 
-The uplink isn't up yet (common when a `--startup` container creates it). Sandal retries every 5 s and starts as soon as a default route appears. Set `SANDAL_UPSTREAM_IF=<iface>` to skip detection.
+The uplink isn't up yet (common when a `--startup` container creates it). Sandal retries every 5 s and starts as soon as a default route appears. Set `SANDAL_UPSTREAM_IF=<iface>` to skip detection. If you set it for an uplink that appears late, also set `SANDAL_IPV6_MODE` explicitly: with `SANDAL_UPSTREAM_IF` set, the mode is auto-detected only once, when the daemon starts, possibly before the uplink exists.
 
 **Auto-detect picked the wrong interface (e.g. VPN tun0).**
 

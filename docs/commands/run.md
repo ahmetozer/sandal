@@ -286,7 +286,7 @@ Allocation configuration of /etc/hosts file.
     sandal run -lw / -net "ip=dhcp4" -- bash         # IPv4 only
     sandal run -lw / -net "ip=dhcp6" -- bash         # IPv6 only
     # Opt out of automatic IPv6 renumbering for this link
-    sandal run -lw / -net "ip=fd00:internal::42/64;dynamic=false" -- bash
+    sandal run -lw / -net "ip=fd00:db8::42/64;dynamic=false" -- bash
     ```
 
 ??? info "DHCP"
@@ -310,12 +310,14 @@ Allocation configuration of /etc/hosts file.
 ??? info "dynamic="
 
     Controls whether the [Dynamic IPv6](../setup/dynamic-ipv6.md) renumber service
-    is allowed to overwrite this link's global IPv6 when the upstream prefix
-    changes.
+    manages this link's dynamic global IPv6 when the upstream prefix changes.
 
-    - **`dynamic=true`** (default) — link is included in automatic renumber.
-    - **`dynamic=false`** — link is skipped. Use when you have pinned a literal
-      global IPv6 you do not want overwritten.
+    - **`dynamic=true`** (default) — the link's dynamic addresses are managed:
+      its `%uv6%` addresses or, when sandal allocates its addresses (no `ip=`),
+      the global derived from its ULA. Literal globals in `ip=` are never
+      renumbered.
+    - **`dynamic=false`** — the link gets no dynamic global and the renumber
+      service leaves it alone.
 
     **macOS (VM mode):** When running on macOS, containers default to DHCPv4
     automatically. The container's interface receives the VM's original MAC
@@ -328,6 +330,12 @@ Allocation configuration of /etc/hosts file.
     against the current upstream prefix and updated when it rotates:
     `-net "ip=192.0.2.23/24=%uv6%:192:0:2:23=fd00:db8::23/64"`.
     Requires `sandal daemon`; see [Dynamic IPv6](../setup/dynamic-ipv6.md).
+
+    The example addresses are placeholders: explicit `ip=` addresses must be
+    inside `sandal0`'s subnets (from `SANDAL_HOST_NET`) so the bridge ULA
+    gateway is on-link. `%uv6%` must start the address and fill the high 64
+    bits; the interface identifier must be a fixed, non-zero literal
+    (`%uv4%` is not allowed).
 
 ---
 
