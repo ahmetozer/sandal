@@ -44,7 +44,8 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 	}
 	slog.Info("renumber: applying", "prefix", prefix.String())
 
-	if _, err := a.renumberBridge(prefix); err != nil {
+	bridgeIPs, err := a.renumberBridge(prefix)
+	if err != nil {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
@@ -53,39 +54,21 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 		return fmt.Errorf("controller.Containers: %w", err)
 	}
 
-	// shadow is a live slice of pointers — mutations to c.Net inside
-	// renumberContainer are immediately visible to subsequent IPRequest calls,
-	// preventing two containers without a preserved IID from picking the same IID.
-	shadow := make([]*config.Config, len(conts))
-	copy(shadow, conts)
-
-	containerIPs := make([]net.IP, 0, len(conts))
+	mask := a.globalMask(prefix)
 	for _, c := range conts {
-		if !IsRunning(c) {
+		// VM addresses are fixed at boot (resolved in Link.defaults); only
+		// containers have a netns the host can update.
+		if !eligible(c, nil) || c.VM != "" {
 			continue
 		}
-		// VM containers have their own kernel and renumber via in-VM RA
-		// on sandal0; host must not poke the netns.
-		if c.VM != "" {
-			continue
-		}
-		if c.NS.Get("net").IsHost {
-			continue
-		}
-		ips, err := a.renumberContainer(c, prefix, &shadow)
-		// Append IPs before checking err: the in-kernel netns is the
-		// source of truth for what the proxy must advertise. Disk-write
-		// failures in renumberContainer leave the kernel state advanced,
-		// so the proxy table should still reflect it.
-		containerIPs = append(containerIPs, ips...)
-		if err != nil {
+		if err := reconcileContainer(c, prefix, mask); err != nil {
 			slog.Warn("renumber: container failed", "name", c.Name, "err", err)
-			continue
 		}
 	}
+	activePrefix, activeMask, activeBridgeIPs = prefix, mask, bridgeIPs
 
 	if a.Proxy != nil {
-		a.Proxy.Reconcile(containerIPs)
+		a.Proxy.Reconcile(nil)
 	}
 	return nil
 }
@@ -100,7 +83,7 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 //     stamp. This preserves backward compatibility for hand-crafted
 //     SANDAL_HOST_NET values and exercises the ULA-IID fallback added in
 //     the prior spec.
-func (a *DefaultApplier) renumberBridge(prefix *net.IPNet) (*net.IPNet, error) {
+func (a *DefaultApplier) renumberBridge(prefix *net.IPNet) ([]net.IP, error) {
 	_, dynamic := cnet.SplitHostNet(env.DefaultHostNet)
 	if len(dynamic) > 0 {
 		return a.reconcileDynamicEntries(prefix, dynamic)
@@ -111,7 +94,7 @@ func (a *DefaultApplier) renumberBridge(prefix *net.IPNet) (*net.IPNet, error) {
 // reconcileDynamicEntries resolves each %uv6%-bearing template against the
 // current upstream prefix and converges sandal0's global address set to
 // exactly those resolved values.
-func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []string) (*net.IPNet, error) {
+func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []string) ([]net.IP, error) {
 	link, err := netlink.LinkByName(a.BridgeName)
 	if err != nil {
 		return nil, fmt.Errorf("link %q: %w", a.BridgeName, err)
@@ -126,7 +109,6 @@ func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []
 		mask net.IPMask
 	}
 	wanted := make(map[string]want, len(templates))
-	var primary *net.IPNet
 	for _, tpl := range templates {
 		resolved := cnet.ResolveDynamic(tpl, prefix)
 		ip, ipnet, perr := net.ParseCIDR(resolved)
@@ -134,11 +116,9 @@ func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []
 			slog.Warn("renumber: dynamic entry parse failed", "template", tpl, "resolved", resolved, "err", perr)
 			continue
 		}
-		key := (&net.IPNet{IP: ip, Mask: ipnet.Mask}).String()
-		wanted[key] = want{ip: ip, mask: ipnet.Mask}
-		if primary == nil {
-			primary = &net.IPNet{IP: ip, Mask: ipnet.Mask}
-		}
+		mask := a.bridgeMask(ipnet.Mask)
+		key := (&net.IPNet{IP: ip, Mask: mask}).String()
+		wanted[key] = want{ip: ip, mask: mask}
 	}
 
 	// Drop bridge globals that are not in the wanted set; keep LL and ULA
@@ -174,12 +154,16 @@ func (a *DefaultApplier) reconcileDynamicEntries(prefix *net.IPNet, templates []
 		}
 	}
 
-	return primary, nil
+	ips := make([]net.IP, 0, len(wanted))
+	for _, w := range wanted {
+		ips = append(ips, w.ip)
+	}
+	return ips, nil
 }
 
 // renumberBridgeFallback is the historical bridgeIID/withIID path. Used when
 // SANDAL_HOST_NET has no dynamic entries.
-func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) (*net.IPNet, error) {
+func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) ([]net.IP, error) {
 	link, err := netlink.LinkByName(a.BridgeName)
 	if err != nil {
 		return nil, fmt.Errorf("link %q: %w", a.BridgeName, err)
@@ -191,7 +175,7 @@ func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) (*net.IPNet, 
 
 	iid := bridgeIID(addrs)
 	newIP := withIID(prefix, iid)
-	newAddr := &net.IPNet{IP: newIP, Mask: prefix.Mask}
+	newAddr := &net.IPNet{IP: newIP, Mask: a.bridgeMask(prefix.Mask)}
 
 	for _, a := range addrs {
 		if a.IP.IsLinkLocalUnicast() {
@@ -208,137 +192,44 @@ func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) (*net.IPNet, 
 	if err := netlink.AddrAdd(link, add); err != nil && !strings.Contains(err.Error(), "exists") {
 		return nil, fmt.Errorf("addr add %s: %w", newAddr, err)
 	}
-	return newAddr, nil
+	return []net.IP{newIP}, nil
 }
 
-// renumberContainer rewrites the container's links under `prefix` and persists
-// the change to its config. Returns the new container global IPv6 addresses.
-// reserved is the full live slice of all containers; mutations to c.Net are
-// visible to subsequent IPRequest calls so no two containers pick the same IID.
-func (a *DefaultApplier) renumberContainer(c *config.Config, prefix *net.IPNet, reserved *[]*config.Config) ([]net.IP, error) {
+// setContainerFn is indirected so tests can observe persistence.
+var setContainerFn = controller.SetContainer
+
+// reconcileContainer converges c's owned globals onto prefix (with mask)
+// and persists the config when anything changed. c.Net is updated in memory
+// even when persisting fails, because the netns already reflects it.
+func reconcileContainer(c *config.Config, prefix *net.IPNet, mask net.IPMask) error {
 	links, err := cnet.ToLinks(&c.Net)
 	if err != nil {
-		return nil, fmt.Errorf("ToLinks: %w", err)
+		return fmt.Errorf("ToLinks: %w", err)
 	}
-	var newIPs []net.IP
-
-	for i, link := range *links {
-		if !link.Dynamic {
+	changed := false
+	for i, l := range *links {
+		want, ok := wantGlobals(l, prefix, mask)
+		if !ok || sameAddrs(ownedGlobals(l, want), want) {
 			continue
 		}
-		// In-container DHCPv6 owns this link's IPv6; the renumber service
-		// must not fight the client.
-		if link.DHCPv6 {
-			continue
-		}
-		var newIP net.IP
-		if iid := pickIIDLocal(link.Addr); iid != nil {
-			newIP = withIID(prefix, iid)
-		} else {
-			ip, err := cnet.IPRequest(reserved, prefix)
-			if err != nil {
-				return nil, fmt.Errorf("IPRequest: %w", err)
-			}
-			newIP = ip
-		}
-
 		if c.ContPid > 0 {
-			ifname := link.Name
+			ifname := l.Name
 			if ifname == "" {
-				ifname = link.Id
+				ifname = l.Id
 			}
-			if err := SetContainerGlobals(c.ContPid, lookupAddrs(link.Addr), ifname, []net.IPNet{{IP: newIP, Mask: prefix.Mask}}); err != nil {
-				return nil, fmt.Errorf("SetContainerGlobals: %w", err)
+			if err := SetContainerGlobals(c.ContPid, lookupAddrs(l.Addr), ifname, want); err != nil {
+				return fmt.Errorf("link %s: %w", ifname, err)
 			}
 		}
-
-		(*links)[i].Addr = link.Addr.ReplaceGlobals(func(net.IP) bool { return true }, []net.IPNet{{IP: newIP, Mask: prefix.Mask}})
-		// Make this iteration's new IP visible to the next iteration's
-		// IPRequest — guards against intra-container IID collisions when
-		// one container has multiple dynamic links. c is a pointer also
-		// in *reserved, so subsequent containers also see up-to-date state.
-		c.Net = *links
-		newIPs = append(newIPs, newIP)
+		(*links)[i].Addr = l.Addr.ReplaceGlobals(ownedBy(want), want)
+		changed = true
 	}
-
-	if err := controller.SetContainer(c); err != nil {
-		return newIPs, fmt.Errorf("controller.SetContainer: %w", err)
+	if !changed {
+		return nil
 	}
-	return newIPs, nil
-}
-
-// pickIIDLocal mirrors cnet.pickIID but works on the package-typed cnet.Addrs
-// (returned by cnet.ToLinks). Kept here because cnet.pickIID is unexported and
-// would require an exported wrapper to reach from this package.
-//
-// Selection order: prefer an existing global IID (so subsequent renumbers
-// keep the same tail), then fall back to the ULA IID (so the first renumber
-// preserves whatever IID structure SANDAL_HOST_NET established — e.g. a
-// %uv4%-derived embedding). Returns nil only when no usable address exists.
-func pickIIDLocal(a cnet.Addrs) []byte {
-	if g := pickGlobalLocal(a); g != nil {
-		return ipToIID(g.IP)
-	}
-	if u := pickULALocal(a); u != nil {
-		return ipToIID(u.IP)
-	}
-	return nil
-}
-
-func pickULALocal(a cnet.Addrs) *cnet.Addr {
-	_, ula, _ := net.ParseCIDR("fc00::/7")
-	for i := range a {
-		ip := a[i].IP
-		if ip.To4() != nil {
-			continue
-		}
-		if ula.Contains(ip) {
-			return &a[i]
-		}
-	}
-	return nil
-}
-
-func ipToIID(ip net.IP) []byte {
-	v6 := ip.To16()
-	iid := make([]byte, 8)
-	copy(iid, v6[8:16])
-	return iid
-}
-
-func pickGlobalLocal(a cnet.Addrs) *cnet.Addr {
-	_, ll, _ := net.ParseCIDR("fe80::/10")
-	_, ula, _ := net.ParseCIDR("fc00::/7")
-	for i := range a {
-		ip := a[i].IP
-		if ip.To4() != nil {
-			continue
-		}
-		if ll.Contains(ip) || ula.Contains(ip) {
-			continue
-		}
-		return &a[i]
-	}
-	return nil
-}
-
-// pickLookupAddrLocal returns the first non-IPv4, non-link-local address in
-// the list — global or ULA. Used by the renumber path as a fallback "anchor"
-// to locate a link inside a container netns when no global address exists
-// yet (e.g. gap state where the container started before upstream IPv6 was
-// available). The returned address is suitable for an address-based netns
-// lookup; the caller decides whether to also delete it.
-func pickLookupAddrLocal(a cnet.Addrs) *cnet.Addr {
-	_, ll, _ := net.ParseCIDR("fe80::/10")
-	for i := range a {
-		ip := a[i].IP
-		if ip.To4() != nil {
-			continue
-		}
-		if ll.Contains(ip) {
-			continue
-		}
-		return &a[i]
+	c.Net = *links
+	if err := setContainerFn(c); err != nil {
+		return fmt.Errorf("controller.SetContainer: %w", err)
 	}
 	return nil
 }

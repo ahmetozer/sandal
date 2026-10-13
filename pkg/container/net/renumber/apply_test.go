@@ -5,6 +5,7 @@ package renumber
 import (
 	"bytes"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -63,71 +64,6 @@ func TestBridgeIIDFallsBackTo1WhenNoGlobal(t *testing.T) {
 	}
 }
 
-func TestPickGlobalLocal(t *testing.T) {
-	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	ula := cnet.Addr{IP: net.ParseIP("fd00::1"), IPNet: &net.IPNet{IP: net.ParseIP("fd00::1"), Mask: net.CIDRMask(64, 128)}}
-	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.2"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.2"), Mask: net.CIDRMask(24, 32)}}
-	global := cnet.Addr{IP: net.ParseIP("2001:db8::42"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8::42"), Mask: net.CIDRMask(64, 128)}}
-
-	if pickGlobalLocal(cnet.Addrs{ll, v4, ula}) != nil {
-		t.Error("pickGlobalLocal: expected nil when only LL/ULA/v4 present")
-	}
-	got := pickGlobalLocal(cnet.Addrs{ll, ula, v4, global})
-	if got == nil {
-		t.Fatal("pickGlobalLocal: returned nil for set with a global")
-	}
-	if !got.IP.Equal(global.IP) {
-		t.Errorf("pickGlobalLocal: got %s, want %s", got.IP, global.IP)
-	}
-}
-
-func TestPickIIDLocal(t *testing.T) {
-	global := cnet.Addr{IP: net.ParseIP("2001:db8::1234:5678"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8::1234:5678"), Mask: net.CIDRMask(64, 128)}}
-	got := pickIIDLocal(cnet.Addrs{global})
-	// Compute the expected IID directly from the IP for correctness:
-	ip := global.IP.To16()
-	want := make([]byte, 8)
-	copy(want, ip[8:16])
-	if !bytes.Equal(got, want) {
-		t.Errorf("pickIIDLocal: got %x, want %x", got, want)
-	}
-}
-
-// TestPickIIDLocalFallsBackToULA: when a container is in gap state (created
-// before upstream IPv6 arrived), it has only a ULA + link-local. The renumber
-// path must extract the ULA's IID so the next-prefix stamp preserves the IID
-// structure SANDAL_HOST_NET established (notably the %uv4% IPv4 embedding).
-func TestPickIIDLocalFallsBackToULA(t *testing.T) {
-	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), Mask: net.CIDRMask(120, 128)}}
-	got := pickIIDLocal(cnet.Addrs{ll, ula})
-	want := []byte{0xac, 0x10, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02}
-	if !bytes.Equal(got, want) {
-		t.Errorf("pickIIDLocal ULA fallback: got %x, want %x", got, want)
-	}
-}
-
-// TestPickIIDLocalPrefersGlobalOverULA: once a global exists, it takes
-// precedence — the global address's IID is the long-lived identifier and
-// MUST stay stable across subsequent renumbers.
-func TestPickIIDLocalPrefersGlobalOverULA(t *testing.T) {
-	global := cnet.Addr{IP: net.ParseIP("2001:db8::42"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8::42"), Mask: net.CIDRMask(64, 128)}}
-	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123:0:ac10:3::2"), Mask: net.CIDRMask(120, 128)}}
-	got := pickIIDLocal(cnet.Addrs{ula, global})
-	want := []byte{0, 0, 0, 0, 0, 0, 0, 0x42}
-	if !bytes.Equal(got, want) {
-		t.Errorf("pickIIDLocal must prefer global over ULA: got %x, want %x", got, want)
-	}
-}
-
-func TestPickIIDLocalReturnsNilWhenOnlyLinkLocalOrIPv4(t *testing.T) {
-	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.5"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.5"), Mask: net.CIDRMask(24, 32)}}
-	if got := pickIIDLocal(cnet.Addrs{ll, v4}); got != nil {
-		t.Errorf("pickIIDLocal: expected nil when only LL/IPv4 present, got %x", got)
-	}
-}
-
 // TestBridgeIIDFallsBackToULA mirrors the pickIIDLocal test but for the
 // bridge code path that runs on real netlink.Addr.
 func TestBridgeIIDFallsBackToULA(t *testing.T) {
@@ -173,49 +109,6 @@ func TestBridgeIIDDefaultWhenEmpty(t *testing.T) {
 	want := []byte{0, 0, 0, 0, 0, 0, 0, 1}
 	if !bytes.Equal(got, want) {
 		t.Errorf("bridgeIID empty fallback: got %x, want %x", got, want)
-	}
-}
-
-// TestPickLookupAddrLocalFallsBackToULA: when a container is in gap state
-// (created before upstream IPv6 arrived) it has only a ULA on its link.
-// The renumber path needs a way to locate the netns link without a global
-// IPv6 — pickLookupAddrLocal returns the ULA so the address-based lookup
-// in SwapContainerAddrByOldIP still works.
-func TestPickLookupAddrLocalFallsBackToULA(t *testing.T) {
-	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123::5"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123::5"), Mask: net.CIDRMask(64, 128)}}
-	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.5"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.5"), Mask: net.CIDRMask(24, 32)}}
-
-	got := pickLookupAddrLocal(cnet.Addrs{v4, ll, ula})
-	if got == nil {
-		t.Fatal("pickLookupAddrLocal returned nil; expected the ULA")
-	}
-	if !got.IP.Equal(ula.IP) {
-		t.Fatalf("pickLookupAddrLocal: got %s, want %s", got.IP, ula.IP)
-	}
-}
-
-// TestPickLookupAddrLocalPrefersFirstNonLinkLocal documents the contract:
-// the function returns the FIRST suitable entry, leaving ordering decisions
-// to the caller. (Compare with pickGlobalLocal which is stricter.)
-func TestPickLookupAddrLocalPrefersFirstNonLinkLocal(t *testing.T) {
-	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	global := cnet.Addr{IP: net.ParseIP("2001:db8::1"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8::1"), Mask: net.CIDRMask(64, 128)}}
-	ula := cnet.Addr{IP: net.ParseIP("fd34:135:123::5"), IPNet: &net.IPNet{IP: net.ParseIP("fd34:135:123::5"), Mask: net.CIDRMask(64, 128)}}
-
-	got := pickLookupAddrLocal(cnet.Addrs{ll, global, ula})
-	if got == nil || !got.IP.Equal(global.IP) {
-		t.Fatalf("expected the global (first non-LL), got %v", got)
-	}
-}
-
-// TestPickLookupAddrLocalReturnsNilWhenOnlyLinkLocalOrIPv4 confirms there is
-// no fallback beyond ULA/global IPv6.
-func TestPickLookupAddrLocalReturnsNilWhenOnlyLinkLocalOrIPv4(t *testing.T) {
-	ll := cnet.Addr{IP: net.ParseIP("fe80::1"), IPNet: &net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
-	v4 := cnet.Addr{IP: net.ParseIP("172.16.0.5"), IPNet: &net.IPNet{IP: net.ParseIP("172.16.0.5"), Mask: net.CIDRMask(24, 32)}}
-	if got := pickLookupAddrLocal(cnet.Addrs{ll, v4}); got != nil {
-		t.Errorf("pickLookupAddrLocal: expected nil for IPv4+LL-only set, got %v", got)
 	}
 }
 
@@ -348,5 +241,72 @@ func TestLookupAddrsSkipsLinkLocal(t *testing.T) {
 	got := lookupAddrs(cnet.Addrs{mustParseCnetAddr(t, "fe80::1/64"), mustParseCnetAddr(t, "192.0.2.12/24")})
 	if len(got) != 1 || !got[0].Equal(net.ParseIP("192.0.2.12")) {
 		t.Fatalf("lookupAddrs = %v, want [192.0.2.12]", got)
+	}
+}
+
+func stubSetContainer(t *testing.T) *int {
+	t.Helper()
+	calls := 0
+	orig := setContainerFn
+	t.Cleanup(func() { setContainerFn = orig })
+	setContainerFn = func(*config.Config) error { calls++; return nil }
+	return &calls
+}
+
+// ContPid 0 → the netns step is skipped; only planning + persist run.
+func TestReconcileContainerFollowsPrefixAndPersistsOnce(t *testing.T) {
+	calls := stubSetContainer(t)
+	c := &config.Config{Name: "web", Net: cnet.Links{{
+		Id: "veth0", Dynamic: true, Master: cnet.DefaultBridgeInterface,
+		DynamicAddr: []string{"%uv6%:192:0:2:23"},
+		Addr: cnet.Addrs{
+			mustParseCnetAddr(t, "192.0.2.23/24"),
+			mustParseCnetAddr(t, "2001:db8:1:2:192:0:2:23/128"),
+			mustParseCnetAddr(t, "2001:db8:9::7/64"), // static literal
+			mustParseCnetAddr(t, "fd00:db8::23/64"),
+		},
+	}}}
+	_, prefix, _ := net.ParseCIDR("2001:db8:3:4::/64")
+	m128 := net.CIDRMask(128, 128)
+
+	if err := reconcileContainer(c, prefix, m128); err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 1 {
+		t.Fatalf("persist calls = %d, want 1", *calls)
+	}
+	links, _ := cnet.ToLinks(&c.Net)
+	var ips []string
+	for _, a := range (*links)[0].Addr {
+		ips = append(ips, (&net.IPNet{IP: a.IP, Mask: a.IPNet.Mask}).String())
+	}
+	got := strings.Join(ips, ",")
+	if !strings.Contains(got, "2001:db8:3:4:192:0:2:23/128") || strings.Contains(got, "2001:db8:1:2:192:0:2:23") {
+		t.Fatalf("dynamic global not renumbered: %s", got)
+	}
+	if !strings.Contains(got, "2001:db8:9::7") {
+		t.Fatalf("static literal global must be kept: %s", got)
+	}
+
+	if err := reconcileContainer(c, prefix, m128); err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 1 {
+		t.Fatalf("steady state must not persist again, calls = %d", *calls)
+	}
+}
+
+func TestReconcileContainerLeavesOptedOutLinkAlone(t *testing.T) {
+	calls := stubSetContainer(t)
+	c := &config.Config{Name: "db", Net: cnet.Links{{
+		Id: "veth1", Dynamic: true, Master: cnet.DefaultBridgeInterface,
+		Addr: cnet.Addrs{mustParseCnetAddr(t, "192.0.2.12/24"), mustParseCnetAddr(t, "2001:db8:1:2::12/128")},
+	}}}
+	_, prefix, _ := net.ParseCIDR("2001:db8:3:4::/64")
+	if err := reconcileContainer(c, prefix, net.CIDRMask(128, 128)); err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 0 {
+		t.Fatalf("link without dynamic addresses touched: persist=%d", *calls)
 	}
 }

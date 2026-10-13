@@ -3,6 +3,7 @@
 package renumber
 
 import (
+	"log/slog"
 	"net"
 	"sync"
 
@@ -14,6 +15,12 @@ var (
 	hookMu    sync.Mutex
 	activeNDP *NDPProxy
 	applyMu   sync.Mutex
+
+	// State of the last successful Apply; nil/empty until then. Guarded by
+	// applyMu.
+	activePrefix    *net.IPNet
+	activeMask      net.IPMask
+	activeBridgeIPs []net.IP
 )
 
 // SetActiveNDPProxy registers the currently-active NDP proxy (called by the
@@ -89,5 +96,26 @@ func ReconcileProxyForRunning(conts []*config.Config, isAlive func(*config.Confi
 			}
 		}
 		p.Reconcile(desired)
+	})
+}
+
+// ReconcileContainersForRunning re-checks running containers against the
+// active prefix. Called from the daemon's health-check tick so containers
+// started after the last Apply (boot ordering, crash recovery, sandal run
+// before the prefix was known) converge within one tick. No-op until the
+// first Apply.
+func ReconcileContainersForRunning(conts []*config.Config, isAlive func(*config.Config) bool) {
+	WithApplyLock(func() {
+		if activePrefix == nil {
+			return
+		}
+		for _, c := range conts {
+			if !eligible(c, isAlive) || c.VM != "" {
+				continue
+			}
+			if err := reconcileContainer(c, activePrefix, activeMask); err != nil {
+				slog.Debug("renumber: container reconcile failed", "name", c.Name, "err", err)
+			}
+		}
 	})
 }
