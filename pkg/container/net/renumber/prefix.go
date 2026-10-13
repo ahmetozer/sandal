@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"net"
 	"time"
+
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 // Candidate is one global IPv6 prefix observed on the upstream interface.
@@ -95,4 +98,35 @@ func cidrLess(a, b *net.IPNet) bool {
 	ao, _ := a.Mask.Size()
 	bo, _ := b.Mask.Size()
 	return ao < bo
+}
+
+// routeCandidates extracts upstream prefixes from RA-installed on-link
+// routes. An RA prefix option with L=1 makes the kernel install
+// "<prefix>/64 dev <uplink>" as a proto-kernel connected route even when
+// A=0 (stateful-DHCPv6-only networks). Netlink dumps expose neither
+// RTM_F_PREFIX nor the route lifetime, so any proto-kernel global /64 on the
+// uplink counts; when the uplink also holds an address in that /64 it is the
+// same prefix the address yields. User-added static routes (proto
+// boot/static) are excluded. The kernel removes RA routes on expiry.
+func routeCandidates(routes []netlink.Route, now time.Time) []Candidate {
+	var out []Candidate
+	for _, r := range routes {
+		if r.Dst == nil || r.Gw != nil {
+			continue
+		}
+		if r.Protocol != unix.RTPROT_KERNEL {
+			continue
+		}
+		if ones, bits := r.Dst.Mask.Size(); ones != 64 || bits != 128 {
+			continue
+		}
+		if !isGlobal(r.Dst.IP) {
+			continue
+		}
+		out = append(out, Candidate{
+			Prefix:     &net.IPNet{IP: r.Dst.IP.Mask(r.Dst.Mask), Mask: r.Dst.Mask},
+			ValidUntil: now.Add(24 * time.Hour),
+		})
+	}
+	return out
 }
