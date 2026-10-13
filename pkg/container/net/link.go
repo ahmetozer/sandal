@@ -167,20 +167,23 @@ func (l Link) defaults(conts *[]*config.Config) Link {
 			if l.Name == "" {
 				l.Name = l.Id
 			}
-			// KVM: host pre-allocates per-NIC addrs into SANDAL_VM_NET (a
-			// JSON array of Links — index N corresponds to ethN).
-			// VZ:  no SANDAL_VM_NET, container will DHCP on eth0.
-			if len(l.Addr) == 0 && !l.DHCPv4 && !l.DHCPv6 {
+			// KVM: the host parsed the same -net flag, allocated or resolved
+			// every address (including %uv6% dynamic globals, which the guest
+			// cannot resolve) and the gateways, and passed them in
+			// SANDAL_VM_NET (index N = ethN). It is authoritative whenever
+			// present. VZ: no SANDAL_VM_NET, the container DHCPs on eth0.
+			if !l.DHCPv4 && !l.DHCPv6 {
 				if vmLinks := loadVMNetLinks(); len(vmLinks) > 0 {
 					idx := vmLinkIndex(l.Id)
 					if idx >= 0 && idx < len(vmLinks) {
 						l.Addr = vmLinks[idx].Addr
 						l.Route = vmLinks[idx].Route
+						l.DynamicAddr = nil
 						if l.Ether == nil && len(vmLinks[idx].Ether) > 0 {
 							l.Ether = vmLinks[idx].Ether
 						}
 					}
-				} else {
+				} else if len(l.Addr) == 0 {
 					l.DHCPv4 = true
 				}
 			}

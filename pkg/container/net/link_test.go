@@ -121,3 +121,40 @@ func TestResolveDynamicAtCreate(t *testing.T) {
 		t.Fatalf("non-sandal0 master → nothing, got %v", got)
 	}
 }
+
+// In a KVM guest the host already parsed the same -net flag and resolved its
+// %uv6% address and gateways into SANDAL_VM_NET; the guest must use them even
+// when ip= lists literal addresses.
+func TestDefaultsVMUsesHostResolvedLinks(t *testing.T) {
+	host := []Link{{
+		Id: "eth0",
+		Addr: Addrs{mustParseAddr(t, "192.0.2.40/24"), mustParseAddr(t, "fd00:db8:5::40/64"),
+			{IP: net.ParseIP("2001:db8:1:2:192:0:2:40"), IPNet: &net.IPNet{IP: net.ParseIP("2001:db8:1:2:192:0:2:40"), Mask: net.CIDRMask(128, 128)}}},
+		Route: Addrs{mustParseAddr(t, "192.0.2.1/24"), mustParseAddr(t, "fd00:db8:5::1/64")},
+	}}
+	raw, err := json.Marshal(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SANDAL_VM", "kvm")
+	t.Setenv("SANDAL_VM_NET", string(raw))
+
+	guest := Link{Id: "eth0", Name: "eth0", Dynamic: true,
+		Addr:        Addrs{mustParseAddr(t, "192.0.2.40/24"), mustParseAddr(t, "fd00:db8:5::40/64")},
+		DynamicAddr: []string{"%uv6%:192:0:2:40"}}
+	got := guest.defaults(nil)
+	if len(got.Addr) != 3 || !got.Addr[2].IP.Equal(net.ParseIP("2001:db8:1:2:192:0:2:40")) {
+		t.Fatalf("guest Addr = %v, want host-resolved addresses incl. the global", got.Addr)
+	}
+	if len(got.Route) != 2 {
+		t.Fatalf("guest Route = %v, want host gateways", got.Route)
+	}
+	if got.DynamicAddr != nil {
+		t.Fatalf("guest cannot resolve %%uv6%%; DynamicAddr must be cleared, got %v", got.DynamicAddr)
+	}
+
+	dhcp := Link{Id: "eth0", Name: "eth0", DHCPv4: true}
+	if got := dhcp.defaults(nil); len(got.Addr) != 0 {
+		t.Fatalf("DHCP links must not take SANDAL_VM_NET addresses, got %v", got.Addr)
+	}
+}

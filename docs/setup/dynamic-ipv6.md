@@ -203,6 +203,8 @@ The static ULA (`fd34:135:123::/120` by default) is always kept as a fallback so
 when the VM boots. Sandal proxies it while it is inside the current prefix;
 after a prefix rotation restart the VM to pick up the new prefix.
 
+This also applies when `-net ip=` lists explicit addresses: the VM gets the host-resolved public address and the sandal0 gateways.
+
 ### Upstreams without SLAAC
 
 Some routers announce the prefix with autoconfiguration off and hand out
