@@ -4,6 +4,7 @@ package renumber
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -198,14 +199,21 @@ func (a *DefaultApplier) renumberBridgeFallback(prefix *net.IPNet) ([]net.IP, er
 // setContainerFn is indirected so tests can observe persistence.
 var setContainerFn = controller.SetContainer
 
+// setContainerGlobalsFn is indirected so tests can fail one link's netns
+// update.
+var setContainerGlobalsFn = SetContainerGlobals
+
 // reconcileContainer converges c's owned globals onto prefix (with mask)
-// and persists the config when anything changed. c.Net is updated in memory
+// and persists the config when anything changed. A link whose netns update
+// fails keeps its old addresses and does not stop the others; its error is
+// returned (joined) after the rest are persisted. c.Net is updated in memory
 // even when persisting fails, because the netns already reflects it.
 func reconcileContainer(c *config.Config, prefix *net.IPNet, mask net.IPMask) error {
 	links, err := cnet.ToLinks(&c.Net)
 	if err != nil {
 		return fmt.Errorf("ToLinks: %w", err)
 	}
+	var errs []error
 	changed := false
 	for i, l := range *links {
 		want, ok := wantGlobals(l, prefix, mask)
@@ -217,21 +225,21 @@ func reconcileContainer(c *config.Config, prefix *net.IPNet, mask net.IPMask) er
 			if ifname == "" {
 				ifname = l.Id
 			}
-			if err := SetContainerGlobals(c.ContPid, lookupAddrs(l.Addr), ifname, want); err != nil {
-				return fmt.Errorf("link %s: %w", ifname, err)
+			if err := setContainerGlobalsFn(c.ContPid, lookupAddrs(l.Addr), ifname, want); err != nil {
+				errs = append(errs, fmt.Errorf("link %s: %w", ifname, err))
+				continue
 			}
 		}
 		(*links)[i].Addr = l.Addr.ReplaceGlobals(ownedBy(want), want)
 		changed = true
 	}
-	if !changed {
-		return nil
+	if changed {
+		c.Net = *links
+		if err := setContainerFn(c); err != nil {
+			errs = append(errs, fmt.Errorf("controller.SetContainer: %w", err))
+		}
 	}
-	c.Net = *links
-	if err := setContainerFn(c); err != nil {
-		return fmt.Errorf("controller.SetContainer: %w", err)
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // bridgeIID extracts an IID from the bridge's existing addresses. Prefers

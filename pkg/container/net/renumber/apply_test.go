@@ -4,6 +4,7 @@ package renumber
 
 import (
 	"bytes"
+	"errors"
 	"net"
 	"strings"
 	"testing"
@@ -302,6 +303,60 @@ func TestReconcileContainerFollowsPrefixAndPersistsOnce(t *testing.T) {
 	}
 	if *calls != 1 {
 		t.Fatalf("steady state must not persist again, calls = %d", *calls)
+	}
+}
+
+// A link whose netns update fails must not stop the remaining links from
+// being renumbered and persisted.
+func TestReconcileContainerContinuesPastFailingLink(t *testing.T) {
+	calls := stubSetContainer(t)
+	orig := setContainerGlobalsFn
+	t.Cleanup(func() { setContainerGlobalsFn = orig })
+	var tried []string
+	setContainerGlobalsFn = func(_ int, _ []net.IP, ifname string, _ []net.IPNet) error {
+		tried = append(tried, ifname)
+		if ifname == "eth0" {
+			return errors.New("netns boom")
+		}
+		return nil
+	}
+	link := func(name, v4, global string, dyn string) cnet.Link {
+		return cnet.Link{
+			Id: "veth-" + name, Name: name, Dynamic: true, Master: cnet.DefaultBridgeInterface,
+			DynamicAddr: []string{dyn},
+			Addr:        cnet.Addrs{mustParseCnetAddr(t, v4), mustParseCnetAddr(t, global)},
+		}
+	}
+	c := &config.Config{Name: "web", ContPid: 4194304, Net: cnet.Links{
+		link("eth0", "192.0.2.23/24", "2001:db8:1:2:192:0:2:23/128", "%uv6%:192:0:2:23"),
+		link("eth1", "198.51.100.23/24", "2001:db8:1:2:198:51:100:23/128", "%uv6%:198:51:100:23"),
+	}}
+	_, prefix, _ := net.ParseCIDR("2001:db8:3:4::/64")
+
+	err := reconcileContainer(c, prefix, net.CIDRMask(128, 128))
+	if err == nil || !strings.Contains(err.Error(), "eth0") {
+		t.Fatalf("reconcileContainer err = %v, want the eth0 failure", err)
+	}
+	if strings.Join(tried, ",") != "eth0,eth1" {
+		t.Fatalf("netns updates tried = %v, want both links", tried)
+	}
+	if *calls != 1 {
+		t.Fatalf("persist calls = %d, want 1", *calls)
+	}
+	links, _ := cnet.ToLinks(&c.Net)
+	has := func(l cnet.Link, ip string) bool {
+		for _, a := range l.Addr {
+			if a.IP.Equal(net.ParseIP(ip)) {
+				return true
+			}
+		}
+		return false
+	}
+	if !has((*links)[1], "2001:db8:3:4:198:51:100:23") {
+		t.Fatalf("second link not renumbered: %v", (*links)[1].Addr)
+	}
+	if !has((*links)[0], "2001:db8:1:2:192:0:2:23") {
+		t.Fatalf("failed link must keep its old global: %v", (*links)[0].Addr)
 	}
 }
 

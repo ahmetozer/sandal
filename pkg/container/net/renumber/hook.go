@@ -21,6 +21,11 @@ var (
 	activePrefix    *net.IPNet
 	activeMask      net.IPMask
 	activeBridgeIPs []net.IP
+
+	// reconcileErrs holds the last reconcile error per container name, so
+	// a failure repeating every health-check tick is logged at Warn once.
+	// Guarded by applyMu.
+	reconcileErrs = map[string]string{}
 )
 
 // SetActiveNDPProxy registers the currently-active NDP proxy (called by the
@@ -108,12 +113,27 @@ func ReconcileContainersForRunning(conts []*config.Config, isAlive func(*config.
 		if activePrefix == nil {
 			return
 		}
+		seen := make(map[string]bool, len(conts))
 		for _, c := range conts {
 			if !eligible(c, isAlive) || c.VM != "" {
 				continue
 			}
-			if err := reconcileContainer(c, activePrefix, activeMask); err != nil {
+			seen[c.Name] = true
+			err := reconcileContainer(c, activePrefix, activeMask)
+			if err == nil {
+				delete(reconcileErrs, c.Name)
+				continue
+			}
+			if msg := err.Error(); reconcileErrs[c.Name] != msg {
+				reconcileErrs[c.Name] = msg
+				slog.Warn("renumber: container reconcile failed", "name", c.Name, "err", err)
+			} else {
 				slog.Debug("renumber: container reconcile failed", "name", c.Name, "err", err)
+			}
+		}
+		for name := range reconcileErrs {
+			if !seen[name] {
+				delete(reconcileErrs, name)
 			}
 		}
 	})
