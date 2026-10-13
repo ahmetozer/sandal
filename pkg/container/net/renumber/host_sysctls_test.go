@@ -74,3 +74,27 @@ func TestEnsureHostSysctlsNoopWithoutConfigOrLink(t *testing.T) {
 	SetActiveHostSysctls(HostSysctlsConfig{Upstream: "sandaltest-missing0", Bridge: "sandaltest-missing1", Mode: "ndp-proxy"})
 	EnsureHostSysctls() // upstream missing → no-op, /proc/sys untouched
 }
+
+func TestSysctlAction(t *testing.T) {
+	cases := []struct {
+		name          string
+		want, current string
+		failedAt      string
+		failed        bool
+		wantAction    sysctlAction
+	}{
+		{"already set", "1", "1", "", false, sysctlInSync},
+		{"already set clears a past failure", "1", "1", "0", true, sysctlInSync},
+		{"drift is written", "1", "0", "", false, sysctlWrite},
+		{"same failed value is skipped", "1", "0", "0", true, sysctlSkip},
+		{"value changed since the failure is retried", "2", "1", "0", true, sysctlWrite},
+		{"unreadable key failing again is skipped", "1", "", "", true, sysctlSkip},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sysctlActionFor(tc.want, tc.current, tc.failedAt, tc.failed); got != tc.wantAction {
+				t.Fatalf("sysctlActionFor = %v, want %v", got, tc.wantAction)
+			}
+		})
+	}
+}

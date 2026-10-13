@@ -20,9 +20,9 @@ type HostSysctlsConfig struct {
 
 // ApplyHostSysctls configures the kernel sysctls the dynamic IPv6 service
 // depends on. Called via EnsureHostSysctls at service start and on every
-// health-check tick. Per-sysctl failures are logged
-// and not fatal so a sandboxed daemon can still proceed with a degraded
-// subset.
+// health-check tick. Per-sysctl failures are logged once and not fatal so a
+// sandboxed daemon can still proceed with a degraded subset; a key whose
+// write failed is not retried until its value changes.
 //
 // Always set when upstream is known:
 //
@@ -35,12 +35,51 @@ type HostSysctlsConfig struct {
 //
 //	net.ipv6.conf.<upstream>.proxy_ndp   = 1
 func ApplyHostSysctls(cfg HostSysctlsConfig) {
+	hostSysctlsMu.Lock()
+	defer hostSysctlsMu.Unlock()
 	for _, kv := range hostSysctls(cfg) {
-		if _, err := sysctl.Ensure(kv.Key, kv.Value); err != nil {
-			slog.Warn("renumber: failed to set sysctl",
-				"key", kv.Key, "want", kv.Value, "err", err)
+		// An unreadable key reads as "": it is attempted once, then
+		// skipped like any other value whose write failed.
+		current, _ := sysctl.Read(kv.Key)
+		failedAt, failed := sysctlFailures[kv.Key]
+		switch sysctlActionFor(kv.Value, current, failedAt, failed) {
+		case sysctlInSync:
+			delete(sysctlFailures, kv.Key)
+		case sysctlSkip:
+			slog.Debug("renumber: sysctl still not settable", "key", kv.Key, "want", kv.Value, "current", current)
+		case sysctlWrite:
+			if err := sysctl.Write(kv.Key, kv.Value); err != nil {
+				sysctlFailures[kv.Key] = current
+				slog.Warn("renumber: failed to set sysctl",
+					"key", kv.Key, "want", kv.Value, "current", current, "err", err)
+				continue
+			}
+			delete(sysctlFailures, kv.Key)
+			slog.Info("renumber: sysctl set", "key", kv.Key, "from", current, "to", kv.Value)
 		}
 	}
+}
+
+type sysctlAction int
+
+const (
+	sysctlInSync sysctlAction = iota // already at the wanted value
+	sysctlSkip                       // write failed before at this value
+	sysctlWrite                      // drifted: write it
+)
+
+// sysctlActionFor decides what to do with a key whose wanted value is want
+// and current value is current. failedAt is the value the key held when a
+// write last failed (failed reports whether one did); retrying only after
+// the value changes keeps a read-only /proc/sys from logging every tick.
+func sysctlActionFor(want, current, failedAt string, failed bool) sysctlAction {
+	if current == want {
+		return sysctlInSync
+	}
+	if failed && failedAt == current {
+		return sysctlSkip
+	}
+	return sysctlWrite
 }
 
 // HostSysctlEntry is one configured sysctl key/value pair. Exposed (along
@@ -74,6 +113,9 @@ func hostSysctls(cfg HostSysctlsConfig) []HostSysctlEntry {
 var (
 	hostSysctlsMu     sync.Mutex
 	activeHostSysctls HostSysctlsConfig
+	// sysctlFailures maps a key whose write failed to the value it held
+	// then. Guarded by hostSysctlsMu.
+	sysctlFailures = map[string]string{}
 )
 
 // SetActiveHostSysctls records the configuration EnsureHostSysctls
@@ -85,19 +127,21 @@ func SetActiveHostSysctls(cfg HostSysctlsConfig) {
 }
 
 // EnsureHostSysctls re-applies the active sysctls. Safe on every health-check
-// tick: silent while the upstream interface does not exist, and
-// sysctl.Ensure only writes (and logs) on drift. Covers an uplink created
-// after the daemon starts, or recreated, which resets its per-interface
-// sysctls to the defaults.
+// tick: silent while the upstream interface or the bridge does not exist,
+// and ApplyHostSysctls only writes (and logs) on drift. Covers an uplink
+// created after the daemon starts, or recreated, which resets its
+// per-interface sysctls to the defaults.
 func EnsureHostSysctls() {
 	hostSysctlsMu.Lock()
 	cfg := activeHostSysctls
 	hostSysctlsMu.Unlock()
-	if cfg.Upstream == "" {
+	if cfg.Upstream == "" || cfg.Bridge == "" {
 		return
 	}
-	if _, err := netlink.LinkByName(cfg.Upstream); err != nil {
-		return
+	for _, name := range []string{cfg.Upstream, cfg.Bridge} {
+		if _, err := netlink.LinkByName(name); err != nil {
+			return
+		}
 	}
 	ApplyHostSysctls(cfg)
 }
