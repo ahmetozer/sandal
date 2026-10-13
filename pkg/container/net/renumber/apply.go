@@ -68,7 +68,7 @@ func (a *DefaultApplier) applyLocked(ctx context.Context, prefix *net.IPNet) err
 	activePrefix, activeMask, activeBridgeIPs = prefix, mask, bridgeIPs
 
 	if a.Proxy != nil {
-		a.Proxy.Reconcile(nil)
+		a.Proxy.Reconcile(desiredProxy(conts, nil, prefix, bridgeIPs))
 	}
 	return nil
 }

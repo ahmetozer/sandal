@@ -40,9 +40,43 @@ func WithApplyLock(f func()) {
 	f()
 }
 
+// desiredProxy lists every global that must be answered for on the
+// upstream: sandal0's own globals (with no SLAAC on the uplink they are the
+// host's only global source addresses) and the globals of eligible
+// containers and VMs on sandal0. Only addresses inside prefix are returned,
+// so a VM still holding a pre-rotation address, or a static literal from
+// another prefix, is not advertised.
+func desiredProxy(conts []*config.Config, isAlive func(*config.Config) bool, prefix *net.IPNet, bridgeIPs []net.IP) []net.IP {
+	if prefix == nil {
+		return nil
+	}
+	desired := append([]net.IP(nil), bridgeIPs...)
+	for _, c := range conts {
+		if !eligible(c, isAlive) {
+			continue
+		}
+		links, err := cnet.ToLinks(&c.Net)
+		if err != nil {
+			continue
+		}
+		for _, l := range *links {
+			if !l.Dynamic || l.DHCPv6 || l.Master != cnet.DefaultBridgeInterface {
+				continue
+			}
+			for _, a := range l.Addr {
+				if isGlobal(a.IP) && prefix.Contains(a.IP) {
+					desired = append(desired, a.IP)
+				}
+			}
+		}
+	}
+	return desired
+}
+
 // ReconcileProxyForRunning computes the desired NDP-proxy set from the
-// currently-running containers and reconciles the kernel proxy table. Safe to
-// call repeatedly from the daemon's health-check tick.
+// currently-running containers and VMs and reconciles the kernel proxy table.
+// VMs are included; their addresses are fixed at boot. Safe to call repeatedly
+// from the daemon's health-check tick.
 //
 // isAlive (optional) tells the reconciler whether a container's kernel PID is
 // still alive. Pass nil to skip the kernel-PID check (then the config Status
@@ -57,45 +91,10 @@ func ReconcileProxyForRunning(conts []*config.Config, isAlive func(*config.Confi
 		return
 	}
 	WithApplyLock(func() {
-		var desired []net.IP
-		for _, c := range conts {
-			if c == nil || !IsRunning(c) {
-				continue
-			}
-			if isAlive != nil && !isAlive(c) {
-				continue
-			}
-			// VM containers manage their own IPv6 inside the guest.
-			if c.VM != "" {
-				continue
-			}
-			if c.NS.Get("net").IsHost {
-				continue
-			}
-			links, err := cnet.ToLinks(&c.Net)
-			if err != nil {
-				continue
-			}
-			for _, l := range *links {
-				if !l.Dynamic {
-					continue
-				}
-				// In-container DHCPv6 owns this link's IPv6.
-				if l.DHCPv6 {
-					continue
-				}
-				for _, a := range l.Addr {
-					if a.IP.To4() != nil {
-						continue
-					}
-					if a.IP.IsLinkLocalUnicast() || isULA(a.IP) {
-						continue
-					}
-					desired = append(desired, a.IP)
-				}
-			}
+		if activePrefix == nil {
+			return
 		}
-		p.Reconcile(desired)
+		p.Reconcile(desiredProxy(conts, isAlive, activePrefix, activeBridgeIPs))
 	})
 }
 

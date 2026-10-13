@@ -64,8 +64,8 @@ func TestBridgeIIDFallsBackTo1WhenNoGlobal(t *testing.T) {
 	}
 }
 
-// TestBridgeIIDFallsBackToULA mirrors the pickIIDLocal test but for the
-// bridge code path that runs on real netlink.Addr.
+// TestBridgeIIDFallsBackToULA checks that bridgeIID uses the ULA IID when the
+// bridge has no global address, using real netlink.Addr values.
 func TestBridgeIIDFallsBackToULA(t *testing.T) {
 	mustParse := func(s string) netlink.Addr {
 		ip, ipnet, err := net.ParseCIDR(s)
@@ -308,5 +308,32 @@ func TestReconcileContainerLeavesOptedOutLinkAlone(t *testing.T) {
 	}
 	if *calls != 0 {
 		t.Fatalf("link without dynamic addresses touched: persist=%d", *calls)
+	}
+}
+
+func TestDesiredProxy(t *testing.T) {
+	_, prefix, _ := net.ParseCIDR("2001:db8:3:4::/64")
+	link := func(addrs ...string) cnet.Links {
+		l := cnet.Link{Id: "x", Dynamic: true, Master: cnet.DefaultBridgeInterface}
+		for _, a := range addrs {
+			l.Addr = append(l.Addr, mustParseCnetAddr(t, a))
+		}
+		return cnet.Links{l}
+	}
+	cont := &config.Config{Name: "web", ContPid: 10, Status: "running", Net: link("192.0.2.23/24", "2001:db8:3:4:192:0:2:23/128", "fd00:db8::23/64")}
+	vm := &config.Config{Name: "vm1", ContPid: 11, Status: "running", VM: "kvm", Net: link("2001:db8:3:4::50/128")}
+	staleVM := &config.Config{Name: "vm2", ContPid: 12, Status: "running", VM: "kvm", Net: link("2001:db8:1:2::51/128")}
+	stopped := &config.Config{Name: "old", ContPid: 0, Status: "exit 0", Net: link("2001:db8:3:4::60/128")}
+	bridge := []net.IP{net.ParseIP("2001:db8:3:4::1")}
+
+	got := desiredProxy([]*config.Config{cont, vm, staleVM, stopped}, nil, prefix, bridge)
+	want := map[string]bool{"2001:db8:3:4::1": true, "2001:db8:3:4:192:0:2:23": true, "2001:db8:3:4::50": true}
+	if len(got) != len(want) {
+		t.Fatalf("desiredProxy = %v, want %v", got, want)
+	}
+	for _, ip := range got {
+		if !want[ip.String()] {
+			t.Fatalf("unexpected proxy entry %s in %v", ip, got)
+		}
 	}
 }
