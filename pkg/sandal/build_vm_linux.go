@@ -12,17 +12,17 @@ import (
 	"path/filepath"
 	"strconv"
 
-	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	sandalnet "github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
-	"strings"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/kvm"
+	"strings"
 )
 
 // buildInKVM boots a KVM VM that runs `sandal build` with the given opts
@@ -139,15 +139,17 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	cfg.NetLinks = []vmconfig.NetLinkConfig{nlc}
 
 	// Allocate a static IP from the bridge pool for the VM NIC, matching
-	// how RunInKVM works for `sandal run -vm`. Using the default flag
-	// (type=veth) causes ParseFlag to allocate an address from the
-	// bridge's subnet. The pre-allocated address travels in SANDAL_VM_NET
-	// so the guest container can configure eth0 statically — no DHCP
-	// server needed on the bridge.
+	// how RunInKVM works for `sandal run -vm`. A type=veth flag makes
+	// ParseFlag allocate an address from the bridge's subnet; dynamic=false
+	// keeps it from also resolving a global from the upstream prefix, which
+	// no saved config would own and the renumber service would never
+	// proxy. The pre-allocated address travels in SANDAL_VM_NET so the
+	// guest container can configure eth0 statically — no DHCP server
+	// needed on the bridge.
 	conts, _ := controller.Containers()
 	buildName := "sandal-build-vm-" + strings.Join(wordgenerator.NameGenerate(4), "-")
 	synthCfg := &config.Config{Name: buildName}
-	parsedLinks, err := sandalnet.ParseFlag(nil, conts, synthCfg)
+	parsedLinks, err := sandalnet.ParseFlag([]string{"type=veth;dynamic=false"}, conts, synthCfg)
 	if err != nil {
 		return "", fmt.Errorf("build vm net: %w", err)
 	}
