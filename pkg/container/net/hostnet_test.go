@@ -5,6 +5,7 @@ package net
 import (
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -181,22 +182,30 @@ func TestParseDynamicAddr(t *testing.T) {
 		name    string
 		in      string
 		want    string
-		wantErr bool
+		wantErr string // substring of the expected error; "" means success
 	}{
-		{"no mask", "%uv6%:192:0:2:23", "%uv6%:192:0:2:23", false},
-		{"explicit /128 is stripped", "%uv6%:192:0:2:23/128", "%uv6%:192:0:2:23", false},
-		{"compressed IID", "%uv6%::23", "%uv6%::23", false},
-		{"non-/128 rejected", "%uv6%:192:0:2:23/64", "", true},
-		{"too many hextets", "%uv6%:1:2:3:4:5", "", true},
-		{"%uv6% must be the high 64 bits", "fd00::%uv6%", "", true},
-		{"literal is not dynamic", "2001:db8::1/128", "", true},
+		{"no mask", "%uv6%:192:0:2:23", "%uv6%:192:0:2:23", ""},
+		{"explicit /128 is stripped", "%uv6%:192:0:2:23/128", "%uv6%:192:0:2:23", ""},
+		{"compressed IID", "%uv6%::23", "%uv6%::23", ""},
+		{"non-/128 rejected", "%uv6%:192:0:2:23/64", "", "mask"},
+		{"too many hextets", "%uv6%:1:2:3:4:5", "", "not an IPv6"},
+		{"%uv6% must be the high 64 bits", "fd00::%uv6%", "", "must start"},
+		{"%uv6% not at the start", "::%uv6%:1", "", "must start"},
+		{"literal is not dynamic", "2001:db8::1/128", "", "missing"},
+		{"%uv6% twice", "%uv6%:%uv6%", "", "more than once"},
+		{"%uv4% in the IID", "%uv6%:%uv4%::1", "", "%uv4%"},
+		{"all-zero IID", "%uv6%::", "", "all-zero"},
+		{"all-zero IID spelled out", "%uv6%:0:0:0:0/128", "", "all-zero"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseDynamicAddr(tc.in)
-			if tc.wantErr {
+			if tc.wantErr != "" {
 				if err == nil {
 					t.Fatalf("parseDynamicAddr(%q) = %q, want error", tc.in, got)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("parseDynamicAddr(%q) error %q, want it to mention %q", tc.in, err, tc.wantErr)
 				}
 				return
 			}

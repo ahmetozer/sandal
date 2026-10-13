@@ -152,9 +152,23 @@ func isDynamicEntry(s string) bool {
 // (e.g. "%uv6%:192:0:2:23") and returns it without a mask. The renumber
 // service picks the installed mask from the mode (/128 in ndp-proxy, the
 // prefix /64 in pd), so the only mask accepted here is an explicit /128.
+//
+// The interface identifier must be a fixed, non-zero literal: the renumber
+// service recognizes the addresses it owns by IID, so %uv4% (which changes
+// with the host IPv4) is rejected, as is an all-zero IID (the subnet-router
+// anycast address).
 func parseDynamicAddr(s string) (string, error) {
 	if !isDynamicEntry(s) {
 		return "", fmt.Errorf("dynamic address %q: missing %s", s, uv6Placeholder)
+	}
+	if !strings.HasPrefix(s, uv6Placeholder) {
+		return "", fmt.Errorf("dynamic address %q: %s must start the address (it fills the high 64 bits)", s, uv6Placeholder)
+	}
+	if strings.Count(s, uv6Placeholder) > 1 {
+		return "", fmt.Errorf("dynamic address %q: %s appears more than once", s, uv6Placeholder)
+	}
+	if strings.Contains(s, uv4Placeholder) {
+		return "", fmt.Errorf("dynamic address %q: %s is not allowed, the interface identifier must not change with the host IPv4", s, uv4Placeholder)
 	}
 	if addr, mask, ok := strings.Cut(s, "/"); ok {
 		if mask != "128" {
@@ -162,16 +176,16 @@ func parseDynamicAddr(s string) (string, error) {
 		}
 		s = addr
 	}
-	probe := strings.NewReplacer(
-		uv6Placeholder, prefixToHextets(dynamicAddrProbe),
-		uv4Placeholder, "0:0",
-	).Replace(s)
+	probe := strings.Replace(s, uv6Placeholder, prefixToHextets(dynamicAddrProbe), 1)
 	ip := net.ParseIP(probe)
 	if ip == nil || ip.To4() != nil {
 		return "", fmt.Errorf("dynamic address %q: not an IPv6 address", s)
 	}
 	if !dynamicAddrProbe.Contains(ip) {
 		return "", fmt.Errorf("dynamic address %q: %s must fill the high 64 bits", s, uv6Placeholder)
+	}
+	if net.IP(ip.To16()[8:16]).Equal(net.IP(make([]byte, 8))) {
+		return "", fmt.Errorf("dynamic address %q: all-zero interface identifier (subnet-router anycast)", s)
 	}
 	return s, nil
 }
