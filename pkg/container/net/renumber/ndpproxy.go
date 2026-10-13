@@ -3,6 +3,7 @@
 package renumber
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -27,18 +28,11 @@ type NDPProxy struct {
 	bridge   string // bridge interface name (e.g. sandal0)
 }
 
-// NewNDPProxy constructs a manager for the named upstream interface. Both
-// link existences are verified up-front; the proxy_ndp sysctl is configured
-// centrally in daemon/start.go via renumber.ApplyHostSysctls and is not
-// re-applied here.
-func NewNDPProxy(upstream, bridge string) (*NDPProxy, error) {
-	if _, err := netlink.LinkByName(upstream); err != nil {
-		return nil, fmt.Errorf("ndpproxy: link %q: %w", upstream, err)
-	}
-	if _, err := netlink.LinkByName(bridge); err != nil {
-		return nil, fmt.Errorf("ndpproxy: bridge link %q: %w", bridge, err)
-	}
-	return &NDPProxy{upstream: upstream, bridge: bridge}, nil
+// NewNDPProxy constructs a manager for the named upstream interface. Links
+// are resolved per operation, so the upstream may not exist yet (created
+// later by a --startup container) or may be recreated at any time.
+func NewNDPProxy(upstream, bridge string) *NDPProxy {
+	return &NDPProxy{upstream: upstream, bridge: bridge}
 }
 
 // upstreamIndex returns the current kernel index for the upstream interface.
@@ -157,6 +151,11 @@ func (p *NDPProxy) List() ([]net.IP, error) {
 func (p *NDPProxy) Reconcile(desired []net.IP) {
 	current, err := p.List()
 	if err != nil {
+		var nf netlink.LinkNotFoundError
+		if errors.As(err, &nf) {
+			slog.Debug("ndpproxy: upstream not present yet", "upstream", p.upstream)
+			return
+		}
 		slog.Warn("ndpproxy: list failed", "err", err)
 		return
 	}

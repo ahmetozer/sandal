@@ -3,8 +3,11 @@
 package net
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net"
+	"time"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -23,6 +26,32 @@ func DetectUpstream() (string, error) {
 		return name, nil
 	}
 	return "", fmt.Errorf("no default IPv6 or IPv4 route found")
+}
+
+// detectUpstreamFn is indirected so tests can stub route lookup.
+var detectUpstreamFn = DetectUpstream
+
+// WaitForUpstream polls DetectUpstream every interval until a default route
+// exists or ctx ends. The uplink often appears after the daemon starts,
+// e.g. when a --startup container running ifupdown with --ns-net=host
+// creates it.
+func WaitForUpstream(ctx context.Context, interval time.Duration) (string, bool) {
+	warned := false
+	for {
+		iface, err := detectUpstreamFn()
+		if err == nil {
+			return iface, true
+		}
+		if !warned {
+			slog.Warn("renumber: no default route yet; retrying upstream auto-detect", "every", interval, "err", err)
+			warned = true
+		}
+		select {
+		case <-ctx.Done():
+			return "", false
+		case <-time.After(interval):
+		}
+	}
 }
 
 func defaultRouteLink(probe []byte) (string, error) {

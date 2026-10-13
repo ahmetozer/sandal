@@ -66,3 +66,11 @@ func TestHostSysctlsPlanOffMode(t *testing.T) {
 		}
 	}
 }
+
+func TestEnsureHostSysctlsNoopWithoutConfigOrLink(t *testing.T) {
+	t.Cleanup(func() { SetActiveHostSysctls(HostSysctlsConfig{}) })
+	SetActiveHostSysctls(HostSysctlsConfig{})
+	EnsureHostSysctls() // no config → no-op
+	SetActiveHostSysctls(HostSysctlsConfig{Upstream: "sandaltest-missing0", Bridge: "sandaltest-missing1", Mode: "ndp-proxy"})
+	EnsureHostSysctls() // upstream missing → no-op, /proc/sys untouched
+}

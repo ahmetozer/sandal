@@ -49,67 +49,12 @@ func (dc DaemonConfig) Start() error {
 
 	net.CreateDefaultBridge()
 
-	// Dynamic IPv6 service. Spawned only when an upstream interface is
-	// known — either configured via SANDAL_UPSTREAM_IF or auto-detected
-	// from the host's default route.
-	if env.UpstreamInterface == "" {
-		if iface, err := net.DetectUpstream(); err != nil {
-			slog.Warn("renumber: SANDAL_UPSTREAM_IF empty and auto-detect failed; service disabled", "err", err)
-		} else {
-			slog.Info("renumber: auto-detected upstream interface", "iface", iface)
-			env.UpstreamInterface = iface
-		}
-	}
 	renumberCtx, renumberCancel := context.WithCancel(context.Background())
-	// Auto-detect IPv6 mode when the operator left it unset. The detector
-	// reads the upstream interface's address+route state; on ambiguous
-	// hosts it falls back to "ndp-proxy". Set SANDAL_IPV6_MODE explicitly
-	// to override.
-	if env.UpstreamInterface != "" && env.IPv6Mode == "" {
-		env.IPv6Mode = net.DetectIPv6Mode(env.UpstreamInterface)
-		slog.Info("renumber: auto-detected IPv6 mode", "iface", env.UpstreamInterface, "mode", env.IPv6Mode)
-	}
-	if env.UpstreamInterface != "" && env.IPv6Mode != "off" {
-		// Validate mode explicitly to surface typos like "ndp_proxy".
-		switch env.IPv6Mode {
-		case "ndp-proxy", "pd":
-			// ok
-		default:
-			slog.Error("renumber: invalid SANDAL_IPV6_MODE; expected 'ndp-proxy', 'pd', or 'off'",
-				"got", env.IPv6Mode)
-			renumberCancel()
-			return fmt.Errorf("invalid SANDAL_IPV6_MODE %q", env.IPv6Mode)
-		}
-		// Configure host sysctls up-front so the renumber service and any
-		// containers that come up afterwards see correct forwarding /
-		// accept_ra / proxy_ndp state from the start.
-		renumber.ApplyHostSysctls(renumber.HostSysctlsConfig{
-			Upstream: env.UpstreamInterface,
-			Bridge:   net.DefaultBridgeInterface,
-			Mode:     env.IPv6Mode,
-		})
-		var src renumber.Source
-		switch env.IPv6Mode {
-		case "pd":
-			src = renumber.NewPDSource(env.UpstreamInterface, env.IPv6PDHint)
-		default: // "ndp-proxy"
-			src = renumber.NewRASource(env.UpstreamInterface)
-		}
-		applier := &renumber.DefaultApplier{BridgeName: net.DefaultBridgeInterface}
-		if env.IPv6Mode != "pd" {
-			proxy, err := renumber.NewNDPProxy(env.UpstreamInterface, net.DefaultBridgeInterface)
-			if err != nil {
-				slog.Error("renumber: NDP proxy init failed; service disabled", "err", err)
-			} else {
-				applier.Proxy = proxy
-				renumber.SetActiveNDPProxy(proxy)
-			}
-		}
-		svc := renumber.NewService(src, applier, 0)
-		go svc.Run(renumberCtx)
-		slog.Info("renumber: service started", "upstream", env.UpstreamInterface, "mode", env.IPv6Mode)
-	}
 	defer renumberCancel()
+	if err := startRenumber(renumberCtx); err != nil {
+		slog.Error("renumber", "err", err)
+		return err
+	}
 
 	for _, mod := range []string{"vhost_net", "vhost_vsock"} {
 		if err := modprobe.Load(mod); err != nil {
@@ -170,5 +115,55 @@ func (dc DaemonConfig) Start() error {
 
 	checkZombie()
 	slog.Info("daemon", slog.String("service", "stopped"))
+	return nil
+}
+
+// startRenumber launches the dynamic IPv6 service in the background. The
+// upstream interface is SANDAL_UPSTREAM_IF, or auto-detected with retries
+// so an uplink created by a --startup container after the daemon starts
+// is still picked up. Only an invalid SANDAL_IPV6_MODE fails synchronously.
+func startRenumber(ctx context.Context) error {
+	mode := env.IPv6Mode
+	switch mode {
+	case "off":
+		slog.Info("renumber: disabled", "mode", mode)
+		return nil
+	case "", "ndp-proxy", "pd":
+	default:
+		return fmt.Errorf("invalid SANDAL_IPV6_MODE %q; expected 'ndp-proxy', 'pd', or 'off'", mode)
+	}
+	go func() {
+		upstream := env.UpstreamInterface
+		if upstream == "" {
+			var ok bool
+			if upstream, ok = net.WaitForUpstream(ctx, 5*time.Second); !ok {
+				return
+			}
+			slog.Info("renumber: auto-detected upstream interface", "iface", upstream)
+		}
+		if mode == "" {
+			mode = net.DetectIPv6Mode(upstream)
+			slog.Info("renumber: auto-detected IPv6 mode", "iface", upstream, "mode", mode)
+		}
+		renumber.SetActiveHostSysctls(renumber.HostSysctlsConfig{
+			Upstream: upstream,
+			Bridge:   net.DefaultBridgeInterface,
+			Mode:     mode,
+		})
+		renumber.EnsureHostSysctls()
+
+		applier := &renumber.DefaultApplier{BridgeName: net.DefaultBridgeInterface}
+		var src renumber.Source
+		if mode == "pd" {
+			src = renumber.NewPDSource(upstream, env.IPv6PDHint)
+		} else {
+			src = renumber.NewRASource(upstream)
+			applier.Proxy = renumber.NewNDPProxy(upstream, net.DefaultBridgeInterface)
+			applier.HostRoute = true
+			renumber.SetActiveNDPProxy(applier.Proxy)
+		}
+		slog.Info("renumber: service started", "upstream", upstream, "mode", mode)
+		renumber.NewService(src, applier, 0).Run(ctx)
+	}()
 	return nil
 }

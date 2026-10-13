@@ -4,8 +4,10 @@ package renumber
 
 import (
 	"log/slog"
+	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/lib/sysctl"
+	"github.com/vishvananda/netlink"
 )
 
 // HostSysctlsConfig captures the per-interface sysctls required for dynamic
@@ -17,8 +19,8 @@ type HostSysctlsConfig struct {
 }
 
 // ApplyHostSysctls configures the kernel sysctls the dynamic IPv6 service
-// depends on. Called once at daemon start after the upstream interface is
-// known (set explicitly or auto-detected). Per-sysctl failures are logged
+// depends on. Called via EnsureHostSysctls at service start and on every
+// health-check tick. Per-sysctl failures are logged
 // and not fatal so a sandboxed daemon can still proceed with a degraded
 // subset.
 //
@@ -67,4 +69,35 @@ func hostSysctls(cfg HostSysctlsConfig) []HostSysctlEntry {
 		})
 	}
 	return plan
+}
+
+var (
+	hostSysctlsMu     sync.Mutex
+	activeHostSysctls HostSysctlsConfig
+)
+
+// SetActiveHostSysctls records the configuration EnsureHostSysctls
+// re-applies (called by the daemon once the upstream is known).
+func SetActiveHostSysctls(cfg HostSysctlsConfig) {
+	hostSysctlsMu.Lock()
+	defer hostSysctlsMu.Unlock()
+	activeHostSysctls = cfg
+}
+
+// EnsureHostSysctls re-applies the active sysctls. Safe on every health-check
+// tick: silent while the upstream interface does not exist, and
+// sysctl.Ensure only writes (and logs) on drift. Covers an uplink created
+// after the daemon starts, or recreated, which resets its per-interface
+// sysctls to the defaults.
+func EnsureHostSysctls() {
+	hostSysctlsMu.Lock()
+	cfg := activeHostSysctls
+	hostSysctlsMu.Unlock()
+	if cfg.Upstream == "" {
+		return
+	}
+	if _, err := netlink.LinkByName(cfg.Upstream); err != nil {
+		return
+	}
+	ApplyHostSysctls(cfg)
 }

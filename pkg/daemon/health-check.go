@@ -80,6 +80,7 @@ func daemonControlHealthCheck(daemonKillRequested chan bool, wg *sync.WaitGroup)
 				alive, _ := crt.IsPidRunningAs(pid, wantStart)
 				return alive
 			}
+			renumber.EnsureHostSysctls()
 			renumber.ReconcileContainersForRunning(conts, isAlive)
 			renumber.ReconcileProxyForRunning(conts, isAlive)
 		}
