@@ -13,160 +13,134 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// AnnounceIPv4 sends gratuitous ARP frames for ip out of iface so peers on
-// the LAN overwrite any cached IP→MAC mapping pointing at a previous owner
-// (e.g. an old container with the same address). The first frame is sent
-// synchronously; remaining count-1 frames fire in a background goroutine
-// spaced gap apart so the caller is not blocked.
-//
-// RFC 5227 ARP Announcement: opcode=request, sender IP == target IP, target
-// MAC zeroed, destination broadcast.
-func AnnounceIPv4(iface string, ip net.IP, count int, gap time.Duration) error {
-	if count < 1 {
-		count = 1
-	}
-	v4 := ip.To4()
-	if v4 == nil {
-		return fmt.Errorf("announce: %s is not IPv4", ip)
-	}
-	link, err := netlink.LinkByName(iface)
-	if err != nil {
-		return fmt.Errorf("announce: link %q: %w", iface, err)
-	}
-	mac := link.Attrs().HardwareAddr
-	if len(mac) != 6 {
-		return fmt.Errorf("announce: iface %q has no 6-byte MAC", iface)
-	}
-	idx := link.Attrs().Index
+// announcement is one address's gratuitous ARP or unsolicited NA sender.
+type announcement struct {
+	ip  net.IP
+	fd  int
+	msg []byte
+	sa  unix.Sockaddr
+}
 
+func (a *announcement) send() error { return unix.Sendto(a.fd, a.msg, 0, a.sa) }
+func (a *announcement) close()      { unix.Close(a.fd) }
+
+// newGARP prepares an RFC 5227 ARP Announcement (opcode request, sender IP ==
+// target IP, broadcast) for ip on link.
+func newGARP(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement, error) {
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_ARP)))
 	if err != nil {
-		return fmt.Errorf("announce: AF_PACKET socket: %w", err)
+		return nil, fmt.Errorf("AF_PACKET socket: %w", err)
 	}
-	frame := buildGratuitousARP(mac, v4)
-	sa := &unix.SockaddrLinklayer{
-		Protocol: htons(unix.ETH_P_ARP),
-		Ifindex:  idx,
-		Halen:    6,
-	}
+	sa := &unix.SockaddrLinklayer{Protocol: htons(unix.ETH_P_ARP), Ifindex: link.Attrs().Index, Halen: 6}
 	copy(sa.Addr[:6], []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
-
-	if err := unix.Sendto(fd, frame, 0, sa); err != nil {
-		unix.Close(fd)
-		return fmt.Errorf("announce: sendto: %w", err)
-	}
-	if count == 1 {
-		unix.Close(fd)
-		return nil
-	}
-	go func() {
-		defer unix.Close(fd)
-		for i := 1; i < count; i++ {
-			time.Sleep(gap)
-			if err := unix.Sendto(fd, frame, 0, sa); err != nil {
-				slog.Warn("announce: gratuitous ARP retransmit failed", "iface", iface, "ip", v4, "err", err)
-				return
-			}
-		}
-	}()
-	return nil
+	return &announcement{ip: ip, fd: fd, msg: buildGratuitousARP(mac, ip.To4()), sa: sa}, nil
 }
 
-// AnnounceIPv6 sends unsolicited Neighbor Advertisements for ip out of iface
-// to the all-nodes multicast group (ff02::1) with the Override flag set, so
-// peers update their neighbor cache for ip→MAC. Same sync/async split as
-// AnnounceIPv4.
-//
-// RFC 4861 §4.4 / §7.2.6: NA with R=0, S=0, O=1, target=ip, with a Target
-// Link-Layer Address option. Hop limit must be 255 (§7.1.2).
-func AnnounceIPv6(iface string, ip net.IP, count int, gap time.Duration) error {
-	if count < 1 {
-		count = 1
+// newNA prepares an RFC 4861 unsolicited Neighbor Advertisement (R=0 S=0
+// O=1, Target Link-Layer Address option) for ip to ff02::1 with hop limit
+// 255. The kernel always computes the ICMPv6 checksum on ICMPv6 raw sockets;
+// setting IPV6_CHECKSUM there fails with EINVAL (RFC 3542 §3.1).
+func newNA(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement, error) {
+	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_RAW, unix.IPPROTO_ICMPV6)
+	if err != nil {
+		return nil, fmt.Errorf("ICMPv6 raw socket: %w", err)
 	}
-	v6 := ip.To16()
-	if v6 == nil || ip.To4() != nil {
-		return fmt.Errorf("announce: %s is not IPv6", ip)
+	if err := unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_MULTICAST_HOPS, 255); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("IPV6_MULTICAST_HOPS: %w", err)
 	}
+	if err := unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_MULTICAST_IF, link.Attrs().Index); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("IPV6_MULTICAST_IF: %w", err)
+	}
+	sa := &unix.SockaddrInet6{Addr: [16]byte{0xff, 0x02, 15: 0x01}}
+	return &announcement{ip: ip, fd: fd, msg: buildUnsolicitedNA(mac, ip.To16()), sa: sa}, nil
+}
+
+// AnnounceLinkAddrs sends gratuitous ARP / unsolicited NA for every
+// non-link-local address on the link so peers overwrite neighbor entries
+// that still point at a previous container's MAC. It is synchronous on
+// purpose: container init ends in exec, which kills any goroutine, so
+// background retransmits never ran. IPv6 addresses are announced only after
+// DAD (waiting at most dadWait); all addresses go out together in count
+// rounds, gap apart. Best-effort: failures are logged, never returned.
+func AnnounceLinkAddrs(iface string, addrs Addrs) {
+	const (
+		count   = 3
+		gap     = 100 * time.Millisecond
+		dadWait = 3 * time.Second
+		dadPoll = 50 * time.Millisecond
+	)
 	link, err := netlink.LinkByName(iface)
 	if err != nil {
-		return fmt.Errorf("announce: link %q: %w", iface, err)
+		slog.Warn("announce: link lookup failed", "iface", iface, "err", err)
+		return
 	}
 	mac := link.Attrs().HardwareAddr
 	if len(mac) != 6 {
-		return fmt.Errorf("announce: iface %q has no 6-byte MAC", iface)
-	}
-	idx := link.Attrs().Index
-
-	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_RAW, unix.IPPROTO_ICMPV6)
-	if err != nil {
-		return fmt.Errorf("announce: ICMPv6 raw socket: %w", err)
-	}
-	// RFC 4861: hop limit must be 255.
-	if err := unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_MULTICAST_HOPS, 255); err != nil {
-		unix.Close(fd)
-		return fmt.Errorf("announce: IPV6_MULTICAST_HOPS: %w", err)
-	}
-	// Pin egress to the requested interface.
-	if err := unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_MULTICAST_IF, idx); err != nil {
-		unix.Close(fd)
-		return fmt.Errorf("announce: IPV6_MULTICAST_IF: %w", err)
-	}
-	// Kernel computes ICMPv6 checksum; checksum field is at byte offset 2.
-	if err := unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_CHECKSUM, 2); err != nil {
-		unix.Close(fd)
-		return fmt.Errorf("announce: IPV6_CHECKSUM: %w", err)
+		slog.Debug("announce: no 6-byte MAC, skipping", "iface", iface)
+		return
 	}
 
-	payload := buildUnsolicitedNA(mac, v6)
-	sa := &unix.SockaddrInet6{}
-	// ff02::1 — all-nodes link-local multicast.
-	sa.Addr = [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
+	var v4, v6 []net.IP
+	for _, a := range addrs {
+		switch {
+		case a.IP == nil, a.IP.IsLinkLocalUnicast():
+		case a.IP.To4() != nil:
+			v4 = append(v4, a.IP)
+		default:
+			v6 = append(v6, a.IP)
+		}
+	}
 
-	if err := unix.Sendto(fd, payload, 0, sa); err != nil {
-		unix.Close(fd)
-		return fmt.Errorf("announce: sendto: %w", err)
-	}
-	if count == 1 {
-		unix.Close(fd)
-		return nil
-	}
-	go func() {
-		defer unix.Close(fd)
-		for i := 1; i < count; i++ {
-			time.Sleep(gap)
-			if err := unix.Sendto(fd, payload, 0, sa); err != nil {
-				slog.Warn("announce: unsolicited NA retransmit failed", "iface", iface, "ip", v6, "err", err)
-				return
+	var anns []*announcement
+	defer func() {
+		for _, a := range anns {
+			if a != nil {
+				a.close()
 			}
 		}
 	}()
-	return nil
-}
-
-// AnnounceLinkAddrs sends gratuitous announcements for every non-link-local
-// address on the link. Called from container guest init after links are
-// finalized; failures are logged but never returned (best-effort).
-func AnnounceLinkAddrs(iface string, addrs Addrs) {
-	const (
-		count = 3
-		gap   = 500 * time.Millisecond
-	)
-	_, ll, _ := net.ParseCIDR("fe80::/10")
-	for _, a := range addrs {
-		if a.IP == nil {
+	for _, ip := range v4 {
+		a, err := newGARP(link, mac, ip)
+		if err != nil {
+			slog.Warn("announce: IPv4 failed", "iface", iface, "ip", ip, "err", err)
 			continue
 		}
-		if a.IP.To4() != nil {
-			if err := AnnounceIPv4(iface, a.IP, count, gap); err != nil {
-				slog.Warn("announce: IPv4 failed", "iface", iface, "ip", a.IP, "err", err)
+		anns = append(anns, a)
+	}
+	if len(v6) > 0 {
+		list := func() ([]netlink.Addr, error) { return netlink.AddrList(link, netlink.FAMILY_V6) }
+		ready, skipped := waitIPv6Ready(list, v6, dadWait, dadPoll)
+		for ip, st := range skipped {
+			slog.Warn("announce: IPv6 skipped", "iface", iface, "ip", ip, "state", st.String())
+		}
+		for _, ip := range ready {
+			a, err := newNA(link, mac, ip)
+			if err != nil {
+				slog.Warn("announce: IPv6 failed", "iface", iface, "ip", ip, "err", err)
+				continue
 			}
-			continue
+			anns = append(anns, a)
 		}
-		if ll.Contains(a.IP) {
-			continue
+	}
+
+	if len(anns) == 0 {
+		return
+	}
+	for round := 0; round < count; round++ {
+		for i, a := range anns {
+			if a == nil {
+				continue
+			}
+			if err := a.send(); err != nil {
+				slog.Warn("announce: send failed", "iface", iface, "ip", a.ip, "err", err)
+				a.close()
+				anns[i] = nil
+			}
 		}
-		if err := AnnounceIPv6(iface, a.IP, count, gap); err != nil {
-			slog.Warn("announce: IPv6 failed", "iface", iface, "ip", a.IP, "err", err)
+		if round < count-1 {
+			time.Sleep(gap)
 		}
 	}
 }
@@ -204,7 +178,7 @@ func buildUnsolicitedNA(srcMAC net.HardwareAddr, ip net.IP) []byte {
 
 	p[0] = 136 // type = Neighbor Advertisement
 	p[1] = 0   // code
-	// p[2:4] checksum — kernel fills via IPV6_CHECKSUM offset 2
+	// p[2:4] checksum — always computed by the kernel for ICMPv6 raw sockets
 
 	// Flags byte at p[4]: R=0 S=0 O=1, then 3 reserved bytes.
 	p[4] = 0x20 // O = 1 (override)

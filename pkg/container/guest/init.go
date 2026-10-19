@@ -136,10 +136,10 @@ func ContainerInitProc() {
 
 			// Gratuitous ARP / unsolicited NA for every configured
 			// address so peers overwrite any stale cache pointing at a
-			// previous container's MAC. Best-effort: errors are logged
-			// inside the helper, never block container start. The first
-			// packet per address is sent synchronously; retransmits run
-			// in background goroutines.
+			// previous container's MAC. Synchronous and bounded (waits
+			// for IPv6 DAD, ≤ ~3.2 s worst case) because exec below would
+			// kill any background sender. Best-effort: errors are logged,
+			// never block container start.
 			for i := range *links {
 				l := &(*links)[i]
 				ifname := l.Name
