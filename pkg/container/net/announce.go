@@ -61,12 +61,13 @@ func newNA(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement, e
 
 // AnnounceLinkAddrs sends gratuitous ARP / unsolicited NA for every
 // non-link-local address on the link so peers overwrite neighbor entries
-// that still point at a previous container's MAC. It blocks until done (up to
-// the DAD wait plus the rounds); callers that must not block (container start)
-// run it via AnnounceContainer from a long-lived process. IPv6 addresses are
-// announced only after DAD (waiting at most dadWait); all addresses go out
-// together in count rounds, gap apart. Best-effort: failures are logged, never
-// returned.
+// that still point at a previous container's MAC. It is the by-name entry
+// point (used by tests; no production caller). It blocks until done (up to
+// the DAD wait plus the rounds). Callers that must not block (container start)
+// use AnnounceContainer, which applies the same logic (announceLink) from a
+// long-lived process. IPv6 addresses are announced only after DAD (waiting at
+// most dadWait); all addresses go out together in count rounds, gap apart.
+// Best-effort: failures are logged, never returned.
 func AnnounceLinkAddrs(iface string, addrs Addrs) {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {
@@ -249,10 +250,10 @@ func AnnounceARP(iface string, addrs Addrs) {
 // AnnounceInNetns announces a container's addresses from a long-lived sandal
 // process (the daemon, or sandal running as a KVM guest's init) so the
 // container's init can exec without waiting for IPv6 DAD. It enters ns on a
-// locked thread, waits for init to configure each link, then runs
-// AnnounceLinkAddrs (ARP + NA after DAD). Run it in its own goroutine that
-// exits afterwards (a thread whose netns could not be restored is discarded
-// only when that goroutine exits). Best-effort: failures are logged.
+// locked thread, waits for init to configure each link, then announces each
+// link with announceLink (ARP + NA after DAD). Run it in its own goroutine
+// that exits afterwards (a thread whose netns could not be restored is
+// discarded only when that goroutine exits). Best-effort: failures are logged.
 func AnnounceInNetns(ns netns.NsHandle, links Links) {
 	const (
 		linkWait = 5 * time.Second
