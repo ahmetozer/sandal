@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"runtime"
 	"time"
 
 	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 )
 
@@ -59,23 +61,31 @@ func newNA(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement, e
 
 // AnnounceLinkAddrs sends gratuitous ARP / unsolicited NA for every
 // non-link-local address on the link so peers overwrite neighbor entries
-// that still point at a previous container's MAC. It is synchronous on
-// purpose: container init ends in exec, which kills any goroutine, so
-// background retransmits never ran. IPv6 addresses are announced only after
-// DAD (waiting at most dadWait); all addresses go out together in count
-// rounds, gap apart. Best-effort: failures are logged, never returned.
+// that still point at a previous container's MAC. It blocks until done (up to
+// the DAD wait plus the rounds); callers that must not block (container start)
+// run it via AnnounceContainer from a long-lived process. IPv6 addresses are
+// announced only after DAD (waiting at most dadWait); all addresses go out
+// together in count rounds, gap apart. Best-effort: failures are logged, never
+// returned.
 func AnnounceLinkAddrs(iface string, addrs Addrs) {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		slog.Warn("announce: link lookup failed", "iface", iface, "err", err)
+		return
+	}
+	announceLink(link, addrs)
+}
+
+// announceLink is AnnounceLinkAddrs for an already resolved link. The link is
+// bound by index, so a rename by container init does not matter.
+func announceLink(link netlink.Link, addrs Addrs) {
 	const (
 		count   = 3
 		gap     = 100 * time.Millisecond
 		dadWait = 3 * time.Second
 		dadPoll = 50 * time.Millisecond
 	)
-	link, err := netlink.LinkByName(iface)
-	if err != nil {
-		slog.Warn("announce: link lookup failed", "iface", iface, "err", err)
-		return
-	}
+	iface := link.Attrs().Name
 	mac := link.Attrs().HardwareAddr
 	if len(mac) != 6 {
 		slog.Debug("announce: no 6-byte MAC, skipping", "iface", iface)
@@ -143,6 +153,163 @@ func AnnounceLinkAddrs(iface string, addrs Addrs) {
 			time.Sleep(gap)
 		}
 	}
+}
+
+// announceableIPs returns the addresses worth announcing: every non-nil,
+// non-link-local IPv4/IPv6 address.
+func announceableIPs(addrs Addrs) []net.IP {
+	var out []net.IP
+	for _, a := range addrs {
+		if a.IP == nil || a.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, a.IP)
+	}
+	return out
+}
+
+// carriesAll reports whether addrs contains every ip in ips (false for none).
+func carriesAll(addrs []netlink.Addr, ips []net.IP) bool {
+	if len(ips) == 0 {
+		return false
+	}
+	for _, ip := range ips {
+		found := false
+		for _, a := range addrs {
+			if a.IP.Equal(ip) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// waitLinkCarrying polls the current netns until a link that is up carries
+// every ip and returns it. Container init adds a link's addresses back to
+// back and brings the link up last, so waiting for all addresses and the up
+// flag avoids announcing half a link (and a send on a down link). The host
+// does not know the link's name because init renames it (e.g. to eth0), so
+// the returned link is bound by index.
+func waitLinkCarrying(ips []net.IP, timeout, poll time.Duration) (netlink.Link, bool) {
+	deadline := time.Now().Add(timeout)
+	for {
+		if links, err := netlink.LinkList(); err == nil {
+			for _, l := range links {
+				if l.Attrs().Flags&net.FlagUp == 0 {
+					continue
+				}
+				addrs, err := netlink.AddrList(l, netlink.FAMILY_ALL)
+				if err == nil && carriesAll(addrs, ips) {
+					return l, true
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			return nil, false
+		}
+		time.Sleep(poll)
+	}
+}
+
+// AnnounceARP sends one gratuitous ARP per IPv4 address on the link, without
+// waiting. Container init calls it right before exec so peers refresh their
+// IPv4 caches even when no long-lived sandal process runs AnnounceContainer.
+// Best-effort: failures are logged.
+func AnnounceARP(iface string, addrs Addrs) {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		slog.Warn("announce: link lookup failed", "iface", iface, "err", err)
+		return
+	}
+	mac := link.Attrs().HardwareAddr
+	if len(mac) != 6 {
+		slog.Debug("announce: no 6-byte MAC, skipping", "iface", iface)
+		return
+	}
+	for _, ip := range announceableIPs(addrs) {
+		if ip.To4() == nil {
+			continue
+		}
+		g, err := newGARP(link, mac, ip)
+		if err != nil {
+			slog.Warn("announce: IPv4 failed", "iface", iface, "ip", ip, "err", err)
+			continue
+		}
+		if err := g.send(); err != nil {
+			slog.Warn("announce: send failed", "iface", iface, "ip", ip, "err", err)
+		}
+		g.close()
+	}
+}
+
+// AnnounceInNetns announces a container's addresses from a long-lived sandal
+// process (the daemon, or sandal running as a KVM guest's init) so the
+// container's init can exec without waiting for IPv6 DAD. It enters ns on a
+// locked thread, waits for init to configure each link, then runs
+// AnnounceLinkAddrs (ARP + NA after DAD). Run it in its own goroutine that
+// exits afterwards (a thread whose netns could not be restored is discarded
+// only when that goroutine exits). Best-effort: failures are logged.
+func AnnounceInNetns(ns netns.NsHandle, links Links) {
+	const (
+		linkWait = 5 * time.Second
+		linkPoll = 50 * time.Millisecond
+	)
+	var todo []Link
+	for _, l := range links {
+		if len(announceableIPs(l.Addr)) > 0 {
+			todo = append(todo, l)
+		}
+	}
+	if len(todo) == 0 {
+		return
+	}
+
+	runtime.LockOSThread()
+	host, err := netns.Get()
+	if err != nil {
+		runtime.UnlockOSThread()
+		slog.Warn("announce: get host netns failed", "err", err)
+		return
+	}
+	defer host.Close()
+	if err := netns.Set(ns); err != nil {
+		runtime.UnlockOSThread()
+		slog.Warn("announce: enter container netns failed", "err", err)
+		return
+	}
+	defer func() {
+		if err := netns.Set(host); err != nil {
+			// Keep the thread locked: the runtime discards it when this
+			// goroutine exits instead of reusing a thread in the wrong netns.
+			slog.Error("announce: restore netns failed, dropping thread", "err", err)
+			return
+		}
+		runtime.UnlockOSThread()
+	}()
+
+	for _, l := range todo {
+		link, ok := waitLinkCarrying(announceableIPs(l.Addr), linkWait, linkPoll)
+		if !ok {
+			slog.Debug("announce: link not configured in time", "link", l.Id)
+			continue
+		}
+		announceLink(link, l.Addr)
+	}
+}
+
+// AnnounceContainer is AnnounceInNetns for the network namespace of pid.
+func AnnounceContainer(pid int, links Links) {
+	ns, err := netns.GetFromPid(pid)
+	if err != nil {
+		slog.Debug("announce: container netns unavailable", "pid", pid, "err", err)
+		return
+	}
+	defer ns.Close()
+	AnnounceInNetns(ns, links)
 }
 
 // buildGratuitousARP returns a 42-byte Ethernet+ARP frame announcing ip from

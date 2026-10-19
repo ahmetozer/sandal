@@ -233,3 +233,37 @@ func TestWaitIPv6ReadyListError(t *testing.T) {
 		t.Fatalf("ready=%v skipped=%v", ready, skipped)
 	}
 }
+
+func TestAnnounceableIPs(t *testing.T) {
+	addrs := Addrs{
+		{IP: net.ParseIP("192.0.2.5")},
+		{IP: net.ParseIP("169.254.1.1")},
+		{IP: net.ParseIP("fe80::1")},
+		{IP: net.ParseIP("2001:db8::5")},
+		{IP: nil},
+	}
+	got := announceableIPs(addrs)
+	if len(got) != 2 || !got[0].Equal(net.ParseIP("192.0.2.5")) || !got[1].Equal(net.ParseIP("2001:db8::5")) {
+		t.Fatalf("announceableIPs = %v, want [192.0.2.5 2001:db8::5]", got)
+	}
+}
+
+func TestCarriesAll(t *testing.T) {
+	have := []netlink.Addr{v6addr(t, "2001:db8::5/64", 0), v6addr(t, "2001:db8:1::5/64", 0)}
+	cases := []struct {
+		name string
+		ips  []net.IP
+		want bool
+	}{
+		{"all present", []net.IP{net.ParseIP("2001:db8::5"), net.ParseIP("2001:db8:1::5")}, true},
+		{"one missing", []net.IP{net.ParseIP("2001:db8::5"), net.ParseIP("2001:db8::6")}, false},
+		{"empty is false", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := carriesAll(have, tc.ips); got != tc.want {
+				t.Fatalf("carriesAll = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
