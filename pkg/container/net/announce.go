@@ -213,12 +213,105 @@ func buildUnsolicitedNA(srcMAC net.HardwareAddr, ip net.IP) []byte {
 	copy(p[8:24], v6) // target address
 
 	// Option: Target Link-Layer Address (RFC 4861 §4.6.1).
-	p[24] = 2          // type = Target Link-Layer Address
-	p[25] = 1          // length in units of 8 bytes
+	p[24] = 2 // type = Target Link-Layer Address
+	p[25] = 1 // length in units of 8 bytes
 	copy(p[26:32], srcMAC)
 	return p
 }
 
 func htons(v uint16) uint16 {
 	return (v<<8)&0xff00 | v>>8
+}
+
+// addrState is an IPv6 address's DAD state on a link, as far as announcing
+// it is concerned.
+type addrState int
+
+const (
+	addrMissing addrState = iota
+	addrTentative
+	addrDADFailed
+	addrReady
+)
+
+func (s addrState) String() string {
+	switch s {
+	case addrTentative:
+		return "tentative"
+	case addrDADFailed:
+		return "dad-failed"
+	case addrReady:
+		return "ready"
+	default:
+		return "missing"
+	}
+}
+
+// ipv6AddrState reports the DAD state of ip in addrs.
+func ipv6AddrState(addrs []netlink.Addr, ip net.IP) addrState {
+	for _, a := range addrs {
+		if !a.IP.Equal(ip) {
+			continue
+		}
+		switch {
+		case a.Flags&unix.IFA_F_DADFAILED != 0:
+			return addrDADFailed
+		case a.Flags&unix.IFA_F_TENTATIVE != 0:
+			return addrTentative
+		default:
+			return addrReady
+		}
+	}
+	return addrMissing
+}
+
+// linkLocalReady reports whether the link has a link-local address that has
+// finished DAD; the kernel needs one as the source of an NA to ff02::1.
+func linkLocalReady(addrs []netlink.Addr) bool {
+	for _, a := range addrs {
+		if a.IP.IsLinkLocalUnicast() && a.Flags&(unix.IFA_F_TENTATIVE|unix.IFA_F_DADFAILED) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// waitIPv6Ready polls the link's addresses until the link-local and every
+// target have left DAD, or timeout elapses. RFC 4862 §5.4 forbids
+// announcing a tentative address, and the kernel cannot send to ff02::1
+// before the link-local is usable (EADDRNOTAVAIL). Targets that are still
+// tentative at the deadline, failed DAD, or are missing are returned in
+// skipped with their state.
+func waitIPv6Ready(list func() ([]netlink.Addr, error), targets []net.IP, timeout, poll time.Duration) (ready []net.IP, skipped map[string]addrState) {
+	deadline := time.Now().Add(timeout)
+	for {
+		addrs, err := list()
+		ready, skipped = nil, map[string]addrState{}
+		pending := err == nil && !linkLocalReady(addrs)
+		for _, ip := range targets {
+			st := addrMissing
+			if err == nil {
+				st = ipv6AddrState(addrs, ip)
+			}
+			switch st {
+			case addrReady:
+				ready = append(ready, ip)
+			case addrTentative:
+				pending = true
+				skipped[ip.String()] = st
+			default:
+				skipped[ip.String()] = st
+			}
+		}
+		if !pending || time.Now().After(deadline) {
+			if err == nil && !linkLocalReady(addrs) {
+				for _, ip := range ready {
+					skipped[ip.String()] = addrTentative
+				}
+				ready = nil
+			}
+			return ready, skipped
+		}
+		time.Sleep(poll)
+	}
 }
