@@ -3,10 +3,16 @@
 package renumber
 
 import (
+	"context"
 	"encoding/binary"
+	"log/slog"
 	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // pioOpt builds a 32-byte Prefix Information Option.
@@ -629,5 +635,78 @@ func TestSelectNeverSeenRAFallback(t *testing.T) {
 	}
 	if got := Select(dropAbandoned(cands, tr.abandoned(now.Add(time.Hour))), p1); !cidrEqual(got, p1) {
 		t.Fatalf("got %v, want sticky %s", got, p1)
+	}
+}
+
+// levelCounter counts log records per level for one message.
+type levelCounter struct {
+	msg    string
+	mu     sync.Mutex
+	counts map[slog.Level]int
+}
+
+func (h *levelCounter) Enabled(context.Context, slog.Level) bool { return true }
+func (h *levelCounter) Handle(_ context.Context, r slog.Record) error {
+	if r.Message == h.msg {
+		h.mu.Lock()
+		h.counts[r.Level]++
+		h.mu.Unlock()
+	}
+	return nil
+}
+func (h *levelCounter) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *levelCounter) WithGroup(string) slog.Handler      { return h }
+
+func (h *levelCounter) get(l slog.Level) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.counts[l]
+}
+
+func TestWatchRAsWarnsOnceWhileSocketFails(t *testing.T) {
+	h := &levelCounter{msg: raListenerFailed, counts: map[slog.Level]int{}}
+	prevLog, prevOpen, prevRetry := slog.Default(), raOpen, raRetry
+	slog.SetDefault(slog.New(h))
+	t.Cleanup(func() { slog.SetDefault(prevLog); raOpen, raRetry = prevOpen, prevRetry })
+	raRetry = time.Millisecond
+
+	var opens atomic.Int32
+	raOpen = func() (int, error) {
+		opens.Add(1)
+		return -1, unix.EPERM
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	NewRASource("raX").watchRAs(ctx)
+	if opens.Load() < 3 {
+		t.Fatalf("opens = %d, want retries", opens.Load())
+	}
+	if w := h.get(slog.LevelWarn); w != 1 {
+		t.Fatalf("warnings = %d for %d failed opens, want 1", w, opens.Load())
+	}
+	if d := h.get(slog.LevelDebug); d < 2 {
+		t.Fatalf("debug records = %d, want the later failures at debug", d)
+	}
+
+	// A socket that opened again re-arms the warning.
+	h.counts = map[slog.Level]int{}
+	opens.Store(0)
+	raOpen = func() (int, error) {
+		if opens.Add(1) != 3 {
+			return -1, unix.EPERM
+		}
+		var p [2]int
+		if err := unix.Pipe2(p[:], unix.O_CLOEXEC); err != nil {
+			t.Error(err)
+			return -1, err
+		}
+		unix.Close(p[1])
+		return p[0], nil // not a socket: reading fails at once
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel2()
+	NewRASource("raX").watchRAs(ctx2)
+	if w := h.get(slog.LevelWarn); w != 2 {
+		t.Fatalf("warnings = %d, want 2 (first failure, and the failure after a successful open)", w)
 	}
 }

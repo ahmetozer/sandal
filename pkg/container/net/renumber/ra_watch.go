@@ -36,11 +36,18 @@ const (
 	raWithdrawKeep = 2 * time.Hour          // kernel keeps a withdrawn SLAAC address up to 2h (RFC 4862 5.5.3e)
 	raMaxRouters   = 8
 	raMaxPrefixes  = 32
-	raRetry        = 30 * time.Second // socket reopen delay after an error
 
 	raReasonWithdrawn = "withdrawn (valid lifetime 0)"
 	raReasonMissing   = "missing from 2 consecutive RAs"
 	raReasonTimeout   = "not advertised for 30s"
+
+	raListenerFailed = "ra: router advertisement listener failed, using kernel prefixes only"
+)
+
+// Variables so tests can replace them.
+var (
+	raOpen  = openRASocket
+	raRetry = 30 * time.Second // socket reopen delay after an error
 )
 
 // raPIO is one global /64 Prefix Information Option of a Router Advertisement.
@@ -412,18 +419,27 @@ func sendRS(fd, ifindex int) error {
 
 // watchRAs feeds the uplink's Router Advertisements into s.ra until ctx
 // ends. On a socket error it logs, forgets what it learned (back to the
-// netlink-only behaviour) and retries later.
+// netlink-only behaviour) and retries later. A socket that cannot be opened
+// at all (no CAP_NET_RAW, IPv6 disabled) is reported once, then at debug
+// level until it opens again.
 func (s *RASource) watchRAs(ctx context.Context) {
+	warned := false
 	for {
-		fd, err := openRASocket()
+		fd, err := raOpen()
 		if err == nil {
+			warned = false
 			err = s.readRAs(ctx, fd)
 			unix.Close(fd)
 		}
 		if ctx.Err() != nil {
 			return
 		}
-		slog.Warn("ra: router advertisement listener failed, using kernel prefixes only", "iface", s.UpstreamIf, "err", err, "retry_in", raRetry)
+		level := slog.LevelWarn
+		if warned {
+			level = slog.LevelDebug
+		}
+		warned = true
+		slog.Log(ctx, level, raListenerFailed, "iface", s.UpstreamIf, "err", err, "retry_in", raRetry)
 		s.mu.Lock()
 		s.ra.reset()
 		s.mu.Unlock()
