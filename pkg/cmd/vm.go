@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/vm/boot"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
@@ -304,7 +306,9 @@ func startVM(name string, cfg vmconfig.VMConfig) error {
 		}
 	}
 
-	return boot.Boot(name, cfg, nil, nil)
+	err := boot.Boot(name, cfg, nil, nil)
+	recordVMContainerExit(name, err)
+	return err
 }
 
 func vmList() error {
@@ -499,4 +503,32 @@ func vmCreateDisk(args []string) error {
 	}
 	slog.Info("vmCreateDisk", slog.String("path", *path), slog.Int64("sizeMB", *sizeMB))
 	return nil
+}
+
+// recordVMContainerExit stores the VM's exit status on the container record
+// this process hosts. forkVMProcess starts `sandal vm start` for `run -vm -d`
+// and waits for it in the parent, but a CLI parent exits right away, so
+// without this the record would stay "running" after the VM stops.
+func recordVMContainerExit(name string, bootErr error) {
+	c, err := controller.GetContainer(name)
+	if err != nil || !setVMExitStatus(c, os.Getpid(), bootErr) {
+		return
+	}
+	if err := controller.SetContainer(c); err != nil {
+		slog.Warn("startVM", slog.String("action", "record exit status"), slog.String("name", name), slog.Any("error", err))
+	}
+}
+
+// setVMExitStatus sets c.Status from bootErr, in the format RunInKVM uses,
+// when c is a VM container hosted by pid. It reports whether c was changed.
+func setVMExitStatus(c *config.Config, pid int, bootErr error) bool {
+	if c.VM == "" || c.HostPid != pid {
+		return false
+	}
+	if bootErr != nil {
+		c.Status = fmt.Sprintf("err %v", bootErr)
+	} else {
+		c.Status = "exit 0"
+	}
+	return true
 }
