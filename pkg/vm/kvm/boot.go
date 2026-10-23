@@ -121,12 +121,13 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdou
 		defer stop()
 	}
 
-	// Wait for VM to stop
+	// Wait for VM to stop. A guest reset or crash is returned so the VMM
+	// process exits non-zero and the container is recorded as failed.
 	if err := vm.WaitUntilStopped(); err != nil {
 		slog.Error("Boot", slog.String("action", "stopped"), slog.Any("error", err))
-	} else {
-		slog.Debug("Boot", slog.String("action", "stopped"))
+		return err
 	}
+	slog.Debug("Boot", slog.String("action", "stopped"))
 
 	return nil
 }
