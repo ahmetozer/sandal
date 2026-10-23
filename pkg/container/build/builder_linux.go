@@ -163,8 +163,10 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 			cleanupAll(&req)
 			return "", fmt.Errorf("finalising %s: %w", outPath, err)
 		}
-		req.stageSqfs[targetIdx] = outPath
 	}
+	// The target stage's image is now the tagged output, not an
+	// intermediate one cleanupAll should remove.
+	delete(req.stageSqfs, targetIdx)
 
 	// Sidecar JSON for runtime config.
 	if err := writeConfigSidecar(outPath, target.Config); err != nil {
@@ -196,8 +198,9 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 	return outPath, nil
 }
 
-// cleanupAll tears down every live stage container. Safe to call
-// multiple times; Cleanup is idempotent.
+// cleanupAll tears down every live stage container and removes the
+// intermediate per-stage squashfs images. Safe to call multiple times;
+// Cleanup is idempotent.
 func cleanupAll(req *BuildRequest) {
 	for _, sc := range req.containers {
 		if sc != nil {
@@ -205,6 +208,12 @@ func cleanupAll(req *BuildRequest) {
 		}
 	}
 	req.containers = nil
+	for idx, sqfs := range req.stageSqfs {
+		if err := os.Remove(sqfs); err != nil && !os.IsNotExist(err) {
+			slog.Warn("cleanupAll", slog.String("action", "remove stage image"), slog.String("path", sqfs), slog.Any("error", err))
+		}
+		delete(req.stageSqfs, idx)
+	}
 }
 
 func findStageContainer(req *BuildRequest, idx int) *StageContainer {

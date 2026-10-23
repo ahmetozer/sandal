@@ -140,3 +140,48 @@ COPY --from=build /out/msg /msg
 		t.Fatalf("/msg = %q, want %q", got, "hello from stage0\n")
 	}
 }
+
+// stageImages lists the per-stage squashfs files left in env.BaseImageDir.
+func stageImages(t *testing.T) []string {
+	t.Helper()
+	left, err := filepath.Glob(filepath.Join(env.BaseImageDir, ".sandal-build-*-stage*.sqfs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return left
+}
+
+// TestRunRemovesStageImages checks that the intermediate per-stage
+// squashfs files are removed after a build, whether it succeeds or fails.
+func TestRunRemovesStageImages(t *testing.T) {
+	for name, tc := range map[string]struct {
+		dockerfile string
+		wantErr    bool
+	}{
+		"success": {dockerfile: `FROM scratch AS build
+COPY msg /out/msg
+FROM scratch
+COPY --from=build /out/msg /msg
+`},
+		"failure": {dockerfile: `FROM scratch AS build
+COPY msg /out/msg
+FROM scratch
+COPY --from=build /out/missing /msg
+`, wantErr: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			useTempSandalDirs(t)
+			ctxDir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(ctxDir, "msg"), []byte("x\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Run(context.Background(), newRequest(t, tc.dockerfile, ctxDir, "bd-stages:test"))
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("Run error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if left := stageImages(t); len(left) > 0 {
+				t.Errorf("stage images left after the build: %v", left)
+			}
+		})
+	}
+}
