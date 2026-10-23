@@ -575,11 +575,18 @@ func applyCopy(in libbuild.Instruction, s *libbuild.Stage, sc *StageContainer, b
 			if other.Index >= s.Index {
 				return fmt.Errorf("COPY --from=%q: stage %q is defined after the current stage", from, from)
 			}
-			prevSC := findStageContainer(req, other.Index)
-			if prevSC == nil || prevSC.Cfg.RootfsDir == "" {
-				return fmt.Errorf("COPY --from=%q: stage rootfs not available", from)
+			// The stage container's RootfsDir is only mounted while a RUN
+			// executes; once the stage is finished its merged rootfs lives
+			// solely in the per-stage squashfs.
+			sqfs := req.stageSqfs[other.Index]
+			if sqfs == "" {
+				return fmt.Errorf("COPY --from=%q: stage has no output (not yet built)", from)
 			}
-			srcRoot = prevSC.Cfg.RootfsDir
+			img, err := diskimage.Mount(sqfs)
+			if err != nil {
+				return fmt.Errorf("COPY --from=%q: mounting stage image: %w", from, err)
+			}
+			srcRoot = img.MountDir
 		} else if containerimage.IsImageReference(from) {
 			imgDir, err := resolveCopyFromImage(from)
 			if err != nil {
