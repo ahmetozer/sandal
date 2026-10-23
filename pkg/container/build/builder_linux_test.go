@@ -185,3 +185,23 @@ COPY --from=build /out/missing /msg
 		})
 	}
 }
+
+func TestBuildChangeDirSize(t *testing.T) {
+	for _, tc := range []struct {
+		size        string
+		imageBacked bool
+		want        string
+	}{
+		{"", true, defaultBuildChangeDirSize}, // VM or overlay host: documented 8g
+		{"", false, ""},                       // folder mode: no image, no size
+		{"4g", true, "4g"},                    // -csize always wins
+		{"4g", false, "4g"},
+	} {
+		if got := buildChangeDirSize(tc.size, tc.imageBacked); got != tc.want {
+			t.Errorf("buildChangeDirSize(%q, %v) = %q, want %q", tc.size, tc.imageBacked, got, tc.want)
+		}
+	}
+	if defaultBuildChangeDirSize != "8g" {
+		t.Errorf("defaultBuildChangeDirSize = %q, want 8g (docs/commands/build.md)", defaultBuildChangeDirSize)
+	}
+}

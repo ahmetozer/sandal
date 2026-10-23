@@ -79,6 +79,13 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 		defer mount.Cleanup()
 	}
 
+	// Stage change dirs that end up as ext4 images (always inside a VM,
+	// and on hosts that cannot stack overlayfs) default to the documented
+	// 8g instead of the 128 MB `sandal run` default, which is too small
+	// for a RUN like `go build`. Applied after the temp dir above, which
+	// keeps following an explicit -csize only.
+	req.ChangeDirSize = buildChangeDirSize(req.ChangeDirSize, changeDirImageBacked())
+
 	// Open build context (loads .dockerignore).
 	bc, err := libbuild.NewBuildContext(req.ContextDir)
 	if err != nil {
@@ -196,6 +203,35 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 
 	cleanupAll(&req)
 	return outPath, nil
+}
+
+// defaultBuildChangeDirSize is the size of an image-backed stage change
+// dir when -csize is not given (see docs/commands/build.md).
+const defaultBuildChangeDirSize = "8g"
+
+// buildChangeDirSize returns the change dir size for the stage containers:
+// the -csize value when given, else defaultBuildChangeDirSize when the
+// change dirs are image-backed. Folder-backed change dirs take no size.
+func buildChangeDirSize(size string, imageBacked bool) string {
+	if size == "" && imageBacked {
+		return defaultBuildChangeDirSize
+	}
+	return size
+}
+
+// changeDirImageBacked reports whether the stage change dirs will be
+// loop-mounted ext4 images: always inside a VM (virtiofs cannot hold an
+// overlayfs upper) and when the change dir parent is itself overlayfs.
+// Mirrors the "auto" rule in overlayfs.PrepareChangeDir.
+func changeDirImageBacked() bool {
+	if isVM, _ := env.IsVM(); isVM {
+		return true
+	}
+	// PrepareChangeDir creates this directory anyway; it must exist for
+	// the filesystem probe.
+	_ = os.MkdirAll(env.BaseChangeDir, 0755)
+	on, _ := overlayfs.IsOverlayFS(env.BaseChangeDir)
+	return on
 }
 
 // cleanupAll tears down every live stage container and removes the
