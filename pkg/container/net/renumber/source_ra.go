@@ -18,11 +18,29 @@ import (
 type RASource struct {
 	UpstreamIf string
 	out        chan *net.IPNet
-	current    *net.IPNet
+
+	// mu guards current (written only by the run goroutine) and ra, both
+	// also used by the RA reader (watchRAs).
+	mu        sync.Mutex
+	current   *net.IPNet
+	ra        *raTracker
+	raChanged chan struct{} // the abandoned set changed: re-select
+	raLastKey string        // owned by the RA reader
 }
 
 func NewRASource(upstream string) *RASource {
-	return &RASource{UpstreamIf: upstream, out: make(chan *net.IPNet, 1)}
+	return &RASource{
+		UpstreamIf: upstream,
+		out:        make(chan *net.IPNet, 1),
+		ra:         newRATracker(),
+		raChanged:  make(chan struct{}, 1),
+	}
+}
+
+func (s *RASource) setCurrent(p *net.IPNet) {
+	s.mu.Lock()
+	s.current = p
+	s.mu.Unlock()
 }
 
 func (s *RASource) Run(ctx context.Context) <-chan *net.IPNet {
@@ -37,6 +55,7 @@ func (s *RASource) run(ctx context.Context) {
 	// centrally in daemon/start.go via renumber.ApplyHostSysctls before
 	// this goroutine starts.
 
+	go s.watchRAs(ctx)
 	for {
 		// Poll on every iteration — not just at startup — so that any
 		// prefix change that landed during a netlink-subscription gap
@@ -44,7 +63,7 @@ func (s *RASource) run(ctx context.Context) {
 		// up on the next pass.
 		if p := s.poll(); p != nil {
 			if s.current == nil || !cidrEqual(s.current, p) {
-				s.current = p
+				s.setCurrent(p)
 				select {
 				case s.out <- p:
 				case <-ctx.Done():
@@ -120,18 +139,22 @@ func (s *RASource) subscribeOnce(ctx context.Context) error {
 				continue
 			}
 			linkIndex = r.LinkIndex
+		case <-s.raChanged:
+			// RAs changed the abandoned set; linkIndex 0 skips the check.
 		}
 		// Resolve per event: the uplink may appear after we subscribe or be
 		// recreated with a new index.
-		link, err := netlink.LinkByName(s.UpstreamIf)
-		if err != nil || linkIndex != link.Attrs().Index {
-			continue
+		if linkIndex != 0 {
+			link, err := netlink.LinkByName(s.UpstreamIf)
+			if err != nil || linkIndex != link.Attrs().Index {
+				continue
+			}
 		}
 		next := s.poll()
 		if next == nil || (s.current != nil && cidrEqual(s.current, next)) {
 			continue
 		}
-		s.current = next
+		s.setCurrent(next)
 		select {
 		case s.out <- next:
 		case <-ctx.Done():
@@ -173,5 +196,15 @@ func (s *RASource) poll() *net.IPNet {
 	if routes, err := netlink.RouteList(link, netlink.FAMILY_V6); err == nil {
 		cands = append(cands, routeCandidates(routes, now)...)
 	}
-	return Select(cands, s.current)
+	s.mu.Lock()
+	abandoned := s.ra.abandoned(now)
+	s.mu.Unlock()
+	next := Select(dropAbandoned(cands, abandoned), s.current)
+	if s.current != nil && next != nil && !cidrEqual(s.current, next) {
+		if reason, ok := abandoned[s.current.String()]; ok {
+			slog.Info("ra: routers stopped advertising the upstream prefix, switching",
+				"iface", s.UpstreamIf, "from", s.current.String(), "to", next.String(), "reason", reason)
+		}
+	}
+	return next
 }
