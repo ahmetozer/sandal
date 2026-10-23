@@ -341,12 +341,10 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
-		if waitErr != nil {
-			c.Status = fmt.Sprintf("err %v", waitErr)
-		} else {
-			c.Status = "exit 0"
+		// Re-read the record: the VMM child writes its own exit status.
+		if latest, err := controller.GetContainer(c.Name); err == nil && setForkedVMExit(latest, c.HostPid, waitErr) {
+			controller.SetContainer(latest)
 		}
-		controller.SetContainer(c)
 		// Initrd is owned by the kernel cache; do not remove.
 		vmconfig.DeleteVM(vmName)
 		if c.Remove {
@@ -355,6 +353,23 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	}()
 
 	return nil
+}
+
+// setForkedVMExit sets the status of the persisted record latest from the
+// wait result of the forked VMM pid, unless the record moved on: the VMM
+// already recorded its own result (e.g. a guest panic, which the wait only
+// sees as "exit status 1"), the user stopped it, or a newer run owns it. It
+// reports whether latest changed.
+func setForkedVMExit(latest *config.Config, pid int, waitErr error) bool {
+	if latest.Status != "running" || latest.HostPid != pid {
+		return false
+	}
+	if waitErr != nil {
+		latest.Status = fmt.Sprintf("err %v", waitErr)
+	} else {
+		latest.Status = "exit 0"
+	}
+	return true
 }
 
 // StartHostSocketRelay starts a vsock listener for each socket mount and

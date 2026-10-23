@@ -270,13 +270,19 @@ func vmStart(args []string) error {
 
 	cfg, err := vmconfig.LoadConfig(*name)
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		err = fmt.Errorf("loading config: %w", err)
+		recordVMExit(*name, err)
+		return err
 	}
 
 	return startVM(*name, cfg)
 }
 
-func startVM(name string, cfg vmconfig.VMConfig) error {
+// startVM boots the VM and records how it ended on the container record it
+// hosts, on every path, so an early failure does not leave it "running".
+func startVM(name string, cfg vmconfig.VMConfig) (err error) {
+	defer func() { recordVMExit(name, err) }()
+
 	// Check if VM is already running
 	if pid, alive := vmconfig.ReadPid(name); alive {
 		return fmt.Errorf("VM '%s' is already running (pid %d)", name, pid)
@@ -306,9 +312,7 @@ func startVM(name string, cfg vmconfig.VMConfig) error {
 		}
 	}
 
-	err := boot.Boot(name, cfg, nil, nil)
-	recordVMContainerExit(name, err)
-	return err
+	return boot.Boot(name, cfg, nil, nil)
 }
 
 func vmList() error {
@@ -504,6 +508,9 @@ func vmCreateDisk(args []string) error {
 	slog.Info("vmCreateDisk", slog.String("path", *path), slog.Int64("sizeMB", *sizeMB))
 	return nil
 }
+
+// recordVMExit is recordVMContainerExit; tests replace it.
+var recordVMExit = recordVMContainerExit
 
 // recordVMContainerExit stores the VM's exit status on the container record
 // this process hosts. forkVMProcess starts `sandal vm start` for `run -vm -d`
