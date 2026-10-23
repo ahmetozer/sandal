@@ -65,6 +65,13 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	if len(netFlags) > 1 {
 		return fmt.Errorf("-vm on darwin supports a single -net flag (VZ attaches one NAT NIC); got %d", len(netFlags))
 	}
+	// The VZ VM runs in this process, and -d would reach the guest, which
+	// starts the container in the background, exits, and powers the VM
+	// off at once (RunInKVM strips -d and forks for that reason). Fail
+	// instead of reporting a container that silently never ran.
+	if c.Background {
+		return fmt.Errorf("-d is not supported on macOS yet: the VM stops as soon as the guest detaches; run in the foreground instead")
+	}
 	if running, _ := crt.IsContainerRunning(c.Name); running {
 		return fmt.Errorf("container %s is already running", c.Name)
 	}
