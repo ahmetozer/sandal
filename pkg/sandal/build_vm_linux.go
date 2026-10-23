@@ -174,6 +174,12 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	}
 	defer vmconfig.DeleteVM(vmName)
 
+	// The guest writes the image into the shared cache under the tag's
+	// path. Remember what is there now so a failed build that leaves an
+	// older image in place is not mistaken for success.
+	outPath := filepath.Join(env.BaseImageDir, squash.SanitizeRef(opts.Tag)+".sqfs")
+	before, _ := os.Stat(outPath)
+
 	slog.Info("buildInKVM", "action", "booting", "tag", opts.Tag, "context", absCtx)
 	// Pass explicit stdin/stdout so kvm.BootWithForwards treats this as
 	// a custom-I/O boot and skips raw terminal mode. Raw mode intercepts
@@ -186,11 +192,10 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	}
 
 	// Guest wrote the squashfs (and .json sidecar) to the shared
-	// sandal-lib image cache. Derive the host path so callers can find
-	// the built image without parsing guest logs.
-	outPath := filepath.Join(env.BaseImageDir, squash.SanitizeRef(opts.Tag)+".sqfs")
-	if _, err := os.Stat(outPath); err != nil {
-		return "", fmt.Errorf("guest build completed but image not found at %s: %w", outPath, err)
+	// sandal-lib image cache. Check it was really (re)written: that is
+	// how a failed guest build shows up on the host.
+	if err := checkGuestBuildOutput(outPath, before); err != nil {
+		return "", err
 	}
 	return outPath, nil
 }

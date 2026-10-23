@@ -97,3 +97,21 @@ func printPlan(globalArgs []build.Instruction, stages []*build.Stage) {
 		}
 	}
 }
+
+// checkGuestBuildOutput reports whether a VM build produced a new image at
+// outPath. The guest's exit status does not reach the host (the VM simply
+// powers off), so the output file is the only signal. before is the
+// os.Stat of outPath taken before the VM booted (nil if there was none):
+// the guest writes a new file and renames it over outPath, so an image
+// that is still the same file means the build failed and left an older
+// image with the same tag in place.
+func checkGuestBuildOutput(outPath string, before os.FileInfo) error {
+	after, err := os.Stat(outPath)
+	if err != nil {
+		return fmt.Errorf("guest build failed: no image written to %s: %w", outPath, err)
+	}
+	if before != nil && os.SameFile(before, after) {
+		return fmt.Errorf("guest build failed: %s was not rebuilt (kept the previous image)", outPath)
+	}
+	return nil
+}
