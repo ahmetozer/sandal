@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -549,8 +550,8 @@ func applyVolume(s *libbuild.Stage, vols []string) {
 
 // applyCopy executes one COPY or ADD into the stage container's
 // overlay upper. COPY --from=<stage> reads from a previous stage's
-// live overlay upper; COPY --from=<image:tag> pulls and mounts a
-// remote image transparently.
+// squashfs; COPY --from=<image:tag> pulls and mounts a remote image
+// transparently. Either source is unmounted again after the copy.
 func applyCopy(in libbuild.Instruction, s *libbuild.Stage, sc *StageContainer, bc *libbuild.BuildContext, argScope map[string]string, req *BuildRequest) error {
 	if len(in.Args) < 2 {
 		return fmt.Errorf("%s requires at least one source and one destination", in.Kind)
@@ -571,6 +572,7 @@ func applyCopy(in libbuild.Instruction, s *libbuild.Stage, sc *StageContainer, b
 	srcRoot := bc.Root
 	var excluded func(string) bool = bc.IsExcluded
 	if from, ok := in.Flags["from"]; ok && from != "" {
+		var img diskimage.ImmutableImage
 		if other := libbuild.FindStage(req.Stages, from); other != nil {
 			if other.Index >= s.Index {
 				return fmt.Errorf("COPY --from=%q: stage %q is defined after the current stage", from, from)
@@ -582,20 +584,22 @@ func applyCopy(in libbuild.Instruction, s *libbuild.Stage, sc *StageContainer, b
 			if sqfs == "" {
 				return fmt.Errorf("COPY --from=%q: stage has no output (not yet built)", from)
 			}
-			img, err := diskimage.Mount(sqfs)
+			var err error
+			img, err = diskimage.Mount(sqfs)
 			if err != nil {
 				return fmt.Errorf("COPY --from=%q: mounting stage image: %w", from, err)
 			}
-			srcRoot = img.MountDir
 		} else if containerimage.IsImageReference(from) {
-			imgDir, err := resolveCopyFromImage(from)
+			var err error
+			img, err = resolveCopyFromImage(from)
 			if err != nil {
 				return fmt.Errorf("COPY --from=%q: %w", from, err)
 			}
-			srcRoot = imgDir
 		} else {
 			return fmt.Errorf("COPY --from=%q: no matching stage and not a valid image reference", from)
 		}
+		defer releaseCopySource(&img)
+		srcRoot = img.MountDir
 		excluded = nil
 	}
 
@@ -641,20 +645,34 @@ func nowRFC3339() string {
 }
 
 // resolveCopyFromImage pulls (or cache-hits) the given image reference
-// and returns a directory on the host whose contents are the image's
-// rootfs. Used for BuildKit-style `COPY --from=<image> src dst`.
-func resolveCopyFromImage(ref string) (string, error) {
+// and mounts it; img.MountDir holds the image's rootfs. Used for
+// BuildKit-style `COPY --from=<image> src dst`. The caller releases the
+// mount with releaseCopySource.
+func resolveCopyFromImage(ref string) (diskimage.ImmutableImage, error) {
 	progressCh := make(chan progress.Event, 16)
 	renderDone := progress.StartRenderer(progressCh, os.Stderr)
 	sqfsPath, err := containerimage.Pull(context.Background(), ref, env.BaseImageDir, progressCh)
 	close(progressCh)
 	<-renderDone
 	if err != nil {
-		return "", fmt.Errorf("pulling image: %w", err)
+		return diskimage.ImmutableImage{}, fmt.Errorf("pulling image: %w", err)
 	}
 	img, err := diskimage.Mount(sqfsPath)
 	if err != nil {
-		return "", fmt.Errorf("mounting image: %w", err)
+		return diskimage.ImmutableImage{}, fmt.Errorf("mounting image: %w", err)
 	}
-	return img.MountDir, nil
+	return img, nil
+}
+
+// releaseCopySource unmounts a COPY --from source image once the copy is
+// done. diskimage.Mount reuses an existing mount of the same file, so the
+// mount is left alone while a live container overlay still uses it as a
+// lower layer.
+func releaseCopySource(img *diskimage.ImmutableImage) {
+	if diskimage.ImmutableInUse(img.MountDir) {
+		return
+	}
+	if err := diskimage.Umount(img); err != nil {
+		slog.Debug("releaseCopySource", slog.String("mountDir", img.MountDir), slog.Any("error", err))
+	}
 }
