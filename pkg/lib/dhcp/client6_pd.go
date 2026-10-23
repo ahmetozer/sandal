@@ -40,19 +40,14 @@ func (c *Client6) ObtainPDLease(ctx context.Context, hint *PrefixHint) (*PDLease
 
 	txID := randomTxID()
 
-	solicit := c.newPDSolicit(txID, hint)
-	adv, err := c.solicitAdvertise(ctx, conn, txID, solicit)
+	adv, err := c.exchange(ctx, conn, c.newPDSolicit(txID, hint), Msg6Advertise, solicitRT)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("dhcp6-pd: SOLICIT: %w", err)
 	}
 
-	if err := send6(conn, c.newPDRequest(txID, adv), c.serverAddr()); err != nil {
+	reply, err := c.exchange(ctx, conn, c.newPDRequest(txID, adv), Msg6Reply, requestRT)
+	if err != nil {
 		return nil, fmt.Errorf("dhcp6-pd: REQUEST: %w", err)
-	}
-
-	reply, err := c.recv6(ctx, conn, txID, Msg6Reply)
-	if err != nil {
-		return nil, fmt.Errorf("dhcp6-pd: waiting REPLY: %w", err)
 	}
 	return toPDLease(reply)
 }
@@ -86,12 +81,9 @@ func (c *Client6) RenewPDLease(ctx context.Context, lease *PDLease) (*PDLease, e
 			}),
 		},
 	}
-	if err := send6(conn, renew, c.serverAddr()); err != nil {
-		return nil, fmt.Errorf("dhcp6-pd: RENEW: %w", err)
-	}
-	reply, err := c.recv6(ctx, conn, txID, Msg6Reply)
+	reply, err := c.exchange(ctx, conn, renew, Msg6Reply, renewRT)
 	if err != nil {
-		return nil, fmt.Errorf("dhcp6-pd: waiting REPLY: %w", err)
+		return nil, fmt.Errorf("dhcp6-pd: RENEW: %w", err)
 	}
 	return toPDLease(reply)
 }
@@ -124,12 +116,9 @@ func (c *Client6) RebindPDLease(ctx context.Context, lease *PDLease) (*PDLease, 
 			}),
 		},
 	}
-	if err := send6(conn, rebind, c.serverAddr()); err != nil {
-		return nil, fmt.Errorf("dhcp6-pd: REBIND: %w", err)
-	}
-	reply, err := c.recv6(ctx, conn, txID, Msg6Reply)
+	reply, err := c.exchange(ctx, conn, rebind, Msg6Reply, rebindRT)
 	if err != nil {
-		return nil, fmt.Errorf("dhcp6-pd: waiting REPLY: %w", err)
+		return nil, fmt.Errorf("dhcp6-pd: REBIND: %w", err)
 	}
 	return toPDLease(reply)
 }
