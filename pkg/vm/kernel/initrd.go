@@ -380,12 +380,15 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 		}
 		sysrootMounts.WriteString(fmt.Sprintf("$MOCK mkdir -p \"$sysroot\"/mnt/%s\n", m.Tag))
 		sysrootMounts.WriteString(fmt.Sprintf("echo 'Mounting %s...'\n", m.Tag))
-		sysrootMounts.WriteString(fmt.Sprintf("$MOCK mount -t virtiofs -o %s %s \"$sysroot\"/mnt/%s && echo 'Mounted %s' || echo 'Failed to mount %s'\n", opts, m.Tag, m.Tag, m.Tag, m.Tag))
+		// The tag is announced a moment after modprobe returns; retry until it shows up.
+		sysrootMounts.WriteString(fmt.Sprintf("_ok=; for _i in 1 2 3 4 5; do $MOCK mount -t virtiofs -o %s %s \"$sysroot\"/mnt/%s 2>/dev/null && _ok=1 && break; sleep 1; done\n", opts, m.Tag, m.Tag))
+		sysrootMounts.WriteString(fmt.Sprintf("[ -n \"$_ok\" ] && echo 'Mounted %s' || echo 'Failed to mount %s'\n", m.Tag, m.Tag))
 	}
 
 	// Mount directly in /mnt for initramfs-only case (when init=/bin/sh)
 	var initramfsMounts strings.Builder
 	initramfsMounts.WriteString("\n# sandal-vm: auto-mount virtiofs shares (initramfs)\n")
+	initramfsMounts.WriteString("modprobe virtio_mmio 2>/dev/null || true\n")
 	initramfsMounts.WriteString("modprobe fuse 2>/dev/null || true\n")
 	initramfsMounts.WriteString("modprobe virtiofs 2>/dev/null || true\n")
 	for _, m := range mounts {
@@ -394,7 +397,7 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 			opts = "ro"
 		}
 		initramfsMounts.WriteString(fmt.Sprintf("mkdir -p /mnt/%s\n", m.Tag))
-		initramfsMounts.WriteString(fmt.Sprintf("mount -t virtiofs -o %s %s /mnt/%s 2>/dev/null || true\n", opts, m.Tag, m.Tag))
+		initramfsMounts.WriteString(fmt.Sprintf("for _i in 1 2 3 4 5; do mount -t virtiofs -o %s %s /mnt/%s 2>/dev/null && break; sleep 1; done\n", opts, m.Tag, m.Tag))
 	}
 
 	lines := strings.Split(initScript, "\n")

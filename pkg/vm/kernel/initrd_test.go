@@ -227,3 +227,35 @@ func TestCreateOverlayAlignsAppendedArchive(t *testing.T) {
 		t.Fatalf("overlay archive starts at offset %d (len(orig)=%d), not 4-byte aligned", off, origLen)
 	}
 }
+
+// The virtio-fs tag is announced by the driver a moment after modprobe
+// returns, so a mount issued right away fails with "tag not found". Every
+// injected mount must be retried until the tag shows up.
+func TestInjectMountsRetriesUntilTagAppears(t *testing.T) {
+	s := injectMounts(alpineLikeInit, testMounts())
+	n := 0
+	for _, line := range strings.Split(s, "\n") {
+		if !strings.Contains(line, "mount -t virtiofs") {
+			continue
+		}
+		n++
+		if !strings.Contains(line, "sleep") || !strings.Contains(line, "break") {
+			t.Errorf("virtiofs mount is not retried: %q", line)
+		}
+	}
+	if n != 2*len(testMounts()) {
+		t.Errorf("found %d virtiofs mount lines, want %d", n, 2*len(testMounts()))
+	}
+}
+
+// A stock initramfs ships virtio_mmio as a module that only its coldplug
+// step loads, which runs long after the early mount block. Without loading
+// it first the virtio-fs device does not exist yet and the mount cannot work.
+func TestInjectMountsLoadsVirtioMMIOBeforeEarlyMount(t *testing.T) {
+	s := injectMounts(alpineLikeInit, testMounts())
+	mod := strings.Index(s, "modprobe virtio_mmio")
+	mnt := strings.Index(s, "mount -t virtiofs")
+	if mod < 0 || mod > mnt {
+		t.Errorf("modprobe virtio_mmio must precede the first virtiofs mount (mod=%d mount=%d):\n%s", mod, mnt, s)
+	}
+}
