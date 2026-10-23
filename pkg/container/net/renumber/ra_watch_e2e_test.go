@@ -179,7 +179,7 @@ func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 
 	uplink.send(t, pioOpt("2001:db8:bbbb:1::", 64, pioL, 300))
 	rsSent := time.Now()
-	readFor(t, s, fd, 1200*time.Millisecond)
+	readFor(t, s, fd, 300*time.Millisecond) // returns within ~1 s (1 s SO_RCVTIMEO)
 	if n := uplink.solicitations(); n != 1 {
 		t.Fatalf("RS after the first RA without P1 = %d, want 1", n)
 	}
@@ -187,13 +187,18 @@ func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 		t.Fatalf("after one RA without P1: poll = %v, want %s (never switch on a single RA)", got, raP1)
 	}
 
+	// The second RA completes the evidence, but the RS is still too young:
+	// no switch yet. Both reads are short, so this happens about 2.5 s after
+	// the RS; fail rather than skip the check if it is ever too late.
 	uplink.send(t, pioOpt("2001:db8:bbbb:1::", 64, pioL, 300))
 	readFor(t, s, fd, 300*time.Millisecond)
-	t.Logf("second RA without P1 handled %v after the RS", time.Since(rsSent))
-	if time.Since(rsSent) < raConfirmDelay-200*time.Millisecond {
-		if got := s.poll(); got == nil || got.String() != raP1 {
-			t.Fatalf("%v after the RS: poll = %v, want %s (wait for all answers)", time.Since(rsSent), got, raP1)
-		}
+	elapsed := time.Since(rsSent)
+	t.Logf("second RA without P1 handled %v after the RS", elapsed)
+	if elapsed >= raConfirmDelay-500*time.Millisecond {
+		t.Fatalf("second RA handled %v after the RS: too late to check that the switch waits %v for the answers", elapsed, raConfirmDelay)
+	}
+	if got := s.poll(); got == nil || got.String() != raP1 {
+		t.Fatalf("%v after the RS: poll = %v, want %s (wait for all answers)", elapsed, got, raP1)
 	}
 	if d := raConfirmDelay + 500*time.Millisecond - time.Since(rsSent); d > 0 {
 		readFor(t, s, fd, d)
