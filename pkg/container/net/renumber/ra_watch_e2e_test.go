@@ -144,8 +144,9 @@ func readFor(t *testing.T, s *RASource, fd int, d time.Duration) {
 }
 
 // The router renumbers from P1 to P2 without withdrawing P1: the kernel keeps
-// P1's on-link route, but after two RAs without it the source must move to
-// P2, soliciting after the first one. RAs on another link are ignored.
+// P1's on-link route, but after two RAs without it, the second one after the
+// Router Solicitation sent on the first, and once that RS is raConfirmDelay
+// old, the source must move to P2. RAs on another link are ignored.
 func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 	uplink, other := setupRALab(t)
 	s := NewRASource("raA")
@@ -177,6 +178,7 @@ func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 	}
 
 	uplink.send(t, pioOpt("2001:db8:bbbb:1::", 64, pioL, 300))
+	rsSent := time.Now()
 	readFor(t, s, fd, 1200*time.Millisecond)
 	if n := uplink.solicitations(); n != 1 {
 		t.Fatalf("RS after the first RA without P1 = %d, want 1", n)
@@ -186,7 +188,16 @@ func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 	}
 
 	uplink.send(t, pioOpt("2001:db8:bbbb:1::", 64, pioL, 300))
-	readFor(t, s, fd, 1200*time.Millisecond)
+	readFor(t, s, fd, 300*time.Millisecond)
+	t.Logf("second RA without P1 handled %v after the RS", time.Since(rsSent))
+	if time.Since(rsSent) < raConfirmDelay-200*time.Millisecond {
+		if got := s.poll(); got == nil || got.String() != raP1 {
+			t.Fatalf("%v after the RS: poll = %v, want %s (wait for all answers)", time.Since(rsSent), got, raP1)
+		}
+	}
+	if d := raConfirmDelay + 500*time.Millisecond - time.Since(rsSent); d > 0 {
+		readFor(t, s, fd, d)
+	}
 	link, err := netlink.LinkByName("raA")
 	if err != nil {
 		t.Fatal(err)
@@ -199,6 +210,6 @@ func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 		t.Fatalf("kernel candidates = %v, want P1 and P2 (P1 not withdrawn)", c)
 	}
 	if got := s.poll(); got == nil || got.String() != raP2 {
-		t.Fatalf("after two RAs without P1: poll = %v, want %s", got, raP2)
+		t.Fatalf("after two RAs without P1 and %v since the RS: poll = %v, want %s", time.Since(rsSent), got, raP2)
 	}
 }

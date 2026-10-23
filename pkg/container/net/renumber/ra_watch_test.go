@@ -120,8 +120,17 @@ func (c *raClock) ra(router string, active string, pios ...raPIO) bool {
 	if active != "" {
 		act = mustCIDR(c.t, active)
 	}
-	return c.tr.observe(net.ParseIP(router), pios, act, c.now)
+	return c.tr.observe(net.ParseIP(router), false, pios, act, c.now)
 }
+
+// uni feeds one RA unicast to us: an answer to a Router Solicitation.
+func (c *raClock) uni(router string, active string, pios ...raPIO) bool {
+	c.t.Helper()
+	return c.tr.observe(net.ParseIP(router), true, pios, mustCIDR(c.t, active), c.now)
+}
+
+// solicited records a Router Solicitation sent now.
+func (c *raClock) solicited() { c.tr.solicited(c.now) }
 
 func (c *raClock) abandoned(prefix string) (string, bool) {
 	r, ok := c.tr.abandoned(c.now)[prefix]
@@ -144,25 +153,170 @@ const (
 	rtr2 = "fe80::2"
 )
 
-func TestRATrackerAbandonsAfterTwoRAsWithoutPrefix(t *testing.T) {
+// abandonP1 makes rtr1 renumber from P1 to P2: the RA without P1 solicits,
+// the router answers without P1, and the solicitation ages past
+// raConfirmDelay.
+func abandonP1(t *testing.T, c *raClock) {
+	t.Helper()
+	c.ra(rtr1, raP1, adv(t, raP1))
+	c.advance(3 * time.Second)
+	if !c.ra(rtr1, raP1, adv(t, raP2)) {
+		t.Fatal("no solicitation on the first RA without the active prefix")
+	}
+	c.solicited()
+	c.advance(300 * time.Millisecond)
+	c.ra(rtr1, raP1, adv(t, raP2))
+	c.advance(raConfirmDelay)
+	if _, ok := c.abandoned(raP1); !ok {
+		t.Fatal("precondition: P1 should be abandoned")
+	}
+}
+
+func TestRATrackerAbandonsAfterSolicitedRAsWithoutPrefix(t *testing.T) {
 	c := newRAClock(t)
 	c.ra(rtr1, raP1, adv(t, raP1))
 	c.advance(5 * time.Second)
-	c.ra(rtr1, raP1, adv(t, raP2))
+	if !c.ra(rtr1, raP1, adv(t, raP2)) {
+		t.Fatal("no solicitation on the first RA without the active prefix")
+	}
+	c.solicited()
 	if _, ok := c.abandoned(raP1); ok {
 		t.Fatal("P1 abandoned on a single RA without it")
 	}
-	c.advance(5 * time.Second)
-	c.ra(rtr1, raP1, adv(t, raP2))
+	c.advance(300 * time.Millisecond)
+	c.ra(rtr1, raP1, adv(t, raP2)) // the answer to the RS
+	if r, ok := c.abandoned(raP1); ok {
+		t.Fatalf("P1 abandoned (%s) before the solicitation is %v old", r, raConfirmDelay)
+	}
+	c.advance(raConfirmDelay - 300*time.Millisecond - time.Millisecond)
+	if r, ok := c.abandoned(raP1); ok {
+		t.Fatalf("P1 abandoned (%s) before the solicitation is %v old", r, raConfirmDelay)
+	}
+	c.advance(time.Millisecond)
 	reason, ok := c.abandoned(raP1)
 	if !ok {
-		t.Fatal("P1 not abandoned after 2 consecutive RAs without it")
+		t.Fatal("P1 not abandoned after a solicitation answered without it")
 	}
 	if reason != raReasonMissing {
 		t.Fatalf("reason = %q, want %q", reason, raReasonMissing)
 	}
 	if _, ok := c.abandoned(raP2); ok {
 		t.Fatal("P2 (still advertised) abandoned")
+	}
+}
+
+func TestRATrackerUnicastAnswer(t *testing.T) {
+	t.Run("without P1", func(t *testing.T) {
+		// Routers answer an RS by unicast right away, within the gap that
+		// joins a burst: the change of destination marks the answer.
+		c := newRAClock(t)
+		c.ra(rtr1, raP1, adv(t, raP1))
+		c.advance(3 * time.Second)
+		c.ra(rtr1, raP1, adv(t, raP2))
+		c.solicited()
+		c.advance(time.Millisecond)
+		c.uni(rtr1, raP1, adv(t, raP2))
+		c.advance(raConfirmDelay)
+		if r, ok := c.abandoned(raP1); !ok || r != raReasonMissing {
+			t.Fatalf("abandoned = %q, %v; want %q after a unicast answer without P1", r, ok, raReasonMissing)
+		}
+	})
+	t.Run("split answer with P1", func(t *testing.T) {
+		c := newRAClock(t)
+		c.ra(rtr1, raP1, adv(t, raP1))
+		c.advance(3 * time.Second)
+		c.ra(rtr1, raP1, adv(t, raP2))
+		c.solicited()
+		c.advance(time.Millisecond)
+		c.ra(rtr1, raP1, adv(t, raP3)) // tail of the periodic burst
+		for _, p := range []string{raP2, raP1, raP3} {
+			c.advance(time.Millisecond)
+			c.uni(rtr1, raP1, adv(t, p))
+		}
+		c.advance(2 * raConfirmDelay)
+		if r, ok := c.abandoned(raP1); ok {
+			t.Fatalf("P1 abandoned (%s) although the answer carried it", r)
+		}
+	})
+}
+
+func TestRATrackerSolicitAnsweredWithPrefix(t *testing.T) {
+	c := newRAClock(t)
+	c.ra(rtr1, raP1, adv(t, raP1))
+	c.advance(5 * time.Second)
+	c.ra(rtr1, raP1, adv(t, raP2))
+	c.solicited()
+	c.advance(10 * time.Millisecond)
+	c.ra(rtr1, raP1, adv(t, raP2)) // rest of the periodic burst
+	c.advance(300 * time.Millisecond)
+	c.ra(rtr1, raP1, adv(t, raP1)) // the answer carries P1
+	c.advance(10 * time.Millisecond)
+	c.ra(rtr1, raP1, adv(t, raP2))
+	for i := 0; i < 10; i++ {
+		c.advance(time.Second)
+		if r, ok := c.abandoned(raP1); ok {
+			t.Fatalf("P1 abandoned (%s) although the solicited RA carried it", r)
+		}
+	}
+}
+
+func TestRATrackerSolicitUnanswered(t *testing.T) {
+	// The RS goes unanswered (or cannot be sent): RAs before it are no
+	// answer, so only the timeout is left.
+	c := newRAClock(t)
+	c.ra(rtr1, raP1, adv(t, raP1))
+	c.advance(time.Second)
+	if !c.ra(rtr1, raP1, adv(t, raP2)) {
+		t.Fatal("no solicitation on the first RA without the active prefix")
+	}
+	// sending failed: no c.solicited()
+	c.advance(2 * time.Second)
+	c.ra(rtr1, raP1, adv(t, raP2))
+	c.advance(10 * time.Second)
+	if !c.ra(rtr1, raP1, adv(t, raP2)) {
+		t.Fatal("no new solicitation after the first one could not be sent")
+	}
+	c.solicited()             // sent, never answered
+	for i := 0; i < 17; i++ { // up to 30 s after the first miss
+		c.advance(time.Second)
+		if r, ok := c.abandoned(raP1); ok {
+			t.Fatalf("P1 abandoned (%s) on an unanswered solicitation, step %d", r, i)
+		}
+	}
+	c.advance(time.Second)
+	reason, ok := c.abandoned(raP1)
+	if !ok || reason != raReasonTimeout {
+		t.Fatalf("abandoned = %q, %v; want %q 30 s after the first miss", reason, ok, raReasonTimeout)
+	}
+}
+
+func TestRATrackerSplitBurst(t *testing.T) {
+	// The router splits its PIOs across three RAs sent back to back, and
+	// answers the RS the same way.
+	burst := func(c *raClock) (solicit bool) {
+		for _, p := range []string{raP1, raP2, raP3} {
+			if c.ra(rtr1, raP1, adv(t, p)) {
+				c.solicited()
+				solicit = true
+			}
+			c.advance(5 * time.Millisecond)
+		}
+		return solicit
+	}
+	c := newRAClock(t)
+	burst(c)
+	for i := 0; i < 30; i++ {
+		c.advance(10 * time.Second)
+		if burst(c) {
+			c.advance(300 * time.Millisecond)
+			burst(c) // the answer
+		}
+		for j := 0; j < 9; j++ {
+			c.advance(time.Second)
+			if r, ok := c.abandoned(raP1); ok {
+				t.Fatalf("round %d: P1 abandoned (%s) although every burst carries it", i, r)
+			}
+		}
 	}
 }
 
@@ -230,17 +384,46 @@ func TestRATrackerTwoRouters(t *testing.T) {
 	})
 
 	t.Run("router holding P1 goes silent", func(t *testing.T) {
+		// Only router 2 answers the RS, without P1. Router 1 says nothing
+		// more, so there is no evidence that it dropped P1: keep it until
+		// its lifetime ends, like the kernel.
 		c := newRAClock(t)
 		c.ra(rtr1, raP1, adv(t, raP1))
+		c.advance(time.Second)
+		if c.ra(rtr2, raP1, adv(t, raP2)) {
+			c.solicited()
+		}
+		c.advance(300 * time.Millisecond)
 		c.ra(rtr2, raP1, adv(t, raP2))
-		for i := 0; i < 9; i++ { // 27 s of RAs from router 2 only
+		for i := 0; i < 90; i++ { // 270 s of RAs from router 2 only
 			c.advance(3 * time.Second)
 			c.ra(rtr2, raP1, adv(t, raP2))
 			if r, ok := c.abandoned(raP1); ok {
-				t.Fatalf("P1 abandoned (%s) after %d s", r, 3*(i+1))
+				t.Fatalf("P1 abandoned (%s) after %d s although its router went silent", r, 3*(i+1))
 			}
 		}
-		c.advance(3 * time.Second) // 30 s since the first RA without P1
+	})
+
+	t.Run("router holding P1 drops it", func(t *testing.T) {
+		// No RS gets out: the timeout applies once router 1 has been heard
+		// without P1.
+		c := newRAClock(t)
+		c.ra(rtr1, raP1, adv(t, raP1))
+		c.ra(rtr2, raP1, adv(t, raP2))
+		for i := 0; i < 3; i++ {
+			c.advance(3 * time.Second)
+			c.ra(rtr2, raP1, adv(t, raP2))
+		}
+		c.advance(3 * time.Second)
+		c.ra(rtr1, raP1, adv(t, raP3)) // 12 s after the first miss
+		for i := 0; i < 5; i++ {
+			c.advance(3 * time.Second)
+			c.ra(rtr2, raP1, adv(t, raP2))
+		}
+		if r, ok := c.abandoned(raP1); ok {
+			t.Fatalf("P1 abandoned (%s) 27 s after the first miss", r)
+		}
+		c.advance(3 * time.Second)
 		reason, ok := c.abandoned(raP1)
 		if !ok {
 			t.Fatal("P1 not abandoned 30 s after RAs stopped carrying it")
@@ -264,24 +447,64 @@ func TestRATrackerTimeoutNeedsTwoRAs(t *testing.T) {
 
 func TestRATrackerPrefixReappears(t *testing.T) {
 	c := newRAClock(t)
-	c.ra(rtr1, raP1, adv(t, raP1))
-	c.advance(3 * time.Second)
-	c.ra(rtr1, raP1, adv(t, raP2))
-	c.advance(3 * time.Second)
-	c.ra(rtr1, raP1, adv(t, raP2))
-	if _, ok := c.abandoned(raP1); !ok {
-		t.Fatal("precondition: P1 should be abandoned")
-	}
+	abandonP1(t, c)
 	c.advance(3 * time.Second)
 	c.ra(rtr1, raP2, adv(t, raP1), adv(t, raP2))
 	if r, ok := c.abandoned(raP1); ok {
 		t.Fatalf("P1 still abandoned (%s) after it reappeared", r)
 	}
-	// It takes two fresh misses again to abandon it.
+	// It takes two fresh misses and a fresh solicitation again to abandon it.
 	c.advance(3 * time.Second)
 	c.ra(rtr1, raP2, adv(t, raP2))
 	if _, ok := c.abandoned(raP1); ok {
 		t.Fatal("P1 abandoned on one RA after reappearing")
+	}
+	c.advance(3 * time.Second)
+	c.ra(rtr1, raP2, adv(t, raP2))
+	c.advance(10 * time.Second)
+	if r, ok := c.abandoned(raP1); ok {
+		t.Fatalf("P1 abandoned (%s) on an old solicitation after reappearing", r)
+	}
+}
+
+func TestRATrackerNoFlapBack(t *testing.T) {
+	// After the switch P1 -> P2 the selection stays on P2 while P1 is not
+	// advertised again, whatever the RAs look like; the kernel keeps P1.
+	c := newRAClock(t)
+	abandonP1(t, c)
+	p1, p2, p3 := mustCIDR(t, raP1), mustCIDR(t, raP2), mustCIDR(t, raP3)
+	cands := []Candidate{
+		{Prefix: p1, ValidUntil: c.now.Add(24 * time.Hour)},
+		{Prefix: p2, ValidUntil: c.now.Add(time.Hour)},
+		{Prefix: p3, ValidUntil: c.now.Add(time.Hour)},
+	}
+	cur := Select(dropAbandoned(cands, c.tr.abandoned(c.now)), p1)
+	if !cidrEqual(cur, p2) {
+		t.Fatalf("selected %v after P1 was abandoned, want %s", cur, raP2)
+	}
+	// Bursts split across three RAs, a second router with P3, RSs sent or
+	// not, for 250 s (P1 was advertised with a 300 s lifetime).
+	for i := 0; i < 25; i++ {
+		for _, p := range []string{raP2, raP3, "2001:db8:dddd:1::/64"} {
+			if c.ra(rtr1, cur.String(), adv(t, p)) && i%2 == 0 {
+				c.solicited()
+			}
+			c.advance(5 * time.Millisecond)
+		}
+		c.advance(3 * time.Second)
+		c.ra(rtr2, cur.String(), adv(t, raP3))
+		c.advance(7 * time.Second)
+		next := Select(dropAbandoned(cands, c.tr.abandoned(c.now)), cur)
+		if !cidrEqual(next, p2) {
+			t.Fatalf("round %d: selection moved %s -> %v while P1 is not advertised", i, cur, next)
+		}
+		if _, ok := c.abandoned(raP1); !ok {
+			t.Fatalf("round %d: P1 no longer abandoned without being advertised", i)
+		}
+	}
+	c.ra(rtr1, raP2, adv(t, raP1), adv(t, raP2))
+	if r, ok := c.abandoned(raP1); ok {
+		t.Fatalf("P1 still abandoned (%s) after it was advertised again", r)
 	}
 }
 
@@ -326,7 +549,10 @@ func TestRATrackerForgetsExpiredPrefixes(t *testing.T) {
 	c := newRAClock(t)
 	c.ra(rtr1, raP1, raPIO{Prefix: mustCIDR(t, raP1), Valid: 60})
 	c.ra(rtr1, raP1, raPIO{Prefix: mustCIDR(t, raP2), Valid: 60})
+	c.solicited()
+	c.advance(time.Second)
 	c.ra(rtr1, raP1, raPIO{Prefix: mustCIDR(t, raP2), Valid: 60})
+	c.advance(raConfirmDelay)
 	if _, ok := c.abandoned(raP1); !ok {
 		t.Fatal("precondition: P1 should be abandoned")
 	}
@@ -364,9 +590,7 @@ func TestRATrackerSolicit(t *testing.T) {
 
 func TestRATrackerReset(t *testing.T) {
 	c := newRAClock(t)
-	c.ra(rtr1, raP1, adv(t, raP1))
-	c.ra(rtr1, raP1, adv(t, raP2))
-	c.ra(rtr1, raP1, adv(t, raP2))
+	abandonP1(t, c)
 	c.tr.reset()
 	if got := c.tr.abandoned(c.now); len(got) != 0 {
 		t.Fatalf("abandoned = %v after reset, want none", got)
