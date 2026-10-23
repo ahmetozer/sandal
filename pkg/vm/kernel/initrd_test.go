@@ -180,3 +180,50 @@ func TestFindInCPIOReturnsLastMatch(t *testing.T) {
 		t.Error("expected error for missing entry")
 	}
 }
+
+// The kernel only recognises an uncompressed archive appended after a
+// compressed one when it starts on a 4-byte boundary of the whole initrd;
+// otherwise it logs "invalid magic at start of compressed archive" and drops
+// the overlay. The overlay must be padded into alignment.
+func TestCreateOverlayAlignsAppendedArchive(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	dir := t.TempDir()
+	var initrd string
+	var origLen int64
+	for i := 0; ; i++ {
+		initrd = filepath.Join(dir, "initramfs-virt")
+		writeGzipCPIO(t, initrd, [2]string{"init", alpineLikeInit}, [2]string{"pad", strings.Repeat("x", i)})
+		st, err := os.Stat(initrd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Size()%4 != 0 {
+			origLen = st.Size()
+			break
+		}
+	}
+
+	out, err := CreateOverlay(initrd, testMounts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out == initrd {
+		t.Fatal("expected an overlay")
+	}
+	defer os.Remove(out)
+
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	off := origLen
+	for off < int64(len(data)) && data[off] == 0 {
+		off++
+	}
+	if !bytes.HasPrefix(data[off:], []byte("070701")) {
+		t.Fatalf("no cpio header after original initrd (offset %d)", off)
+	}
+	if off%4 != 0 {
+		t.Fatalf("overlay archive starts at offset %d (len(orig)=%d), not 4-byte aligned", off, origLen)
+	}
+}

@@ -109,27 +109,7 @@ func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 	modified := injectMounts(string(initScript), mounts)
 	overlay := newcCPIO("init", []byte(modified), 0100755)
 
-	origData, err := os.ReadFile(initrdPath)
-	if err != nil {
-		return "", err
-	}
-
-	tmp, err := os.CreateTemp("", "sandal-initrd-*.img")
-	if err != nil {
-		return "", err
-	}
-	defer tmp.Close()
-
-	if _, err := tmp.Write(origData); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-	if _, err := tmp.Write(overlay); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-
-	return tmp.Name(), nil
+	return appendOverlay(initrdPath, overlay)
 }
 
 // CreateFromBinary creates an initramfs CPIO archive with the given binary
@@ -295,6 +275,15 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 
 	overlay := newcCPIO("init", []byte(modified), 0100755)
 
+	return appendOverlay(initrdPath, overlay)
+}
+
+// appendOverlay writes a temp copy of initrdPath followed by the overlay
+// archive. The kernel only detects an uncompressed archive that starts on a
+// 4-byte boundary of the whole image (init/initramfs.c tracks the offset in
+// this_header); otherwise it fails with "invalid magic at start of compressed
+// archive" and silently ignores the overlay. NUL padding is skipped, so pad.
+func appendOverlay(initrdPath string, overlay []byte) (string, error) {
 	origData, err := os.ReadFile(initrdPath)
 	if err != nil {
 		return "", err
@@ -306,15 +295,13 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 	}
 	defer tmp.Close()
 
-	if _, err := tmp.Write(origData); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
+	pad := make([]byte, (4-len(origData)%4)%4)
+	for _, b := range [][]byte{origData, pad, overlay} {
+		if _, err := tmp.Write(b); err != nil {
+			os.Remove(tmp.Name())
+			return "", err
+		}
 	}
-	if _, err := tmp.Write(overlay); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-
 	return tmp.Name(), nil
 }
 
