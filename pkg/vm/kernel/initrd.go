@@ -363,6 +363,17 @@ func decompressInitrd(data []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+// virtiofsMount returns a shell command that mounts tag on dir. The tags are
+// announced a moment after modprobe returns, all at once, so only the first
+// mount of a block (wait) is retried, for up to 5 s; the rest are tried once.
+func virtiofsMount(prefix, opts, tag, dir string, wait bool) string {
+	mount := fmt.Sprintf("%smount -t virtiofs -o %s %s %s 2>/dev/null && _ok=1", prefix, opts, tag, dir)
+	if !wait {
+		return "_ok=; " + mount + "\n"
+	}
+	return fmt.Sprintf("_ok=; for _i in 0 1 2 3 4 5; do [ $_i = 0 ] || sleep 1; %s && break; done\n", mount)
+}
+
 // injectMounts inserts virtiofs mount commands:
 // 1. Early in the script (for initramfs-only boots with custom init=)
 // 2. Before each exec switch_root (for normal Alpine boots)
@@ -373,15 +384,14 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 	sysrootMounts.WriteString("echo 'Loading virtiofs modules...'\n")
 	sysrootMounts.WriteString("$MOCK modprobe fuse && echo 'fuse loaded' || echo 'fuse failed'\n")
 	sysrootMounts.WriteString("$MOCK modprobe virtiofs && echo 'virtiofs loaded' || echo 'virtiofs failed'\n")
-	for _, m := range mounts {
+	for i, m := range mounts {
 		opts := "rw"
 		if m.ReadOnly {
 			opts = "ro"
 		}
 		sysrootMounts.WriteString(fmt.Sprintf("$MOCK mkdir -p \"$sysroot\"/mnt/%s\n", m.Tag))
 		sysrootMounts.WriteString(fmt.Sprintf("echo 'Mounting %s...'\n", m.Tag))
-		// The tag is announced a moment after modprobe returns; retry until it shows up.
-		sysrootMounts.WriteString(fmt.Sprintf("_ok=; for _i in 1 2 3 4 5; do $MOCK mount -t virtiofs -o %s %s \"$sysroot\"/mnt/%s 2>/dev/null && _ok=1 && break; sleep 1; done\n", opts, m.Tag, m.Tag))
+		sysrootMounts.WriteString(virtiofsMount("$MOCK ", opts, m.Tag, fmt.Sprintf("\"$sysroot\"/mnt/%s", m.Tag), i == 0))
 		sysrootMounts.WriteString(fmt.Sprintf("[ -n \"$_ok\" ] && echo 'Mounted %s' || echo 'Failed to mount %s'\n", m.Tag, m.Tag))
 	}
 
@@ -391,13 +401,13 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 	initramfsMounts.WriteString("modprobe virtio_mmio 2>/dev/null || true\n")
 	initramfsMounts.WriteString("modprobe fuse 2>/dev/null || true\n")
 	initramfsMounts.WriteString("modprobe virtiofs 2>/dev/null || true\n")
-	for _, m := range mounts {
+	for i, m := range mounts {
 		opts := "rw"
 		if m.ReadOnly {
 			opts = "ro"
 		}
 		initramfsMounts.WriteString(fmt.Sprintf("mkdir -p /mnt/%s\n", m.Tag))
-		initramfsMounts.WriteString(fmt.Sprintf("for _i in 1 2 3 4 5; do mount -t virtiofs -o %s %s /mnt/%s 2>/dev/null && break; sleep 1; done\n", opts, m.Tag, m.Tag))
+		initramfsMounts.WriteString(virtiofsMount("", opts, m.Tag, "/mnt/"+m.Tag, i == 0))
 	}
 
 	lines := strings.Split(initScript, "\n")

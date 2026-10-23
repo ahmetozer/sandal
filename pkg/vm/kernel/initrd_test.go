@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -229,8 +231,8 @@ func TestCreateOverlayAlignsAppendedArchive(t *testing.T) {
 }
 
 // The virtio-fs tag is announced by the driver a moment after modprobe
-// returns, so a mount issued right away fails with "tag not found". Every
-// injected mount must be retried until the tag shows up.
+// returns, so a mount issued right away fails with "tag not found". The
+// first injected mount of each block must be retried until the tags show up.
 func TestInjectMountsRetriesUntilTagAppears(t *testing.T) {
 	s := injectMounts(alpineLikeInit, testMounts())
 	n := 0
@@ -238,9 +240,10 @@ func TestInjectMountsRetriesUntilTagAppears(t *testing.T) {
 		if !strings.Contains(line, "mount -t virtiofs") {
 			continue
 		}
+		first := strings.Contains(line, testMounts()[0].Tag)
 		n++
-		if !strings.Contains(line, "sleep") || !strings.Contains(line, "break") {
-			t.Errorf("virtiofs mount is not retried: %q", line)
+		if retried := strings.Contains(line, "sleep") && strings.Contains(line, "break"); retried != first {
+			t.Errorf("virtiofs mount retried = %v, want %v (only the first mount waits): %q", retried, first, line)
 		}
 	}
 	if n != 2*len(testMounts()) {
@@ -257,5 +260,64 @@ func TestInjectMountsLoadsVirtioMMIOBeforeEarlyMount(t *testing.T) {
 	mnt := strings.Index(s, "mount -t virtiofs")
 	if mod < 0 || mod > mnt {
 		t.Errorf("modprobe virtio_mmio must precede the first virtiofs mount (mod=%d mount=%d):\n%s", mod, mnt, s)
+	}
+}
+
+// runInjected runs the injected script with sh, with mount/sleep/mkdir/
+// modprobe faked: virtiofs tags appear after appear seconds of sleep. It
+// returns the number of sleeps and the virtiofs mount attempts per tag.
+func runInjected(t *testing.T, appear int) (sleeps int, tries map[string]int) {
+	t.Helper()
+	var script strings.Builder
+	script.WriteString(`sleeps=0
+mkdir() { :; }
+modprobe() { :; }
+sleep() { sleeps=$((sleeps+1)); }
+mount() {
+	[ "$2" = virtiofs ] || return 0
+	echo "try $5"
+	[ "$sleeps" -ge ` + strconv.Itoa(appear) + ` ]
+}
+`)
+	for _, line := range strings.Split(injectMounts(alpineLikeInit, testMounts()), "\n") {
+		if !strings.Contains(line, "exec switch_root") {
+			script.WriteString(line + "\n")
+		}
+	}
+	script.WriteString("echo \"sleeps $sleeps\"\n")
+	out, err := exec.Command("sh", "-c", script.String()).CombinedOutput()
+	if err != nil {
+		t.Fatalf("sh: %v\n%s", err, out)
+	}
+	tries = map[string]int{}
+	for _, l := range strings.Split(string(out), "\n") {
+		if tag, ok := strings.CutPrefix(l, "try "); ok {
+			tries[tag]++
+		}
+		if n, ok := strings.CutPrefix(l, "sleeps "); ok {
+			sleeps, _ = strconv.Atoi(n)
+		}
+	}
+	return sleeps, tries
+}
+
+// The virtio-fs device announces all its tags together, so each injected
+// block waits (up to 5 s) only for its first mount and tries the others
+// once: a missing tag must not cost 5 s per mount.
+func TestInjectMountsSharedWait(t *testing.T) {
+	sleeps, tries := runInjected(t, 1000) // tags never appear
+	if sleeps > 10 {
+		t.Errorf("slept %d s over both blocks with no tags, want at most 5 s per block", sleeps)
+	}
+	if tries["host-etc"] != 2 {
+		t.Errorf("host-etc tried %d times, want once per block", tries["host-etc"])
+	}
+
+	sleeps, tries = runInjected(t, 2) // tags appear after 2 s
+	if sleeps != 2 {
+		t.Errorf("slept %d s, want 2 (until the tags appear)", sleeps)
+	}
+	if tries["fs-0"] != 4 || tries["host-etc"] != 2 {
+		t.Errorf("tries = %v, want fs-0 3 then 1, host-etc once per block", tries)
 	}
 }
