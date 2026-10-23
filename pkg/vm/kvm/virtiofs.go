@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -507,6 +508,24 @@ func (d *VirtioFSDevice) allocNode(path string) uint64 {
 	return id
 }
 
+// renameNodes points the node IDs of a renamed file or directory, and of
+// everything below it, at their new host path. The guest moves its dentry
+// and keeps using the same node ID, so without this every request on the
+// renamed entry hits the old, now missing path (ENOENT) until the entry
+// timeout makes the guest look the name up again.
+func (d *VirtioFSDevice) renameNodes(oldPath, newPath string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for id, p := range d.nodes {
+		switch {
+		case p == oldPath:
+			d.nodes[id] = newPath
+		case strings.HasPrefix(p, oldPath+"/"):
+			d.nodes[id] = newPath + p[len(oldPath):]
+		}
+	}
+}
+
 func (d *VirtioFSDevice) allocFh(f *os.File) uint64 {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -975,6 +994,7 @@ func (d *VirtioFSDevice) handleRename(hdr *fuseInHeader, inBody []byte, outBuf [
 	if err := os.Rename(oldPath, newPath); err != nil {
 		return d.replyError(hdr, outBuf, errnoToFuse(err))
 	}
+	d.renameNodes(oldPath, newPath)
 	return d.replyOK(hdr, outBuf)
 }
 
@@ -1005,6 +1025,7 @@ func (d *VirtioFSDevice) handleRename2(hdr *fuseInHeader, inBody []byte, outBuf 
 	if err := os.Rename(oldPath, newPath); err != nil {
 		return d.replyError(hdr, outBuf, errnoToFuse(err))
 	}
+	d.renameNodes(oldPath, newPath)
 	return d.replyOK(hdr, outBuf)
 }
 
