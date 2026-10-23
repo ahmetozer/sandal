@@ -246,6 +246,94 @@ func TestRATrackerUnicastAnswer(t *testing.T) {
 	})
 }
 
+// splitBurst feeds router's PIOs as back-to-back RAs, one PIO each and
+// 5 ms apart, and checks after every RA (as a poll between two RAs would)
+// that P1 is not abandoned unless mayAbandon. RSs it asks for are "sent".
+func (c *raClock) splitBurst(router string, mayAbandon bool, prefixes ...string) {
+	c.t.Helper()
+	for i, p := range prefixes {
+		if i > 0 {
+			c.advance(5 * time.Millisecond)
+		}
+		if c.ra(router, raP1, adv(c.t, p)) {
+			c.solicited()
+		}
+		if r, ok := c.abandoned(raP1); ok && !mayAbandon {
+			c.t.Fatalf("P1 abandoned (%s) after the RA with %s of a burst %v", r, p, prefixes)
+		}
+	}
+}
+
+// keepFor advances the clock by d in 1 s steps (readRAs wakes up every
+// second) and fails if P1 is abandoned on the way.
+func (c *raClock) keepFor(d time.Duration) {
+	c.t.Helper()
+	for end := c.now.Add(d); c.now.Before(end); {
+		c.advance(time.Second)
+		if r, ok := c.abandoned(raP1); ok {
+			c.t.Fatalf("P1 abandoned (%s) between bursts", r)
+		}
+	}
+}
+
+func TestRATrackerSplitBurstP1InTheMiddle(t *testing.T) {
+	// P1 is neither first nor last of a burst sent every 60 s: no RS answer
+	// needs to be lost for the old per-RA count to time out.
+	c := newRAClock(t)
+	for i := 0; i < 10; i++ {
+		c.splitBurst(rtr1, false, raP2, raP1, raP3)
+		c.keepFor(60 * time.Second)
+	}
+}
+
+func TestRATrackerSplitBurstLostAnswer(t *testing.T) {
+	// Router 1 splits [P2 P1 P3] every 8 s; router 2's RAs 2.5 s later
+	// trigger RSs (rate-limited to one per 10 s) whose answers from router 1
+	// are lost.
+	c := newRAClock(t)
+	for i := 0; i < 30; i++ {
+		c.splitBurst(rtr1, false, raP2, raP1, raP3)
+		c.keepFor(2500 * time.Millisecond)
+		c.splitBurst(rtr2, false, "2001:db8:dddd:1::/64")
+		c.keepFor(5490 * time.Millisecond)
+	}
+}
+
+func TestRATrackerSplitBurstRealSwitch(t *testing.T) {
+	t.Run("answered", func(t *testing.T) {
+		c := newRAClock(t)
+		c.splitBurst(rtr1, false, raP2, raP1, raP3)
+		c.keepFor(10 * time.Second)
+		c.splitBurst(rtr1, false, raP2, raP3) // P1 gone: RS
+		c.advance(time.Millisecond)
+		for _, p := range []string{raP2, raP3} { // the unicast answer
+			c.uni(rtr1, raP1, adv(t, p))
+			c.advance(time.Millisecond)
+		}
+		c.advance(raConfirmDelay)
+		if r, ok := c.abandoned(raP1); !ok || r != raReasonMissing {
+			t.Fatalf("abandoned = %q, %v; want %q after complete bursts and an answer without P1", r, ok, raReasonMissing)
+		}
+	})
+	t.Run("no RS", func(t *testing.T) {
+		c := newRAClock(t)
+		c.splitBurst(rtr1, false, raP2, raP1, raP3)
+		for i := 0; i < 6; i++ {
+			c.advance(10 * time.Second)
+			for j, p := range []string{raP2, raP3} {
+				if j > 0 {
+					c.advance(5 * time.Millisecond)
+				}
+				c.ra(rtr1, raP1, adv(t, p)) // the RS cannot be sent
+			}
+		}
+		c.advance(time.Second)
+		if r, ok := c.abandoned(raP1); !ok || r != raReasonTimeout {
+			t.Fatalf("abandoned = %q, %v; want %q 50 s after P1 left the bursts", r, ok, raReasonTimeout)
+		}
+	})
+}
+
 func TestRATrackerSolicitAnsweredWithPrefix(t *testing.T) {
 	c := newRAClock(t)
 	c.ra(rtr1, raP1, adv(t, raP1))
@@ -554,6 +642,7 @@ func TestRATrackerNoAlternativeKeepsPrefix(t *testing.T) {
 func TestRATrackerForgetsExpiredPrefixes(t *testing.T) {
 	c := newRAClock(t)
 	c.ra(rtr1, raP1, raPIO{Prefix: mustCIDR(t, raP1), Valid: 60})
+	c.advance(time.Second)
 	c.ra(rtr1, raP1, raPIO{Prefix: mustCIDR(t, raP2), Valid: 60})
 	c.solicited()
 	c.advance(time.Second)

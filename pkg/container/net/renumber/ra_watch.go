@@ -23,22 +23,26 @@ import (
 // Advertisements on the uplink tells which prefixes the routers still
 // advertise; a prefix they stopped advertising while advertising another one
 // is "abandoned" and skipped by the selection. Only positive evidence counts:
-// every router that advertised the prefix must since have sent an RA without
-// it, and a Router Solicitation must have had time to collect the answers of
-// all routers, so a router that split its PIOs over several RAs or went
-// silent does not cause a (sticky) switch.
+// every router that advertised the prefix must since have sent complete
+// advertisements without it (a router may split its PIOs over several RAs
+// sent back to back, a burst, so misses count per completed burst), and a
+// Router Solicitation must have had time to collect the answers of all
+// routers. A split advertisement or a silent router thus never causes a
+// (sticky) switch.
 const (
-	raMissLimit    = 2                      // consecutive RAs without the prefix, per router
-	raMissTimeout  = 30 * time.Second       // or this long since an RA without it
-	raSolicitGap   = 10 * time.Second       // at most one Router Solicitation per gap
-	raConfirmDelay = 4 * time.Second        // wait this long for RS answers (MAX_RA_DELAY_TIME is 0.5 s)
+	raMissLimit   = 2                // consecutive bursts without the prefix, per router
+	raMissTimeout = 30 * time.Second // or this long since a burst without it
+	raSolicitGap  = 10 * time.Second // at most one Router Solicitation per gap
+	// Wait this long for RS answers: a multicast answer may be held back by
+	// MIN_DELAY_BETWEEN_RAS (3 s) plus MAX_RA_DELAY_TIME (0.5 s), RFC 4861 6.2.6.
+	raConfirmDelay = 4 * time.Second
 	raBurstGap     = 200 * time.Millisecond // a router's RAs closer than this are one advertisement
 	raWithdrawKeep = 2 * time.Hour          // kernel keeps a withdrawn SLAAC address up to 2h (RFC 4862 5.5.3e)
 	raMaxRouters   = 8
 	raMaxPrefixes  = 32
 
 	raReasonWithdrawn = "withdrawn (valid lifetime 0)"
-	raReasonMissing   = "missing from 2 consecutive RAs"
+	raReasonMissing   = "missing from 2 consecutive advertisements"
 	raReasonTimeout   = "not advertised for 30s"
 
 	raListenerFailed = "ra: router advertisement listener failed, using kernel prefixes only"
@@ -89,17 +93,17 @@ func parseRA(b []byte) (pios []raPIO, ok bool) {
 
 // raHold is one router's advertisement of one prefix.
 type raHold struct {
-	misses   int       // consecutive RAs (with global PIOs) from the router without the prefix
-	lastMiss time.Time // start of the burst of the last of those RAs
+	misses   int       // consecutive completed bursts (with global PIOs) from the router without the prefix
+	lastMiss time.Time // start of the last of those bursts
 	until    time.Time // advertised valid lifetime end
 }
 
 // raPrefix is what all routers together said about one prefix.
 type raPrefix struct {
 	withdrawn bool
-	missCount int       // RAs from any router without the prefix since it was last advertised
-	missSince time.Time // first of those RAs
-	rsAt      time.Time // first Router Solicitation sent since missSince
+	missCount int       // completed bursts from any router without the prefix since it was last advertised
+	missSince time.Time // start of the first of those bursts
+	rsAt      time.Time // first Router Solicitation sent since the prefix was last advertised
 	until     time.Time // forget the prefix after this
 }
 
@@ -113,12 +117,16 @@ type raTracker struct {
 }
 
 // raBurst is a router's current run of back-to-back RAs (PIOs split over
-// several RAs) to the same kind of destination. Evidence is dated by its
-// start: the tail of the burst that triggered an RS is not an answer to it,
-// but a unicast RA, which only answers a solicitation, starts a new burst.
+// several RAs) to the same kind of destination: one advertisement. A prefix
+// it carries is refreshed at once, but its misses are counted only once it
+// is complete (no RA for raBurstGap), so a poll between two of its RAs sees
+// no evidence from it. Evidence is dated by its start: the tail of the burst
+// that triggered an RS is not an answer to it, but a unicast RA, which only
+// answers a solicitation, starts a new burst.
 type raBurst struct {
 	start, last time.Time
 	unicast     bool
+	seen        map[string]bool // prefixes carried so far
 }
 
 func newRATracker() *raTracker {
@@ -151,15 +159,16 @@ func laterOf(a, b time.Time) time.Time {
 }
 
 // observe records one RA from router, sent to us (unicast) or to all nodes.
-// RAs without any global PIO (e.g. only
-// RDNSS) say nothing about prefixes and only apply withdrawals. It returns
-// true when a Router Solicitation should be sent now: the RA lacks the active
-// prefix and either brings a prefix not seen before or no RS was sent since
-// the active prefix went missing, and none was attempted in the last
+// RAs without any global PIO (e.g. only RDNSS) say nothing about prefixes and
+// only apply withdrawals. It returns true when a Router Solicitation should
+// be sent now: the router's burst so far lacks the active prefix, the RA
+// either brings a prefix not seen before or no RS was sent since the active
+// prefix was last advertised, and none was attempted in the last
 // raSolicitGap. The answers confirm quickly whether the active prefix is
 // still advertised; the caller reports a sent RS with solicited.
 func (t *raTracker) observe(router net.IP, unicast bool, pios []raPIO, active *net.IPNet, now time.Time) bool {
 	t.expire(now)
+	t.closeBursts(now)
 	rkey := router.String()
 	seen := map[string]bool{}
 	for _, p := range pios {
@@ -189,33 +198,18 @@ func (t *raTracker) observe(router net.IP, unicast bool, pios []raPIO, active *n
 		t.routers[rkey] = holds
 	}
 	b := t.bursts[rkey]
-	if b == nil || now.Sub(b.last) > raBurstGap || b.unicast != unicast {
-		b = &raBurst{start: now, unicast: unicast}
+	if b != nil && b.unicast != unicast {
+		t.closeBurst(rkey, b)
+		b = nil
+	}
+	if b == nil {
+		b = &raBurst{start: now, unicast: unicast, seen: map[string]bool{}}
 		t.bursts[rkey] = b
 	}
 	b.last = now
-	for k, h := range holds {
-		if !seen[k] {
-			h.misses++
-			h.lastMiss = b.start
-		}
-	}
 	activeKey := ""
 	if active != nil {
 		activeKey = active.String()
-	}
-	for k, st := range t.prefixes {
-		if seen[k] {
-			continue
-		}
-		if st.missCount == 0 {
-			st.missSince = now
-		}
-		st.missCount++
-	}
-	activeUnconfirmed := false
-	if st := t.prefixes[activeKey]; st != nil && !seen[activeKey] {
-		activeUnconfirmed = st.rsAt.IsZero()
 	}
 	newPrefix := false
 	for _, p := range pios {
@@ -223,6 +217,7 @@ func (t *raTracker) observe(router net.IP, unicast bool, pios []raPIO, active *n
 		if p.Valid == 0 {
 			continue
 		}
+		b.seen[k] = true
 		st := t.prefixes[k]
 		if st == nil {
 			if len(t.prefixes) >= raMaxPrefixes {
@@ -236,7 +231,11 @@ func (t *raTracker) observe(router net.IP, unicast bool, pios []raPIO, active *n
 		*st = raPrefix{until: laterOf(st.until, until)}
 		holds[k] = &raHold{until: until}
 	}
-	if activeKey == "" || seen[activeKey] || (!newPrefix && !activeUnconfirmed) {
+	activeUnconfirmed := false
+	if st := t.prefixes[activeKey]; st != nil {
+		activeUnconfirmed = st.rsAt.IsZero()
+	}
+	if activeKey == "" || b.seen[activeKey] || (!newPrefix && !activeUnconfirmed) {
 		return false
 	}
 	if !t.lastRS.IsZero() && now.Sub(t.lastRS) < raSolicitGap {
@@ -246,13 +245,44 @@ func (t *raTracker) observe(router net.IP, unicast bool, pios []raPIO, active *n
 	return true
 }
 
-// solicited records that a Router Solicitation was sent: the answers to it
-// confirm every prefix that is missing now.
+// solicited records that a Router Solicitation was sent. Every prefix not
+// advertised since then has it as its rsAt: complete bursts started after it
+// that lack the prefix answer it.
 func (t *raTracker) solicited(now time.Time) {
 	for _, st := range t.prefixes {
-		if st.missCount > 0 && st.rsAt.IsZero() {
+		if st.rsAt.IsZero() {
 			st.rsAt = now
 		}
+	}
+}
+
+// closeBursts completes the bursts that saw no RA for raBurstGap.
+func (t *raTracker) closeBursts(now time.Time) {
+	for r, b := range t.bursts {
+		if now.Sub(b.last) > raBurstGap {
+			t.closeBurst(r, b)
+		}
+	}
+}
+
+// closeBurst counts a miss, dated by the burst start, for every prefix the
+// completed burst b of router r did not carry.
+func (t *raTracker) closeBurst(r string, b *raBurst) {
+	delete(t.bursts, r)
+	for k, h := range t.routers[r] {
+		if !b.seen[k] {
+			h.misses++
+			h.lastMiss = b.start
+		}
+	}
+	for k, st := range t.prefixes {
+		if b.seen[k] {
+			continue
+		}
+		if st.missCount == 0 {
+			st.missSince = b.start
+		}
+		st.missCount++
 	}
 }
 
@@ -287,15 +317,20 @@ func (t *raTracker) expire(now time.Time) {
 // without any RA the result is empty. Reasons:
 //   - withdrawn: an RA carried it with valid lifetime 0 and no router still
 //     advertises it;
-//   - missing: every router that advertised it sent raMissLimit RAs in a row
-//     without it, the last one in a burst that began after an RS sent since
-//     it went missing, and that RS is raConfirmDelay old (all answers are in);
-//   - timeout: at least raMissLimit RAs and raMissTimeout passed since the
-//     first RA without it, and every router that advertised it sent a burst
-//     without it since then (a silent router is no evidence; its prefix
-//     stays until its lifetime ends, as in the kernel).
+//   - missing: every router that advertised it sent raMissLimit completed
+//     bursts in a row without it, the last one begun after an RS sent since
+//     it was last advertised, and that RS is raConfirmDelay old (all answers
+//     are in);
+//   - timeout: at least raMissLimit completed bursts and raMissTimeout passed
+//     since the first burst without it, and every router that advertised it
+//     sent a burst without it since then (a silent router is no evidence;
+//     its prefix stays until its lifetime ends, as in the kernel).
+//
+// A burst still open (an RA within raBurstGap) gives no evidence yet; the
+// RA reader re-evaluates at least every second.
 func (t *raTracker) abandoned(now time.Time) map[string]string {
 	t.expire(now)
+	t.closeBursts(now)
 	out := map[string]string{}
 	for k, st := range t.prefixes {
 		if !t.advertisedOtherThan(k) {
