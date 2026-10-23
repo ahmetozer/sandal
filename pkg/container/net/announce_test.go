@@ -5,8 +5,13 @@ package net
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"net"
 	"testing"
+	"time"
+
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func TestBuildGratuitousARPFrameLayout(t *testing.T) {
@@ -123,5 +128,142 @@ func TestHtonsConversion(t *testing.T) {
 		if got := htons(tc.in); got != tc.want {
 			t.Errorf("htons(%#x) = %#x, want %#x", tc.in, got, tc.want)
 		}
+	}
+}
+
+func v6addr(t *testing.T, cidr string, flags int) netlink.Addr {
+	t.Helper()
+	a, err := netlink.ParseAddr(cidr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Flags = flags
+	return *a
+}
+
+func TestIPv6AddrState(t *testing.T) {
+	addrs := []netlink.Addr{
+		v6addr(t, "2001:db8::1/128", 0),
+		v6addr(t, "2001:db8::2/128", unix.IFA_F_TENTATIVE),
+		v6addr(t, "2001:db8::3/128", unix.IFA_F_TENTATIVE|unix.IFA_F_DADFAILED),
+	}
+	cases := []struct {
+		ip   string
+		want addrState
+	}{
+		{"2001:db8::1", addrReady},
+		{"2001:db8::2", addrTentative},
+		{"2001:db8::3", addrDADFailed},
+		{"2001:db8::4", addrMissing},
+	}
+	for _, tc := range cases {
+		t.Run(tc.ip, func(t *testing.T) {
+			if got := ipv6AddrState(addrs, net.ParseIP(tc.ip)); got != tc.want {
+				t.Fatalf("ipv6AddrState(%s) = %v, want %v", tc.ip, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLinkLocalReady(t *testing.T) {
+	if linkLocalReady([]netlink.Addr{v6addr(t, "fe80::1/64", unix.IFA_F_TENTATIVE)}) {
+		t.Error("tentative link-local must not be ready")
+	}
+	if !linkLocalReady([]netlink.Addr{v6addr(t, "fe80::1/64", 0)}) {
+		t.Error("non-tentative link-local must be ready")
+	}
+	if linkLocalReady([]netlink.Addr{v6addr(t, "2001:db8::1/128", 0)}) {
+		t.Error("a global is not a link-local source")
+	}
+}
+
+func TestWaitIPv6ReadyWaitsForDAD(t *testing.T) {
+	calls := 0
+	list := func() ([]netlink.Addr, error) {
+		calls++
+		flags := unix.IFA_F_TENTATIVE
+		if calls >= 3 {
+			flags = 0
+		}
+		return []netlink.Addr{v6addr(t, "fe80::1/64", flags), v6addr(t, "2001:db8::1/128", flags)}, nil
+	}
+	ready, skipped := waitIPv6Ready(list, []net.IP{net.ParseIP("2001:db8::1")}, time.Second, time.Millisecond)
+	if len(ready) != 1 || len(skipped) != 0 || calls != 3 {
+		t.Fatalf("ready=%v skipped=%v calls=%d, want 1 ready after 3 polls", ready, skipped, calls)
+	}
+}
+
+func TestWaitIPv6ReadySkipsStuckAndFailed(t *testing.T) {
+	list := func() ([]netlink.Addr, error) {
+		return []netlink.Addr{
+			v6addr(t, "fe80::1/64", 0),
+			v6addr(t, "2001:db8::1/128", 0),
+			v6addr(t, "2001:db8::2/128", unix.IFA_F_TENTATIVE),
+			v6addr(t, "2001:db8::3/128", unix.IFA_F_TENTATIVE|unix.IFA_F_DADFAILED),
+		}, nil
+	}
+	targets := []net.IP{net.ParseIP("2001:db8::1"), net.ParseIP("2001:db8::2"), net.ParseIP("2001:db8::3")}
+	start := time.Now()
+	ready, skipped := waitIPv6Ready(list, targets, 30*time.Millisecond, time.Millisecond)
+	if time.Since(start) > time.Second {
+		t.Fatal("waitIPv6Ready must honour the timeout")
+	}
+	if len(ready) != 1 || !ready[0].Equal(net.ParseIP("2001:db8::1")) {
+		t.Fatalf("ready = %v, want only 2001:db8::1", ready)
+	}
+	if skipped["2001:db8::2"] != addrTentative || skipped["2001:db8::3"] != addrDADFailed {
+		t.Fatalf("skipped = %v", skipped)
+	}
+}
+
+func TestWaitIPv6ReadyNeedsLinkLocalSource(t *testing.T) {
+	list := func() ([]netlink.Addr, error) {
+		return []netlink.Addr{v6addr(t, "fe80::1/64", unix.IFA_F_TENTATIVE), v6addr(t, "2001:db8::1/128", 0)}, nil
+	}
+	ready, skipped := waitIPv6Ready(list, []net.IP{net.ParseIP("2001:db8::1")}, 20*time.Millisecond, time.Millisecond)
+	if len(ready) != 0 || skipped["2001:db8::1"] != addrTentative {
+		t.Fatalf("without a usable link-local nothing can be sent: ready=%v skipped=%v", ready, skipped)
+	}
+}
+
+func TestWaitIPv6ReadyListError(t *testing.T) {
+	list := func() ([]netlink.Addr, error) { return nil, errors.New("boom") }
+	ready, skipped := waitIPv6Ready(list, []net.IP{net.ParseIP("2001:db8::1")}, 10*time.Millisecond, time.Millisecond)
+	if len(ready) != 0 || skipped["2001:db8::1"] != addrMissing {
+		t.Fatalf("ready=%v skipped=%v", ready, skipped)
+	}
+}
+
+func TestAnnounceableIPs(t *testing.T) {
+	addrs := Addrs{
+		{IP: net.ParseIP("192.0.2.5")},
+		{IP: net.ParseIP("169.254.1.1")},
+		{IP: net.ParseIP("fe80::1")},
+		{IP: net.ParseIP("2001:db8::5")},
+		{IP: nil},
+	}
+	got := announceableIPs(addrs)
+	if len(got) != 2 || !got[0].Equal(net.ParseIP("192.0.2.5")) || !got[1].Equal(net.ParseIP("2001:db8::5")) {
+		t.Fatalf("announceableIPs = %v, want [192.0.2.5 2001:db8::5]", got)
+	}
+}
+
+func TestCarriesAll(t *testing.T) {
+	have := []netlink.Addr{v6addr(t, "2001:db8::5/64", 0), v6addr(t, "2001:db8:1::5/64", 0)}
+	cases := []struct {
+		name string
+		ips  []net.IP
+		want bool
+	}{
+		{"all present", []net.IP{net.ParseIP("2001:db8::5"), net.ParseIP("2001:db8:1::5")}, true},
+		{"one missing", []net.IP{net.ParseIP("2001:db8::5"), net.ParseIP("2001:db8::6")}, false},
+		{"empty is false", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := carriesAll(have, tc.ips); got != tc.want {
+				t.Fatalf("carriesAll = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

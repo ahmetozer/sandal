@@ -5,7 +5,6 @@ package host
 import (
 	"fmt"
 	"log/slog"
-	gonet "net"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/namelock"
@@ -105,22 +104,19 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 		return err
 	}
 
-	// Best-effort: drop any stale neighbor-cache entries on the bridge for
-	// the IPs this container is about to claim. Otherwise a restart that
-	// reuses the previous IPs can sit behind a STALE/FAILED entry pointing
-	// at the dead veth's MAC until the kernel times it out.
-	if links, lerr := net.ToLinks(&c.Net); lerr == nil && links != nil {
-		var reusedIPs []gonet.IP
-		for _, l := range *links {
-			for _, a := range l.Addr {
-				if a.IP != nil {
-					reusedIPs = append(reusedIPs, a.IP)
+	// Best-effort: drop any stale neighbor-cache entries for the IPs this
+	// container is about to claim, on the bridge each of its veths joins.
+	// Otherwise a restart that reuses the previous IPs can sit behind a
+	// STALE/FAILED entry pointing at the dead veth's MAC until the kernel
+	// times it out. Host and joined netns get no veth (same guard as link
+	// creation in crun), and links without a bridge (master=nil, passthru,
+	// a KVM guest's ethN) have no host-side entries to drop.
+	if netConf := c.NS.Get("net"); !netConf.IsHost && !netConf.IsUserDefined {
+		if links, lerr := net.ToLinks(&c.Net); lerr == nil && links != nil {
+			for bridge, ips := range links.BridgedIPs() {
+				if err := net.FlushNeighForIPs(bridge, ips); err != nil {
+					slog.Warn("flush stale neighbor cache failed", "iface", bridge, "err", err)
 				}
-			}
-		}
-		if len(reusedIPs) > 0 {
-			if err := net.FlushNeighForIPs(net.DefaultBridgeInterface, reusedIPs); err != nil {
-				slog.Warn("flush stale neighbor cache failed", "iface", net.DefaultBridgeInterface, "err", err)
 			}
 		}
 	}

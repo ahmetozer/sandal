@@ -109,7 +109,6 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		}
 	}
 
-
 	// Allocate a PTY for interactive containers when -t is passed
 	// so the shell gets a real terminal (isatty=true, job control works).
 	var restoreTerminal func()
@@ -240,6 +239,13 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 				return 1, err
 			}
 			(*links)[i].SetNsPid(c.ContPid)
+		}
+		// The daemon and a KVM guest's init outlive the container start, so
+		// they announce its addresses (ARP + NA once IPv6 DAD finishes) in
+		// the background; the container's init only sends one immediate ARP
+		// and execs without waiting.
+		if isVM, _ := env.IsVM(); env.IsDaemon || isVM {
+			go net.AnnounceContainer(c.ContPid, *links)
 		}
 	}
 

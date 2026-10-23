@@ -134,19 +134,18 @@ func ContainerInitProc() {
 				return err
 			}
 
-			// Gratuitous ARP / unsolicited NA for every configured
-			// address so peers overwrite any stale cache pointing at a
-			// previous container's MAC. Best-effort: errors are logged
-			// inside the helper, never block container start. The first
-			// packet per address is sent synchronously; retransmits run
-			// in background goroutines.
+			// One gratuitous ARP per IPv4 address so peers drop stale
+			// caches right away. No waiting: exec follows immediately.
+			// When a long-lived sandal process starts the container (the
+			// daemon, or sandal as a KVM guest's init), it also announces
+			// IPv4 and IPv6 (after DAD) from outside via AnnounceContainer.
 			for i := range *links {
 				l := &(*links)[i]
 				ifname := l.Name
 				if ifname == "" {
 					ifname = l.Id
 				}
-				net.AnnounceLinkAddrs(ifname, l.Addr)
+				net.AnnounceARP(ifname, l.Addr)
 			}
 		}
 

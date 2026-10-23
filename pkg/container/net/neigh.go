@@ -59,3 +59,23 @@ func FlushNeighForIPs(iface string, ips []net.IP) error {
 	}
 	return nil
 }
+
+// BridgedIPs groups the links' addresses by the bridge their host-side veth
+// joins, for FlushNeighForIPs. It uses the same rule as createVeth: only
+// veths whose Master is set and not "nil" are attached. Passthru links (a
+// KVM guest's ethN included) and master=nil veths have no host bridge
+// neighbor table to clean, so they are left out.
+func (links Links) BridgedIPs() map[string][]net.IP {
+	out := map[string][]net.IP{}
+	for _, l := range links {
+		if l.Type != LinkTypeVeth || l.Master == "" || l.Master == "nil" {
+			continue
+		}
+		for _, a := range l.Addr {
+			if a.IP != nil {
+				out[l.Master] = append(out[l.Master], a.IP)
+			}
+		}
+	}
+	return out
+}
