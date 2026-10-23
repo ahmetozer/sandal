@@ -27,8 +27,8 @@ import (
 // advertisements without it (a router may split its PIOs over several RAs
 // sent back to back, a burst, so misses count per completed burst), and a
 // Router Solicitation must have had time to collect the answers of all
-// routers. A split advertisement or a silent router thus never causes a
-// (sticky) switch.
+// routers. A split advertisement sent back to back or a silent router thus
+// never causes a (sticky) switch.
 const (
 	raMissLimit   = 2                // consecutive bursts without the prefix, per router
 	raMissTimeout = 30 * time.Second // or this long since a burst without it
@@ -217,16 +217,21 @@ func (t *raTracker) observe(router net.IP, unicast bool, pios []raPIO, active *n
 		if p.Valid == 0 {
 			continue
 		}
-		b.seen[k] = true
 		st := t.prefixes[k]
 		if st == nil {
 			if len(t.prefixes) >= raMaxPrefixes {
+				// Untracked: only the active prefix is remembered, so a
+				// sender spraying new prefixes cannot grow the burst.
+				if k == activeKey {
+					b.seen[k] = true
+				}
 				continue
 			}
 			st = &raPrefix{}
 			t.prefixes[k] = st
 			newPrefix = true
 		}
+		b.seen[k] = true
 		until := raLifetimeEnd(now, p.Valid)
 		*st = raPrefix{until: laterOf(st.until, until)}
 		holds[k] = &raHold{until: until}
