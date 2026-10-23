@@ -383,3 +383,29 @@ func TestE2ELeaseLoopRenewRetransmitted(t *testing.T) {
 	}
 	checkRetransmit(t, srv, Msg6Renew)
 }
+
+// noiseConn delivers a steady stream of packets that never match.
+type noiseConn struct{ silentConn }
+
+func (n *noiseConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	time.Sleep(2 * time.Millisecond)
+	p := &Packet6{MsgType: Msg6Reply, TransactionID: [3]byte{9, 9, 9}}
+	return copy(b, p.Marshal()), nil, nil
+}
+
+// A stream of non-matching packets must not delay cancellation until the
+// retransmission deadline.
+func TestExchangeCancelsDuringPacketNoise(t *testing.T) {
+	c := &Client6{iface: &net.Interface{Index: 1, Name: "lo"}, ServerPort: 547}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	p := rtParams{IRT: 5 * time.Second, MRT: 5 * time.Second}
+	start := time.Now()
+	_, err := c.exchange(ctx, &noiseConn{}, &Packet6{MsgType: Msg6Renew, TransactionID: [3]byte{1, 2, 3}}, Msg6Reply, p)
+	if err == nil || ctx.Err() == nil {
+		t.Fatalf("err = %v, want ctx deadline", err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("exchange returned after %v, want prompt cancellation", d)
+	}
+}

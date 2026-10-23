@@ -92,6 +92,11 @@ func (c *Client6) exchange(ctx context.Context, conn net.PacketConn, pkt *Packet
 		deadline := time.Now().Add(rt)
 
 		for time.Now().Before(deadline) {
+			// Checked every packet: a stream of non-matching packets must
+			// not hold off cancellation until the deadline.
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			// Short read slices so a cancelled ctx is noticed promptly.
 			rd := time.Now().Add(time.Second)
 			if deadline.Before(rd) {
