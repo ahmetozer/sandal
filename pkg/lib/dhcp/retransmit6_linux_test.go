@@ -325,3 +325,61 @@ func TestE2EPDRenewRetransmitted(t *testing.T) {
 	}
 	checkRetransmit(t, srv, Msg6Renew)
 }
+
+// pdLoopRefresher drives RenewPDLease from a LeaseLoop.
+type pdLoopRefresher struct {
+	c       *Client6
+	lease   *PDLease
+	renewed chan *PDLease
+}
+
+func (r *pdLoopRefresher) Renew(ctx context.Context) (time.Duration, time.Duration, time.Duration, error) {
+	l, err := r.c.RenewPDLease(ctx, r.lease)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	r.lease = l
+	select {
+	case r.renewed <- l:
+	default:
+	}
+	return l.T1, l.T2, l.ValidLifetime, nil
+}
+
+func (r *pdLoopRefresher) Rebind(ctx context.Context) (time.Duration, time.Duration, time.Duration, error) {
+	return 0, 0, 0, context.DeadlineExceeded
+}
+
+func (r *pdLoopRefresher) Release() error { return nil }
+
+// The lease loop must let exchange retransmit a lost Renew (same txID,
+// growing Elapsed Time) instead of cutting each attempt short and starting
+// a fresh transaction. Renew IRT is kept above the loop's old 2 s attempt cap.
+func TestE2ELeaseLoopRenewRetransmitted(t *testing.T) {
+	shrinkRT(t)
+	renewRT = rtParams{IRT: 2500 * time.Millisecond, MRT: 5 * time.Second}
+	srv := &fakeServer{pd: true, dropType: Msg6Renew, dropCount: 1}
+	c := dhcpLab(t, srv)
+	_, pfx, _ := net.ParseCIDR("2001:db8:100::/60")
+	r := &pdLoopRefresher{c: c, lease: &PDLease{Prefix: pfx, ServerDUID: []byte{0, 3, 0, 1, 2, 2, 2, 2, 2, 2}}, renewed: make(chan *PDLease, 1)}
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+	defer cancel()
+	var got *PDLease
+	go func() {
+		select {
+		case got = <-r.renewed:
+		case <-ctx.Done():
+		}
+		cancel()
+	}()
+	// Run on this goroutine: its OS thread is locked into the test netns.
+	loop := NewLeaseLoop(r, LeaseTimes{T1: 50 * time.Millisecond, T2: 8 * time.Second, Valid: 10 * time.Second})
+	loop.Run(ctx)
+	if got == nil {
+		t.Fatalf("lease not renewed; server saw %d RENEW", srv.count(Msg6Renew))
+	}
+	if got.CIDR() != "2001:db8:100::/60" {
+		t.Fatalf("renewed prefix = %s", got.CIDR())
+	}
+	checkRetransmit(t, srv, Msg6Renew)
+}

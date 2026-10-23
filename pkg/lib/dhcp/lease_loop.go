@@ -10,7 +10,9 @@ import (
 // DHCPv6 client. Implementations exist for IA_NA (in-container) and IA_PD (host-side).
 //
 // Renew/Rebind return the next round's T1, T2, and ValidLifetime. They MUST NOT
-// block past the supplied context.
+// block past the supplied context. The context ends at the RFC 8415 MRD of
+// the message (T2 for Renew, the valid lifetime for Rebind); until then the
+// implementation retransmits within a single transaction.
 type LeaseRefresher interface {
 	Renew(ctx context.Context) (t1, t2, valid time.Duration, err error)
 	Rebind(ctx context.Context) (t1, t2, valid time.Duration, err error)
@@ -63,14 +65,15 @@ func (l *LeaseLoop) Run(ctx context.Context) {
 			case <-time.After(d):
 			}
 		}
-		// Phase 2: between T1 and T2 — keep trying Renew.
+		// Phase 2: between T1 and T2 — one Renew transaction retransmitted
+		// until T2 (its MRD). Retry only after a hard error that ended it early.
 		renewedOK := false
 		for {
 			now = time.Now()
 			if !now.Before(t2Deadline) {
 				break
 			}
-			renewCtx, renewCancel := context.WithDeadline(ctx, minTime(t2Deadline, now.Add(2*time.Second)))
+			renewCtx, renewCancel := context.WithDeadline(ctx, t2Deadline)
 			nt1, nt2, nv, err := l.r.Renew(renewCtx)
 			renewCancel()
 			if ctx.Err() != nil {
@@ -84,6 +87,9 @@ func (l *LeaseLoop) Run(ctx context.Context) {
 				renewedOK = true
 				break
 			}
+			if !time.Now().Before(t2Deadline) {
+				break
+			}
 			slog.Debug("dhcp6: renew failed, retrying", "err", err)
 			select {
 			case <-ctx.Done():
@@ -94,14 +100,15 @@ func (l *LeaseLoop) Run(ctx context.Context) {
 		if renewedOK {
 			continue
 		}
-		// Phase 3: T2 reached without Renew success — Rebind until valid lifetime expires.
+		// Phase 3: T2 reached without Renew success — one Rebind transaction
+		// retransmitted until the valid lifetime expires (its MRD).
 		rebindOK := false
 		for {
 			now = time.Now()
 			if !now.Before(validDeadline) {
 				break
 			}
-			rebindCtx, rebindCancel := context.WithDeadline(ctx, minTime(validDeadline, now.Add(2*time.Second)))
+			rebindCtx, rebindCancel := context.WithDeadline(ctx, validDeadline)
 			nt1, nt2, nv, err := l.r.Rebind(rebindCtx)
 			rebindCancel()
 			if ctx.Err() != nil {
@@ -113,6 +120,9 @@ func (l *LeaseLoop) Run(ctx context.Context) {
 				t2Deadline = time.Now().Add(t2)
 				validDeadline = time.Now().Add(valid)
 				rebindOK = true
+				break
+			}
+			if !time.Now().Before(validDeadline) {
 				break
 			}
 			slog.Debug("dhcp6: rebind failed, retrying", "err", err)
@@ -150,13 +160,6 @@ func defaultsFor(in LeaseTimes) (t1, t2, valid time.Duration) {
 		t2 = (valid * 4) / 5
 	}
 	return
-}
-
-func minTime(a, b time.Time) time.Time {
-	if a.Before(b) {
-		return a
-	}
-	return b
 }
 
 func retryBackoff(t1, t2 time.Duration) time.Duration {
