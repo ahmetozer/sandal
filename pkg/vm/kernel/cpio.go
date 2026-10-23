@@ -94,11 +94,18 @@ func newcCPIO(name string, data []byte, mode uint32) []byte {
 	return buf.Bytes()
 }
 
-// findInCPIO parses a newc-format CPIO archive and returns the data for the
-// named file.
+// findInCPIO parses newc-format CPIO data and returns the data for the named
+// file. Like the kernel's initramfs unpacker it walks every concatenated
+// archive (skipping the NUL padding between them) and the LAST entry with the
+// name wins, so the result is what the guest will actually see.
 func findInCPIO(data []byte, target string) ([]byte, error) {
+	var found []byte
 	offset := 0
 	for offset < len(data) {
+		// Skip NUL padding between concatenated archives.
+		for offset < len(data) && data[offset] == 0 {
+			offset++
+		}
 		if offset+110 > len(data) {
 			break
 		}
@@ -122,7 +129,9 @@ func findInCPIO(data []byte, target string) ([]byte, error) {
 		dataEnd := dataStart + int(filesize)
 
 		if name == "TRAILER!!!" {
-			break
+			// End of this archive; another may follow.
+			offset = align4(dataEnd)
+			continue
 		}
 
 		// Strip leading "./" or "/" for comparison
@@ -134,14 +143,17 @@ func findInCPIO(data []byte, target string) ([]byte, error) {
 			if dataEnd > len(data) {
 				return nil, fmt.Errorf("cpio data overflow for %s", target)
 			}
-			return data[dataStart:dataEnd], nil
+			found = data[dataStart:dataEnd]
 		}
 
 		// Next entry: align data end to 4 bytes
 		offset = align4(dataEnd)
 	}
 
-	return nil, fmt.Errorf("file %q not found in cpio archive", target)
+	if found == nil {
+		return nil, fmt.Errorf("file %q not found in cpio archive", target)
+	}
+	return found, nil
 }
 
 // stripCPIOTrailer removes the TRAILER!!! entry and any trailing padding

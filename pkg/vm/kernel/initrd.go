@@ -88,7 +88,11 @@ func buildModulesInitrd(destPath string, modules []moduleFile) error {
 // injected before each exec switch_root call. It appends a CPIO overlay to
 // the original initramfs. The kernel processes concatenated archives in order,
 // so the modified /init overrides the original.
-// Returns the path to a temporary file (caller must remove it).
+// Returns the path to a temporary file (caller must remove it), or
+// initrdPath unchanged when there is nothing to inject: no mounts, or an
+// /init that is not a shell script. The sandal initrd's /init is the sandal
+// binary itself, which mounts virtiofs shares from SANDAL_VM_MOUNTS; editing
+// it as text would corrupt the ELF and make PID 1 segfault.
 func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 	if len(mounts) == 0 {
 		return initrdPath, nil
@@ -97,6 +101,9 @@ func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 	initScript, err := extractInit(initrdPath)
 	if err != nil {
 		return "", fmt.Errorf("extract init from initramfs: %w", err)
+	}
+	if !isScript(initScript) {
+		return initrdPath, nil
 	}
 
 	modified := injectMounts(string(initScript), mounts)
@@ -274,6 +281,9 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 	if err != nil {
 		return "", fmt.Errorf("extract init from initramfs: %w", err)
 	}
+	if !isScript(initScript) {
+		return "", fmt.Errorf("initramfs /init is not a shell script")
+	}
 
 	modified := string(initScript)
 	if len(mounts) > 0 {
@@ -308,6 +318,12 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 	return tmp.Name(), nil
 }
 
+// isScript reports whether an /init payload is an interpreter script
+// (starts with "#!") and so can be edited line by line.
+func isScript(init []byte) bool {
+	return bytes.HasPrefix(init, []byte("#!"))
+}
+
 // extractInit reads the initramfs (gzip-compressed or plain CPIO) and
 // returns the contents of the /init file.
 func extractInit(initrdPath string) ([]byte, error) {
@@ -325,17 +341,39 @@ func extractInit(initrdPath string) ([]byte, error) {
 }
 
 // decompressInitrd decompresses a gzip-compressed initrd to get raw CPIO data.
-// If the data is not gzip-compressed, it is returned as-is.
+// If the data is not gzip-compressed, it is returned as-is. Leading gzip
+// members are decompressed one by one; anything after them that is not gzip
+// (e.g. an uncompressed overlay archive appended by CreateOverlay) is kept
+// as-is, mirroring how the kernel accepts mixed concatenated initramfs.
 func decompressInitrd(data []byte) ([]byte, error) {
-	if len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+	var out bytes.Buffer
+	rest := data
+	for {
+		for len(rest) > 0 && rest[0] == 0 {
+			rest = rest[1:]
+		}
+		if len(rest) < 2 || rest[0] != 0x1f || rest[1] != 0x8b {
+			break
+		}
+		// bytes.Reader is an io.ByteReader, so the decompressor stops exactly
+		// at the end of the member and br.Len() is the unread remainder.
+		br := bytes.NewReader(rest)
+		r, err := gzip.NewReader(br)
+		if err != nil {
+			return nil, err
+		}
+		r.Multistream(false)
+		if _, err := io.Copy(&out, r); err != nil {
+			return nil, err
+		}
+		r.Close()
+		rest = rest[len(rest)-br.Len():]
+	}
+	if out.Len() == 0 {
 		return data, nil
 	}
-	r, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	return io.ReadAll(r)
+	out.Write(rest)
+	return out.Bytes(), nil
 }
 
 // injectMounts inserts virtiofs mount commands:
