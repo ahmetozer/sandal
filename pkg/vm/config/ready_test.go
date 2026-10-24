@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 type nopWriteCloser struct{ io.Writer }
@@ -45,5 +46,32 @@ func TestWaitReadyWithoutReport(t *testing.T) {
 	err := WaitReady(strings.NewReader(""))
 	if err == nil || !strings.Contains(err.Error(), "before it was ready") {
 		t.Fatalf("WaitReady(empty) = %v, want an exited-before-ready error", err)
+	}
+}
+
+// A VMM that neither reports nor exits must not block the caller forever.
+func TestWaitReadyTimeout(t *testing.T) {
+	r, w := io.Pipe()
+	defer w.Close()
+	start := time.Now()
+	err := WaitReadyTimeout(r, 100*time.Millisecond)
+	if !errors.Is(err, ErrReadyTimeout) {
+		t.Fatalf("WaitReadyTimeout(silent) = %v, want ErrReadyTimeout", err)
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("WaitReadyTimeout took %v with a 100ms timeout", took)
+	}
+}
+
+func TestWaitReadyTimeoutReported(t *testing.T) {
+	var buf bytes.Buffer
+	ReportReady(nopWriteCloser{&buf}, nil)
+	if err := WaitReadyTimeout(&buf, time.Second); err != nil {
+		t.Fatalf("WaitReadyTimeout(ok) = %v, want nil", err)
+	}
+	buf.Reset()
+	ReportReady(nopWriteCloser{&buf}, errors.New("bind: address already in use"))
+	if err := WaitReadyTimeout(&buf, time.Second); err == nil || errors.Is(err, ErrReadyTimeout) {
+		t.Fatalf("WaitReadyTimeout(failed) = %v, want the reported error", err)
 	}
 }

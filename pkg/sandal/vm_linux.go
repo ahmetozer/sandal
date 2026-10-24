@@ -5,6 +5,7 @@ package sandal
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -372,13 +374,33 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		}
 	}()
 
-	if err := vmconfig.WaitReady(readyR); err != nil {
-		// The child is exiting: let the goroutine record it and clean up
-		// before a CLI parent returns and exits.
-		<-exited
-		return fmt.Errorf("starting VM %s: %w", c.Name, err)
+	return awaitVMReady(readyR, cmd.Process, exited, c.Name, vmReadyTimeout)
+}
+
+// vmReadyTimeout bounds how long `run -vm -d` waits for the forked VMM to
+// report ready. It reports once the VM is started and its port forwards
+// are bound, before the guest boots, so only a stuck VMM reaches it.
+const vmReadyTimeout = 60 * time.Second
+
+// awaitVMReady waits up to timeout for the ready report of the forked VMM
+// proc on r. When the VMM fails or exits, it waits for exited (the
+// goroutine recording the exit) and returns the error. On timeout it kills
+// the VMM first, so no VM is left running that the caller reported as
+// failed; the exit is then recorded as for any other VMM exit.
+func awaitVMReady(r io.Reader, proc *os.Process, exited <-chan struct{}, name string, timeout time.Duration) error {
+	err := vmconfig.WaitReadyTimeout(r, timeout)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if errors.Is(err, vmconfig.ErrReadyTimeout) {
+		proc.Kill()
+		<-exited
+		return fmt.Errorf("starting VM %s: the VM process did not report ready within %s and was stopped; console output: %s", name, timeout, console.StdoutPath(name))
+	}
+	// The child is exiting: let the goroutine record it and clean up
+	// before a CLI parent returns and exits.
+	<-exited
+	return fmt.Errorf("starting VM %s: %w", name, err)
 }
 
 // setForkedVMExit sets the status of the persisted record latest from the

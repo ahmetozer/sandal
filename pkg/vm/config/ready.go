@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"time"
 )
 
 // readyOK is what a VMM writes on its ready pipe once the VM is started and
@@ -39,4 +40,24 @@ func WaitReady(r io.Reader) error {
 		return errors.New("VM process exited before it was ready")
 	}
 	return errors.New(msg)
+}
+
+// ErrReadyTimeout is returned by WaitReadyTimeout when the VMM neither
+// reported nor exited in time.
+var ErrReadyTimeout = errors.New("VM process did not report ready in time")
+
+// WaitReadyTimeout is WaitReady that gives up after timeout with
+// ErrReadyTimeout. The read keeps running in the background until r ends
+// (the VMM reports or exits), so the caller should stop the VMM then.
+func WaitReadyTimeout(r io.Reader, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() { done <- WaitReady(r) }()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		return ErrReadyTimeout
+	}
 }
