@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1316,6 +1316,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bridge-mac-and-neighbor-announcements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge MAC and Neighbor Announcements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#bridge-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1552,7 +1563,7 @@
 <h3 id="default-bridge-creation">Default Bridge Creation<a class="headerlink" href="#default-bridge-creation" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">CreateDefaultBridge</span><span class="p">()</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">bridge</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">netlink</span><span class="p">.</span><span class="nx">Bridge</span><span class="p">{</span>
-<span class="w">        </span><span class="nx">LinkAttrs</span><span class="p">:</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAttrs</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sandal0&quot;</span><span class="p">},</span>
+<span class="w">        </span><span class="nx">LinkAttrs</span><span class="p">:</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAttrs</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"sandal0"</span><span class="p">},</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkAdd</span><span class="p">(</span><span class="nx">bridge</span><span class="p">)</span>
 <span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetUp</span><span class="p">(</span><span class="nx">bridge</span><span class="p">)</span>
@@ -1561,9 +1572,14 @@
 <span class="w">    </span><span class="c1">// Set forward delay to 0</span>
 <span class="p">}</span>
 </code></pre></div>
+<h3 id="bridge-mac-and-neighbor-announcements">Bridge MAC and Neighbor Announcements<a class="headerlink" href="#bridge-mac-and-neighbor-announcements" title="Permanent link">&para;</a></h3>
+<p>A bridge created without an address takes the lowest MAC among its ports and changes it whenever a port comes or goes, while containers keep the old MAC cached for their gateway. sandal therefore gives <code>sandal0</code> a fixed, locally administered MAC when it creates it, derived from <code>/etc/machine-id</code> (stable across boots), from the uplink MAC when there is no machine-id, and random when there is neither. A <code>sandal0</code> left by an older sandal without a fixed MAC is pinned once, the next time sandal looks it up; a MAC set by the user or udev is kept.</p>
+<p>sandal enforces <code>net.ipv6.conf.sandal0.ndisc_notify=1</code> and <code>net.ipv4.conf.sandal0.arp_notify=1</code>, so the kernel announces <code>sandal0</code>'s addresses whenever its MAC changes. After a pin, sandal also sends its own announcements (gratuitous ARP per IPv4 address, router Neighbor Advertisement with R=1 O=1 per IPv6 address); it logs a warning when the two sysctls cannot be set, e.g. under a read-only <code>/proc/sys</code>.</p>
+<p>A container that misses every announcement keeps the old gateway MAC until its neighbor entry goes stale and is probed again. The time this takes scales with <code>base_reachable_time_ms</code> (default 30000, i.e. 15 to 45 s before an entry turns stale). Keep it near the default: a host-wide value far above it (<code>net.ipv4.neigh.default.base_reachable_time_ms</code>, <code>net.ipv6.neigh.default.base_reachable_time_ms</code>) delays this recovery accordingly, up to hours.</p>
 <h3 id="bridge-modes">Bridge Modes<a class="headerlink" href="#bridge-modes" title="Permanent link">&para;</a></h3>
 <p><strong>Bare metal Linux</strong>:
 - Bridge gets static + dynamic addresses from <code>SANDAL_HOST_NET</code> (default: <code>172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64</code>). <code>%uv4%</code> resolves to the host's IPv4 as hex hextets at startup; <code>%uv6%</code> resolves to the upstream prefix's high 64 bits on each renumber event.
+- Containers and VMs opt into a public IPv6 with a <code>%uv6%</code> dynamic address in <code>-net ip=</code> (<code>Link.DynamicAddr</code>), or implicitly when sandal allocates their addresses. It is resolved at creation from sandal0's current prefix, and for containers re-resolved by the renumber service (<code>pkg/container/net/renumber</code>) on every prefix change and health-check tick. In ndp-proxy mode globals are <code>/128</code> and proxied on the uplink; in pd mode they keep the delegated <code>/64</code>. Gateways are always the bridge ULA. The prefix is learned from an uplink address or, without SLAAC, from the RA on-link route.
 - Containers get IPs from the same subnet
 - Host acts as gateway, uses iptables NAT for internet access</p>
 <p><strong>Inside KVM VM</strong> (when sandal itself runs in a VM):
@@ -1577,7 +1593,7 @@
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
 <span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="c1">// Standard mode: assign IP to bridge</span>
-<span class="w">        </span><span class="nx">addr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">parseAddr</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Getenv</span><span class="p">(</span><span class="s">&quot;SANDAL_HOST_NET&quot;</span><span class="p">))</span>
+<span class="w">        </span><span class="nx">addr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">parseAddr</span><span class="p">(</span><span class="nx">os</span><span class="p">.</span><span class="nx">Getenv</span><span class="p">(</span><span class="s">"SANDAL_HOST_NET"</span><span class="p">))</span>
 <span class="w">        </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">AddrAdd</span><span class="p">(</span><span class="nx">bridge</span><span class="p">,</span><span class="w"> </span><span class="nx">addr</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
@@ -1601,8 +1617,8 @@
 <h3 id="network-interface-configuration">Network Interface Configuration<a class="headerlink" href="#network-interface-configuration" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>net/link.go</code></p>
 <p>Each container network interface spec supports:</p>
-<div class="highlight"><pre><span></span><code>-net &quot;ip=172.16.0.2/24;route=172.16.0.1;type=veth;master=sandal0&quot;
--net &quot;ip=dhcp;type=veth;master=sandal0&quot;
+<div class="highlight"><pre><span></span><code>-net "ip=172.16.0.2/24;route=172.16.0.1;type=veth;master=sandal0"
+-net "ip=dhcp;type=veth;master=sandal0"
 </code></pre></div>
 <p>Note: sharing the host network namespace is done via <code>-ns-net host</code>, not through the network interface flag.</p>
 <p>Configuration flow:
@@ -1631,7 +1647,7 @@
 <span class="w">    </span><span class="c1">// Increment from bridge IP until finding unused one</span>
 <span class="w">    </span><span class="nx">candidate</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">incrementIP</span><span class="p">(</span><span class="nx">baseIP</span><span class="p">)</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">usedIPs</span><span class="p">[</span><span class="nx">candidate</span><span class="p">.</span><span class="nx">String</span><span class="p">()]</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">candidate</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">incrementIP</span><span class="p">(</span><span class="nx">candidate</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">candidate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">incrementIP</span><span class="p">(</span><span class="nx">candidate</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">IPNet</span><span class="p">{</span><span class="nx">IP</span><span class="p">:</span><span class="w"> </span><span class="nx">candidate</span><span class="p">,</span><span class="w"> </span><span class="nx">Mask</span><span class="p">:</span><span class="w"> </span><span class="nx">bridgeAddrs</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Mask</span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
 <span class="p">}</span>
@@ -1669,14 +1685,14 @@
 <h3 id="tap-device">TAP Device<a class="headerlink" href="#tap-device" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>pkg/vm/kvm/tap.go</code></p>
 <div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">createTAP</span><span class="p">(</span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">tapDevice</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">&quot;/dev/net/tun&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">O_CLOEXEC</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">Open</span><span class="p">(</span><span class="s">"/dev/net/tun"</span><span class="p">,</span><span class="w"> </span><span class="nx">unix</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="o">|</span><span class="nx">unix</span><span class="p">.</span><span class="nx">O_CLOEXEC</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
 
 <span class="w">    </span><span class="nx">ifr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">ifreq</span><span class="p">{</span>
 <span class="w">        </span><span class="nx">Flags</span><span class="p">:</span><span class="w"> </span><span class="nx">IFF_TAP</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nx">IFF_NO_PI</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nx">IFF_VNET_HDR</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="nb">copy</span><span class="p">(</span><span class="nx">ifr</span><span class="p">.</span><span class="nx">Name</span><span class="p">[:],</span><span class="w"> </span><span class="nx">name</span><span class="p">)</span><span class="w">  </span><span class="c1">// e.g., &quot;sandal1234&quot;</span>
+<span class="w">    </span><span class="nb">copy</span><span class="p">(</span><span class="nx">ifr</span><span class="p">.</span><span class="nx">Name</span><span class="p">[:],</span><span class="w"> </span><span class="nx">name</span><span class="p">)</span><span class="w">  </span><span class="c1">// e.g., "sandal1234"</span>
 
-<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETIFF</span><span class="p">,</span><span class="w"> </span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">ifr</span><span class="p">)))</span>
+<span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETIFF</span><span class="p">,</span><span class="w"> </span><span class="kt">uintptr</span><span class="p">(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">ifr</span><span class="p">)))</span>
 <span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETOFFLOAD</span><span class="p">,</span><span class="w"> </span><span class="nx">TUN_F_CSUM</span><span class="o">|</span><span class="nx">TUN_F_TSO4</span><span class="o">|</span><span class="nx">TUN_F_TSO6</span><span class="p">)</span>
 <span class="w">    </span><span class="nx">ioctl</span><span class="p">(</span><span class="nx">fd</span><span class="p">,</span><span class="w"> </span><span class="nx">TUNSETVNETHDRSZ</span><span class="p">,</span><span class="w"> </span><span class="mi">12</span><span class="p">)</span><span class="w">  </span><span class="c1">// virtio_net_hdr size</span>
 
@@ -1698,11 +1714,11 @@
 <h3 id="vm-side-network-configuration">VM-side Network Configuration<a class="headerlink" href="#vm-side-network-configuration" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>pkg/vm/guest/init.go</code></p>
 <p>Network config is passed via kernel command line as base64-encoded JSON:</p>
-<div class="highlight"><pre><span></span><code>SANDAL_VM_NET=&lt;base64({&quot;addr&quot;:&quot;172.16.0.5/24&quot;,&quot;gateway&quot;:&quot;172.16.0.1&quot;,&quot;mac&quot;:&quot;52:54:00:xx:xx:01&quot;,&quot;mtu&quot;:1500})&gt;
+<div class="highlight"><pre><span></span><code>SANDAL_VM_NET=&lt;base64({"addr":"172.16.0.5/24","gateway":"172.16.0.1","mac":"52:54:00:xx:xx:01","mtu":1500})&gt;
 </code></pre></div>
 <p>Guest init applies this:
 <div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">vmConfigureNetwork</span><span class="p">(</span><span class="nx">cfg</span><span class="w"> </span><span class="nx">vmNetConfig</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkByName</span><span class="p">(</span><span class="s">&quot;eth0&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkByName</span><span class="p">(</span><span class="s">"eth0"</span><span class="p">)</span>
 <span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetHardwareAddr</span><span class="p">(</span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">MAC</span><span class="p">)</span>
 <span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">AddrAdd</span><span class="p">(</span><span class="nx">eth0</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Addr</span><span class="p">)</span>
 <span class="w">    </span><span class="nx">netlink</span><span class="p">.</span><span class="nx">LinkSetUp</span><span class="p">(</span><span class="nx">eth0</span><span class="p">)</span>
@@ -1711,7 +1727,7 @@
 </code></pre></div></p>
 <h3 id="mac-address-generation">MAC Address Generation<a class="headerlink" href="#mac-address-generation" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="c1">// virtio_net.go</span>
-<span class="nx">mac</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="kt">byte</span><span class="p">{</span><span class="mh">0x52</span><span class="p">,</span><span class="w"> </span><span class="mh">0x54</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span><span class="w"> </span><span class="nb">byte</span><span class="p">(</span><span class="nx">pid</span><span class="o">&gt;&gt;</span><span class="mi">8</span><span class="p">),</span><span class="w"> </span><span class="nb">byte</span><span class="p">(</span><span class="nx">pid</span><span class="p">),</span><span class="w"> </span><span class="mh">0x01</span><span class="p">}</span>
+<span class="nx">mac</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="kt">byte</span><span class="p">{</span><span class="mh">0x52</span><span class="p">,</span><span class="w"> </span><span class="mh">0x54</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span><span class="w"> </span><span class="kt">byte</span><span class="p">(</span><span class="nx">pid</span><span class="o">&gt;&gt;</span><span class="mi">8</span><span class="p">),</span><span class="w"> </span><span class="kt">byte</span><span class="p">(</span><span class="nx">pid</span><span class="p">),</span><span class="w"> </span><span class="mh">0x01</span><span class="p">}</span>
 </code></pre></div>
 <ul>
 <li>Prefix <code>52:54:00</code> is the QEMU/KVM OUI range</li>
@@ -1740,7 +1756,7 @@
 <p>When sandal runs inside an existing VM (detected by <code>env.IsVM()</code>):</p>
 <div class="highlight"><pre><span></span><code>Container eth0 inside VM
   -&gt; ethN passthru (no bridge, no veth)
-  -&gt; VM&#39;s virtio-net interface
+  -&gt; VM's virtio-net interface
   -&gt; Host TAP device
   -&gt; Host sandal0 bridge
   -&gt; DHCP from host network
@@ -1799,7 +1815,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1502,7 +1502,7 @@
             |
             +-- Parse ALL flags (including -vm) into Config struct
             |
-            +-- c.VM != &quot;&quot; AND not already in VM?
+            +-- c.VM != "" AND not already in VM?
             |     YES -&gt; RunInVM(&amp;config)    # Phase 3
             |
             +-- NO -&gt; RunContainer(&amp;config)  # Phase 4
@@ -1577,7 +1577,7 @@
   |     Ephemeral VM config and initrd cleaned up (daemon rebuilds).
   |
   |   Path B: Fork child process (daemon context or -d)
-  |     forkVMProcess() -&gt; exec.Command(&quot;sandal vm start -name &lt;name&gt;&quot;)
+  |     forkVMProcess() -&gt; exec.Command("sandal vm start -name &lt;name&gt;")
   |     Child process runs in new session (Setsid: true)
   |     Parent records child PID as HostPid
   |     Goroutine waits for child, cleans up VM config/initrd on exit
@@ -1599,7 +1599,7 @@
   |
   +-- NewVM(name, cfg)
   |   |
-  |   +-- openKVM() -&gt; fd = open(&quot;/dev/kvm&quot;)
+  |   +-- openKVM() -&gt; fd = open("/dev/kvm")
   |   |   verify KVM_GET_API_VERSION == 12
   |   |
   |   +-- ioctl(kvmFd, KVM_CREATE_VM, 0) -&gt; vmFd
@@ -1637,11 +1637,11 @@
   |   |     [N+1] VirtioNetDevice (device ID 1) with TAP backend
   |   |
   |   +-- initVCPUs(vmFd, vcpuFds, mem, cfg)
-  |   |     ARM64: See &quot;ARM64 vCPU Init&quot; below
-  |   |     x86: See &quot;x86 vCPU Init&quot; below
+  |   |     ARM64: See "ARM64 vCPU Init" below
+  |   |     x86: See "x86 vCPU Init" below
   |   |
   |   +-- setupGSIRouting(vmFd, devices) -&gt; KVM_SET_GSI_ROUTING
-  |   |     Maps each device&#39;s GSI to GIC SPI interrupt
+  |   |     Maps each device's GSI to GIC SPI interrupt
   |   |
   |   +-- For each virtio device:
   |         setupIRQFD(vmFd, dev) -&gt; KVM_IRQFD with eventfd
@@ -1760,7 +1760,7 @@
   +-- Set hostname (/etc/hostname)
   |
   +-- Pivot root to container rootfs
-  |     mount(&quot;&quot;, &quot;/&quot;, &quot;&quot;, MS_PRIVATE|MS_REC, &quot;&quot;)
+  |     mount("", "/", "", MS_PRIVATE|MS_REC, "")
   |     pivot_root(rootfs, oldroot)
   |     unmount(oldroot)
   |
@@ -1784,10 +1784,10 @@
   |     Base64-decode values, set as environment variables
   |
   +-- Mount essential filesystems:
-  |     mount(&quot;proc&quot;, &quot;/proc&quot;, &quot;proc&quot;, 0, &quot;&quot;)
-  |     mount(&quot;devtmpfs&quot;, &quot;/dev&quot;, &quot;devtmpfs&quot;, 0, &quot;&quot;)
-  |     mount(&quot;sysfs&quot;, &quot;/sys&quot;, &quot;sysfs&quot;, 0, &quot;&quot;)
-  |     mount(&quot;devpts&quot;, &quot;/dev/pts&quot;, &quot;devpts&quot;, 0, &quot;&quot;)
+  |     mount("proc", "/proc", "proc", 0, "")
+  |     mount("devtmpfs", "/dev", "devtmpfs", 0, "")
+  |     mount("sysfs", "/sys", "sysfs", 0, "")
+  |     mount("devpts", "/dev/pts", "devpts", 0, "")
   |
   +-- Redirect stdin/stdout/stderr to /dev/console
   |
@@ -1799,16 +1799,16 @@
   |     Group 5 (tunneling): vxlan, ip_gre, wireguard
   |
   +-- Setup new root:
-  |     mount(&quot;tmpfs&quot;, &quot;/newroot&quot;, &quot;tmpfs&quot;, 0, &quot;&quot;)
+  |     mount("tmpfs", "/newroot", "tmpfs", 0, "")
   |     Copy /init to /newroot/init
   |     Create dirs: /proc, /sys, /dev, /mnt, /var/lib/sandal, ...
-  |     chroot(&quot;/newroot&quot;)
+  |     chroot("/newroot")
   |
   +-- Mount VirtioFS shares:
-  |     Decode SANDAL_VM_MOUNTS: &quot;fs-0=/host/data,fs-1=/home/user/.sandal-vm&quot;
+  |     Decode SANDAL_VM_MOUNTS: "fs-0=/host/data,fs-1=/home/user/.sandal-vm"
   |     For each mount:
   |       mkdir -p &lt;mountpoint&gt;
-  |       mount(tag, mountpoint, &quot;virtiofs&quot;, 0, &quot;&quot;)
+  |       mount(tag, mountpoint, "virtiofs", 0, "")
   |
   +-- Configure network:
   |     Decode SANDAL_VM_NET JSON: {addr, gateway, mac, mtu}
@@ -1818,18 +1818,18 @@
   |
   +-- Return to platformMain()
   |
-  +-- env.SetDefault(&quot;SANDAL_STATE_DIR&quot;, &quot;/tmp/sandal-state&quot;)
-  +-- env.BaseStateDir = &quot;/tmp/sandal-state&quot;
+  +-- env.SetDefault("SANDAL_STATE_DIR", "/tmp/sandal-state")
+  +-- env.BaseStateDir = "/tmp/sandal-state"
   |     Redirect state directory to local tmpfs to prevent ghost
   |     container entries: the real state directory
   |     (/var/lib/sandal/state/) is shared via VirtioFS, so writes
   |     would create duplicate entries visible from the host.
   |     The redirect allows child processes to read config while
   |     keeping the host state clean. See architecture.md
-  |     &quot;VirtioFS State Isolation&quot; for details.
+  |     "VirtioFS State Isolation" for details.
   |
   +-- cmd.Main() is called, dispatching the original CLI args
-        from SANDAL_VM_ARGS (e.g., &quot;run alpine:latest /bin/sh&quot;)
+        from SANDAL_VM_ARGS (e.g., "run alpine:latest /bin/sh")
         This triggers Phase 4 (sandal.RunContainer) inside the VM
 </code></pre></div>
 <h2 id="vcpu-run-loop">vCPU Run Loop<a class="headerlink" href="#vcpu-run-loop" title="Permanent link">&para;</a></h2>
@@ -1842,7 +1842,7 @@
   +-- Loop:
         ioctl(vcpuFd, KVM_RUN, 0) -&gt; blocks until VM exit
         |
-        +-- Read exit_reason from mmap&#39;d kvm_run struct
+        +-- Read exit_reason from mmap'd kvm_run struct
         |
         +-- Switch on exit_reason:
               |
@@ -1925,7 +1925,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

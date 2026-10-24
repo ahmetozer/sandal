@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1949,7 +1949,7 @@
 <p>The fastest way to convince yourself isolation works — drop into an Alpine shell with your project bind-mounted, all writes outside the project going to RAM, and disappearing on exit:</p>
 <div class="highlight"><span class="filename">One-shot ephemeral shell with the project mounted</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspace<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-shell<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>/bin/sh
@@ -1970,8 +1970,8 @@
 <p><code>-v "$PWD":/real</code> exposes the same path as a real bind mount at <code>/real</code>. When the agent has finished a task and you've reviewed its changes, you (or the agent under your direction) explicitly copy from <code>/workspace</code> to <code>/real</code> — typically with <code>rsync -a /workspace/ /real/</code> or by <code>git apply</code>-ing a diff — to promote them to the host.</p>
 <div class="highlight"><span class="filename">COW workspace with an explicit promotion path</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-lw<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/real<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/real<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-cow<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
@@ -1979,9 +1979,9 @@
 </code></pre></div>
 <p>Inside the container:</p>
 <div class="highlight"><pre><span></span><code># Agent does whatever it wants under /workspace — all writes are ephemeral.
-$ rm -rf /workspace/src     # this is fine, it&#39;s COW
+$ rm -rf /workspace/src     # this is fine, it's COW
 $ # ... agent does its work ...
-# When you&#39;ve reviewed and want to keep the changes:
+# When you've reviewed and want to keep the changes:
 $ rsync -a --delete /workspace/ /real/
 </code></pre></div>
 <details class="info">
@@ -2002,7 +2002,7 @@ $ rsync -a --delete /workspace/ /real/
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-box<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-tmp<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-p<span class="w"> </span><span class="m">127</span>.0.0.1:2222:22<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
@@ -2045,7 +2045,7 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-box<span class="w"
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-shell<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>sleep<span class="w"> </span>infinity
@@ -2054,13 +2054,13 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-box<span class="w"
 <h3 id="add-a-vs-code-terminal-profile">Add a VS Code terminal profile<a class="headerlink" href="#add-a-vs-code-terminal-profile" title="Permanent link">&para;</a></h3>
 <p>Open VS Code's <code>settings.json</code> (<code>Cmd/Ctrl+Shift+P</code> → <em>Preferences: Open User Settings (JSON)</em>) and add:</p>
 <div class="highlight"><span class="filename">settings.json</span><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;terminal.integrated.profiles.linux&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;sandal-agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sandal&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;exec&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-t&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent-shell&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-l&quot;</span><span class="p">]</span>
+<span class="w">  </span><span class="nt">"terminal.integrated.profiles.linux"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"sandal-agent"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sandal"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"exec"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-t"</span><span class="p">,</span><span class="w"> </span><span class="s2">"agent-shell"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--"</span><span class="p">,</span><span class="w"> </span><span class="s2">"bash"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-l"</span><span class="p">]</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;terminal.integrated.defaultProfile.linux&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sandal-agent&quot;</span>
+<span class="w">  </span><span class="nt">"terminal.integrated.defaultProfile.linux"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sandal-agent"</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Now any new VS Code terminal — including the ones Claude Code spawns for tool calls — opens inside <code>agent-shell</code>. The host editor sees file edits instantly through the bind mount; everything else (package installs, build artifacts, language servers the agent runs from the terminal) lives in the container.</p>
@@ -2075,13 +2075,13 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-box<span class="w"
 <div class="highlight"><span class="filename">Provision the toolchain inside a one-off container</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-toolchain-build<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;</span>
+<span class="w">    </span>--<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">'</span>
 <span class="s1">        apt-get update &amp;&amp; \</span>
 <span class="s1">        apt-get install -y --no-install-recommends \</span>
 <span class="s1">            nodejs npm python3 python3-pip git openssh-server &amp;&amp; \</span>
 <span class="s1">        npm install -g @anthropic-ai/claude-code &amp;&amp; \</span>
 <span class="s1">        rm -rf /var/lib/apt/lists/* /workspaces</span>
-<span class="s1">    &#39;</span>
+<span class="s1">    '</span>
 </code></pre></div>
 <p>Then capture <strong>just the system changes</strong> into a squashfs, excluding the workspace and any per-container state:</p>
 <div class="highlight"><span class="filename">Snapshot the toolchain into a portable .sqfs</span><pre><span></span><code>sandal<span class="w"> </span>snapshot<span class="w"> </span>-e<span class="w"> </span>/workspaces<span class="w"> </span>-e<span class="w"> </span>/tmp<span class="w"> </span><span class="se">\</span>
@@ -2095,7 +2095,7 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <div class="highlight"><span class="filename">Fresh ephemeral session that reuses the toolchain</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/agent-toolchain.sqfs<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-session<span class="w"> </span><span class="se">\</span>
@@ -2153,9 +2153,9 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <p>Agents can read every file they can <code>cat</code> and run every binary on <code>PATH</code>. The defaults above already block most of the host, but you should know the dials.</p>
 <h3 id="narrow-bind-mounts">Narrow bind-mounts<a class="headerlink" href="#narrow-bind-mounts" title="Permanent link">&para;</a></h3>
 <p>Mount only the project. <strong>Do not</strong> bind-mount <code>$HOME</code>, <code>~/.ssh</code>, <code>~/.aws</code>, <code>~/.config</code>, the Docker socket, or <code>/</code>:</p>
-<div class="highlight"><span class="filename">Good: just the project</span><pre><span></span><code>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project
+<div class="highlight"><span class="filename">Good: just the project</span><pre><span></span><code>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspaces/project
 </code></pre></div>
-<div class="highlight"><span class="filename">Bad: don&#x27;t do these</span><pre><span></span><code>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">&quot;</span>:/home/vscode<span class="w">             </span><span class="c1"># exposes your SSH/AWS/GPG keys</span>
+<div class="highlight"><span class="filename">Bad: don&#x27;t do these</span><pre><span></span><code>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">"</span>:/home/vscode<span class="w">             </span><span class="c1"># exposes your SSH/AWS/GPG keys</span>
 -v<span class="w"> </span>/var/run/docker.sock:/var/run/docker.sock<span class="w">  </span><span class="c1"># container can launch host containers</span>
 -v<span class="w"> </span>/:/host<span class="w">                          </span><span class="c1"># full host filesystem</span>
 </code></pre></div>
@@ -2164,7 +2164,7 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <p><code>-env-all</code> ships your entire host environment (including any <code>AWS_*</code>, <code>GITHUB_TOKEN</code>, agent API keys, shell history vars) into the container. Use <a href="../../commands/run/#-env-pass-value"><code>-env-pass</code></a> with an explicit allowlist instead:</p>
 <div class="highlight"><span class="filename">Pass exactly the API key the agent needs, nothing else</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-env-pass<span class="w"> </span>ANTHROPIC_API_KEY<span class="w"> </span><span class="se">\</span>
@@ -2177,8 +2177,8 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <div class="highlight"><span class="filename">Unprivileged user inside, mapped through a user namespace</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-tmp<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-user<span class="w"> </span>vscode<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-ns-user<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-ns-user<span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspaces/project<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>bash
 </code></pre></div>
@@ -2194,8 +2194,8 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <div class="highlight"><span class="filename">Production-ish profile</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/agent-toolchain.sqfs<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-lw<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/workspace<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">&quot;</span>:/real<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/real<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-box<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-tmp<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-dir<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
@@ -2283,7 +2283,7 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-box
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1647,7 +1647,7 @@
 <h2 id="snapshot-as-lower-layer">Snapshot as Lower Layer<a class="headerlink" href="#snapshot-as-lower-layer" title="Permanent link">&para;</a></h2>
 <p>When a container is started with <code>sandal run</code>, if a snapshot file exists for that container it is automatically mounted and appended as the lowest-priority lower directory in the overlay filesystem. This means previously saved changes are available inside the container without manual configuration.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># First run — make changes</span>
-sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-name<span class="w"> </span>myapp<span class="w"> </span>--<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo hello &gt; /data.txt&quot;</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-name<span class="w"> </span>myapp<span class="w"> </span>--<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s2">"echo hello &gt; /data.txt"</span>
 
 <span class="c1"># Snapshot the changes</span>
 sandal<span class="w"> </span>snapshot<span class="w"> </span>myapp
@@ -1720,7 +1720,7 @@ sandal<span class="w"> </span>snapshot<span class="w"> </span>ephemeral
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

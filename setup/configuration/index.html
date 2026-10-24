@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1794,19 +1794,19 @@ This has no effect unless you have been set -chdir argument while starting up th
 <p>Two template placeholders are supported, both prefixed <code>u</code> for "upstream-derived":</p>
 <ul>
 <li><strong><code>%uv4%</code></strong> — upstream interface's IPv4 written as two zero-suppressed hex hextets (e.g. <code>192.168.1.15</code> → <code>c0a8:10f</code>). Resolved <strong>once at startup</strong> from the first global IPv4 on <code>SANDAL_UPSTREAM_IF</code>, falling back to the default-route interface. Substitutes <code>0:0</code> + warning when no IPv4 is available.</li>
-<li><strong><code>%uv6%</code></strong> — upstream IPv6 prefix's first four hextets, no trailing colon (e.g. <code>2a00:1d35:3b0a:4f00::/64</code> → <code>2a00:1d35:3b0a:4f00</code>). <strong>Re-resolved on every upstream prefix event</strong> by the renumber service. Entries containing <code>%uv6%</code> are "dynamic" — they are not applied at bridge create but are reconciled by the renumber service against the live prefix.</li>
+<li><strong><code>%uv6%</code></strong> — upstream IPv6 prefix's first four hextets, no trailing colon (e.g. <code>2001:db8:aaaa:1::/64</code> → <code>2001:db8:aaaa:1</code>). <strong>Re-resolved on every upstream prefix event</strong> by the renumber service. Entries containing <code>%uv6%</code> are "dynamic" — they are not applied at bridge create but are reconciled by the renumber service against the live prefix.</li>
 </ul>
 <p>Default: <code>172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64</code></p>
-<p>With host IPv4 <code>192.168.1.15</code> and ISP prefix <code>2a00:1d35:3b0a:4f00::/64</code> this resolves to:</p>
+<p>With host IPv4 <code>192.168.1.15</code> and ISP prefix <code>2001:db8:aaaa:1::/64</code> this resolves to:</p>
 <div class="highlight"><pre><span></span><code>172.16.0.1/24                              (static IPv4)
 fd34:0135:0123:0:c0a8:10f::1/120           (static ULA, IPv4 in IID)
-2a00:1d35:3b0a:4f00:c0a8:10f::1/64         (dynamic — public, IPv4 in IID)
+2001:db8:aaaa:1:c0a8:10f::1/64             (dynamic — public, IPv4 in IID)
 </code></pre></div>
-<p>The dynamic entry is <strong>owned by the template</strong>: the renumber service applies it verbatim. If you write your own SANDAL_HOST_NET without <code>%uv6%</code>, the renumber service falls back to the historical <code>bridgeIID</code> + <code>withIID</code> stamp instead.</p>
+<p>The dynamic entry is <strong>owned by the template</strong>: the renumber service applies it verbatim. If you write your own SANDAL_HOST_NET without <code>%uv6%</code>, sandal0's public address uses a stable interface ID derived from a hash of the uplink's MAC address (falling back to the uplink IPv4 as <code>%uv4%::1</code>), so it never takes the router's typical <code>&lt;prefix&gt;::1</code>.</p>
 <p>To disable both embeddings, write a value with no tokens: <code>SANDAL_HOST_NET="172.16.0.1/24,fd34:0135:0123::1/120"</code>.</p>
 <h3 id="sandal_upstream_if">SANDAL_UPSTREAM_IF<a class="headerlink" href="#sandal_upstream_if" title="Permanent link">&para;</a></h3>
 <p>Interface name (e.g. <code>eth0</code>, <code>enp1s0</code>) that the daemon watches for upstream IPv6 prefix changes.<br />
-<strong>Empty (default): auto-detect from the host's default route at daemon start.</strong> Set explicitly to override.<br />
+<strong>Empty (default): auto-detect from the host's default route, retried every 5 s until one exists.</strong> Set explicitly to override.<br />
 See <a href="../dynamic-ipv6/">Dynamic IPv6</a>.</p>
 <h3 id="sandal_ipv6_mode">SANDAL_IPV6_MODE<a class="headerlink" href="#sandal_ipv6_mode" title="Permanent link">&para;</a></h3>
 <p>Selects how the upstream prefix is learned. One of:</p>
@@ -1884,7 +1884,7 @@ Supported levels are:</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

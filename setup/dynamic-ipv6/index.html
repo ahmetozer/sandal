@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -638,6 +638,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#give-a-container-a-public-ipv6-with-a-fixed-interface-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Give a container a public IPv6 with a fixed interface ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pin-a-container-to-a-fixed-ipv6-dont-auto-renumber" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -695,6 +706,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What containers actually get">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VMs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upstreams-without-slaac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upstreams without SLAAC
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -713,6 +752,17 @@
     <span class="md-ellipsis">
       
         In-container DHCPv6 renewal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
       
     </span>
   </a>
@@ -1572,6 +1622,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#give-a-container-a-public-ipv6-with-a-fixed-interface-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Give a container a public IPv6 with a fixed interface ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pin-a-container-to-a-fixed-ipv6-dont-auto-renumber" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1629,6 +1690,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What containers actually get">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VMs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upstreams-without-slaac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upstreams without SLAAC
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1647,6 +1736,17 @@
     <span class="md-ellipsis">
       
         In-container DHCPv6 renewal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
       
     </span>
   </a>
@@ -1738,15 +1838,15 @@
 <p>Then start a container as usual:</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>web<span class="w"> </span>-lw<span class="w"> </span>nginx:latest
 </code></pre></div>
-<p>…and the container will have a public IPv6 like <code>2001:db8:3b0a:4f00::2</code> — reachable from any IPv6 device on your LAN.</p>
+<p>…and the container will have a public IPv6 made of the upstream prefix and its ULA's interface identifier, like <code>2001:db8:aaaa:1:c0a8:10f:0:2</code> (see below) — reachable from any IPv6 device on your LAN.</p>
 <h2 id="how-to-verify-its-working">How to verify it's working<a class="headerlink" href="#how-to-verify-its-working" title="Permanent link">&para;</a></h2>
 <p>After the daemon comes up:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Bridge has the public /64 from your upstream</span>
 ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>sandal0
-<span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::1/64                ← public, mirrored from eth0</span>
-<span class="c1">#  fd34:135:123:0:c0a8:10f::1/120                   ← static ULA (kept as fallback)</span>
-<span class="c1">#  172.16.0.1/24                                     ← static IPv4</span>
-<span class="c1"># (The :c0a8:10f tail is the host&#39;s IPv4 (192.168.1.15 here) baked into the IID</span>
+<span class="c1">#  2001:db8:aaaa:1:c0a8:10f::1/128  ← public, mirrored from eth0 (/128 in ndp-proxy, /64 in pd)</span>
+<span class="c1">#  fd34:135:123:0:c0a8:10f::1/120   ← static ULA (kept as fallback)</span>
+<span class="c1">#  172.16.0.1/24                    ← static IPv4</span>
+<span class="c1"># (The :c0a8:10f tail is the host's IPv4 (192.168.1.15 here) baked into the IID</span>
 <span class="c1">#  by the default SANDAL_HOST_NET template — preserved across upstream renumber.)</span>
 
 <span class="c1"># Daemon log shows what was picked</span>
@@ -1754,17 +1854,21 @@ journalctl<span class="w"> </span>-u<span class="w"> </span>sandal<span class="w
 <span class="c1">#  renumber: auto-detected upstream interface  iface=eth0</span>
 <span class="c1">#  renumber: auto-detected IPv6 mode           iface=eth0  mode=ndp-proxy</span>
 <span class="c1">#  renumber: service started                   upstream=eth0 mode=ndp-proxy</span>
-<span class="c1">#  renumber: applying                          prefix=2001:db8:3b0a:4f00::/64</span>
+<span class="c1">#  renumber: applying                          prefix=2001:db8:aaaa:1::/64</span>
 </code></pre></div>
 <p>After <code>sandal run</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Container&#39;s IPv6</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># Container's IPv6</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global
-<span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::2/64                ← public (same IID tail as the host)</span>
-<span class="c1">#  fd34:135:123:0:c0a8:10f::2/120                   ← ULA (host-local)</span>
+<span class="c1">#  2001:db8:aaaa:1:c0a8:10f:0:2/128  ← public (IID mirrors the container's ULA)</span>
+<span class="c1">#  fd34:135:123:0:c0a8:10f::2/120    ← ULA (host-local)</span>
 
 <span class="c1"># Host is announcing it to the LAN</span>
 ip<span class="w"> </span>-6<span class="w"> </span>neigh<span class="w"> </span>show<span class="w"> </span>proxy<span class="w"> </span>dev<span class="w"> </span>eth0
-<span class="c1">#  2001:db8:3b0a:4f00:c0a8:10f::2 proxy</span>
+<span class="c1">#  2001:db8:aaaa:1:c0a8:10f::2 proxy</span>
+
+<span class="c1"># RA prefix route on the uplink (an alternative source when the uplink has no SLAAC address)</span>
+ip<span class="w"> </span>-6<span class="w"> </span>route<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0
+<span class="c1">#  2001:db8:aaaa:1::/64 proto kernel metric 256 expires 300sec   ← upstream /64 (also present when the router offers no SLAAC)</span>
 
 <span class="c1"># Quick reachability test from the container</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ping<span class="w"> </span>-6<span class="w"> </span>-c<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">2606</span>:4700:4700::1111
@@ -1786,11 +1890,29 @@ sandal<span class="w"> </span>daemon
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SANDAL_IPV6_MODE</span><span class="o">=</span>pd
 sandal<span class="w"> </span>daemon
 </code></pre></div>
+<h3 id="give-a-container-a-public-ipv6-with-a-fixed-interface-id">Give a container a public IPv6 with a fixed interface ID<a class="headerlink" href="#give-a-container-a-public-ipv6-with-a-fixed-interface-id" title="Permanent link">&para;</a></h3>
+<p>Write the address as a dynamic address. <code>%uv6%</code> is replaced by the upstream
+prefix (high 64 bits), the same token <code>SANDAL_HOST_NET</code> uses, and is
+re-resolved whenever the prefix rotates:</p>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>web<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-net<span class="w"> </span><span class="s2">"ip=192.0.2.23/24=%uv6%:192:0:2:23=fd00:db8::23/64"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-lw<span class="w"> </span>nginx:latest
+</code></pre></div>
+<p>With prefix <code>2001:db8:aaaa:1::/64</code> the container gets
+<code>2001:db8:aaaa:1:192:0:2:23</code>. After rotation to <code>2001:db8:77:1::/64</code> it
+becomes <code>2001:db8:77:1:192:0:2:23</code>, so firewall rules that match the
+interface-ID suffix keep working. Omit the mask (or write <code>/128</code>); sandal
+installs <code>/128</code> in ndp-proxy mode and the prefix length in pd mode.</p>
+<p>The addresses above are placeholders. Explicit <code>ip=</code> addresses must be inside
+<code>sandal0</code>'s subnets (from <code>SANDAL_HOST_NET</code>, <code>172.16.0.1/24</code> and
+<code>fd34:135:123::/120</code> by default) so the bridge ULA gateway is on-link.</p>
+<p>A literal global (e.g. <code>ip=2001:db8:9::7/64</code>) is static: sandal never
+renumbers or removes it.</p>
 <h3 id="pin-a-container-to-a-fixed-ipv6-dont-auto-renumber">Pin a container to a fixed IPv6 (don't auto-renumber)<a class="headerlink" href="#pin-a-container-to-a-fixed-ipv6-dont-auto-renumber" title="Permanent link">&para;</a></h3>
 <p>For a container whose address should not change — e.g. a stable internal service:</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>internal<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-net<span class="w"> </span><span class="s2">&quot;ip=fd00:internal::42/64;dynamic=false&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-net<span class="w"> </span><span class="s2">"ip=fd00:db8::42/64;dynamic=false"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>/run.sh
 </code></pre></div>
 <p>The <code>dynamic=false</code> token tells the renumber service to leave this container alone. Other containers on the same bridge keep renumbering normally.</p>
@@ -1809,57 +1931,82 @@ sandal<span class="w"> </span>daemon
 <p>If the container does <code>ip=dhcp6</code> for its network config, sandal recognises that the container is managing its own IPv6 lease and skips renumbering for that link:</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>dhcp-managed<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-net<span class="w"> </span><span class="s2">&quot;ip=dhcp6&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-net<span class="w"> </span><span class="s2">"ip=dhcp6"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--<span class="w"> </span>/run.sh
 </code></pre></div>
 <p>The container keeps whatever address its DHCPv6 client got. The host-side renumber service won't touch it.</p>
 <h2 id="what-containers-actually-get">What containers actually get<a class="headerlink" href="#what-containers-actually-get" title="Permanent link">&para;</a></h2>
-<p>Bridge state determines what containers are allocated:</p>
+<p>Which public IPv6 a container gets depends on its <code>-net</code> option:</p>
 <table>
 <thead>
 <tr>
-<th>Bridge state</th>
-<th>New container's <code>eth0</code></th>
+<th><code>-net</code></th>
+<th>Public IPv6</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Daemon running, upstream has a public IPv6</td>
-<td>IPv4 + public IPv6 + ULA</td>
+<td>no <code>ip=</code> (sandal allocates)</td>
+<td>yes, IID mirrors the container's ULA</td>
 </tr>
 <tr>
-<td>Daemon running, upstream has no global yet</td>
-<td>IPv4 + ULA only — public IPv6 added later when upstream's prefix arrives</td>
+<td><code>ip=</code> with a <code>%uv6%:…</code> dynamic address</td>
+<td>yes, that address</td>
 </tr>
 <tr>
-<td>Daemon not running (CLI-only <code>sandal run</code>)</td>
-<td>IPv4 + static ULA from <code>SANDAL_HOST_NET</code></td>
+<td><code>ip=</code> with a literal public IPv6</td>
+<td>static, never renumbered</td>
 </tr>
 <tr>
-<td><code>SANDAL_IPV6_MODE=off</code></td>
-<td>IPv4 + static ULA</td>
+<td><code>ip=</code> with IPv4/ULA only</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>dynamic=false</code> or <code>ip=dhcp6</code></td>
+<td>never touched</td>
 </tr>
 </tbody>
 </table>
+<p>Without <code>sandal daemon</code>, or with <code>SANDAL_IPV6_MODE=off</code>, containers get only IPv4 and the ULA.</p>
+<p>The IPv6 gateway is always the bridge ULA, so prefix rotation never breaks the
+default route. Containers get their global at creation when the daemon already
+knows the prefix, otherwise within ~3 s.</p>
 <p>The static ULA (<code>fd34:135:123::/120</code> by default) is always kept as a fallback so containers can talk to each other and to the host even before — or instead of — a public IPv6 is available.</p>
+<h3 id="vms">VMs<a class="headerlink" href="#vms" title="Permanent link">&para;</a></h3>
+<p><code>sandal run -vm</code> links follow the same rules, but the address is resolved once,
+when the VM boots. Sandal proxies it while it is inside the current prefix;
+after a prefix rotation restart the VM to pick up the new prefix.</p>
+<p>This also applies when <code>-net ip=</code> lists explicit addresses: the VM gets the host-resolved public address and the sandal0 gateways.</p>
+<h3 id="upstreams-without-slaac">Upstreams without SLAAC<a class="headerlink" href="#upstreams-without-slaac" title="Permanent link">&para;</a></h3>
+<p>Some routers announce the prefix with autoconfiguration off and hand out
+addresses only via DHCPv6. Sandal learns the prefix from the on-link route the
+kernel installs from the router advertisement, so no address on the uplink is
+needed. Sandal0's own public address is proxied too, so the host has global
+IPv6 even when the uplink has none. Some routers with stateful DHCPv6 filter
+addresses they did not lease; if containers can't reach the internet, check
+with <code>tcpdump -i &lt;uplink&gt; icmp6</code> that the router's neighbour solicitations for
+the container address are answered.</p>
 <h2 id="verifying-a-prefix-change">Verifying a prefix change<a class="headerlink" href="#verifying-a-prefix-change" title="Permanent link">&para;</a></h2>
-<p>Easiest way to confirm renumber works end-to-end is to inject a test prefix on eth0 and watch the chain react:</p>
+<p>Sandal stays on the current prefix for as long as it is still present on the uplink (as an address or a router-advertised on-link route). Adding a second prefix changes nothing; sandal switches only after the current one is removed or expires. Run this drill on a lab host — on a LAN with a live router, its next advertisement brings the current prefix back:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Before</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global
 ip<span class="w"> </span>-6<span class="w"> </span>neigh<span class="w"> </span>show<span class="w"> </span>proxy<span class="w"> </span>dev<span class="w"> </span>eth0
 
-<span class="c1"># Inject a test prefix; sandal sees it within ~2 s</span>
-sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>add<span class="w"> </span><span class="m">2001</span>:db8:test::1/64<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>valid_lft<span class="w"> </span><span class="m">7200</span><span class="w"> </span>preferred_lft<span class="w"> </span><span class="m">7200</span>
+<span class="c1"># Add a test prefix; sandal keeps the current one while it is present</span>
+sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>add<span class="w"> </span><span class="m">2001</span>:db8:aaaa:2::1/64<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>valid_lft<span class="w"> </span><span class="m">7200</span><span class="w"> </span>preferred_lft<span class="w"> </span><span class="m">7200</span>
 
-<span class="c1"># Wait a moment, then check again</span>
+<span class="c1"># Remove the current prefix (its address and on-link route); sandal switches within ~3 s</span>
+sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>del<span class="w"> </span><span class="m">2001</span>:db8:aaaa:1::10/64<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w">    </span><span class="c1"># eth0's current address, if any</span>
+sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>route<span class="w"> </span>del<span class="w"> </span><span class="m">2001</span>:db8:aaaa:1::/64<span class="w"> </span>dev<span class="w"> </span>eth0
+
 sleep<span class="w"> </span><span class="m">5</span>
-sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global<span class="w">    </span><span class="c1"># new prefix</span>
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global<span class="w">    </span><span class="c1"># now in 2001:db8:aaaa:2::/64</span>
 ip<span class="w"> </span>-6<span class="w"> </span>neigh<span class="w"> </span>show<span class="w"> </span>proxy<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w">                              </span><span class="c1"># entry flipped</span>
 
-<span class="c1"># Clean up</span>
-sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>del<span class="w"> </span><span class="m">2001</span>:db8:test::1/64<span class="w"> </span>dev<span class="w"> </span>eth0
+<span class="c1"># Clean up: the original prefix returns with the router's next advertisement</span>
+sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>del<span class="w"> </span><span class="m">2001</span>:db8:aaaa:2::1/64<span class="w"> </span>dev<span class="w"> </span>eth0
 </code></pre></div>
-<p>The container retains its IPv6 interface-identifier across the renumber, so <code>::2</code> stays <code>::2</code> even when the <code>/64</code> changes — handy for DNS records that reference the host part.</p>
+<p>The container keeps its interface identifier across the renumber, so <code>…:c0a8:10f:0:2</code> keeps that suffix when the <code>/64</code> changes — handy for DNS records and firewall rules that reference the host part.</p>
 <h2 id="in-container-dhcpv6-renewal">In-container DHCPv6 renewal<a class="headerlink" href="#in-container-dhcpv6-renewal" title="Permanent link">&para;</a></h2>
 <p>When you start a container with <code>-net "ip=dhcp6"</code>, sandal keeps the DHCPv6 lease alive in the background:</p>
 <ul>
@@ -1869,13 +2016,17 @@ sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>
 <li><strong>Release</strong> on container shutdown so the server frees the binding.</li>
 </ul>
 <p>No configuration is required — this is automatic for every container that uses DHCPv6.</p>
+<h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
+<p>Containers created by older sandal versions keep their old addresses and IPv6 gateway: sandal does not migrate them. Recreate them (<code>sandal rm &lt;name&gt;</code>, then <code>sandal run …</code>) to get dynamic addresses, the ULA gateway and <code>%uv6%</code> support.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<p><strong>Daemon log says <code>auto-detect failed; service disabled</code>.</strong></p>
-<p>The host has no default IPv6 or IPv4 route at daemon start. Fix the host's networking first, then restart sandal. Or set <code>SANDAL_UPSTREAM_IF=&lt;iface&gt;</code> explicitly to skip the auto-detect.</p>
+<p><strong>Daemon log says <code>no default route yet; retrying upstream auto-detect</code>.</strong></p>
+<p>The uplink isn't up yet (common when a <code>--startup</code> container creates it). Sandal retries every 5 s and starts as soon as a default route appears. Set <code>SANDAL_UPSTREAM_IF=&lt;iface&gt;</code> to skip detection. If you set it for an uplink that appears late, also set <code>SANDAL_IPV6_MODE</code> explicitly: with <code>SANDAL_UPSTREAM_IF</code> set, the mode is auto-detected only once, when the daemon starts, possibly before the uplink exists.</p>
 <p><strong>Auto-detect picked the wrong interface (e.g. VPN tun0).</strong></p>
 <p>Set <code>SANDAL_UPSTREAM_IF=&lt;correct-iface&gt;</code> in your service file or systemd unit.</p>
 <p><strong>Auto-detect picked <code>pd</code> but I want <code>ndp-proxy</code> (or vice versa).</strong></p>
 <p>Set <code>SANDAL_IPV6_MODE=ndp-proxy</code> (or <code>pd</code>) explicitly.</p>
+<p><strong>The host itself has no IPv6 but containers do.</strong></p>
+<p>Check that sandal0's public address doesn't equal an address the router owns (often <code>&lt;prefix&gt;::1</code>). If you set <code>%uv6%</code> in SANDAL_HOST_NET yourself, pick an interface ID the router won't use.</p>
 <p><strong><code>sandal0</code> shows only the ULA, no public IPv6.</strong></p>
 <p>The upstream interface doesn't currently have a public IPv6 address itself. Check:</p>
 <div class="highlight"><pre><span></span><code>ip<span class="w"> </span>-6<span class="w"> </span>addr<span class="w"> </span>show<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w"> </span>scope<span class="w"> </span>global
@@ -1898,7 +2049,7 @@ sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>
 <li><strong>One global prefix at a time.</strong> If the upstream has multiple, sandal picks one (longest remaining valid lifetime) and stays sticky on it until it disappears.</li>
 <li><strong>No connection preservation across renumber.</strong> Open connections drop by design.</li>
 <li><strong>IPv4 is unchanged.</strong> The IPv4 portion of <code>SANDAL_HOST_NET</code> is still applied statically.</li>
-<li><strong>Auto-detect happens once at daemon start.</strong> If your default route flaps to a different interface later, restart the daemon to re-detect, or pin <code>SANDAL_UPSTREAM_IF</code> explicitly.</li>
+<li><strong>The upstream interface is chosen once.</strong> Detection retries until it succeeds, but the daemon does not switch interfaces afterwards; pin <code>SANDAL_UPSTREAM_IF</code> if the default route can move.</li>
 </ul>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>All three are optional. Defaults are designed to work without setting anything.</p>
@@ -1930,8 +2081,8 @@ sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>
 </table>
 <p>Set in your systemd unit:</p>
 <div class="highlight"><span class="filename">/etc/systemd/system/sandal.service.d/override.conf</span><pre><span></span><code><span class="k">[Service]</span>
-<span class="na">Environment</span><span class="o">=</span><span class="s">&quot;SANDAL_UPSTREAM_IF=eth0&quot;</span>
-<span class="na">Environment</span><span class="o">=</span><span class="s">&quot;SANDAL_IPV6_MODE=ndp-proxy&quot;</span>
+<span class="na">Environment</span><span class="o">=</span><span class="s">"SANDAL_UPSTREAM_IF=eth0"</span>
+<span class="na">Environment</span><span class="o">=</span><span class="s">"SANDAL_IPV6_MODE=ndp-proxy"</span>
 </code></pre></div>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1993,7 +2144,7 @@ sudo<span class="w"> </span>ip<span class="w"> </span>-6<span class="w"> </span>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

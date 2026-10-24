@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1496,16 +1496,16 @@
 <h4 id="image-reference-parsing">Image Reference Parsing<a class="headerlink" href="#image-reference-parsing" title="Permanent link">&para;</a></h4>
 <p><strong>File</strong>: <code>registry/reference.go</code></p>
 <div class="highlight"><pre><span></span><code>Input formats:
-  &quot;alpine&quot;                      -&gt; registry-1.docker.io/library/alpine:latest
-  &quot;alpine:3.18&quot;                 -&gt; registry-1.docker.io/library/alpine:3.18
-  &quot;ghcr.io/user/repo:v1&quot;       -&gt; ghcr.io/user/repo:v1
-  &quot;registry.io/img@sha256:abc&quot; -&gt; registry.io/img@sha256:abc
+  "alpine"                      -&gt; registry-1.docker.io/library/alpine:latest
+  "alpine:3.18"                 -&gt; registry-1.docker.io/library/alpine:3.18
+  "ghcr.io/user/repo:v1"       -&gt; ghcr.io/user/repo:v1
+  "registry.io/img@sha256:abc" -&gt; registry.io/img@sha256:abc
 </code></pre></div>
 <h4 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h4>
 <p><strong>File</strong>: <code>registry/auth.go</code></p>
 <div class="highlight"><pre><span></span><code>1. Try unauthenticated request
 2. If 401, parse WWW-Authenticate header:
-   Bearer realm=&quot;https://auth.docker.io/token&quot;,service=&quot;registry.docker.io&quot;,scope=&quot;repository:library/alpine:pull&quot;
+   Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/alpine:pull"
 3. Load credentials from ~/.docker/config.json
 4. Exchange credentials for bearer token
 5. Retry with Authorization: Bearer &lt;token&gt;
@@ -1586,7 +1586,7 @@
   |
   +-- If ARM64: detect ZBOOT format, decompress if needed
   |     ZBOOT: EFI stub wrapping gzip-compressed kernel Image
-  |     Magic: &quot;zimg&quot; at offset 4
+  |     Magic: "zimg" at offset 4
   |     Extract and decompress to raw ARM64 Image
   |
   +-- Cache at ~/.sandal-vm/kernel/&lt;arch&gt;/vmlinuz
@@ -1608,14 +1608,14 @@ is built.</p>
   |
   +-- Compute cache key:
   |     sha256(binary) || 0x00 || sha256(baseInitrd)
-  |     -&gt; first 16 bytes hex -&gt; &quot;439a75c21ae9...&quot;.img
+  |     -&gt; first 16 bytes hex -&gt; "439a75c21ae9...".img
   |
   +-- If &lt;BaseKernelDir&gt;/initramfs-sandal-&lt;hash&gt;.img exists -&gt; return it
   |
   +-- Build into a temp file in &lt;BaseKernelDir&gt; (same dir for atomic rename):
   |     - Decompress base initrd, strip CPIO trailer, append
   |     - Append /dev/console char device (5,1) so the kernel
-  |       wires fds 0/1/2 when init is exec&#39;d
+  |       wires fds 0/1/2 when init is exec'd
   |     - Append /etc/{nsswitch.conf,resolv.conf,hosts} for Go runtime
   |     - Append sandal binary as /init
   |       (mounts /dev devtmpfs + /proc procfs itself in
@@ -1637,7 +1637,7 @@ disk and can be pruned manually with
 <p><strong>File</strong>: <code>kernel/cpio.go</code></p>
 <p>Uses the "newc" (SVR4) CPIO format with ASCII hex headers:</p>
 <div class="highlight"><pre><span></span><code>Header (110 bytes):
-  &quot;070701&quot;        magic
+  "070701"        magic
   ino, mode, uid, gid, nlink
   mtime, filesize
   devmajor, devminor, rdevmajor, rdevminor
@@ -1659,7 +1659,7 @@ Followed by: file data (padded to 4 bytes)
   |
   +-- Find /init script in base CPIO
   |
-  +-- Inject mount commands before &quot;exec switch_root&quot;:
+  +-- Inject mount commands before "exec switch_root":
   |     mkdir -p /sysroot/mnt/data
   |     mount -t virtiofs fs-0 /sysroot/mnt/data
   |
@@ -1672,7 +1672,7 @@ Followed by: file data (padded to 4 bytes)
 <p>ARM64 kernels from Alpine are in EFI ZBOOT format (gzip-compressed kernel wrapped in an EFI PE stub):</p>
 <div class="highlight"><pre><span></span><code>Detection:
   offset 0: MZ (PE header)
-  offset 4: &quot;zimg&quot; (ZBOOT magic)
+  offset 4: "zimg" (ZBOOT magic)
 
 Extraction:
   Read payload_offset and payload_size from header
@@ -1794,7 +1794,7 @@ Extraction:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       

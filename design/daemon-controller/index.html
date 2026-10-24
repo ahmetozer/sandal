@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../sandal_icon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1613,7 +1613,7 @@
   Every 3 seconds:
     For each container in state directory:
       Determine which PID to monitor:
-        VM container (VM != &quot;&quot;): check HostPid (KVM child process)
+        VM container (VM != ""): check HostPid (KVM child process)
         Direct container:        check ContPid
       Check if process PID is alive (kill -0)
       If zombie: reap with waitpid
@@ -1627,13 +1627,13 @@
 - When the VM process dies (crash, kill, or normal exit), the daemon detects it via <code>HostPid</code></p>
 <h4 id="container-recovery-contrecover">Container Recovery (<code>contRecover</code>)<a class="headerlink" href="#container-recovery-contrecover" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code>contRecover(cont):
-  If status == &quot;stop&quot;: return (user explicitly stopped it)
+  If status == "stop": return (user explicitly stopped it)
 
   Clean up stale resources (console sockets, mounts, cgroups)
   Kill old process (SIGTERM with timeout, then SIGKILL)
   Re-read latest config from controller
 
-  If VM container (VM != &quot;&quot;):
+  If VM container (VM != ""):
     Call sandal.Run(HostArgs[2:])
     This re-runs the full RunInKVM() pipeline:
       - Re-pulls images
@@ -1691,11 +1691,11 @@
   |     which re-enters RunInKVM() in the daemon process (Path 2).
   |
   +-- Path 2: Fork (daemon context or -d without -startup)
-  |     Forks a child process: &quot;sandal vm start -name &lt;vmName&gt;&quot;
+  |     Forks a child process: "sandal vm start -name &lt;vmName&gt;"
   |     Child process loads saved VM config and calls kvm.Boot().
   |     Parent records child PID as HostPid, starts socket relay,
   |     goroutine waits for child exit and updates status.
-  |     Critical: daemon PID != VM PID, so killing VM doesn&#39;t kill daemon.
+  |     Critical: daemon PID != VM PID, so killing VM doesn't kill daemon.
   |
   +-- Path 3: Foreground (no -d, no daemon)
         Boots KVM directly in the current process.
@@ -1710,11 +1710,11 @@
 - <code>--name</code>: would cause guest container to overwrite host's state file (shared via VirtioFS)</p>
 <h4 id="auto-restart-flow">Auto-Restart Flow<a class="headerlink" href="#auto-restart-flow" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code>1. User: sandal run -d -startup --name myvm -vm kvm alpine sleep 60
-2. CLI: saves config (VM=&quot;kvm&quot;, Startup=true), delegates to daemon
+2. CLI: saves config (VM="kvm", Startup=true), delegates to daemon
 3. Daemon health check: detects dead PID, calls sandal.Run(HostArgs)
 4. RunInKVM: forks child process (sandal vm start), records child PID
 5. VM runs sleep 60
-6. VM process killed (crash or &quot;sandal kill myvm&quot;)
+6. VM process killed (crash or "sandal kill myvm")
 7. forkVMProcess wait goroutine: updates status, cleans up VM config
 8. Daemon health check: detects dead PID again, repeats from step 3
 </code></pre></div>
@@ -1738,10 +1738,10 @@
 <h3 id="server">Server<a class="headerlink" href="#server" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>controller/server.go</code></p>
 <div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">StartServer</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">listener</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">Listen</span><span class="p">(</span><span class="s">&quot;unix&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/var/run/sandal/sandal.sock&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">listener</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">Listen</span><span class="p">(</span><span class="s">"unix"</span><span class="p">,</span><span class="w"> </span><span class="s">"/var/run/sandal/sandal.sock"</span><span class="p">)</span>
 
-<span class="w">    </span><span class="nx">http</span><span class="p">.</span><span class="nx">HandleFunc</span><span class="p">(</span><span class="s">&quot;/containers&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">handleContainers</span><span class="p">)</span>
-<span class="w">    </span><span class="nx">http</span><span class="p">.</span><span class="nx">HandleFunc</span><span class="p">(</span><span class="s">&quot;/container/&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">handleContainer</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">http</span><span class="p">.</span><span class="nx">HandleFunc</span><span class="p">(</span><span class="s">"/containers"</span><span class="p">,</span><span class="w"> </span><span class="nx">handleContainers</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">http</span><span class="p">.</span><span class="nx">HandleFunc</span><span class="p">(</span><span class="s">"/container/"</span><span class="p">,</span><span class="w"> </span><span class="nx">handleContainer</span><span class="p">)</span>
 
 <span class="w">    </span><span class="nx">http</span><span class="p">.</span><span class="nx">Serve</span><span class="p">(</span><span class="nx">listener</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">)</span>
 <span class="p">}</span>
@@ -1782,12 +1782,12 @@
 <p><strong>File</strong>: <code>controller/client.go</code></p>
 <div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">GetContainers</span><span class="p">()</span><span class="w"> </span><span class="p">([]</span><span class="nx">config</span><span class="p">.</span><span class="nx">Config</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="c1">// Try daemon socket first</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">socketExists</span><span class="p">(</span><span class="s">&quot;/var/run/sandal/sandal.sock&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">resp</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">httpGet</span><span class="p">(</span><span class="s">&quot;http://unix/containers&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">socketExists</span><span class="p">(</span><span class="s">"/var/run/sandal/sandal.sock"</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">resp</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">httpGet</span><span class="p">(</span><span class="s">"http://unix/containers"</span><span class="p">)</span>
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">parseJSON</span><span class="p">(</span><span class="nx">resp</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="c1">// Fallback: read state files directly</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">readStateDirectory</span><span class="p">(</span><span class="s">&quot;/var/lib/sandal/state/&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">readStateDirectory</span><span class="p">(</span><span class="s">"/var/lib/sandal/state/"</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>The client transparently falls back to direct filesystem access when the daemon isn't running, enabling CLI commands like <code>ps</code> and <code>inspect</code> to work without the daemon.</p>
@@ -1799,12 +1799,12 @@
 <div class="highlight"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="nx">SetContainer</span><span class="p">(</span><span class="nx">cfg</span><span class="w"> </span><span class="o">*</span><span class="nx">config</span><span class="p">.</span><span class="nx">Config</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">json</span><span class="p">.</span><span class="nx">Marshal</span><span class="p">(</span><span class="nx">cfg</span><span class="p">)</span>
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">WriteFile</span><span class="p">(</span>
-<span class="w">        </span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">stateDir</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Name</span><span class="o">+</span><span class="s">&quot;.json&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">stateDir</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">.</span><span class="nx">Name</span><span class="o">+</span><span class="s">".json"</span><span class="p">),</span>
 <span class="w">        </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="mo">0644</span><span class="p">)</span>
 <span class="p">}</span>
 
 <span class="kd">func</span><span class="w"> </span><span class="nx">GetContainer</span><span class="p">(</span><span class="nx">name</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">config</span><span class="p">.</span><span class="nx">Config</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">stateDir</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">+</span><span class="s">&quot;.json&quot;</span><span class="p">))</span>
+<span class="w">    </span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadFile</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nx">Join</span><span class="p">(</span><span class="nx">stateDir</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">+</span><span class="s">".json"</span><span class="p">))</span>
 <span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">cfg</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">Config</span>
 <span class="w">    </span><span class="nx">json</span><span class="p">.</span><span class="nx">Unmarshal</span><span class="p">(</span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">cfg</span><span class="p">)</span>
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">cfg</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
@@ -1824,9 +1824,9 @@
 <span class="w">    </span><span class="nx">entries</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">ReadDir</span><span class="p">(</span><span class="nx">stateDir</span><span class="p">)</span>
 <span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">configs</span><span class="w"> </span><span class="p">[]</span><span class="nx">config</span><span class="p">.</span><span class="nx">Config</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">entry</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">entries</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasSuffix</span><span class="p">(</span><span class="nx">entry</span><span class="p">.</span><span class="nx">Name</span><span class="p">(),</span><span class="w"> </span><span class="s">&quot;.json&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">HasSuffix</span><span class="p">(</span><span class="nx">entry</span><span class="p">.</span><span class="nx">Name</span><span class="p">(),</span><span class="w"> </span><span class="s">".json"</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="nx">cfg</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">loadConfigFile</span><span class="p">(</span><span class="nx">entry</span><span class="p">)</span>
-<span class="w">            </span><span class="nx">configs</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">configs</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">)</span>
+<span class="w">            </span><span class="nx">configs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">configs</span><span class="p">,</span><span class="w"> </span><span class="nx">cfg</span><span class="p">)</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">configs</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span>
@@ -1988,7 +1988,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "toc.follow", "navigation.tabs", "navigation.instant", "navigation.expand", "navigation.instant.progress", "navigation.instant.prefetch", "navigation.tabs.sticky", "navigation.sections", "search.suggest", "search.highlight", "search.share", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/external/unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
       
