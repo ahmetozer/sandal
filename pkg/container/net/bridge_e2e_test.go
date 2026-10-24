@@ -4,10 +4,12 @@ package net
 
 import (
 	"errors"
+	"net"
 	"os"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/vishvananda/netlink"
@@ -305,5 +307,108 @@ func TestDefaultBridge_E2E_ConcurrentCreate(t *testing.T) {
 		if err := netlink.LinkDel(br); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// writeProc writes a /proc/sys file of the lab netns.
+func writeProc(t *testing.T, path, value string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(value), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Pinning the MAC of an existing sandal0 must not rely on the kernel's
+// notify sysctls (which may not be writable) and its single multicast NA:
+// sandal announces sandal0's addresses itself, IPv4 with gratuitous ARPs and
+// IPv6 with router NAs (R=1 O=1), as sandal0 is the containers' router.
+func TestDefaultBridge_E2E_PinAnnounces(t *testing.T) {
+	setupBridgeLab(t)
+
+	old := &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: DefaultBridgeInterface}}
+	if err := netlink.LinkAdd(old); err != nil {
+		t.Fatal(err)
+	}
+	if got := bridgeAssignType(t); got == "3" {
+		t.Skip("kernel sets bridge MACs explicitly already")
+	}
+	// No DAD, so sandal0's addresses and link-local are usable at once, and
+	// no forwarding, so the kernel's own NAs carry R=0 and are not counted.
+	writeProc(t, "/proc/sys/net/ipv6/conf/sandal0/accept_dad", "0")
+	writeProc(t, "/proc/sys/net/ipv6/conf/sandal0/forwarding", "0")
+	writeProc(t, sysClassNet+DefaultBridgeInterface+"/bridge/forward_delay", "0")
+	for _, cidr := range []string{"192.0.2.1/24", "fd00:db8:5::1/64"} {
+		a, _ := netlink.ParseAddr(cidr)
+		if err := netlink.AddrAdd(old, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	port := &netlink.Veth{LinkAttrs: netlink.LinkAttrs{Name: "brannA"}, PeerName: "brannB"}
+	if err := netlink.LinkAdd(port); err != nil {
+		t.Fatal(err)
+	}
+	peer, err := netlink.LinkByName("brannB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := netlink.LinkSetMaster(port, old); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range []netlink.Link{port, peer, old} {
+		if err := netlink.LinkSetUp(l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		l, err := netlink.LinkByName(DefaultBridgeInterface)
+		if err == nil && l.Attrs().OperState == netlink.OperUp {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("sandal0 not up")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	fd6, err := unix.Socket(unix.AF_INET6, unix.SOCK_RAW, unix.IPPROTO_ICMPV6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { unix.Close(fd6) })
+	if err := unix.BindToDevice(fd6, "brannB"); err != nil {
+		t.Fatal(err)
+	}
+	fd4, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_ARP)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { unix.Close(fd4) })
+	if err := unix.Bind(fd4, &unix.SockaddrLinklayer{Protocol: htons(unix.ETH_P_ARP), Ifindex: peer.Attrs().Index}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := CreateDefaultBridge(); err != os.ErrExist {
+		t.Fatalf("CreateDefaultBridge err = %v, want os.ErrExist", err)
+	}
+	pinned := bridgeMAC(t)
+
+	target := net.ParseIP("fd00:db8:5::1").To16()
+	routerNAs := countFrames(t, fd6, 500*time.Millisecond, func(p []byte) bool {
+		return len(p) >= 32 && p[0] == 136 && p[4] == 0xa0 && net.IP(p[8:24]).Equal(target) &&
+			net.HardwareAddr(p[26:32]).String() == pinned
+	})
+	t.Logf("router NAs=%d", routerNAs)
+	if routerNAs < 1 {
+		t.Errorf("router NAs (R=1 O=1) for fd00:db8:5::1 -> %s = %d, want at least 1", pinned, routerNAs)
+	}
+	// The kernel's arp_notify adds at most one; sandal sends several.
+	garps := countFrames(t, fd4, 500*time.Millisecond, func(f []byte) bool {
+		return len(f) >= 42 && net.HardwareAddr(f[22:28]).String() == pinned &&
+			net.IP(f[28:32]).Equal(net.ParseIP("192.0.2.1").To4()) && net.IP(f[38:42]).Equal(net.ParseIP("192.0.2.1").To4())
+	})
+	t.Logf("GARPs=%d", garps)
+	if garps < 3 {
+		t.Errorf("GARPs for 192.0.2.1 -> %s = %d, want at least 3", pinned, garps)
 	}
 }

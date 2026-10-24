@@ -89,3 +89,11 @@ func TestNeedsFixedMAC(t *testing.T) {
 		}
 	}
 }
+
+// setBridgeNotify reports when the notify sysctls cannot be set, so a MAC
+// pin can warn that the kernel will not announce it.
+func TestSetBridgeNotifyReportsFailure(t *testing.T) {
+	if setBridgeNotify("ffnosuchbr0") {
+		t.Error("setBridgeNotify on a missing interface reported success")
+	}
+}

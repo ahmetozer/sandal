@@ -100,15 +100,20 @@ const (
 
 // ensureBridgeMAC fixes the MAC of a sandal0 created without one (by an
 // older sandal). ndisc_notify and arp_notify are set first, so the kernel
-// announces the new MAC (unsolicited NA, gratuitous ARP) and running
-// containers update their gateway entries. A MAC set by the user or udev
-// is kept.
+// announces the new MAC (unsolicited NA, gratuitous ARP); sandal then
+// announces sandal0's addresses itself as well, so running containers update
+// their gateway entries even when the sysctls could not be set. A MAC set by
+// the user or udev is kept.
 func ensureBridgeMAC(link netlink.Link) {
 	name := link.Attrs().Name
-	setBridgeNotify(name)
+	notify := setBridgeNotify(name)
 	b, err := os.ReadFile(sysClassNet + name + "/addr_assign_type")
 	if err != nil || !needsFixedMAC(string(b)) {
 		return
+	}
+	if !notify {
+		slog.Warn("bridge: ndisc_notify/arp_notify not set, the kernel will not announce the MAC change; containers that miss sandal's own announcements keep the old gateway MAC until their neighbor entry expires",
+			"bridge", name)
 	}
 	mac := defaultBridgeMAC()
 	if err := netlink.LinkSetHardwareAddr(link, mac); err != nil {
@@ -116,13 +121,21 @@ func ensureBridgeMAC(link netlink.Link) {
 		return
 	}
 	slog.Info("bridge: MAC fixed", "bridge", name, "from", link.Attrs().HardwareAddr.String(), "to", mac.String())
+	announceBridge(link, mac)
 }
 
 // setBridgeNotify makes the kernel announce the bridge addresses whenever
-// its MAC changes. Failures (e.g. IPv6 disabled) are not fatal.
-func setBridgeNotify(name string) {
-	_, _ = sysctl.Ensure("net.ipv6.conf."+name+".ndisc_notify", "1")
-	_, _ = sysctl.Ensure("net.ipv4.conf."+name+".arp_notify", "1")
+// its MAC changes. It reports whether both sysctls read back as 1; failures
+// (e.g. IPv6 disabled, read-only /proc/sys) are not fatal.
+func setBridgeNotify(name string) bool {
+	ok := true
+	for _, key := range []string{"net.ipv6.conf." + name + ".ndisc_notify", "net.ipv4.conf." + name + ".arp_notify"} {
+		_, _ = sysctl.Ensure(key, "1")
+		if v, err := sysctl.Read(key); err != nil || v != "1" {
+			ok = false
+		}
+	}
+	return ok
 }
 
 func needsFixedMAC(addrAssignType string) bool {

@@ -39,10 +39,11 @@ func newGARP(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement,
 }
 
 // newNA prepares an RFC 4861 unsolicited Neighbor Advertisement (R=0 S=0
-// O=1, Target Link-Layer Address option) for ip to ff02::1 with hop limit
-// 255. The kernel always computes the ICMPv6 checksum on ICMPv6 raw sockets;
-// setting IPV6_CHECKSUM there fails with EINVAL (RFC 3542 §3.1).
-func newNA(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement, error) {
+// O=1, or R=1 for a router, Target Link-Layer Address option) for ip to
+// ff02::1 with hop limit 255. The kernel always computes the ICMPv6 checksum
+// on ICMPv6 raw sockets; setting IPV6_CHECKSUM there fails with EINVAL
+// (RFC 3542 §3.1).
+func newNA(link netlink.Link, mac net.HardwareAddr, ip net.IP, router bool) (*announcement, error) {
 	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_RAW, unix.IPPROTO_ICMPV6)
 	if err != nil {
 		return nil, fmt.Errorf("ICMPv6 raw socket: %w", err)
@@ -56,7 +57,11 @@ func newNA(link netlink.Link, mac net.HardwareAddr, ip net.IP) (*announcement, e
 		return nil, fmt.Errorf("IPV6_MULTICAST_IF: %w", err)
 	}
 	sa := &unix.SockaddrInet6{Addr: [16]byte{0xff, 0x02, 15: 0x01}}
-	return &announcement{ip: ip, fd: fd, msg: buildUnsolicitedNA(mac, ip.To16()), sa: sa}, nil
+	msg := buildUnsolicitedNA(mac, ip.To16())
+	if router {
+		msg = buildRouterNA(mac, ip.To16())
+	}
+	return &announcement{ip: ip, fd: fd, msg: msg, sa: sa}, nil
 }
 
 // AnnounceLinkAddrs sends gratuitous ARP / unsolicited NA for every
@@ -127,7 +132,7 @@ func announceLink(link netlink.Link, addrs Addrs) {
 			slog.Warn("announce: IPv6 skipped", "iface", iface, "ip", ip, "state", st.String())
 		}
 		for _, ip := range ready {
-			a, err := newNA(link, mac, ip)
+			a, err := newNA(link, mac, ip, false)
 			if err != nil {
 				slog.Warn("announce: IPv6 failed", "iface", iface, "ip", ip, "err", err)
 				continue
@@ -136,6 +141,12 @@ func announceLink(link netlink.Link, addrs Addrs) {
 		}
 	}
 
+	sendRounds(iface, anns, count, gap)
+}
+
+// sendRounds sends every announcement count times, gap apart. An
+// announcement whose send fails is closed and dropped.
+func sendRounds(iface string, anns []*announcement, count int, gap time.Duration) {
 	if len(anns) == 0 {
 		return
 	}
@@ -154,6 +165,58 @@ func announceLink(link netlink.Link, addrs Addrs) {
 			time.Sleep(gap)
 		}
 	}
+}
+
+// announceBridge announces the bridge's own addresses with mac after its MAC
+// changed: a gratuitous ARP per IPv4 address and a router NA (R=1 O=1) per
+// IPv6 address that has finished DAD, link-local included, since containers
+// often route via it. The kernel does the same with ndisc_notify and
+// arp_notify, but those may not be settable, and it sends a single
+// multicast NA. Best-effort: failures are logged.
+func announceBridge(link netlink.Link, mac net.HardwareAddr) {
+	const (
+		count = 3
+		gap   = 100 * time.Millisecond
+	)
+	iface := link.Attrs().Name
+	if len(mac) != 6 {
+		slog.Debug("announce: no 6-byte MAC, skipping", "iface", iface)
+		return
+	}
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
+	if err != nil {
+		slog.Warn("announce: address list failed", "iface", iface, "err", err)
+		return
+	}
+	var anns []*announcement
+	defer func() {
+		for _, a := range anns {
+			if a != nil {
+				a.close()
+			}
+		}
+	}()
+	for _, addr := range addrs {
+		var (
+			a   *announcement
+			err error
+		)
+		switch {
+		case addr.IP.To4() != nil:
+			a, err = newGARP(link, mac, addr.IP)
+		case addr.Flags&(unix.IFA_F_TENTATIVE|unix.IFA_F_DADFAILED) != 0:
+			slog.Debug("announce: IPv6 skipped", "iface", iface, "ip", addr.IP, "flags", addr.Flags)
+			continue
+		default:
+			a, err = newNA(link, mac, addr.IP, true)
+		}
+		if err != nil {
+			slog.Warn("announce: bridge address failed", "iface", iface, "ip", addr.IP, "err", err)
+			continue
+		}
+		anns = append(anns, a)
+	}
+	sendRounds(iface, anns, count, gap)
 }
 
 // announceableIPs returns the addresses worth announcing: every non-nil,
@@ -358,6 +421,14 @@ func buildUnsolicitedNA(srcMAC net.HardwareAddr, ip net.IP) []byte {
 	p[24] = 2 // type = Target Link-Layer Address
 	p[25] = 1 // length in units of 8 bytes
 	copy(p[26:32], srcMAC)
+	return p
+}
+
+// buildRouterNA is buildUnsolicitedNA with the Router flag set (R=1 S=0
+// O=1), for an interface that is its peers' router.
+func buildRouterNA(srcMAC net.HardwareAddr, ip net.IP) []byte {
+	p := buildUnsolicitedNA(srcMAC, ip)
+	p[4] |= 0x80 // R = 1 (router)
 	return p
 }
 
