@@ -15,7 +15,7 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 	return unsupportedArchError()
 }
 
-func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer, forwards []forward.PortMapping) error {
+func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer, forwards []forward.PortMapping, ready func()) error {
 	return unsupportedArchError()
 }
 

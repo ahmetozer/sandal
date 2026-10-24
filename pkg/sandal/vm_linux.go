@@ -5,6 +5,7 @@ package sandal
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -217,6 +219,9 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	if len(c.Ports) > 0 {
 		forward.AssignIDs(c.Ports)
 	}
+	// Saved with the config: background and daemon VMs boot in a forked
+	// `sandal vm start`, which only has the config to set the forwards up.
+	cfg.Forwards = c.Ports
 
 	// Build kernel command line
 	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
@@ -284,7 +289,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		defer stopRelay()
 	}
 
-	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports)
+	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports, nil)
 
 	// Update status after VM exits
 	if err != nil {
@@ -298,11 +303,22 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 }
 
 // forkVMProcess starts the VM in a child process so the daemon/CLI isn't blocked.
+// It returns once the child reports the VM running with its port forwards
+// bound, or with the error that stopped it, so e.g. a -p port that is
+// already in use fails the run as it does in the foreground.
 func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socketMounts []SocketMount, _ string) error {
+	readyR, readyW, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("creating VM ready pipe: %w", err)
+	}
+	defer readyR.Close()
+
 	// The child process will boot the VM using "sandal vm start <name>"
-	// which loads the saved VM config and calls boot.Boot().
-	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName)
+	// which loads the saved VM config and calls boot.BootWithForwards().
+	// ExtraFiles[0] is fd 3 in the child.
+	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName, "-ready-fd", "3")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.ExtraFiles = []*os.File{readyW}
 
 	// Set up FIFO console so `sandal attach` can read VM output.
 	var consoleCleanup func()
@@ -310,7 +326,11 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		slog.Warn("forkVMProcess", slog.String("action", "fifo console"), slog.Any("error", err))
 	}
 
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	// Only the child holds the write end now, so the read below ends
+	// when it reports or exits.
+	readyW.Close()
+	if err != nil {
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
@@ -333,7 +353,9 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	}
 
 	// Wait for child to exit and update status
+	exited := make(chan struct{})
 	go func() {
+		defer close(exited)
 		waitErr := cmd.Wait()
 		if stopRelay != nil {
 			stopRelay()
@@ -352,7 +374,58 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		}
 	}()
 
-	return nil
+	return awaitVMReady(readyR, cmd.Process, exited, c.Name, vmReadyTimeout)
+}
+
+// vmReadyTimeout bounds how long `run -vm -d` waits for the forked VMM to
+// report ready. It reports once the VM is started and its port forwards
+// are bound, before the guest boots, so only a stuck VMM reaches it.
+const vmReadyTimeout = 60 * time.Second
+
+// vmExitGrace bounds how long awaitVMReady waits for the exit of a VMM
+// that failed or was killed: a VMM stuck in D state never exits, and the
+// exit record can be slow. Tests shorten it.
+var vmExitGrace = 10 * time.Second
+
+// waitVMExit waits for exited, at most vmExitGrace, and logs when the VMM
+// exit was not seen in time.
+func waitVMExit(exited <-chan struct{}, name string) {
+	select {
+	case <-exited:
+	case <-time.After(vmExitGrace):
+		slog.Warn("forkVMProcess", slog.String("action", "wait for VM process exit"), slog.String("name", name), slog.Duration("waited", vmExitGrace))
+	}
+}
+
+// awaitVMReady waits up to timeout for the ready report of the forked VMM
+// proc on r. When the VMM fails or exits, it waits for exited (the
+// goroutine recording the exit), at most vmExitGrace, and returns the
+// error. On timeout it kills
+// the VMM first, so no VM is left running that the caller reported as
+// failed; the exit is then recorded as for any other VMM exit.
+func awaitVMReady(r io.Reader, proc *os.Process, exited <-chan struct{}, name string, timeout time.Duration) error {
+	err := vmconfig.WaitReadyTimeout(r, timeout)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, vmconfig.ErrReadyTimeout) {
+		proc.Kill()
+		waitVMExit(exited, name)
+		return fmt.Errorf("starting VM %s: the VM process did not report ready within %s and was stopped; see %s", name, timeout, vmLogs(name))
+	}
+	// The child is exiting: let the goroutine record it and clean up
+	// before a CLI parent returns and exits.
+	waitVMExit(exited, name)
+	if errors.Is(err, vmconfig.ErrExitedBeforeReady) {
+		return fmt.Errorf("starting VM %s: %w; see %s", name, err, vmLogs(name))
+	}
+	return fmt.Errorf("starting VM %s: %w", name, err)
+}
+
+// vmLogs names the console files of a forked VMM: the serial console goes
+// to stdout, the VMM's own log to stderr.
+func vmLogs(name string) string {
+	return console.StdoutPath(name) + " and " + console.StderrPath(name)
 }
 
 // setForkedVMExit sets the status of the persisted record latest from the

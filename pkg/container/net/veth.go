@@ -39,8 +39,12 @@ func (l *Link) createVeth() error {
 		var masterlink netlink.Link
 		if l.Master == DefaultBridgeInterface {
 			masterlink, err = CreateDefaultBridge()
-			if err != os.ErrExist {
+			if err != nil && err != os.ErrExist {
 				return err
+			}
+			if masterlink == nil {
+				// VM guest: there is no host bridge to attach to.
+				return nil
 			}
 		} else {
 			// return fmt.Errorf("currently multiple bridge interfaces are not supported")

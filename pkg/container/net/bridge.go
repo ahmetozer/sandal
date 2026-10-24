@@ -3,10 +3,17 @@
 package net
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"errors"
+	"log/slog"
+	"net"
 	"os"
 	"strings"
+	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/sysctl"
 	"github.com/vishvananda/netlink"
 )
 
@@ -26,20 +33,33 @@ func CreateDefaultBridge() (netlink.Link, error) {
 
 	masterlink, err := netlink.LinkByName(DefaultBridgeInterface)
 	if err == nil {
-		return masterlink, os.ErrExist
+		return ensureBridgeMAC(masterlink), os.ErrExist
 	}
 
-	masterlink = &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: DefaultBridgeInterface}}
+	// A bridge created without an address takes the lowest port MAC and
+	// recomputes it on every port change, while containers keep the old
+	// one cached for their gateway. An explicit address is kept.
+	masterlink = &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{
+		Name:         DefaultBridgeInterface,
+		HardwareAddr: defaultBridgeMAC(),
+	}}
 
-	err = netlink.LinkAdd(masterlink)
+	err = linkAdd(masterlink)
+	if errors.Is(err, syscall.EEXIST) {
+		// Another run created it after our lookup; it sets it up.
+		if existing, lerr := netlink.LinkByName(DefaultBridgeInterface); lerr == nil {
+			return ensureBridgeMAC(existing), os.ErrExist
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	// Disable STP and set forward delay to 0 so new ports forward immediately.
-	bridgeSysPath := "/sys/class/net/" + DefaultBridgeInterface + "/bridge/"
+	bridgeSysPath := sysClassNet + DefaultBridgeInterface + "/bridge/"
 	os.WriteFile(bridgeSysPath+"stp_state", []byte("0"), 0644)
 	os.WriteFile(bridgeSysPath+"forward_delay", []byte("0"), 0644)
+	setBridgeNotify(DefaultBridgeInterface)
 
 	err = netlink.LinkSetUp(masterlink)
 	if err != nil {
@@ -61,4 +81,139 @@ func CreateDefaultBridge() (netlink.Link, error) {
 	}
 
 	return netlink.LinkByName(DefaultBridgeInterface)
+}
+
+// linkAdd is netlink.LinkAdd; tests replace it.
+var linkAdd = netlink.LinkAdd
+
+// sysClassNet is a variable so tests in a private netns can point it at
+// their own sysfs mount.
+var sysClassNet = "/sys/class/net/"
+
+// NET_ADDR_* values of /sys/class/net/<if>/addr_assign_type.
+const (
+	netAddrRandom = "1" // generated: a bridge then follows its ports
+	netAddrStolen = "2"
+)
+
+// ensureBridgeMAC fixes the MAC of a sandal0 created without one (by an
+// older sandal). ndisc_notify and arp_notify are set first, so the kernel
+// announces the new MAC (unsolicited NA, gratuitous ARP); sandal then
+// announces sandal0's addresses itself as well, so running containers update
+// their gateway entries even when the sysctls could not be set. A MAC set by
+// the user or udev is kept. It returns link, fetched again after a pin so
+// its attributes show the new MAC.
+func ensureBridgeMAC(link netlink.Link) netlink.Link {
+	name := link.Attrs().Name
+	notify := setBridgeNotify(name)
+	b, err := os.ReadFile(sysClassNet + name + "/addr_assign_type")
+	if err != nil || !needsFixedMAC(string(b)) {
+		return link
+	}
+	if !notify {
+		slog.Warn("bridge: ndisc_notify/arp_notify not set, the kernel will not announce the MAC change; containers that miss sandal's own announcements keep the old gateway MAC until their neighbor entry expires",
+			"bridge", name)
+	}
+	mac := defaultBridgeMAC()
+	if err := netlink.LinkSetHardwareAddr(link, mac); err != nil {
+		slog.Warn("bridge: unable to fix MAC", "bridge", name, "mac", mac.String(), "err", err)
+		return link
+	}
+	slog.Info("bridge: MAC fixed", "bridge", name, "from", link.Attrs().HardwareAddr.String(), "to", mac.String())
+	announceBridge(link, mac)
+	if fresh, err := netlink.LinkByName(name); err == nil {
+		return fresh
+	}
+	return link
+}
+
+// setBridgeNotify makes the kernel announce the bridge addresses whenever
+// its MAC changes, and reports whether it will (see bridgeNotifyOK).
+// Failures (e.g. a read-only /proc/sys) are not fatal.
+func setBridgeNotify(name string) bool {
+	_, _ = sysctl.Ensure("net.ipv6.conf."+name+".ndisc_notify", "1")
+	_, _ = sysctl.Ensure("net.ipv4.conf."+name+".arp_notify", "1")
+	return bridgeNotifyOK(name, sysctl.Read)
+}
+
+// bridgeNotifyOK reports whether ndisc_notify and arp_notify of the bridge
+// read back as 1. A missing ndisc_notify (IPv6 disabled) is fine: there is
+// no IPv6 neighbor to notify.
+func bridgeNotifyOK(name string, read func(string) (string, error)) bool {
+	if v, err := read("net.ipv6.conf." + name + ".ndisc_notify"); !os.IsNotExist(err) && (err != nil || v != "1") {
+		return false
+	}
+	v, err := read("net.ipv4.conf." + name + ".arp_notify")
+	return err == nil && v == "1"
+}
+
+func needsFixedMAC(addrAssignType string) bool {
+	t := strings.TrimSpace(addrAssignType)
+	return t == netAddrRandom || t == netAddrStolen
+}
+
+// defaultBridgeMAC derives sandal0's MAC from the machine-id, or from the
+// uplink MAC when there is no machine-id, or picks a random one when neither
+// is known. sandal0 then keeps it (an explicitly set MAC is not replaced).
+func defaultBridgeMAC() net.HardwareAddr {
+	id := machineID()
+	var uplink net.HardwareAddr
+	if len(id) == 0 {
+		name := env.UpstreamInterface
+		if name == "" {
+			name, _ = DetectUpstream()
+		}
+		if name != "" && name != DefaultBridgeInterface {
+			if l, err := netlink.LinkByName(name); err == nil {
+				uplink = l.Attrs().HardwareAddr
+			}
+		}
+	}
+	if mac := stableBridgeMAC(id, uplink); mac != nil {
+		return mac
+	}
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	return localUnicast(b)
+}
+
+// stableBridgeMAC hashes the machine-id into a locally administered unicast
+// MAC, so it is the same on every boot of a host with a machine-id. The
+// uplink MAC is the seed only without a machine-id: the daemon can create
+// sandal0 before the uplink exists, so mixing it in would make the MAC
+// depend on boot timing. Returns nil without a seed.
+func stableBridgeMAC(machineID []byte, uplink net.HardwareAddr) net.HardwareAddr {
+	if len(machineID) != 0 {
+		uplink = nil
+	}
+	if len(machineID) == 0 && len(uplink) == 0 {
+		return nil
+	}
+	h := sha256.New()
+	h.Write([]byte("sandal0 mac\x00"))
+	h.Write(machineID)
+	h.Write([]byte{0})
+	h.Write(uplink)
+	return localUnicast(h.Sum(nil)[:6])
+}
+
+func localUnicast(b []byte) net.HardwareAddr {
+	mac := make(net.HardwareAddr, 6)
+	copy(mac, b)
+	mac[0] = mac[0]&^0x01 | 0x02
+	return mac
+}
+
+// machineIDFiles are read in order by machineID; tests replace them.
+var machineIDFiles = []string{"/etc/machine-id", "/var/lib/dbus/machine-id"}
+
+func machineID() []byte {
+	for _, p := range machineIDFiles {
+		if b, err := os.ReadFile(p); err == nil {
+			if id := strings.TrimSpace(string(b)); id != "" {
+				return []byte(id)
+			}
+		}
+	}
+	return nil
 }

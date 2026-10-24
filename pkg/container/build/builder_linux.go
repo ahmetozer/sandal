@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,7 @@ type BuildRequest struct {
 	TmpSize       uint
 	ChangeDirSize string
 
+	inVM        bool              // build runs in a VM guest: publish only after the push
 	buildID     string            // generated; used for unique container names
 	stageSqfs   map[int]string    // stageIdx → output .sqfs path
 	containers  []*StageContainer // live stage containers, cleaned up at end
@@ -58,6 +60,7 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 		req.buildID = genBuildID()
 	}
 	req.stageSqfs = map[int]string{}
+	req.inVM, _ = env.IsVM()
 
 	// Inside a VM, configure eth0 at the VM-host level so the FROM
 	// pull (which runs in this process, OUTSIDE any container) has
@@ -71,12 +74,19 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 	// is specified, back the temp dir with a loop-mounted ext4 image
 	// that provides full POSIX support and real disk space.
 	if isVM, _ := env.IsVM(); isVM && req.ChangeDirSize != "" {
-		mount, err := overlayfs.PrepareImageChangeDir(env.BaseTempDir, req.ChangeDirSize)
+		cleanup, err := prepareVMTempDir(env.BaseTempDir, req.buildID, req.ChangeDirSize)
 		if err != nil {
 			return "", fmt.Errorf("preparing VM temp dir: %w", err)
 		}
-		defer mount.Cleanup()
+		defer cleanup()
 	}
+
+	// Stage change dirs that end up as ext4 images (always inside a VM,
+	// and on hosts that cannot stack overlayfs) default to the documented
+	// 8g instead of the 128 MB `sandal run` default, which is too small
+	// for a RUN like `go build`. Applied after the temp dir above, which
+	// keeps following an explicit -csize only.
+	req.ChangeDirSize = buildChangeDirSize(req.ChangeDirSize, changeDirImageBacked())
 
 	// Open build context (loads .dockerignore).
 	bc, err := libbuild.NewBuildContext(req.ContextDir)
@@ -149,54 +159,179 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 		return "", fmt.Errorf("stage %d: no output image produced", targetIdx)
 	}
 
-	// Move (or link) the target stage's squashfs to the cache path
-	// under the image tag.
+	// Publish the target stage's squashfs at the cache path under the
+	// image tag, and push it when asked.
 	outPath := filepath.Join(env.BaseImageDir, containerimage.SanitizeRef(req.Tag)+".sqfs")
 	if err := os.MkdirAll(env.BaseImageDir, 0755); err != nil {
 		cleanupAll(&req)
 		return "", err
 	}
-	if finalSqfs != outPath {
-		_ = os.Remove(outPath)
-		if err := os.Rename(finalSqfs, outPath); err != nil {
-			cleanupAll(&req)
-			return "", fmt.Errorf("finalising %s: %w", outPath, err)
-		}
-		req.stageSqfs[targetIdx] = outPath
+	err = publishImage(ctx, &req, target, finalSqfs, outPath)
+	if _, statErr := os.Stat(finalSqfs); os.IsNotExist(statErr) {
+		// The target stage's image is now the tagged output, not an
+		// intermediate one cleanupAll should remove.
+		delete(req.stageSqfs, targetIdx)
 	}
-
-	// Sidecar JSON for runtime config.
-	if err := writeConfigSidecar(outPath, target.Config); err != nil {
+	if err != nil {
 		cleanupAll(&req)
-		return "", fmt.Errorf("writing config sidecar: %w", err)
-	}
-
-	// Push uses the live stage container's rootfs (still mounted) so
-	// we can stream layers directly without re-extracting the squashfs.
-	if req.Push {
-		sc := findStageContainer(&req, targetIdx)
-		if sc == nil {
-			cleanupAll(&req)
-			return "", fmt.Errorf("push: no live stage container for stage %d", targetIdx)
-		}
-		if err := libbuild.Push(ctx, libbuild.PushOpts{
-			RootfsDir: sc.Cfg.RootfsDir,
-			Tag:       req.Tag,
-			Config:    target.Config,
-			History:   target.History,
-			Platform:  req.Platform,
-		}); err != nil {
-			cleanupAll(&req)
-			return "", fmt.Errorf("push %s: %w", req.Tag, err)
-		}
+		return "", err
 	}
 
 	cleanupAll(&req)
 	return outPath, nil
 }
 
-// cleanupAll tears down every live stage container. Safe to call
-// multiple times; Cleanup is idempotent.
+// pushImage is libbuild.Push; tests replace it.
+var pushImage = libbuild.Push
+
+// mountPushSource mounts sqfs and returns its root and a release func;
+// tests replace it.
+var mountPushSource = func(sqfs string) (string, func(), error) {
+	img, err := diskimage.Mount(sqfs)
+	if err != nil {
+		return "", nil, err
+	}
+	return img.MountDir, func() { releaseCopySource(&img) }, nil
+}
+
+// publishImage makes the target stage's image the tagged output at
+// outPath and pushes it when asked. The order depends on where the build
+// runs:
+//   - on the host, the image and sidecar are published first and pushed
+//     after, so a failed push keeps the new local image (and fails the
+//     build);
+//   - in a VM, the push comes first and the rename over outPath last. The
+//     host only sees whether outPath became a new file, so every failure,
+//     the push included, must leave the previous image in place.
+func publishImage(ctx context.Context, req *BuildRequest, target *libbuild.Stage, finalSqfs, outPath string) (err error) {
+	// Stage the sidecar next to the stage image; it replaces the old one
+	// only together with the image.
+	if err := writeConfigSidecar(finalSqfs, target.Config); err != nil {
+		return fmt.Errorf("writing config sidecar: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(finalSqfs + ".json")
+		}
+	}()
+
+	if !req.inVM {
+		if err := installImage(finalSqfs, outPath); err != nil {
+			return err
+		}
+		return pushStageImage(ctx, req, target, outPath)
+	}
+	if err := pushStageImage(ctx, req, target, finalSqfs); err != nil {
+		return err
+	}
+	return installImage(finalSqfs, outPath)
+}
+
+// installImage moves the staged sidecar and then the image from finalSqfs
+// to outPath. Both renames replace the old file atomically, so outPath is
+// never missing. The image rename is the commit point: the host of a VM
+// build counts only a new image as success, so a publish cut short before
+// it is reported as failed. If the image rename fails, the previous
+// sidecar is put back (or the new one removed), so the old image keeps its
+// own config.
+func installImage(finalSqfs, outPath string) error {
+	oldSidecar, readErr := os.ReadFile(outPath + ".json")
+	if err := os.Rename(finalSqfs+".json", outPath+".json"); err != nil {
+		return fmt.Errorf("writing config sidecar: %w", err)
+	}
+	if err := os.Rename(finalSqfs, outPath); err != nil {
+		switch {
+		case readErr == nil:
+			_ = os.WriteFile(outPath+".json", oldSidecar, 0644)
+		case os.IsNotExist(readErr):
+			_ = os.Remove(outPath + ".json")
+		}
+		return fmt.Errorf("finalising %s: %w", outPath, err)
+	}
+	return nil
+}
+
+// pushStageImage pushes the image in sqfs to req.Tag when req.Push is set.
+// The stage container's rootfs is only mounted while a RUN executes, so the
+// push reads a mount of the stage's squashfs, as COPY --from does.
+func pushStageImage(ctx context.Context, req *BuildRequest, target *libbuild.Stage, sqfs string) error {
+	if !req.Push {
+		return nil
+	}
+	rootfs, release, err := mountPushSource(sqfs)
+	if err != nil {
+		return fmt.Errorf("push %s: mounting stage image: %w", req.Tag, err)
+	}
+	defer release()
+	if err := pushImage(ctx, libbuild.PushOpts{
+		RootfsDir: rootfs,
+		Tag:       req.Tag,
+		Config:    target.Config,
+		History:   target.History,
+		Platform:  req.Platform,
+	}); err != nil {
+		return fmt.Errorf("push %s: %w", req.Tag, err)
+	}
+	return nil
+}
+
+// prepareImageChangeDir is overlayfs.PrepareImageChangeDirAt; tests replace it.
+var prepareImageChangeDir = overlayfs.PrepareImageChangeDirAt
+
+// vmTempImage returns the ext4 image that backs tempDir for one VM build.
+// tempDir is on the virtiofs share of the host's sandal lib dir, which every
+// build VM sees, so the image is named per build: concurrent builds would
+// otherwise format and mount the same image.
+func vmTempImage(tempDir, buildID string) string {
+	return tempDir + "-build-" + buildID + ".img"
+}
+
+// prepareVMTempDir mounts a new ext4 image of size at tempDir for the build
+// buildID. The returned cleanup unmounts it and deletes the image; on error
+// nothing is left behind.
+func prepareVMTempDir(tempDir, buildID, size string) (func(), error) {
+	imagePath := vmTempImage(tempDir, buildID)
+	mount, err := prepareImageChangeDir(tempDir, imagePath, size)
+	if err != nil {
+		os.Remove(imagePath)
+		return nil, err
+	}
+	return func() {
+		if err := mount.Cleanup(); err != nil {
+			slog.Warn("build", slog.String("action", "unmount temp dir"), slog.String("path", tempDir), slog.Any("error", err))
+		}
+		if err := os.Remove(imagePath); err != nil {
+			slog.Warn("build", slog.String("action", "remove temp image"), slog.String("path", imagePath), slog.Any("error", err))
+		}
+	}, nil
+}
+
+// defaultBuildChangeDirSize is the size of an image-backed stage change
+// dir when -csize is not given (see docs/commands/build.md).
+const defaultBuildChangeDirSize = "8g"
+
+// buildChangeDirSize returns the change dir size for the stage containers:
+// the -csize value when given, else defaultBuildChangeDirSize when the
+// change dirs are image-backed. Folder-backed change dirs take no size.
+func buildChangeDirSize(size string, imageBacked bool) string {
+	if size == "" && imageBacked {
+		return defaultBuildChangeDirSize
+	}
+	return size
+}
+
+// changeDirImageBacked reports whether the stage change dirs will be
+// loop-mounted ext4 images. It shares the "auto" rule of
+// overlayfs.PrepareChangeDir (always inside a VM, on an overlayfs parent,
+// and when the parent cannot be created or probed), so the two cannot
+// drift.
+func changeDirImageBacked() bool {
+	return overlayfs.AutoChangeDirType(env.BaseChangeDir) == "image"
+}
+
+// cleanupAll tears down every live stage container and removes the
+// intermediate per-stage squashfs images. Safe to call multiple times;
+// Cleanup is idempotent.
 func cleanupAll(req *BuildRequest) {
 	for _, sc := range req.containers {
 		if sc != nil {
@@ -204,15 +339,12 @@ func cleanupAll(req *BuildRequest) {
 		}
 	}
 	req.containers = nil
-}
-
-func findStageContainer(req *BuildRequest, idx int) *StageContainer {
-	for _, sc := range req.containers {
-		if sc != nil && sc.stageIdx == idx {
-			return sc
+	for idx, sqfs := range req.stageSqfs {
+		if err := os.Remove(sqfs); err != nil && !os.IsNotExist(err) {
+			slog.Warn("cleanupAll", slog.String("action", "remove stage image"), slog.String("path", sqfs), slog.Any("error", err))
 		}
+		delete(req.stageSqfs, idx)
 	}
-	return nil
 }
 
 // buildStage materialises one stage: resolves its base squashfs,
@@ -549,8 +681,8 @@ func applyVolume(s *libbuild.Stage, vols []string) {
 
 // applyCopy executes one COPY or ADD into the stage container's
 // overlay upper. COPY --from=<stage> reads from a previous stage's
-// live overlay upper; COPY --from=<image:tag> pulls and mounts a
-// remote image transparently.
+// squashfs; COPY --from=<image:tag> pulls and mounts a remote image
+// transparently. Either source is unmounted again after the copy.
 func applyCopy(in libbuild.Instruction, s *libbuild.Stage, sc *StageContainer, bc *libbuild.BuildContext, argScope map[string]string, req *BuildRequest) error {
 	if len(in.Args) < 2 {
 		return fmt.Errorf("%s requires at least one source and one destination", in.Kind)
@@ -571,24 +703,34 @@ func applyCopy(in libbuild.Instruction, s *libbuild.Stage, sc *StageContainer, b
 	srcRoot := bc.Root
 	var excluded func(string) bool = bc.IsExcluded
 	if from, ok := in.Flags["from"]; ok && from != "" {
+		var img diskimage.ImmutableImage
 		if other := libbuild.FindStage(req.Stages, from); other != nil {
 			if other.Index >= s.Index {
 				return fmt.Errorf("COPY --from=%q: stage %q is defined after the current stage", from, from)
 			}
-			prevSC := findStageContainer(req, other.Index)
-			if prevSC == nil || prevSC.Cfg.RootfsDir == "" {
-				return fmt.Errorf("COPY --from=%q: stage rootfs not available", from)
+			// The stage container's RootfsDir is only mounted while a RUN
+			// executes; once the stage is finished its merged rootfs lives
+			// solely in the per-stage squashfs.
+			sqfs := req.stageSqfs[other.Index]
+			if sqfs == "" {
+				return fmt.Errorf("COPY --from=%q: stage has no output (not yet built)", from)
 			}
-			srcRoot = prevSC.Cfg.RootfsDir
+			var err error
+			img, err = diskimage.Mount(sqfs)
+			if err != nil {
+				return fmt.Errorf("COPY --from=%q: mounting stage image: %w", from, err)
+			}
 		} else if containerimage.IsImageReference(from) {
-			imgDir, err := resolveCopyFromImage(from)
+			var err error
+			img, err = resolveCopyFromImage(from)
 			if err != nil {
 				return fmt.Errorf("COPY --from=%q: %w", from, err)
 			}
-			srcRoot = imgDir
 		} else {
 			return fmt.Errorf("COPY --from=%q: no matching stage and not a valid image reference", from)
 		}
+		defer releaseCopySource(&img)
+		srcRoot = img.MountDir
 		excluded = nil
 	}
 
@@ -634,20 +776,34 @@ func nowRFC3339() string {
 }
 
 // resolveCopyFromImage pulls (or cache-hits) the given image reference
-// and returns a directory on the host whose contents are the image's
-// rootfs. Used for BuildKit-style `COPY --from=<image> src dst`.
-func resolveCopyFromImage(ref string) (string, error) {
+// and mounts it; img.MountDir holds the image's rootfs. Used for
+// BuildKit-style `COPY --from=<image> src dst`. The caller releases the
+// mount with releaseCopySource.
+func resolveCopyFromImage(ref string) (diskimage.ImmutableImage, error) {
 	progressCh := make(chan progress.Event, 16)
 	renderDone := progress.StartRenderer(progressCh, os.Stderr)
 	sqfsPath, err := containerimage.Pull(context.Background(), ref, env.BaseImageDir, progressCh)
 	close(progressCh)
 	<-renderDone
 	if err != nil {
-		return "", fmt.Errorf("pulling image: %w", err)
+		return diskimage.ImmutableImage{}, fmt.Errorf("pulling image: %w", err)
 	}
 	img, err := diskimage.Mount(sqfsPath)
 	if err != nil {
-		return "", fmt.Errorf("mounting image: %w", err)
+		return diskimage.ImmutableImage{}, fmt.Errorf("mounting image: %w", err)
 	}
-	return img.MountDir, nil
+	return img, nil
+}
+
+// releaseCopySource unmounts a COPY --from (or push) source image once
+// it is no longer read. diskimage.Mount reuses an existing mount of the same file, so the
+// mount is left alone while a live container overlay still uses it as a
+// lower layer.
+func releaseCopySource(img *diskimage.ImmutableImage) {
+	if diskimage.ImmutableInUse(img.MountDir) {
+		return
+	}
+	if err := diskimage.Umount(img); err != nil {
+		slog.Warn("releaseCopySource", slog.String("action", "unmount source image"), slog.String("mountDir", img.MountDir), slog.Any("error", err))
+	}
 }

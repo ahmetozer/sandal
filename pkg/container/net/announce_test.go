@@ -267,3 +267,22 @@ func TestCarriesAll(t *testing.T) {
 		})
 	}
 }
+
+// sandal0 announces itself as the containers' router: R=1 and O=1 (0xA0),
+// the flags of the kernel's own NA on a forwarding interface. Everything
+// else matches the container announcement, which keeps R=0.
+func TestBuildRouterNAFlags(t *testing.T) {
+	srcMAC := net.HardwareAddr{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}
+	ip := net.ParseIP("fd00:db8:5::1").To16()
+	r, c := buildRouterNA(srcMAC, ip), buildUnsolicitedNA(srcMAC, ip)
+	if r[4] != 0xa0 {
+		t.Errorf("router NA flags byte = %#x, want 0xa0 (R=1, S=0, O=1)", r[4])
+	}
+	if c[4] != 0x20 {
+		t.Errorf("container NA flags byte = %#x, want 0x20 (R=0)", c[4])
+	}
+	r[4] = c[4]
+	if !bytes.Equal(r, c) {
+		t.Errorf("router NA %x differs from the container NA %x beyond the flags", r, c)
+	}
+}

@@ -40,6 +40,11 @@ Path to the Dockerfile. Defaults to `<CONTEXT>/Dockerfile`.
 
 After building locally, push the image to the registry implied by `-t`. Localhost registries (e.g. `localhost:5000/...`) use plain HTTP automatically; everything else uses HTTPS.
 
+If the push fails, the build exits non-zero. What stays in the local image cache depends on where the build ran:
+
+- **On the host** (no `-vm`): the new image and its config sidecar are stored under the tag before the push starts, so they are kept. Retry the push by building again, or use the local image as is.
+- **With `-vm`**: nothing is stored until the push succeeds, so a failed push leaves the image that had the tag before (if any) in place, and the new build is discarded. The host can only tell a successful VM build by the new image file, so the guest stores it last.
+
 ### `--target <stage>`
 
 In multi-stage builds, stop at the named stage. Without this flag the last stage becomes the output image.

@@ -66,6 +66,33 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 		return fmt.Errorf("creating VM: %w", err)
 	}
 
+	// Port-forwarding listeners — host side. Bind them before the VM
+	// starts so a host port that is already in use fails the run with an
+	// error, as on KVM, instead of a warning next to a running VM that
+	// cannot be reached. Connections are only dialled into the guest
+	// (vsock) after they are accepted; the guest relay is started from
+	// crun inside the VM via forward.StartVsock (same as KVM).
+	stopForwardFunc := func() {}
+	if len(forwards) > 0 {
+		ctx, cancel := context.WithCancel(context.Background())
+		stop, err := forward.Start(ctx, name, forwards, forward.VZTransport{VM: vm})
+		if err != nil {
+			cancel()
+			restore()
+			return fmt.Errorf("port-forward setup failed: %w", err)
+		}
+		var once sync.Once
+		stopForwardFunc = func() {
+			once.Do(func() {
+				cancel()
+				stop()
+			})
+		}
+	}
+	// The listeners are bound already: close them on every return,
+	// including a vm.Start that fails before the stop watcher runs.
+	defer stopForwardFunc()
+
 	// Set up vsock relays for socket sharing (before start)
 	if len(relays) > 0 {
 		vm.SetupVsockRelays(relays)
@@ -85,19 +112,13 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 		StopMainRunLoop()
 	}()
 
-	// stopForward is set once the host-side port-forwarding listeners
-	// are running. Called during VM shutdown to close listeners and
-	// cancel in-flight relays.
-	var (
-		stopForwardMu   sync.Mutex
-		stopForwardFunc func()
-	)
-
-	// Start VM asynchronously
+	// Start VM asynchronously. A start error is returned once the run
+	// loop ends, so the run exits non-zero.
+	startErr := make(chan error, 1)
 	go func() {
 		if err := vm.Start(); err != nil {
 			restore()
-			slog.Error("Boot", slog.String("action", "start"), slog.Any("error", err))
+			startErr <- err
 			StopMainRunLoop()
 			return
 		}
@@ -106,25 +127,6 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 		// Start the management socket relay so macOS commands can reach the
 		// embedded controller inside the VM via vsock port 4000.
 		mgmt.StartManagementSocket(name, mgmt.VZConnector{VM: vm, Port: 4000})
-
-		// Port-forwarding listeners — host side. The guest relay is started
-		// from crun inside the VM via forward.StartVsock (same as KVM).
-		if len(forwards) > 0 {
-			ctx, cancel := context.WithCancel(context.Background())
-			stop, err := forward.Start(ctx, name, forwards,
-				forward.VZTransport{VM: vm})
-			if err != nil {
-				slog.Warn("Boot", slog.String("action", "start forwards"), slog.Any("error", err))
-				cancel()
-			} else {
-				stopForwardMu.Lock()
-				stopForwardFunc = func() {
-					cancel()
-					stop()
-				}
-				stopForwardMu.Unlock()
-			}
-		}
 	}()
 
 	// Wait for VM to stop
@@ -136,17 +138,18 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 			slog.Debug("Boot", slog.String("action", "stopped"))
 		}
 		// Clean up port-forwarding listeners before stopping the run loop.
-		stopForwardMu.Lock()
-		if stopForwardFunc != nil {
-			stopForwardFunc()
-		}
-		stopForwardMu.Unlock()
+		stopForwardFunc()
 		StopMainRunLoop()
 	}()
 
 	// Run the main run loop (blocks until StopMainRunLoop)
 	RunMainRunLoop()
-	return nil
+	select {
+	case err := <-startErr:
+		return fmt.Errorf("starting VM: %w", err)
+	default:
+		return nil
+	}
 }
 
 func killStaleDiskHolders(diskPath string) (int, error) {

@@ -84,6 +84,12 @@ func prepareImageChangeDir(changeDir string, sizeStr string) (*ImageChangeMount,
 // with loop-mounted ext4 when tmpfs is not requested and the host
 // filesystem cannot support nested overlayfs.
 func PrepareImageChangeDir(changeDir string, sizeStr string) (*ImageChangeMount, error) {
+	return PrepareImageChangeDirAt(changeDir, changeDir+".img", sizeStr)
+}
+
+// PrepareImageChangeDirAt is PrepareImageChangeDir with the image at
+// imagePath instead of next to changeDir.
+func PrepareImageChangeDirAt(changeDir, imagePath, sizeStr string) (*ImageChangeMount, error) {
 	var sizeBytes int64
 	if sizeStr == "" {
 		sizeBytes = defaultChangeDirImageSize
@@ -94,8 +100,6 @@ func PrepareImageChangeDir(changeDir string, sizeStr string) (*ImageChangeMount,
 			return nil, fmt.Errorf("parsing change dir size %q: %w", sizeStr, err)
 		}
 	}
-	imagePath := changeDir + ".img"
-
 	// Create sparse image if it doesn't exist
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
 		if err := os.MkdirAll(changeDir, 0755); err != nil {

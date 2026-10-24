@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -51,6 +52,11 @@ type VMConfig struct {
 	NetLinks    []NetLinkConfig `json:"net_links,omitempty"`
 	CPUCount    uint            `json:"cpu_count"`
 	MemoryBytes uint64          `json:"memory_bytes"`
+
+	// Forwards are the -p mappings of a `run -vm` container, so a VM booted
+	// from the saved config (`sandal vm start`, used for -d and the daemon)
+	// sets up the same host listeners as a foreground run.
+	Forwards []forward.PortMapping `json:"forwards,omitempty"`
 }
 
 func (c *VMConfig) Validate() error {
