@@ -33,8 +33,7 @@ func CreateDefaultBridge() (netlink.Link, error) {
 
 	masterlink, err := netlink.LinkByName(DefaultBridgeInterface)
 	if err == nil {
-		ensureBridgeMAC(masterlink)
-		return masterlink, os.ErrExist
+		return ensureBridgeMAC(masterlink), os.ErrExist
 	}
 
 	// A bridge created without an address takes the lowest port MAC and
@@ -49,8 +48,7 @@ func CreateDefaultBridge() (netlink.Link, error) {
 	if errors.Is(err, syscall.EEXIST) {
 		// Another run created it after our lookup; it sets it up.
 		if existing, lerr := netlink.LinkByName(DefaultBridgeInterface); lerr == nil {
-			ensureBridgeMAC(existing)
-			return existing, os.ErrExist
+			return ensureBridgeMAC(existing), os.ErrExist
 		}
 	}
 	if err != nil {
@@ -103,13 +101,14 @@ const (
 // announces the new MAC (unsolicited NA, gratuitous ARP); sandal then
 // announces sandal0's addresses itself as well, so running containers update
 // their gateway entries even when the sysctls could not be set. A MAC set by
-// the user or udev is kept.
-func ensureBridgeMAC(link netlink.Link) {
+// the user or udev is kept. It returns link, fetched again after a pin so
+// its attributes show the new MAC.
+func ensureBridgeMAC(link netlink.Link) netlink.Link {
 	name := link.Attrs().Name
 	notify := setBridgeNotify(name)
 	b, err := os.ReadFile(sysClassNet + name + "/addr_assign_type")
 	if err != nil || !needsFixedMAC(string(b)) {
-		return
+		return link
 	}
 	if !notify {
 		slog.Warn("bridge: ndisc_notify/arp_notify not set, the kernel will not announce the MAC change; containers that miss sandal's own announcements keep the old gateway MAC until their neighbor entry expires",
@@ -118,10 +117,14 @@ func ensureBridgeMAC(link netlink.Link) {
 	mac := defaultBridgeMAC()
 	if err := netlink.LinkSetHardwareAddr(link, mac); err != nil {
 		slog.Warn("bridge: unable to fix MAC", "bridge", name, "mac", mac.String(), "err", err)
-		return
+		return link
 	}
 	slog.Info("bridge: MAC fixed", "bridge", name, "from", link.Attrs().HardwareAddr.String(), "to", mac.String())
 	announceBridge(link, mac)
+	if fresh, err := netlink.LinkByName(name); err == nil {
+		return fresh
+	}
+	return link
 }
 
 // setBridgeNotify makes the kernel announce the bridge addresses whenever

@@ -172,6 +172,9 @@ func TestDefaultBridge_E2E_PinsExistingBridgeMAC(t *testing.T) {
 	if want := labBridgeMAC(); pinned != want {
 		t.Errorf("mac = %s, want the derived %s", pinned, want)
 	}
+	if got := br.Attrs().HardwareAddr.String(); got != pinned {
+		t.Errorf("returned link has the stale mac %s, want the pinned %s", got, pinned)
+	}
 	churnLowPort(t, br)
 	if after := bridgeMAC(t); after != pinned {
 		t.Errorf("mac = %s after churn, want %s", after, pinned)
