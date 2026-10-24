@@ -15,6 +15,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/env"
 	libbuild "github.com/ahmetozer/sandal/pkg/lib/container/build"
+	"github.com/ahmetozer/sandal/pkg/lib/container/registry"
 	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 	"golang.org/x/sys/unix"
 )
@@ -299,4 +300,129 @@ func isMountPoint(t *testing.T, dir string) bool {
 		}
 	}
 	return false
+}
+
+// stubPublish replaces the push and its source mount for publishImage. push
+// runs in place of libbuild.Push; the returned pointer receives the mount
+// state of the source at push time.
+func stubPublish(t *testing.T, mountDir string, push func(libbuild.PushOpts) error) *bool {
+	t.Helper()
+	released := new(bool)
+	prevMount, prevPush := mountPushSource, pushImage
+	mountPushSource = func(sqfs string) (string, func(), error) {
+		return mountDir, func() { *released = true }, nil
+	}
+	pushImage = func(ctx context.Context, opts libbuild.PushOpts) error { return push(opts) }
+	t.Cleanup(func() { mountPushSource, pushImage = prevMount, prevPush })
+	return released
+}
+
+// publishFixture writes an old tagged image with its sidecar and a new
+// stage image, and returns their paths.
+func publishFixture(t *testing.T) (finalSqfs, outPath string) {
+	t.Helper()
+	dir := t.TempDir()
+	finalSqfs = filepath.Join(dir, ".sandal-build-test-stage0.sqfs")
+	outPath = filepath.Join(dir, "bd-publish_test.sqfs")
+	for path, data := range map[string]string{finalSqfs: "new", outPath: "old", outPath + ".json": `{"old":true}`} {
+		if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return finalSqfs, outPath
+}
+
+// A VM build's host only sees whether outPath became a new file, so a push
+// that fails must leave the previous image and its sidecar untouched.
+func TestPublishImagePushFailureKeepsPreviousImage(t *testing.T) {
+	finalSqfs, outPath := publishFixture(t)
+	before, err := os.Stat(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stubPublish(t, t.TempDir(), func(libbuild.PushOpts) error { return errors.New("registry unreachable") })
+
+	req := &BuildRequest{Tag: "bd-publish:test", Push: true}
+	target := &libbuild.Stage{Config: registryConfig("NEW=1")}
+	if err := publishImage(context.Background(), req, target, finalSqfs, outPath); err == nil {
+		t.Fatal("publishImage succeeded although the push failed")
+	}
+	after, err := os.Stat(outPath)
+	if err != nil || !os.SameFile(before, after) {
+		t.Errorf("a failed push replaced %s (stat err %v)", outPath, err)
+	}
+	if got, _ := os.ReadFile(outPath + ".json"); string(got) != `{"old":true}` {
+		t.Errorf("a failed push rewrote the sidecar: %s", got)
+	}
+	if _, err := os.Stat(finalSqfs + ".json"); !os.IsNotExist(err) {
+		t.Errorf("staged sidecar left after a failed push (stat err %v)", err)
+	}
+}
+
+// The push reads the final stage image through a mount of it, and the
+// rename to outPath happens only after the push.
+func TestPublishImagePushesFromStageImage(t *testing.T) {
+	finalSqfs, outPath := publishFixture(t)
+	mountDir := t.TempDir()
+	var pushed libbuild.PushOpts
+	var outAtPush string
+	released := stubPublish(t, mountDir, func(opts libbuild.PushOpts) error {
+		pushed = opts
+		data, _ := os.ReadFile(outPath)
+		outAtPush = string(data)
+		return nil
+	})
+
+	req := &BuildRequest{Tag: "bd-publish:test", Push: true}
+	target := &libbuild.Stage{Config: registryConfig("NEW=1")}
+	if err := publishImage(context.Background(), req, target, finalSqfs, outPath); err != nil {
+		t.Fatalf("publishImage: %v", err)
+	}
+	if pushed.RootfsDir != mountDir {
+		t.Errorf("pushed from %q, want the stage image mount %q", pushed.RootfsDir, mountDir)
+	}
+	if pushed.Tag != req.Tag {
+		t.Errorf("pushed tag %q, want %q", pushed.Tag, req.Tag)
+	}
+	if !*released {
+		t.Error("stage image mount not released after the push")
+	}
+	if outAtPush != "old" {
+		t.Errorf("%s held %q during the push, want the previous image", outPath, outAtPush)
+	}
+	if got, _ := os.ReadFile(outPath); string(got) != "new" {
+		t.Errorf("%s = %q after publish, want the new image", outPath, got)
+	}
+	if got, _ := os.ReadFile(outPath + ".json"); !strings.Contains(string(got), "NEW=1") {
+		t.Errorf("sidecar not updated: %s", got)
+	}
+	if _, err := os.Stat(finalSqfs); !os.IsNotExist(err) {
+		t.Errorf("stage image still at %s (stat err %v)", finalSqfs, err)
+	}
+}
+
+// Without --push nothing is mounted or pushed.
+func TestPublishImageWithoutPush(t *testing.T) {
+	finalSqfs, outPath := publishFixture(t)
+	prevMount := mountPushSource
+	mountPushSource = func(string) (string, func(), error) {
+		t.Error("stage image mounted without --push")
+		return "", func() {}, nil
+	}
+	t.Cleanup(func() { mountPushSource = prevMount })
+	stubPushNever := pushImage
+	pushImage = func(context.Context, libbuild.PushOpts) error { t.Error("pushed without --push"); return nil }
+	t.Cleanup(func() { pushImage = stubPushNever })
+
+	req := &BuildRequest{Tag: "bd-publish:test"}
+	if err := publishImage(context.Background(), req, &libbuild.Stage{}, finalSqfs, outPath); err != nil {
+		t.Fatalf("publishImage: %v", err)
+	}
+	if got, _ := os.ReadFile(outPath); string(got) != "new" {
+		t.Errorf("%s = %q, want the new image", outPath, got)
+	}
+}
+
+func registryConfig(env ...string) registry.RuntimeConfig {
+	return registry.RuntimeConfig{Env: env}
 }
