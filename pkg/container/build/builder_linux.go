@@ -38,6 +38,7 @@ type BuildRequest struct {
 	TmpSize       uint
 	ChangeDirSize string
 
+	inVM        bool              // build runs in a VM guest: publish only after the push
 	buildID     string            // generated; used for unique container names
 	stageSqfs   map[int]string    // stageIdx → output .sqfs path
 	containers  []*StageContainer // live stage containers, cleaned up at end
@@ -59,6 +60,7 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 		req.buildID = genBuildID()
 	}
 	req.stageSqfs = map[int]string{}
+	req.inVM, _ = env.IsVM()
 
 	// Inside a VM, configure eth0 at the VM-host level so the FROM
 	// pull (which runs in this process, OUTSIDE any container) has
@@ -158,19 +160,22 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 	}
 
 	// Publish the target stage's squashfs at the cache path under the
-	// image tag (sidecar and push first, rename last).
+	// image tag, and push it when asked.
 	outPath := filepath.Join(env.BaseImageDir, containerimage.SanitizeRef(req.Tag)+".sqfs")
 	if err := os.MkdirAll(env.BaseImageDir, 0755); err != nil {
 		cleanupAll(&req)
 		return "", err
 	}
-	if err := publishImage(ctx, &req, target, finalSqfs, outPath); err != nil {
+	err = publishImage(ctx, &req, target, finalSqfs, outPath)
+	if _, statErr := os.Stat(finalSqfs); os.IsNotExist(statErr) {
+		// The target stage's image is now the tagged output, not an
+		// intermediate one cleanupAll should remove.
+		delete(req.stageSqfs, targetIdx)
+	}
+	if err != nil {
 		cleanupAll(&req)
 		return "", err
 	}
-	// The target stage's image is now the tagged output, not an
-	// intermediate one cleanupAll should remove.
-	delete(req.stageSqfs, targetIdx)
 
 	cleanupAll(&req)
 	return outPath, nil
@@ -190,10 +195,14 @@ var mountPushSource = func(sqfs string) (string, func(), error) {
 }
 
 // publishImage makes the target stage's image the tagged output at
-// outPath: it writes the config sidecar, pushes when asked, and renames
-// finalSqfs over outPath as the very last step. The host of a VM build
-// only sees whether outPath became a new file, so every failure before
-// the rename must leave the previous image (and its sidecar) in place.
+// outPath and pushes it when asked. The order depends on where the build
+// runs:
+//   - on the host, the image and sidecar are published first and pushed
+//     after, so a failed push keeps the new local image (and fails the
+//     build);
+//   - in a VM, the push comes first and the rename over outPath last. The
+//     host only sees whether outPath became a new file, so every failure,
+//     the push included, must leave the previous image in place.
 func publishImage(ctx context.Context, req *BuildRequest, target *libbuild.Stage, finalSqfs, outPath string) (err error) {
 	// Stage the sidecar next to the stage image; it replaces the old one
 	// only together with the image.
@@ -206,10 +215,15 @@ func publishImage(ctx context.Context, req *BuildRequest, target *libbuild.Stage
 		}
 	}()
 
+	if !req.inVM {
+		if err := installImage(finalSqfs, outPath); err != nil {
+			return err
+		}
+		return pushStageImage(ctx, req, target, outPath)
+	}
 	if err := pushStageImage(ctx, req, target, finalSqfs); err != nil {
 		return err
 	}
-
 	return installImage(finalSqfs, outPath)
 }
 
