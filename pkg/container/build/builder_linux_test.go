@@ -47,7 +47,10 @@ func useTempSandalDirs(t *testing.T) string {
 		old := *p
 		*p = v
 		t.Cleanup(func() { *p = old })
-		if err := os.MkdirAll(v, 0o755); err != nil && p != &env.DaemonSocket {
+		if p == &env.DaemonSocket {
+			continue // a path, not a directory: nothing may exist there
+		}
+		if err := os.MkdirAll(v, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -67,6 +70,15 @@ func useTempSandalDirs(t *testing.T) string {
 		}
 	})
 	return root
+}
+
+// The helper must leave nothing at the daemon socket path: a directory
+// there is not "no daemon", it is an unexpected file type to dial.
+func TestUseTempSandalDirsNoSocket(t *testing.T) {
+	useTempSandalDirs(t)
+	if _, err := os.Lstat(env.DaemonSocket); !os.IsNotExist(err) {
+		t.Errorf("something exists at the daemon socket path %s (lstat err %v)", env.DaemonSocket, err)
+	}
 }
 
 // newRequest parses a Dockerfile and returns a BuildRequest over ctxDir.
