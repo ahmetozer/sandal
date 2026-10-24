@@ -58,8 +58,13 @@ func resolveChangeDirType(c *config.Config) string {
 		return typ
 	}
 
-	// auto: probe the parent directory
-	parent := path.Dir(c.ChangeDir)
+	return AutoChangeDirType(path.Dir(c.ChangeDir))
+}
+
+// AutoChangeDirType is the change dir type the "auto" mode picks for a
+// change dir under parent: "image" (an ext4 image) when parent cannot hold
+// an overlayfs upper, else "folder". It creates parent if missing.
+func AutoChangeDirType(parent string) string {
 	if err := os.MkdirAll(parent, 0755); err != nil {
 		slog.Debug("resolveChangeDirType", slog.String("fallback", "image"), slog.Any("error", err))
 		return "image"

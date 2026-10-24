@@ -297,18 +297,12 @@ func buildChangeDirSize(size string, imageBacked bool) string {
 }
 
 // changeDirImageBacked reports whether the stage change dirs will be
-// loop-mounted ext4 images: always inside a VM (virtiofs cannot hold an
-// overlayfs upper) and when the change dir parent is itself overlayfs.
-// Mirrors the "auto" rule in overlayfs.PrepareChangeDir.
+// loop-mounted ext4 images. It shares the "auto" rule of
+// overlayfs.PrepareChangeDir (always inside a VM, on an overlayfs parent,
+// and when the parent cannot be created or probed), so the two cannot
+// drift.
 func changeDirImageBacked() bool {
-	if isVM, _ := env.IsVM(); isVM {
-		return true
-	}
-	// PrepareChangeDir creates this directory anyway; it must exist for
-	// the filesystem probe.
-	_ = os.MkdirAll(env.BaseChangeDir, 0755)
-	on, _ := overlayfs.IsOverlayFS(env.BaseChangeDir)
-	return on
+	return overlayfs.AutoChangeDirType(env.BaseChangeDir) == "image"
 }
 
 // cleanupAll tears down every live stage container and removes the

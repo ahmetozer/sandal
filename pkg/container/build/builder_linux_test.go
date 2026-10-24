@@ -426,3 +426,25 @@ func TestPublishImageWithoutPush(t *testing.T) {
 func registryConfig(env ...string) registry.RuntimeConfig {
 	return registry.RuntimeConfig{Env: env}
 }
+
+// When the change dir parent cannot be created, `sandal run` falls back to
+// image-backed change dirs, so the build must size them as images too.
+func TestChangeDirImageBackedFallback(t *testing.T) {
+	if isVM, _ := env.IsVM(); isVM {
+		t.Skip("inside a VM change dirs are always image-backed")
+	}
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prev := env.BaseChangeDir
+	env.BaseChangeDir = filepath.Join(file, "changedir") // MkdirAll fails: ENOTDIR
+	t.Cleanup(func() { env.BaseChangeDir = prev })
+
+	if !changeDirImageBacked() {
+		t.Error("changeDirImageBacked() = false, but PrepareChangeDir falls back to an image when the parent cannot be created")
+	}
+	if got := buildChangeDirSize("", changeDirImageBacked()); got != defaultBuildChangeDirSize {
+		t.Errorf("stage change dir size = %q, want %q", got, defaultBuildChangeDirSize)
+	}
+}
