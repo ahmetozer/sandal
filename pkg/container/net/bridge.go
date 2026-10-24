@@ -128,17 +128,23 @@ func ensureBridgeMAC(link netlink.Link) netlink.Link {
 }
 
 // setBridgeNotify makes the kernel announce the bridge addresses whenever
-// its MAC changes. It reports whether both sysctls read back as 1; failures
-// (e.g. IPv6 disabled, read-only /proc/sys) are not fatal.
+// its MAC changes, and reports whether it will (see bridgeNotifyOK).
+// Failures (e.g. a read-only /proc/sys) are not fatal.
 func setBridgeNotify(name string) bool {
-	ok := true
-	for _, key := range []string{"net.ipv6.conf." + name + ".ndisc_notify", "net.ipv4.conf." + name + ".arp_notify"} {
-		_, _ = sysctl.Ensure(key, "1")
-		if v, err := sysctl.Read(key); err != nil || v != "1" {
-			ok = false
-		}
+	_, _ = sysctl.Ensure("net.ipv6.conf."+name+".ndisc_notify", "1")
+	_, _ = sysctl.Ensure("net.ipv4.conf."+name+".arp_notify", "1")
+	return bridgeNotifyOK(name, sysctl.Read)
+}
+
+// bridgeNotifyOK reports whether ndisc_notify and arp_notify of the bridge
+// read back as 1. A missing ndisc_notify (IPv6 disabled) is fine: there is
+// no IPv6 neighbor to notify.
+func bridgeNotifyOK(name string, read func(string) (string, error)) bool {
+	if v, err := read("net.ipv6.conf." + name + ".ndisc_notify"); !os.IsNotExist(err) && (err != nil || v != "1") {
+		return false
 	}
-	return ok
+	v, err := read("net.ipv4.conf." + name + ".arp_notify")
+	return err == nil && v == "1"
 }
 
 func needsFixedMAC(addrAssignType string) bool {

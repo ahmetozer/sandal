@@ -5,6 +5,8 @@ package net
 import (
 	"bytes"
 	"net"
+	"os"
+	"syscall"
 	"testing"
 )
 
@@ -95,5 +97,45 @@ func TestNeedsFixedMAC(t *testing.T) {
 func TestSetBridgeNotifyReportsFailure(t *testing.T) {
 	if setBridgeNotify("ffnosuchbr0") {
 		t.Error("setBridgeNotify on a missing interface reported success")
+	}
+}
+
+// Without IPv6 (e.g. ipv6.disable=1) there is no ndisc_notify key, which is
+// no reason to warn; a missing or unset arp_notify still is.
+func TestBridgeNotifyOK(t *testing.T) {
+	const (
+		ndisc = "net.ipv6.conf.sandal0.ndisc_notify"
+		arp   = "net.ipv4.conf.sandal0.arp_notify"
+	)
+	missing := &os.PathError{Op: "open", Path: "/proc/sys/x", Err: syscall.ENOENT}
+	type val struct {
+		v   string
+		err error
+	}
+	for _, tc := range []struct {
+		name       string
+		ndisc, arp val
+		want       bool
+	}{
+		{"both set", val{"1", nil}, val{"1", nil}, true},
+		{"no IPv6", val{"", missing}, val{"1", nil}, true},
+		{"ndisc_notify unset", val{"0", nil}, val{"1", nil}, false},
+		{"ndisc_notify unreadable", val{"", syscall.EACCES}, val{"1", nil}, false},
+		{"arp_notify unset", val{"1", nil}, val{"0", nil}, false},
+		{"arp_notify missing", val{"1", nil}, val{"", missing}, false},
+	} {
+		read := func(key string) (string, error) {
+			switch key {
+			case ndisc:
+				return tc.ndisc.v, tc.ndisc.err
+			case arp:
+				return tc.arp.v, tc.arp.err
+			}
+			t.Fatalf("unexpected key %s", key)
+			return "", nil
+		}
+		if got := bridgeNotifyOK("sandal0", read); got != tc.want {
+			t.Errorf("%s: bridgeNotifyOK = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
