@@ -4,6 +4,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
+	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	"github.com/ahmetozer/sandal/pkg/env"
 	libbuild "github.com/ahmetozer/sandal/pkg/lib/container/build"
 	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
@@ -204,4 +206,97 @@ func TestBuildChangeDirSize(t *testing.T) {
 	if defaultBuildChangeDirSize != "8g" {
 		t.Errorf("defaultBuildChangeDirSize = %q, want 8g (docs/commands/build.md)", defaultBuildChangeDirSize)
 	}
+}
+
+// Inside a VM the -csize temp dir is backed by an ext4 image on the virtiofs
+// share of the host's sandal lib dir, which every build VM sees. Each build
+// must get its own image, so concurrent builds do not share one.
+func TestVMTempImagePerBuild(t *testing.T) {
+	const tempDir = "/var/lib/sandal/tmp"
+	a, b := vmTempImage(tempDir, "0a1b2c3d"), vmTempImage(tempDir, "4e5f6a7b")
+	if a == b {
+		t.Fatalf("builds share the temp image %s", a)
+	}
+	for _, img := range []string{a, b} {
+		if img == tempDir+".img" {
+			t.Errorf("temp image %s is the shared legacy name", img)
+		}
+		if filepath.Dir(img) != filepath.Dir(tempDir) || !strings.HasSuffix(img, ".img") {
+			t.Errorf("temp image %s is not an .img next to %s", img, tempDir)
+		}
+	}
+}
+
+// The temp dir image is removed when the build ends, and two builds over
+// the same temp dir never touch each other's image.
+func TestPrepareVMTempDirCleanup(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root (loop devices and ext4 mounts)")
+	}
+	tempDir := filepath.Join(t.TempDir(), "tmp")
+
+	cleanupA, err := prepareVMTempDir(tempDir, "0a1b2c3d", "64m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupB, err := prepareVMTempDir(tempDir, "4e5f6a7b", "64m")
+	if err != nil {
+		cleanupA()
+		t.Fatal(err)
+	}
+	imgA, imgB := vmTempImage(tempDir, "0a1b2c3d"), vmTempImage(tempDir, "4e5f6a7b")
+	for _, img := range []string{imgA, imgB} {
+		if _, err := os.Stat(img); err != nil {
+			t.Errorf("temp image of a running build: %v", err)
+		}
+	}
+
+	cleanupB()
+	if _, err := os.Stat(imgB); !os.IsNotExist(err) {
+		t.Errorf("image %s left after its build ended (stat err %v)", imgB, err)
+	}
+	if _, err := os.Stat(imgA); err != nil {
+		t.Errorf("ending one build removed the other's image: %v", err)
+	}
+	cleanupA()
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(tempDir), "*.img")); len(left) != 0 {
+		t.Errorf("images left after both builds ended: %v", left)
+	}
+	if isMountPoint(t, tempDir) {
+		t.Errorf("%s still mounted after both builds ended", tempDir)
+	}
+}
+
+// A setup that fails after creating the image leaves no image behind.
+func TestPrepareVMTempDirFailureLeavesNothing(t *testing.T) {
+	tempDir := filepath.Join(t.TempDir(), "tmp")
+	prev := prepareImageChangeDir
+	prepareImageChangeDir = func(changeDir, imagePath, size string) (*overlayfs.ImageChangeMount, error) {
+		if err := os.WriteFile(imagePath, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return nil, errors.New("mounting ext4: invalid argument")
+	}
+	t.Cleanup(func() { prepareImageChangeDir = prev })
+
+	if _, err := prepareVMTempDir(tempDir, "0a1b2c3d", "64m"); err == nil {
+		t.Fatal("prepareVMTempDir succeeded although the mount failed")
+	}
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(tempDir), "*.img")); len(left) != 0 {
+		t.Errorf("images left after a failed setup: %v", left)
+	}
+}
+
+func isMountPoint(t *testing.T, dir string) bool {
+	t.Helper()
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if f := strings.Fields(line); len(f) > 4 && f[4] == dir {
+			return true
+		}
+	}
+	return false
 }

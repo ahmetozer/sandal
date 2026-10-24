@@ -72,11 +72,11 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 	// is specified, back the temp dir with a loop-mounted ext4 image
 	// that provides full POSIX support and real disk space.
 	if isVM, _ := env.IsVM(); isVM && req.ChangeDirSize != "" {
-		mount, err := overlayfs.PrepareImageChangeDir(env.BaseTempDir, req.ChangeDirSize)
+		cleanup, err := prepareVMTempDir(env.BaseTempDir, req.buildID, req.ChangeDirSize)
 		if err != nil {
 			return "", fmt.Errorf("preparing VM temp dir: %w", err)
 		}
-		defer mount.Cleanup()
+		defer cleanup()
 	}
 
 	// Stage change dirs that end up as ext4 images (always inside a VM,
@@ -203,6 +203,37 @@ func Run(ctx context.Context, req BuildRequest) (string, error) {
 
 	cleanupAll(&req)
 	return outPath, nil
+}
+
+// prepareImageChangeDir is overlayfs.PrepareImageChangeDirAt; tests replace it.
+var prepareImageChangeDir = overlayfs.PrepareImageChangeDirAt
+
+// vmTempImage returns the ext4 image that backs tempDir for one VM build.
+// tempDir is on the virtiofs share of the host's sandal lib dir, which every
+// build VM sees, so the image is named per build: concurrent builds would
+// otherwise format and mount the same image.
+func vmTempImage(tempDir, buildID string) string {
+	return tempDir + "-build-" + buildID + ".img"
+}
+
+// prepareVMTempDir mounts a new ext4 image of size at tempDir for the build
+// buildID. The returned cleanup unmounts it and deletes the image; on error
+// nothing is left behind.
+func prepareVMTempDir(tempDir, buildID, size string) (func(), error) {
+	imagePath := vmTempImage(tempDir, buildID)
+	mount, err := prepareImageChangeDir(tempDir, imagePath, size)
+	if err != nil {
+		os.Remove(imagePath)
+		return nil, err
+	}
+	return func() {
+		if err := mount.Cleanup(); err != nil {
+			slog.Warn("build", slog.String("action", "unmount temp dir"), slog.String("path", tempDir), slog.Any("error", err))
+		}
+		if err := os.Remove(imagePath); err != nil {
+			slog.Warn("build", slog.String("action", "remove temp image"), slog.String("path", imagePath), slog.Any("error", err))
+		}
+	}, nil
 }
 
 // defaultBuildChangeDirSize is the size of an image-backed stage change
