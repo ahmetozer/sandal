@@ -460,3 +460,42 @@ func TestChangeDirImageBackedFallback(t *testing.T) {
 		t.Errorf("stage change dir size = %q, want %q", got, defaultBuildChangeDirSize)
 	}
 }
+
+// The image rename is the commit point. If it fails, the sidecar must be
+// the previous one again, so the old image is never paired with the new
+// config.
+func TestPublishImageRenameFailureRestoresSidecar(t *testing.T) {
+	for _, hadSidecar := range []bool{true, false} {
+		dir := t.TempDir()
+		finalSqfs := filepath.Join(dir, ".sandal-build-test-stage0.sqfs")
+		outPath := filepath.Join(dir, "bd-publish_test.sqfs")
+		if err := os.WriteFile(finalSqfs, []byte("new"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// A non-empty directory at outPath makes the image rename fail.
+		if err := os.MkdirAll(filepath.Join(outPath, "x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if hadSidecar {
+			if err := os.WriteFile(outPath+".json", []byte(`{"old":true}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		req := &BuildRequest{Tag: "bd-publish:test"}
+		target := &libbuild.Stage{Config: registryConfig("NEW=1")}
+		if err := publishImage(context.Background(), req, target, finalSqfs, outPath); err == nil {
+			t.Fatalf("hadSidecar=%v: publishImage succeeded although the image rename failed", hadSidecar)
+		}
+		got, err := os.ReadFile(outPath + ".json")
+		switch {
+		case hadSidecar && string(got) != `{"old":true}`:
+			t.Errorf("hadSidecar=%v: sidecar = %q (err %v), want the previous one", hadSidecar, got, err)
+		case !hadSidecar && !os.IsNotExist(err):
+			t.Errorf("hadSidecar=%v: a sidecar was left without its image: %q (err %v)", hadSidecar, got, err)
+		}
+		if _, err := os.Stat(finalSqfs + ".json"); !os.IsNotExist(err) {
+			t.Errorf("hadSidecar=%v: staged sidecar left (stat err %v)", hadSidecar, err)
+		}
+	}
+}

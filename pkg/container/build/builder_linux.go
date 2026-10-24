@@ -210,11 +210,28 @@ func publishImage(ctx context.Context, req *BuildRequest, target *libbuild.Stage
 		return err
 	}
 
+	return installImage(finalSqfs, outPath)
+}
+
+// installImage moves the staged sidecar and then the image from finalSqfs
+// to outPath. Both renames replace the old file atomically, so outPath is
+// never missing. The image rename is the commit point: the host of a VM
+// build counts only a new image as success, so a publish cut short before
+// it is reported as failed. If the image rename fails, the previous
+// sidecar is put back (or the new one removed), so the old image keeps its
+// own config.
+func installImage(finalSqfs, outPath string) error {
+	oldSidecar, readErr := os.ReadFile(outPath + ".json")
 	if err := os.Rename(finalSqfs+".json", outPath+".json"); err != nil {
 		return fmt.Errorf("writing config sidecar: %w", err)
 	}
-	_ = os.Remove(outPath)
 	if err := os.Rename(finalSqfs, outPath); err != nil {
+		switch {
+		case readErr == nil:
+			_ = os.WriteFile(outPath+".json", oldSidecar, 0644)
+		case os.IsNotExist(readErr):
+			_ = os.Remove(outPath + ".json")
+		}
 		return fmt.Errorf("finalising %s: %w", outPath, err)
 	}
 	return nil
