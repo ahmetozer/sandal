@@ -130,20 +130,24 @@ func needsFixedMAC(addrAssignType string) bool {
 	return t == netAddrRandom || t == netAddrStolen
 }
 
-// defaultBridgeMAC derives sandal0's MAC from the machine-id and the uplink
-// MAC, or picks a random one when neither is known.
+// defaultBridgeMAC derives sandal0's MAC from the machine-id, or from the
+// uplink MAC when there is no machine-id, or picks a random one when neither
+// is known. sandal0 then keeps it (an explicitly set MAC is not replaced).
 func defaultBridgeMAC() net.HardwareAddr {
+	id := machineID()
 	var uplink net.HardwareAddr
-	name := env.UpstreamInterface
-	if name == "" {
-		name, _ = DetectUpstream()
-	}
-	if name != "" && name != DefaultBridgeInterface {
-		if l, err := netlink.LinkByName(name); err == nil {
-			uplink = l.Attrs().HardwareAddr
+	if len(id) == 0 {
+		name := env.UpstreamInterface
+		if name == "" {
+			name, _ = DetectUpstream()
+		}
+		if name != "" && name != DefaultBridgeInterface {
+			if l, err := netlink.LinkByName(name); err == nil {
+				uplink = l.Attrs().HardwareAddr
+			}
 		}
 	}
-	if mac := stableBridgeMAC(machineID(), uplink); mac != nil {
+	if mac := stableBridgeMAC(id, uplink); mac != nil {
 		return mac
 	}
 	b := make([]byte, 6)
@@ -151,11 +155,15 @@ func defaultBridgeMAC() net.HardwareAddr {
 	return localUnicast(b)
 }
 
-// stableBridgeMAC hashes the machine-id and the uplink MAC into a locally
-// administered unicast MAC, the same on every boot with the same uplink.
-// The uplink MAC keeps hosts cloned from one image (same machine-id) apart
-// if sandal0 is ever bridged onto a shared L2. Returns nil without a seed.
+// stableBridgeMAC hashes the machine-id into a locally administered unicast
+// MAC, so it is the same on every boot of a host with a machine-id. The
+// uplink MAC is the seed only without a machine-id: the daemon can create
+// sandal0 before the uplink exists, so mixing it in would make the MAC
+// depend on boot timing. Returns nil without a seed.
 func stableBridgeMAC(machineID []byte, uplink net.HardwareAddr) net.HardwareAddr {
+	if len(machineID) != 0 {
+		uplink = nil
+	}
 	if len(machineID) == 0 && len(uplink) == 0 {
 		return nil
 	}

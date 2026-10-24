@@ -41,17 +41,31 @@ func TestStableBridgeMAC_Deterministic(t *testing.T) {
 	}
 }
 
-// Hosts cloned from one image share a machine-id; their uplink MACs still
-// differ, so a sandal0 bridged onto a shared L2 does not collide.
-func TestStableBridgeMAC_SeedsDiffer(t *testing.T) {
+// The daemon can create sandal0 before the uplink exists, so with a
+// machine-id the uplink must not change the MAC: it would differ from boot
+// to boot.
+func TestStableBridgeMAC_MachineIDOnlySeed(t *testing.T) {
 	id := []byte("0123456789abcdef0123456789abcdef")
 	up1 := net.HardwareAddr{0x52, 0x54, 0x00, 0x12, 0x34, 0x56}
 	up2 := net.HardwareAddr{0x52, 0x54, 0x00, 0x12, 0x34, 0x57}
-	if bytes.Equal(stableBridgeMAC(id, up1), stableBridgeMAC(id, up2)) {
-		t.Error("different uplinks, same MAC")
+	want := stableBridgeMAC(id, nil)
+	for _, up := range []net.HardwareAddr{up1, up2} {
+		if got := stableBridgeMAC(id, up); !bytes.Equal(got, want) {
+			t.Errorf("uplink %v changed the MAC to %v (machine-id alone gives %v)", up, got, want)
+		}
 	}
-	if bytes.Equal(stableBridgeMAC(id, up1), stableBridgeMAC([]byte("fedcba9876543210fedcba9876543210"), up1)) {
+}
+
+func TestStableBridgeMAC_SeedsDiffer(t *testing.T) {
+	id := []byte("0123456789abcdef0123456789abcdef")
+	if bytes.Equal(stableBridgeMAC(id, nil), stableBridgeMAC([]byte("fedcba9876543210fedcba9876543210"), nil)) {
 		t.Error("different machine-ids, same MAC")
+	}
+	// Without a machine-id the uplink MAC is the seed.
+	up1 := net.HardwareAddr{0x52, 0x54, 0x00, 0x12, 0x34, 0x56}
+	up2 := net.HardwareAddr{0x52, 0x54, 0x00, 0x12, 0x34, 0x57}
+	if bytes.Equal(stableBridgeMAC(nil, up1), stableBridgeMAC(nil, up2)) {
+		t.Error("no machine-id, different uplinks, same MAC")
 	}
 }
 
