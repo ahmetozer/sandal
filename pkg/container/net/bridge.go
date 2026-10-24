@@ -5,10 +5,12 @@ package net
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"log/slog"
 	"net"
 	"os"
 	"strings"
+	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/sysctl"
@@ -43,7 +45,14 @@ func CreateDefaultBridge() (netlink.Link, error) {
 		HardwareAddr: defaultBridgeMAC(),
 	}}
 
-	err = netlink.LinkAdd(masterlink)
+	err = linkAdd(masterlink)
+	if errors.Is(err, syscall.EEXIST) {
+		// Another run created it after our lookup; it sets it up.
+		if existing, lerr := netlink.LinkByName(DefaultBridgeInterface); lerr == nil {
+			ensureBridgeMAC(existing)
+			return existing, os.ErrExist
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +84,9 @@ func CreateDefaultBridge() (netlink.Link, error) {
 
 	return netlink.LinkByName(DefaultBridgeInterface)
 }
+
+// linkAdd is netlink.LinkAdd; tests replace it.
+var linkAdd = netlink.LinkAdd
 
 // sysClassNet is a variable so tests in a private netns can point it at
 // their own sysfs mount.

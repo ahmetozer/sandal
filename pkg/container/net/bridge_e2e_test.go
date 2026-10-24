@@ -3,6 +3,7 @@
 package net
 
 import (
+	"errors"
 	"os"
 	"runtime"
 	"strings"
@@ -212,5 +213,82 @@ func TestCreateVeth_E2E_AttachesToNewDefaultBridge(t *testing.T) {
 	}
 	if got, want := host2.Attrs().MasterIndex, br.Attrs().Index; got != want {
 		t.Errorf("second host veth master index = %d, want sandal0 (%d)", got, want)
+	}
+}
+
+// Two first runs can both miss sandal0 and both add it. The one whose add
+// fails with EEXIST uses the bridge the other one created.
+func TestDefaultBridge_E2E_LostCreateRace(t *testing.T) {
+	setupBridgeLab(t)
+	prev := linkAdd
+	linkAdd = func(link netlink.Link) error {
+		// The other run adds sandal0 between our lookup and our add.
+		winner := &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{
+			Name: DefaultBridgeInterface, HardwareAddr: defaultBridgeMAC()}}
+		if err := netlink.LinkAdd(winner); err != nil {
+			t.Fatalf("winner add: %v", err)
+		}
+		return netlink.LinkAdd(link)
+	}
+	t.Cleanup(func() { linkAdd = prev })
+
+	br, err := CreateDefaultBridge()
+	if err != nil && err != os.ErrExist {
+		t.Fatalf("CreateDefaultBridge after losing the add race: %v", err)
+	}
+	if br == nil || br.Attrs().Name != DefaultBridgeInterface {
+		t.Fatalf("CreateDefaultBridge returned link %v, want sandal0", br)
+	}
+	if got, want := bridgeMAC(t), defaultBridgeMAC().String(); got != want {
+		t.Errorf("mac = %s, want %s", got, want)
+	}
+}
+
+// Concurrent first runs in one netns all get sandal0 without an error.
+func TestDefaultBridge_E2E_ConcurrentCreate(t *testing.T) {
+	setupBridgeLab(t)
+	ns, err := netns.Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ns.Close()
+
+	const rounds, runs = 20, 8
+	for r := 0; r < rounds; r++ {
+		start := make(chan struct{})
+		errs := make(chan error, runs)
+		for i := 0; i < runs; i++ {
+			go func() {
+				// The thread stays in the lab netns and exits with the goroutine.
+				runtime.LockOSThread()
+				if err := netns.Set(ns); err != nil {
+					errs <- err
+					return
+				}
+				<-start
+				br, err := CreateDefaultBridge()
+				if err == nil || err == os.ErrExist {
+					if br == nil {
+						err = errors.New("no link returned")
+					} else {
+						err = nil
+					}
+				}
+				errs <- err
+			}()
+		}
+		close(start)
+		for i := 0; i < runs; i++ {
+			if err := <-errs; err != nil {
+				t.Fatalf("round %d: CreateDefaultBridge: %v", r, err)
+			}
+		}
+		br, err := netlink.LinkByName(DefaultBridgeInterface)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := netlink.LinkDel(br); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
