@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // VirtioFS implements a virtio-fs device with a built-in FUSE server.
@@ -508,20 +510,63 @@ func (d *VirtioFSDevice) allocNode(path string) uint64 {
 	return id
 }
 
-// renameNodes points the node IDs of a renamed file or directory, and of
-// everything below it, at their new host path. The guest moves its dentry
-// and keeps using the same node ID, so without this every request on the
-// renamed entry hits the old, now missing path (ENOENT) until the entry
-// timeout makes the guest look the name up again.
-func (d *VirtioFSDevice) renameNodes(oldPath, newPath string) {
+// renameat2 flags accepted in FUSE_RENAME2 (include/uapi/linux/fs.h).
+const (
+	renameNoReplace = unix.RENAME_NOREPLACE
+	renameExchange  = unix.RENAME_EXCHANGE
+)
+
+// rename renames oldPath to newPath on the host with the given renameat2
+// flags and updates the node table to match. d.mu is held across both, so
+// no lookup sees the host and the table disagree.
+func (d *VirtioFSDevice) rename(oldPath, newPath string, flags uint) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	// The syscall directly: os.Rename refuses to replace a directory.
+	if err := unix.Renameat2(unix.AT_FDCWD, oldPath, unix.AT_FDCWD, newPath, flags); err != nil {
+		return err
+	}
+	if flags&renameExchange != 0 {
+		d.swapNodesLocked(oldPath, newPath)
+	} else {
+		d.renameNodesLocked(oldPath, newPath)
+	}
+	return nil
+}
+
+// under reports whether p is path or below it.
+func under(p, path string) bool {
+	return p == path || strings.HasPrefix(p, path+"/")
+}
+
+// renameNodesLocked points the node IDs of a renamed file or directory, and
+// of everything below it, at their new host path. The guest moves its
+// dentry and keeps using the same node ID, so without this every request on
+// the renamed entry hits the old, now missing path (ENOENT) until the entry
+// timeout makes the guest look the name up again. The nodes of a replaced
+// target are dropped first, so no two IDs ever map to the same path.
+func (d *VirtioFSDevice) renameNodesLocked(oldPath, newPath string) {
+	for id, p := range d.nodes {
+		if under(p, newPath) && !under(p, oldPath) {
+			delete(d.nodes, id)
+		}
+	}
+	for id, p := range d.nodes {
+		if under(p, oldPath) {
+			d.nodes[id] = newPath + p[len(oldPath):]
+		}
+	}
+}
+
+// swapNodesLocked swaps the node IDs of two exchanged entries and of
+// everything below them (RENAME_EXCHANGE).
+func (d *VirtioFSDevice) swapNodesLocked(a, b string) {
 	for id, p := range d.nodes {
 		switch {
-		case p == oldPath:
-			d.nodes[id] = newPath
-		case strings.HasPrefix(p, oldPath+"/"):
-			d.nodes[id] = newPath + p[len(oldPath):]
+		case under(p, a):
+			d.nodes[id] = b + p[len(a):]
+		case under(p, b):
+			d.nodes[id] = a + p[len(b):]
 		}
 	}
 }
@@ -991,10 +1036,9 @@ func (d *VirtioFSDevice) handleRename(hdr *fuseInHeader, inBody []byte, outBuf [
 	oldPath := filepath.Join(oldParent, oldName)
 	newPath := filepath.Join(newParent, newName)
 
-	if err := os.Rename(oldPath, newPath); err != nil {
+	if err := d.rename(oldPath, newPath, 0); err != nil {
 		return d.replyError(hdr, outBuf, errnoToFuse(err))
 	}
-	d.renameNodes(oldPath, newPath)
 	return d.replyOK(hdr, outBuf)
 }
 
@@ -1006,6 +1050,11 @@ func (d *VirtioFSDevice) handleRename2(hdr *fuseInHeader, inBody []byte, outBuf 
 		return d.replyError(hdr, outBuf, fuseErrINVAL)
 	}
 	in := (*fuseRename2In)(unsafe.Pointer(&inBody[0]))
+	// RENAME_WHITEOUT (overlayfs) and unknown flags are not supported;
+	// refuse them instead of doing a plain rename.
+	if in.Flags&^uint32(renameNoReplace|renameExchange) != 0 {
+		return d.replyError(hdr, outBuf, fuseErrINVAL)
+	}
 	names := inBody[unsafe.Sizeof(fuseRename2In{}):]
 	oldName := cstring(names)
 	newName := cstring(names[len(oldName)+1:])
@@ -1022,10 +1071,9 @@ func (d *VirtioFSDevice) handleRename2(hdr *fuseInHeader, inBody []byte, outBuf 
 	oldPath := filepath.Join(oldParent, oldName)
 	newPath := filepath.Join(newParent, newName)
 
-	if err := os.Rename(oldPath, newPath); err != nil {
+	if err := d.rename(oldPath, newPath, uint(in.Flags)); err != nil {
 		return d.replyError(hdr, outBuf, errnoToFuse(err))
 	}
-	d.renameNodes(oldPath, newPath)
 	return d.replyOK(hdr, outBuf)
 }
 
