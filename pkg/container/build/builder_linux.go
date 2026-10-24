@@ -786,6 +786,6 @@ func releaseCopySource(img *diskimage.ImmutableImage) {
 		return
 	}
 	if err := diskimage.Umount(img); err != nil {
-		slog.Debug("releaseCopySource", slog.String("mountDir", img.MountDir), slog.Any("error", err))
+		slog.Warn("releaseCopySource", slog.String("action", "unmount source image"), slog.String("mountDir", img.MountDir), slog.Any("error", err))
 	}
 }
