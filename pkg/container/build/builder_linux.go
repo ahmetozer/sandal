@@ -195,13 +195,6 @@ var mountPushSource = func(sqfs string) (string, func(), error) {
 // only sees whether outPath became a new file, so every failure before
 // the rename must leave the previous image (and its sidecar) in place.
 func publishImage(ctx context.Context, req *BuildRequest, target *libbuild.Stage, finalSqfs, outPath string) (err error) {
-	if finalSqfs == outPath {
-		if err := writeConfigSidecar(outPath, target.Config); err != nil {
-			return fmt.Errorf("writing config sidecar: %w", err)
-		}
-		return pushStageImage(ctx, req, target, outPath)
-	}
-
 	// Stage the sidecar next to the stage image; it replaces the old one
 	// only together with the image.
 	if err := writeConfigSidecar(finalSqfs, target.Config); err != nil {
