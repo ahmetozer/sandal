@@ -48,7 +48,13 @@ func setupRALab(t *testing.T) (uplink, other *raLabRouter) {
 		}
 		runtime.UnlockOSThread()
 	})
-	for _, f := range []string{"/proc/sys/net/ipv6/conf/all/accept_dad", "/proc/sys/net/ipv6/conf/default/accept_dad"} {
+	// No DAD, and no kernel-sent Router Solicitations: the kernel keeps
+	// soliciting after link up (4 s, 8 s, ...), which the RS counts below
+	// would otherwise pick up at random.
+	for _, f := range []string{
+		"/proc/sys/net/ipv6/conf/all/accept_dad", "/proc/sys/net/ipv6/conf/default/accept_dad",
+		"/proc/sys/net/ipv6/conf/all/router_solicitations", "/proc/sys/net/ipv6/conf/default/router_solicitations",
+	} {
 		if err := os.WriteFile(f, []byte("0"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -177,6 +183,7 @@ func TestRASourceAbandonsForgottenPrefix_E2E(t *testing.T) {
 		t.Fatalf("after RAs on another link: poll = %v, want %s", got, raP1)
 	}
 
+	uplink.solicitations() // drain anything sent before the first RA without P1
 	uplink.send(t, pioOpt("2001:db8:bbbb:1::", 64, pioL, 300))
 	rsSent := time.Now()
 	readFor(t, s, fd, 300*time.Millisecond) // returns within ~1 s (1 s SO_RCVTIMEO)
