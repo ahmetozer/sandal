@@ -59,8 +59,8 @@ func NewClient6(ifName string) (*Client6, error) {
 }
 
 // ObtainLease performs a full SARR exchange (Solicit → Advertise → Request → Reply).
-// SOLICIT is retransmitted every 2 seconds until an ADVERTISE is received,
-// which handles bridge/interface warmup delays.
+// SOLICIT and REQUEST are retransmitted with RFC 8415 §15 backoff, which
+// handles lost packets and bridge/interface warmup delays.
 func (c *Client6) ObtainLease(ctx context.Context) (*Lease6, error) {
 	conn, err := c.listen()
 	if err != nil {
@@ -70,64 +70,19 @@ func (c *Client6) ObtainLease(ctx context.Context) (*Lease6, error) {
 
 	txID := randomTxID()
 
-	// SOLICIT with retransmission
-	solicit := c.newSolicit(txID)
-	adv, err := c.solicitAdvertise(ctx, conn, txID, solicit)
+	// SOLICIT: first valid ADVERTISE wins
+	adv, err := c.exchange(ctx, conn, c.newSolicit(txID), Msg6Advertise, solicitRT)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("dhcp6: SOLICIT: %w", err)
 	}
 
-	// REQUEST
-	if err := sendUntil(ctx, conn, c.newRequest(txID, adv), c.serverAddr, 250*time.Millisecond); err != nil {
+	// REQUEST, wait for REPLY
+	reply, err := c.exchange(ctx, conn, c.newRequest(txID, adv), Msg6Reply, requestRT)
+	if err != nil {
 		return nil, fmt.Errorf("dhcp6: REQUEST: %w", err)
 	}
 
-	// Wait for REPLY
-	reply, err := c.recv6(ctx, conn, txID, Msg6Reply)
-	if err != nil {
-		return nil, fmt.Errorf("dhcp6: waiting REPLY: %w", err)
-	}
-
 	return toLease6(reply)
-}
-
-// solicitAdvertise sends SOLICIT and waits for ADVERTISE, retransmitting every 2 seconds.
-func (c *Client6) solicitAdvertise(ctx context.Context, conn net.PacketConn, txID [3]byte, solicit *Packet6) (*Packet6, error) {
-	retransmit := 2 * time.Second
-	buf := make([]byte, 1500)
-
-	if err := sendUntil(ctx, conn, solicit, c.serverAddr, 250*time.Millisecond); err != nil {
-		return nil, fmt.Errorf("dhcp6: SOLICIT: %w", err)
-	}
-	nextRetransmit := time.Now().Add(retransmit)
-
-	for {
-		conn.SetReadDeadline(time.Now().Add(time.Second))
-		n, _, err := conn.ReadFrom(buf)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil, fmt.Errorf("dhcp6: waiting ADVERTISE: %w", ctx.Err())
-			}
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				if time.Now().After(nextRetransmit) {
-					send6(conn, solicit, c.serverAddr())
-					nextRetransmit = time.Now().Add(retransmit)
-				}
-				continue
-			}
-			return nil, fmt.Errorf("dhcp6: waiting ADVERTISE: %w", err)
-		}
-		pkt, err := Unmarshal6(buf[:n])
-		if err != nil {
-			continue
-		}
-		if pkt.TransactionID != txID {
-			continue
-		}
-		if pkt.MsgType == Msg6Advertise {
-			return pkt, nil
-		}
-	}
 }
 
 // RenewLease sends a Renew to extend an existing lease.
@@ -156,13 +111,9 @@ func (c *Client6) RenewLease(ctx context.Context, lease *Lease6) (*Lease6, error
 			Option6ORO(Opt6DNSServers),
 		},
 	}
-	if err := send6(conn, renew, c.serverAddr()); err != nil {
-		return nil, fmt.Errorf("dhcp6: RENEW: %w", err)
-	}
-
-	reply, err := c.recv6(ctx, conn, txID, Msg6Reply)
+	reply, err := c.exchange(ctx, conn, renew, Msg6Reply, renewRT)
 	if err != nil {
-		return nil, fmt.Errorf("dhcp6: waiting REPLY: %w", err)
+		return nil, fmt.Errorf("dhcp6: RENEW: %w", err)
 	}
 	return toLease6(reply)
 }
@@ -255,33 +206,6 @@ func (c *Client6) listen() (net.PacketConn, error) {
 		},
 	}
 	return lc.ListenPacket(context.Background(), "udp6", fmt.Sprintf("[::]:%d", c.ClientPort))
-}
-
-func (c *Client6) recv6(ctx context.Context, conn net.PacketConn, txID [3]byte, want byte) (*Packet6, error) {
-	buf := make([]byte, 1500)
-	for {
-		conn.SetReadDeadline(time.Now().Add(time.Second))
-		n, _, err := conn.ReadFrom(buf)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				continue
-			}
-			return nil, err
-		}
-		pkt, err := Unmarshal6(buf[:n])
-		if err != nil {
-			continue
-		}
-		if pkt.TransactionID != txID {
-			continue
-		}
-		if pkt.MsgType == want {
-			return pkt, nil
-		}
-	}
 }
 
 // currentIface re-resolves the interface by index. The container link is

@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/vm/boot"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
@@ -268,13 +270,19 @@ func vmStart(args []string) error {
 
 	cfg, err := vmconfig.LoadConfig(*name)
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		err = fmt.Errorf("loading config: %w", err)
+		recordVMExit(*name, err)
+		return err
 	}
 
 	return startVM(*name, cfg)
 }
 
-func startVM(name string, cfg vmconfig.VMConfig) error {
+// startVM boots the VM and records how it ended on the container record it
+// hosts, on every path, so an early failure does not leave it "running".
+func startVM(name string, cfg vmconfig.VMConfig) (err error) {
+	defer func() { recordVMExit(name, err) }()
+
 	// Check if VM is already running
 	if pid, alive := vmconfig.ReadPid(name); alive {
 		return fmt.Errorf("VM '%s' is already running (pid %d)", name, pid)
@@ -499,4 +507,35 @@ func vmCreateDisk(args []string) error {
 	}
 	slog.Info("vmCreateDisk", slog.String("path", *path), slog.Int64("sizeMB", *sizeMB))
 	return nil
+}
+
+// recordVMExit is recordVMContainerExit; tests replace it.
+var recordVMExit = recordVMContainerExit
+
+// recordVMContainerExit stores the VM's exit status on the container record
+// this process hosts. forkVMProcess starts `sandal vm start` for `run -vm -d`
+// and waits for it in the parent, but a CLI parent exits right away, so
+// without this the record would stay "running" after the VM stops.
+func recordVMContainerExit(name string, bootErr error) {
+	c, err := controller.GetContainer(name)
+	if err != nil || !setVMExitStatus(c, os.Getpid(), bootErr) {
+		return
+	}
+	if err := controller.SetContainer(c); err != nil {
+		slog.Warn("startVM", slog.String("action", "record exit status"), slog.String("name", name), slog.Any("error", err))
+	}
+}
+
+// setVMExitStatus sets c.Status from bootErr, in the format RunInKVM uses,
+// when c is a VM container hosted by pid. It reports whether c was changed.
+func setVMExitStatus(c *config.Config, pid int, bootErr error) bool {
+	if c.VM == "" || c.HostPid != pid {
+		return false
+	}
+	if bootErr != nil {
+		c.Status = fmt.Sprintf("err %v", bootErr)
+	} else {
+		c.Status = "exit 0"
+	}
+	return true
 }

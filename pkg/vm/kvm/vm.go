@@ -67,6 +67,7 @@ type VM struct {
 	mu         sync.Mutex
 	stopCh     chan struct{}
 	stoppedCh  chan error
+	stopErr    error // why the VM stopped; nil for a clean poweroff or host stop
 	uart       *uart
 	rtc        *rtc
 	virtioDevs []*virtioMMIODev
@@ -345,13 +346,14 @@ func NewVM(name string, cfg vmconfig.VMConfig) (*VM, error) {
 		devIdx++
 	}
 
-	// Initialize vCPU registers (architecture-specific).
+	// Initialize vCPU registers (architecture-specific). panic=-1 makes a
+	// guest kernel panic reset the VM, which stops it with ErrGuestReset.
 	bootParams := bootConfig{
 		kernelAddr:    guestMemBase + kernelLoadOffset,
 		initrdAddr:    guestMemBase + initrdAddr,
 		initrdSize:    initrdSize,
 		memSize:       cfg.MemoryBytes,
-		commandLine:   cfg.CommandLine,
+		commandLine:   vmconfig.WithPanicReboot(cfg.CommandLine),
 		numCPUs:       cfg.CPUCount,
 		virtioDevices: virtioDevs,
 	}
@@ -457,7 +459,7 @@ func (vm *VM) Start() error {
 		vm.mu.Lock()
 		vm.state = VMStateStopped
 		vm.mu.Unlock()
-		vm.stoppedCh <- nil
+		vm.stoppedCh <- vm.stopReason()
 	}()
 
 	return nil
@@ -505,6 +507,7 @@ func (vm *VM) runVCPU(cpuID int) {
 				}
 			}
 			slog.Error("KVM_RUN", slog.Int("vcpu", cpuID), slog.Any("err", err))
+			vm.stop(fmt.Errorf("vcpu %d: KVM_RUN: %w", cpuID, err))
 			return
 		}
 
@@ -515,42 +518,38 @@ func (vm *VM) runVCPU(cpuID int) {
 			vm.handleExitIO(run)
 		case kvmExitMMIO:
 			vm.handleExitMMIO(run)
-		case kvmExitHLT:
-			// Guest executed HLT. With in-kernel GIC and PSCI v0.2+,
-			// WFI is handled in-kernel. If HLT exits reach here, the
-			// guest is done.
-			vm.Stop()
-			return
-		case kvmExitShutdown:
-			vm.Stop()
-			return
-		case kvmExitSystemEvent:
-			evType := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
-			switch evType {
-			case kvmSystemEventShutdown:
-				vm.Stop()
-				return
-			case kvmSystemEventReset:
-				slog.Warn("guest requested reset", slog.Int("vcpu", cpuID))
-				vm.Stop()
-				return
-			case kvmSystemEventCrash:
-				slog.Error("guest crashed", slog.Int("vcpu", cpuID))
-				vm.Stop()
-				return
+		case kvmExitHLT, kvmExitShutdown, kvmExitSystemEvent:
+			// HLT: with in-kernel GIC and PSCI v0.2+, WFI is handled
+			// in-kernel, so an HLT exit here means the guest is done.
+			// Shutdown and system events are poweroff, reset or crash.
+			var evType uint32
+			if exitReason == kvmExitSystemEvent {
+				evType = *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 			}
+			stopped, reason := guestStopError(exitReason, evType)
+			if !stopped {
+				continue
+			}
+			if reason != nil {
+				slog.Error("guest stopped", slog.Int("vcpu", cpuID), slog.Int("exit", int(exitReason)), slog.Int("event", int(evType)), slog.Any("err", reason))
+			}
+			vm.stop(reason)
+			return
 		case kvmExitFailEntry:
 			slog.Error("vCPU fail entry", slog.Int("vcpu", cpuID))
+			vm.stop(fmt.Errorf("vcpu %d: KVM_EXIT_FAIL_ENTRY", cpuID))
 			return
 		case kvmExitInternalErr:
 			suberror := *(*uint32)(unsafe.Pointer(&run[kvmRunExitUnionOffset]))
 			slog.Error("KVM internal error", slog.Int("vcpu", cpuID), slog.Int("suberror", int(suberror)))
+			vm.stop(fmt.Errorf("vcpu %d: KVM internal error %d", cpuID, suberror))
 			return
 		case kvmExitIntr:
 			// Interrupted by signal, continue.
 			continue
 		default:
 			slog.Error("unhandled exit reason", slog.Int("vcpu", cpuID), slog.Int("reason", int(exitReason)))
+			vm.stop(fmt.Errorf("vcpu %d: unhandled exit reason %d", cpuID, exitReason))
 			return
 		}
 	}
@@ -582,6 +581,12 @@ func (vm *VM) handleExitMMIO(run []byte) {
 }
 
 func (vm *VM) Stop() error {
+	return vm.stop(nil)
+}
+
+// stop stops the VM and records reason as the result WaitUntilStopped
+// returns. Only the first stop sets the reason.
+func (vm *VM) stop(reason error) error {
 	vm.mu.Lock()
 	defer vm.mu.Unlock()
 
@@ -589,6 +594,7 @@ func (vm *VM) Stop() error {
 		return nil
 	}
 	vm.state = VMStateStopping
+	vm.stopErr = reason
 	close(vm.stopCh)
 	// Wake vCPU threads that may be blocked in KVM_RUN (including
 	// in-kernel sleep from PSCI CPU_OFF). Closing fds alone doesn't
@@ -620,6 +626,15 @@ func (vm *VM) State() VMState {
 	return vm.state
 }
 
+func (vm *VM) stopReason() error {
+	vm.mu.Lock()
+	defer vm.mu.Unlock()
+	return vm.stopErr
+}
+
+// WaitUntilStopped blocks until every vCPU has exited. It returns nil for a
+// clean guest poweroff or a host-requested stop, and an error (such as
+// ErrGuestReset) when the guest rebooted, crashed or a vCPU failed.
 func (vm *VM) WaitUntilStopped() error {
 	return <-vm.stoppedCh
 }

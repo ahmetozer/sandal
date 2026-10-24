@@ -88,7 +88,11 @@ func buildModulesInitrd(destPath string, modules []moduleFile) error {
 // injected before each exec switch_root call. It appends a CPIO overlay to
 // the original initramfs. The kernel processes concatenated archives in order,
 // so the modified /init overrides the original.
-// Returns the path to a temporary file (caller must remove it).
+// Returns the path to a temporary file (caller must remove it), or
+// initrdPath unchanged when there is nothing to inject: no mounts, or an
+// /init that is not a shell script. The sandal initrd's /init is the sandal
+// binary itself, which mounts virtiofs shares from SANDAL_VM_MOUNTS; editing
+// it as text would corrupt the ELF and make PID 1 segfault.
 func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 	if len(mounts) == 0 {
 		return initrdPath, nil
@@ -98,31 +102,14 @@ func CreateOverlay(initrdPath string, mounts []MountInfo) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("extract init from initramfs: %w", err)
 	}
+	if !isScript(initScript) {
+		return initrdPath, nil
+	}
 
 	modified := injectMounts(string(initScript), mounts)
 	overlay := newcCPIO("init", []byte(modified), 0100755)
 
-	origData, err := os.ReadFile(initrdPath)
-	if err != nil {
-		return "", err
-	}
-
-	tmp, err := os.CreateTemp("", "sandal-initrd-*.img")
-	if err != nil {
-		return "", err
-	}
-	defer tmp.Close()
-
-	if _, err := tmp.Write(origData); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-	if _, err := tmp.Write(overlay); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-
-	return tmp.Name(), nil
+	return appendOverlay(initrdPath, overlay)
 }
 
 // CreateFromBinary creates an initramfs CPIO archive with the given binary
@@ -274,6 +261,9 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 	if err != nil {
 		return "", fmt.Errorf("extract init from initramfs: %w", err)
 	}
+	if !isScript(initScript) {
+		return "", fmt.Errorf("initramfs /init is not a shell script")
+	}
 
 	modified := string(initScript)
 	if len(mounts) > 0 {
@@ -285,6 +275,15 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 
 	overlay := newcCPIO("init", []byte(modified), 0100755)
 
+	return appendOverlay(initrdPath, overlay)
+}
+
+// appendOverlay writes a temp copy of initrdPath followed by the overlay
+// archive. The kernel only detects an uncompressed archive that starts on a
+// 4-byte boundary of the whole image (init/initramfs.c tracks the offset in
+// this_header); otherwise it fails with "invalid magic at start of compressed
+// archive" and silently ignores the overlay. NUL padding is skipped, so pad.
+func appendOverlay(initrdPath string, overlay []byte) (string, error) {
 	origData, err := os.ReadFile(initrdPath)
 	if err != nil {
 		return "", err
@@ -296,16 +295,20 @@ func CreateContainerOverlay(initrdPath string, mounts []MountInfo, execCommand s
 	}
 	defer tmp.Close()
 
-	if _, err := tmp.Write(origData); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
+	pad := make([]byte, (4-len(origData)%4)%4)
+	for _, b := range [][]byte{origData, pad, overlay} {
+		if _, err := tmp.Write(b); err != nil {
+			os.Remove(tmp.Name())
+			return "", err
+		}
 	}
-	if _, err := tmp.Write(overlay); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-
 	return tmp.Name(), nil
+}
+
+// isScript reports whether an /init payload is an interpreter script
+// (starts with "#!") and so can be edited line by line.
+func isScript(init []byte) bool {
+	return bytes.HasPrefix(init, []byte("#!"))
 }
 
 // extractInit reads the initramfs (gzip-compressed or plain CPIO) and
@@ -325,17 +328,50 @@ func extractInit(initrdPath string) ([]byte, error) {
 }
 
 // decompressInitrd decompresses a gzip-compressed initrd to get raw CPIO data.
-// If the data is not gzip-compressed, it is returned as-is.
+// If the data is not gzip-compressed, it is returned as-is. Leading gzip
+// members are decompressed one by one; anything after them that is not gzip
+// (e.g. an uncompressed overlay archive appended by CreateOverlay) is kept
+// as-is, mirroring how the kernel accepts mixed concatenated initramfs.
 func decompressInitrd(data []byte) ([]byte, error) {
-	if len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+	var out bytes.Buffer
+	rest := data
+	for {
+		for len(rest) > 0 && rest[0] == 0 {
+			rest = rest[1:]
+		}
+		if len(rest) < 2 || rest[0] != 0x1f || rest[1] != 0x8b {
+			break
+		}
+		// bytes.Reader is an io.ByteReader, so the decompressor stops exactly
+		// at the end of the member and br.Len() is the unread remainder.
+		br := bytes.NewReader(rest)
+		r, err := gzip.NewReader(br)
+		if err != nil {
+			return nil, err
+		}
+		r.Multistream(false)
+		if _, err := io.Copy(&out, r); err != nil {
+			return nil, err
+		}
+		r.Close()
+		rest = rest[len(rest)-br.Len():]
+	}
+	if out.Len() == 0 {
 		return data, nil
 	}
-	r, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
+	out.Write(rest)
+	return out.Bytes(), nil
+}
+
+// virtiofsMount returns a shell command that mounts tag on dir. The tags are
+// announced a moment after modprobe returns, all at once, so only the first
+// mount of a block (wait) is retried, for up to 5 s; the rest are tried once.
+func virtiofsMount(prefix, opts, tag, dir string, wait bool) string {
+	mount := fmt.Sprintf("%smount -t virtiofs -o %s %s %s 2>/dev/null && _ok=1", prefix, opts, tag, dir)
+	if !wait {
+		return "_ok=; " + mount + "\n"
 	}
-	defer r.Close()
-	return io.ReadAll(r)
+	return fmt.Sprintf("_ok=; for _i in 0 1 2 3 4 5; do [ $_i = 0 ] || sleep 1; %s && break; done\n", mount)
 }
 
 // injectMounts inserts virtiofs mount commands:
@@ -348,28 +384,30 @@ func injectMounts(initScript string, mounts []MountInfo) string {
 	sysrootMounts.WriteString("echo 'Loading virtiofs modules...'\n")
 	sysrootMounts.WriteString("$MOCK modprobe fuse && echo 'fuse loaded' || echo 'fuse failed'\n")
 	sysrootMounts.WriteString("$MOCK modprobe virtiofs && echo 'virtiofs loaded' || echo 'virtiofs failed'\n")
-	for _, m := range mounts {
+	for i, m := range mounts {
 		opts := "rw"
 		if m.ReadOnly {
 			opts = "ro"
 		}
 		sysrootMounts.WriteString(fmt.Sprintf("$MOCK mkdir -p \"$sysroot\"/mnt/%s\n", m.Tag))
 		sysrootMounts.WriteString(fmt.Sprintf("echo 'Mounting %s...'\n", m.Tag))
-		sysrootMounts.WriteString(fmt.Sprintf("$MOCK mount -t virtiofs -o %s %s \"$sysroot\"/mnt/%s && echo 'Mounted %s' || echo 'Failed to mount %s'\n", opts, m.Tag, m.Tag, m.Tag, m.Tag))
+		sysrootMounts.WriteString(virtiofsMount("$MOCK ", opts, m.Tag, fmt.Sprintf("\"$sysroot\"/mnt/%s", m.Tag), i == 0))
+		sysrootMounts.WriteString(fmt.Sprintf("[ -n \"$_ok\" ] && echo 'Mounted %s' || echo 'Failed to mount %s'\n", m.Tag, m.Tag))
 	}
 
 	// Mount directly in /mnt for initramfs-only case (when init=/bin/sh)
 	var initramfsMounts strings.Builder
 	initramfsMounts.WriteString("\n# sandal-vm: auto-mount virtiofs shares (initramfs)\n")
+	initramfsMounts.WriteString("modprobe virtio_mmio 2>/dev/null || true\n")
 	initramfsMounts.WriteString("modprobe fuse 2>/dev/null || true\n")
 	initramfsMounts.WriteString("modprobe virtiofs 2>/dev/null || true\n")
-	for _, m := range mounts {
+	for i, m := range mounts {
 		opts := "rw"
 		if m.ReadOnly {
 			opts = "ro"
 		}
 		initramfsMounts.WriteString(fmt.Sprintf("mkdir -p /mnt/%s\n", m.Tag))
-		initramfsMounts.WriteString(fmt.Sprintf("mount -t virtiofs -o %s %s /mnt/%s 2>/dev/null || true\n", opts, m.Tag, m.Tag))
+		initramfsMounts.WriteString(virtiofsMount("", opts, m.Tag, "/mnt/"+m.Tag, i == 0))
 	}
 
 	lines := strings.Split(initScript, "\n")
