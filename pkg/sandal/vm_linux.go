@@ -411,12 +411,21 @@ func awaitVMReady(r io.Reader, proc *os.Process, exited <-chan struct{}, name st
 	if errors.Is(err, vmconfig.ErrReadyTimeout) {
 		proc.Kill()
 		waitVMExit(exited, name)
-		return fmt.Errorf("starting VM %s: the VM process did not report ready within %s and was stopped; console output: %s", name, timeout, console.StdoutPath(name))
+		return fmt.Errorf("starting VM %s: the VM process did not report ready within %s and was stopped; see %s", name, timeout, vmLogs(name))
 	}
 	// The child is exiting: let the goroutine record it and clean up
 	// before a CLI parent returns and exits.
 	waitVMExit(exited, name)
+	if errors.Is(err, vmconfig.ErrExitedBeforeReady) {
+		return fmt.Errorf("starting VM %s: %w; see %s", name, err, vmLogs(name))
+	}
 	return fmt.Errorf("starting VM %s: %w", name, err)
+}
+
+// vmLogs names the console files of a forked VMM: the serial console goes
+// to stdout, the VMM's own log to stderr.
+func vmLogs(name string) string {
+	return console.StdoutPath(name) + " and " + console.StderrPath(name)
 }
 
 // setForkedVMExit sets the status of the persisted record latest from the

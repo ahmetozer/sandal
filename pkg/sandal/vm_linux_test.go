@@ -82,7 +82,7 @@ func TestAwaitVMReadyTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("awaitVMReady = nil for a VMM that never reported ready")
 	}
-	for _, want := range []string{"ff-vm", console.StdoutPath("ff-vm")} {
+	for _, want := range []string{"ff-vm", console.StdoutPath("ff-vm"), console.StderrPath("ff-vm")} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not name %s", err, want)
 		}
@@ -156,4 +156,29 @@ func TestAwaitVMReadyBoundedExitWait(t *testing.T) {
 			t.Errorf("awaitVMReady took %v waiting for the exit record", took)
 		}
 	})
+}
+
+// A VMM that exits without reporting leaves its reason in its console
+// logs (its slog output goes to stderr), so the error names both files.
+func TestAwaitVMReadyExitNamesLogs(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	w.Close() // exited without a report
+	cmd, _ := startFakeVMM(t)
+	prev := vmExitGrace
+	vmExitGrace = 100 * time.Millisecond
+	t.Cleanup(func() { vmExitGrace = prev })
+
+	err = awaitVMReady(r, cmd.Process, make(chan struct{}), "ff-vm", 5*time.Second)
+	if err == nil {
+		t.Fatal("awaitVMReady = nil for a VMM that exited without a report")
+	}
+	for _, want := range []string{"before it was ready", console.StdoutPath("ff-vm"), console.StderrPath("ff-vm")} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %s", err, want)
+		}
+	}
 }

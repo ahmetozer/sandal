@@ -37,10 +37,14 @@ func WaitReady(r io.Reader) error {
 	case readyOK:
 		return nil
 	case "":
-		return errors.New("VM process exited before it was ready")
+		return ErrExitedBeforeReady
 	}
 	return errors.New(msg)
 }
+
+// ErrExitedBeforeReady is returned by WaitReady when the VMM exited (or
+// closed its ready pipe) without reporting.
+var ErrExitedBeforeReady = errors.New("VM process exited before it was ready")
 
 // ErrReadyTimeout is returned by WaitReadyTimeout when the VMM neither
 // reported nor exited in time.
