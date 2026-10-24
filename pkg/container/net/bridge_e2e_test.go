@@ -176,3 +176,41 @@ func TestDefaultBridge_E2E_PinsExistingBridgeMAC(t *testing.T) {
 		t.Errorf("mac = %s, want the user's 02:db:08:00:00:05 kept", got)
 	}
 }
+
+// A veth whose master is sandal0 is attached to it also when creating the
+// veth is what creates sandal0.
+func TestCreateVeth_E2E_AttachesToNewDefaultBridge(t *testing.T) {
+	setupBridgeLab(t)
+	if _, err := netlink.LinkByName(DefaultBridgeInterface); err == nil {
+		t.Fatal("sandal0 exists in a fresh netns")
+	}
+
+	l := Link{Id: "exveth0", Type: LinkTypeVeth, Master: DefaultBridgeInterface}
+	if err := l.createVeth(); err != nil {
+		t.Fatalf("createVeth: %v", err)
+	}
+	br, err := netlink.LinkByName(DefaultBridgeInterface)
+	if err != nil {
+		t.Fatalf("sandal0 not created: %v", err)
+	}
+	host, err := netlink.LinkByName("s-" + l.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := host.Attrs().MasterIndex, br.Attrs().Index; got != want {
+		t.Errorf("host veth master index = %d, want sandal0 (%d)", got, want)
+	}
+
+	// And with sandal0 already there.
+	l2 := Link{Id: "exveth1", Type: LinkTypeVeth, Master: DefaultBridgeInterface}
+	if err := l2.createVeth(); err != nil {
+		t.Fatalf("createVeth with sandal0 present: %v", err)
+	}
+	host2, err := netlink.LinkByName("s-" + l2.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := host2.Attrs().MasterIndex, br.Attrs().Index; got != want {
+		t.Errorf("second host veth master index = %d, want sandal0 (%d)", got, want)
+	}
+}
