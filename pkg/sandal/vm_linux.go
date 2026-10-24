@@ -382,9 +382,25 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 // are bound, before the guest boots, so only a stuck VMM reaches it.
 const vmReadyTimeout = 60 * time.Second
 
+// vmExitGrace bounds how long awaitVMReady waits for the exit of a VMM
+// that failed or was killed: a VMM stuck in D state never exits, and the
+// exit record can be slow. Tests shorten it.
+var vmExitGrace = 10 * time.Second
+
+// waitVMExit waits for exited, at most vmExitGrace, and logs when the VMM
+// exit was not seen in time.
+func waitVMExit(exited <-chan struct{}, name string) {
+	select {
+	case <-exited:
+	case <-time.After(vmExitGrace):
+		slog.Warn("forkVMProcess", slog.String("action", "wait for VM process exit"), slog.String("name", name), slog.Duration("waited", vmExitGrace))
+	}
+}
+
 // awaitVMReady waits up to timeout for the ready report of the forked VMM
 // proc on r. When the VMM fails or exits, it waits for exited (the
-// goroutine recording the exit) and returns the error. On timeout it kills
+// goroutine recording the exit), at most vmExitGrace, and returns the
+// error. On timeout it kills
 // the VMM first, so no VM is left running that the caller reported as
 // failed; the exit is then recorded as for any other VMM exit.
 func awaitVMReady(r io.Reader, proc *os.Process, exited <-chan struct{}, name string, timeout time.Duration) error {
@@ -394,12 +410,12 @@ func awaitVMReady(r io.Reader, proc *os.Process, exited <-chan struct{}, name st
 	}
 	if errors.Is(err, vmconfig.ErrReadyTimeout) {
 		proc.Kill()
-		<-exited
+		waitVMExit(exited, name)
 		return fmt.Errorf("starting VM %s: the VM process did not report ready within %s and was stopped; console output: %s", name, timeout, console.StdoutPath(name))
 	}
 	// The child is exiting: let the goroutine record it and clean up
 	// before a CLI parent returns and exits.
-	<-exited
+	waitVMExit(exited, name)
 	return fmt.Errorf("starting VM %s: %w", name, err)
 }
 

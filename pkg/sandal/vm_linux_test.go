@@ -113,3 +113,47 @@ func TestAwaitVMReadyInTime(t *testing.T) {
 	default:
 	}
 }
+
+// awaitVMReady must return even when the VMM's exit is never seen (e.g. a
+// killed VMM stuck in D state, or a slow exit record): it waits for exited
+// only for a grace period.
+func TestAwaitVMReadyBoundedExitWait(t *testing.T) {
+	prev := vmExitGrace
+	vmExitGrace = 200 * time.Millisecond
+	t.Cleanup(func() { vmExitGrace = prev })
+	never := make(chan struct{})
+
+	t.Run("timeout", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		defer w.Close()
+		cmd, _ := startFakeVMM(t)
+		start := time.Now()
+		if err := awaitVMReady(r, cmd.Process, never, "ff-vm", 100*time.Millisecond); err == nil {
+			t.Fatal("awaitVMReady = nil")
+		}
+		if took := time.Since(start); took > 3*time.Second {
+			t.Errorf("awaitVMReady took %v after the kill", took)
+		}
+	})
+	t.Run("reported failure", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		cmd, _ := startFakeVMM(t)
+		vmconfig.ReportReady(w, errors.New("port-forward setup failed"))
+		start := time.Now()
+		err = awaitVMReady(r, cmd.Process, never, "ff-vm", 5*time.Second)
+		if err == nil || !strings.Contains(err.Error(), "port-forward setup failed") {
+			t.Fatalf("awaitVMReady = %v, want the reported error", err)
+		}
+		if took := time.Since(start); took > 3*time.Second {
+			t.Errorf("awaitVMReady took %v waiting for the exit record", took)
+		}
+	})
+}
