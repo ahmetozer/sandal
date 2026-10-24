@@ -2,9 +2,14 @@ package cmd
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/forward"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 )
 
@@ -45,7 +50,7 @@ func stubRecordVMExit(t *testing.T) *[]error {
 
 func TestStartVMRecordsEarlyFailure(t *testing.T) {
 	got := stubRecordVMExit(t)
-	err := startVM("sandal-test-no-such-vm", vmconfig.VMConfig{}) // no kernel: validation fails
+	err := startVM("sandal-test-no-such-vm", vmconfig.VMConfig{}, nil) // no kernel: validation fails
 	if err == nil {
 		t.Fatal("startVM succeeded without a kernel")
 	}
@@ -62,5 +67,66 @@ func TestVMStartRecordsConfigLoadFailure(t *testing.T) {
 	}
 	if len(*got) != 1 || (*got)[0] != err {
 		t.Fatalf("recorded %v, want exactly the returned error %v", *got, err)
+	}
+}
+
+// `sandal run -vm -d` boots through `sandal vm start`, which only has the
+// saved VM config: the -p mappings must travel in it and reach the VMM, and
+// the VMM must report readiness so the forking run can fail on a bind error.
+func TestStartVMPassesForwards(t *testing.T) {
+	stubRecordVMExit(t)
+	kernel := filepath.Join(t.TempDir(), "Image")
+	if err := os.WriteFile(kernel, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pm, err := forward.ParseFlag("18081:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := vmconfig.VMConfig{KernelPath: kernel, CPUCount: 1, MemoryBytes: vmconfig.MB,
+		Forwards: []forward.PortMapping{pm}}
+
+	var gotForwards []forward.PortMapping
+	var gotReady func()
+	prev := bootVM
+	bootVM = func(name string, cfg vmconfig.VMConfig, forwards []forward.PortMapping, ready func()) error {
+		gotForwards, gotReady = forwards, ready
+		return nil
+	}
+	t.Cleanup(func() { bootVM = prev })
+
+	ready := func() {}
+	if err := startVM("sandal-test-forwards", cfg, ready); err != nil {
+		t.Fatalf("startVM() = %v", err)
+	}
+	if len(gotForwards) != 1 || gotForwards[0].Raw != "18081:8080" {
+		t.Fatalf("boot got forwards %+v, want the saved 18081:8080 mapping", gotForwards)
+	}
+	if gotReady == nil {
+		t.Fatal("boot got no ready callback")
+	}
+}
+
+// A VMM that fails before the VM runs reports the error on -ready-fd, so the
+// forking `run -vm -d` fails with it instead of returning success.
+func TestVMStartReportsFailureOnReadyFD(t *testing.T) {
+	stubRecordVMExit(t)
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	fd, err := syscall.Dup(int(w.Fd())) // vmStart owns and closes this one
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	runErr := vmStart([]string{"-name", "sandal-test-no-such-vm", "-ready-fd", strconv.Itoa(fd)})
+	if runErr == nil {
+		t.Fatal("vmStart succeeded without a saved config")
+	}
+	if err := vmconfig.WaitReady(r); err == nil || err.Error() != runErr.Error() {
+		t.Fatalf("ready fd reported %v, want %v", err, runErr)
 	}
 }

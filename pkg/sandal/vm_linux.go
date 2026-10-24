@@ -217,6 +217,9 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	if len(c.Ports) > 0 {
 		forward.AssignIDs(c.Ports)
 	}
+	// Saved with the config: background and daemon VMs boot in a forked
+	// `sandal vm start`, which only has the config to set the forwards up.
+	cfg.Forwards = c.Ports
 
 	// Build kernel command line
 	cfg.CommandLine = BuildKernelCmdLine("kvm", argsJSON, mountEntries, vmNetEncoded, socketEntries)
@@ -284,7 +287,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		defer stopRelay()
 	}
 
-	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports)
+	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports, nil)
 
 	// Update status after VM exits
 	if err != nil {
@@ -298,11 +301,22 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 }
 
 // forkVMProcess starts the VM in a child process so the daemon/CLI isn't blocked.
+// It returns once the child reports the VM running with its port forwards
+// bound, or with the error that stopped it, so e.g. a -p port that is
+// already in use fails the run as it does in the foreground.
 func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socketMounts []SocketMount, _ string) error {
+	readyR, readyW, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("creating VM ready pipe: %w", err)
+	}
+	defer readyR.Close()
+
 	// The child process will boot the VM using "sandal vm start <name>"
-	// which loads the saved VM config and calls boot.Boot().
-	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName)
+	// which loads the saved VM config and calls boot.BootWithForwards().
+	// ExtraFiles[0] is fd 3 in the child.
+	cmd := exec.Command(env.BinLoc, "vm", "start", "-name", vmName, "-ready-fd", "3")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.ExtraFiles = []*os.File{readyW}
 
 	// Set up FIFO console so `sandal attach` can read VM output.
 	var consoleCleanup func()
@@ -310,7 +324,11 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		slog.Warn("forkVMProcess", slog.String("action", "fifo console"), slog.Any("error", err))
 	}
 
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	// Only the child holds the write end now, so the read below ends
+	// when it reports or exits.
+	readyW.Close()
+	if err != nil {
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
@@ -333,7 +351,9 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	}
 
 	// Wait for child to exit and update status
+	exited := make(chan struct{})
 	go func() {
+		defer close(exited)
 		waitErr := cmd.Wait()
 		if stopRelay != nil {
 			stopRelay()
@@ -352,6 +372,12 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		}
 	}()
 
+	if err := vmconfig.WaitReady(readyR); err != nil {
+		// The child is exiting: let the goroutine record it and clean up
+		// before a CLI parent returns and exits.
+		<-exited
+		return fmt.Errorf("starting VM %s: %w", c.Name, err)
+	}
 	return nil
 }
 

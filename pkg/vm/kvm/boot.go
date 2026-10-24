@@ -26,13 +26,14 @@ import (
 // the VM stops or a signal is received.
 // If stdin/stdout are nil, os.Stdin/os.Stdout are used with raw terminal mode.
 func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer) error {
-	return BootWithForwards(name, cfg, stdin, stdout, nil)
+	return BootWithForwards(name, cfg, stdin, stdout, nil, nil)
 }
 
 // BootWithForwards is Boot plus a port-forwarding mapping list. When forwards
 // is non-empty, the host starts per-mapping listeners that tunnel to the guest
-// via AF_VSOCK. Cleanup is deferred to VM stop.
-func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer, forwards []forward.PortMapping) error {
+// via AF_VSOCK. Cleanup is deferred to VM stop. ready, when not nil, is
+// called once the VM is started and its forwards are listening.
+func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer, forwards []forward.PortMapping, ready func()) error {
 	// Write PID file
 	if err := vmconfig.WritePidFile(name); err != nil {
 		slog.Warn("Boot", slog.String("action", "write pid file"), slog.Any("error", err))
@@ -71,6 +72,29 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdou
 	}
 	defer vm.Close()
 
+	// Port-forwarding listeners — host side only. The guest relay is started
+	// from SANDAL_VM_FORWARDS during guest init. Matching vsock ports are
+	// derived from each mapping's id via VsockBasePort.
+	//
+	// They are bound before the VM starts, so the guest does not boot when
+	// a host port is taken. If the host bind fails (EADDRINUSE, permission,
+	// etc.) we return an error instead of continuing — a VM whose forwards
+	// don't work is usually worse than a fast failure: the user sees the
+	// container "running" but can't reach it, and the cause (a stale sandal still
+	// holding the port, a foreground run in another terminal, etc.) is
+	// buried in VM boot output.
+	if len(forwards) > 0 {
+		ctx, cancel := context.WithCancel(context.Background())
+		stop, err := forward.Start(ctx, name, forwards,
+			forward.VsockTransport{GuestCID: uint32(vm.VsockGuestCID())})
+		if err != nil {
+			cancel()
+			return portForwardError(forwards, err)
+		}
+		defer cancel()
+		defer stop()
+	}
+
 	// Relay serial console I/O
 	vm.StartIORelay(stdin, stdout)
 
@@ -99,26 +123,8 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdou
 	mgmtCleanup := mgmt.StartManagementSocket(name, mgmt.VsockConnector{GuestCID: uint32(vm.VsockGuestCID()), Port: 4000})
 	defer mgmtCleanup()
 
-	// Port-forwarding listeners — host side only. The guest relay is started
-	// from SANDAL_VM_FORWARDS during guest init. Matching vsock ports are
-	// derived from each mapping's id via VsockBasePort.
-	//
-	// If the host bind fails (EADDRINUSE, permission, etc.) we return an
-	// error instead of continuing — a VM whose forwards don't work is
-	// usually worse than a fast failure: the user sees the container
-	// "running" but can't reach it, and the cause (a stale sandal still
-	// holding the port, a foreground run in another terminal, etc.) is
-	// buried in VM boot output.
-	if len(forwards) > 0 {
-		ctx, cancel := context.WithCancel(context.Background())
-		stop, err := forward.Start(ctx, name, forwards,
-			forward.VsockTransport{GuestCID: uint32(vm.VsockGuestCID())})
-		if err != nil {
-			cancel()
-			return portForwardError(forwards, err)
-		}
-		defer cancel()
-		defer stop()
+	if ready != nil {
+		ready()
 	}
 
 	// Wait for VM to stop. A guest reset or crash is returned so the VMM

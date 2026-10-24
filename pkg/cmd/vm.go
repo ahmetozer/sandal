@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -254,13 +255,26 @@ func vmRun(args []string) error {
 	// Clean up config on exit
 	defer vmconfig.DeleteVM(vmName)
 
-	return startVM(vmName, cfg)
+	return startVM(vmName, cfg, nil)
 }
 
-func vmStart(args []string) error {
+func vmStart(args []string) (err error) {
 	fs := flag.NewFlagSet("vm start", flag.ExitOnError)
 	name := fs.String("name", "", "VM name (required)")
+	readyFD := fs.Int("ready-fd", -1, "Report on this fd once the VM is running (used by run -vm -d)")
 	fs.Parse(args)
+
+	// The forking sandal waits on the ready fd, so a failure before the VM
+	// is running (e.g. a -p port already in use) fails its run.
+	var ready func()
+	if *readyFD >= 0 {
+		syscall.CloseOnExec(*readyFD)
+		w := os.NewFile(uintptr(*readyFD), "vm-ready")
+		var once sync.Once
+		report := func(err error) { once.Do(func() { vmconfig.ReportReady(w, err) }) }
+		ready = func() { report(nil) }
+		defer func() { report(err) }()
+	}
 
 	if *name == "" {
 		slog.Error("vmStart", slog.String("error", "-name is required"))
@@ -275,12 +289,16 @@ func vmStart(args []string) error {
 		return err
 	}
 
-	return startVM(*name, cfg)
+	return startVM(*name, cfg, ready)
 }
+
+// bootVM is boot.BootWithForwards; tests replace it.
+var bootVM = boot.BootWithForwards
 
 // startVM boots the VM and records how it ended on the container record it
 // hosts, on every path, so an early failure does not leave it "running".
-func startVM(name string, cfg vmconfig.VMConfig) (err error) {
+// ready, when not nil, is called once the VM is running with its forwards.
+func startVM(name string, cfg vmconfig.VMConfig, ready func()) (err error) {
 	defer func() { recordVMExit(name, err) }()
 
 	// Check if VM is already running
@@ -312,7 +330,7 @@ func startVM(name string, cfg vmconfig.VMConfig) (err error) {
 		}
 	}
 
-	return boot.Boot(name, cfg, nil, nil)
+	return bootVM(name, cfg, cfg.Forwards, ready)
 }
 
 func vmList() error {

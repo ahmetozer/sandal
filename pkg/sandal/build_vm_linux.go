@@ -187,7 +187,7 @@ func buildInKVM(opts BuildOpts) (string, error) {
 	// instead of delivering SIGINT to the host — which means the user
 	// can't cancel a build with Ctrl+C. Build is non-interactive, so
 	// line-mode is correct.
-	if err := kvm.BootWithForwards(vmName, cfg, os.Stdin, os.Stdout, nil); err != nil {
+	if err := kvm.BootWithForwards(vmName, cfg, os.Stdin, os.Stdout, nil, nil); err != nil {
 		return "", fmt.Errorf("vm boot: %w", err)
 	}
 
