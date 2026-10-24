@@ -38,6 +38,14 @@ func CreateDefaultBridge() error {
 }
 ```
 
+### Bridge MAC and Neighbor Announcements
+
+A bridge created without an address takes the lowest MAC among its ports and changes it whenever a port comes or goes, while containers keep the old MAC cached for their gateway. sandal therefore gives `sandal0` a fixed, locally administered MAC when it creates it, derived from `/etc/machine-id` (stable across boots), from the uplink MAC when there is no machine-id, and random when there is neither. A `sandal0` left by an older sandal without a fixed MAC is pinned once, the next time sandal looks it up; a MAC set by the user or udev is kept.
+
+sandal enforces `net.ipv6.conf.sandal0.ndisc_notify=1` and `net.ipv4.conf.sandal0.arp_notify=1`, so the kernel announces `sandal0`'s addresses whenever its MAC changes. After a pin, sandal also sends its own announcements (gratuitous ARP per IPv4 address, router Neighbor Advertisement with R=1 O=1 per IPv6 address); it logs a warning when the two sysctls cannot be set, e.g. under a read-only `/proc/sys`.
+
+A container that misses every announcement keeps the old gateway MAC until its neighbor entry goes stale and is probed again. The time this takes scales with `base_reachable_time_ms` (default 30000, i.e. 15 to 45 s before an entry turns stale). Keep it near the default: a host-wide value far above it (`net.ipv4.neigh.default.base_reachable_time_ms`, `net.ipv6.neigh.default.base_reachable_time_ms`) delays this recovery accordingly, up to hours.
+
 ### Bridge Modes
 
 **Bare metal Linux**:
