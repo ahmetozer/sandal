@@ -265,14 +265,14 @@ func vmStart(args []string) (err error) {
 	fs.Parse(args)
 
 	// The forking sandal waits on the ready fd, so a failure before the VM
-	// is running (e.g. a -p port already in use) fails its run.
-	var ready func()
+	// is running (e.g. a -p port already in use) fails its run. Failures
+	// are reported before the exit is recorded, which can be slow.
+	var report func(error)
 	if *readyFD >= 0 {
 		syscall.CloseOnExec(*readyFD)
 		w := os.NewFile(uintptr(*readyFD), "vm-ready")
 		var once sync.Once
-		report := func(err error) { once.Do(func() { vmconfig.ReportReady(w, err) }) }
-		ready = func() { report(nil) }
+		report = func(err error) { once.Do(func() { vmconfig.ReportReady(w, err) }) }
 		defer func() { report(err) }()
 	}
 
@@ -285,11 +285,14 @@ func vmStart(args []string) (err error) {
 	cfg, err := vmconfig.LoadConfig(*name)
 	if err != nil {
 		err = fmt.Errorf("loading config: %w", err)
+		if report != nil {
+			report(err)
+		}
 		recordVMExit(*name, err)
 		return err
 	}
 
-	return startVM(*name, cfg, ready)
+	return startVM(*name, cfg, report)
 }
 
 // bootVM is boot.BootWithForwards; tests replace it.
@@ -297,9 +300,15 @@ var bootVM = boot.BootWithForwards
 
 // startVM boots the VM and records how it ended on the container record it
 // hosts, on every path, so an early failure does not leave it "running".
-// ready, when not nil, is called once the VM is running with its forwards.
-func startVM(name string, cfg vmconfig.VMConfig, ready func()) (err error) {
-	defer func() { recordVMExit(name, err) }()
+// report, when not nil, is called with nil once the VM is running with its
+// forwards, or with the error that stopped it before the exit is recorded.
+func startVM(name string, cfg vmconfig.VMConfig, report func(error)) (err error) {
+	defer func() {
+		if report != nil && err != nil {
+			report(err)
+		}
+		recordVMExit(name, err)
+	}()
 
 	// Check if VM is already running
 	if pid, alive := vmconfig.ReadPid(name); alive {
@@ -330,6 +339,10 @@ func startVM(name string, cfg vmconfig.VMConfig, ready func()) (err error) {
 		}
 	}
 
+	var ready func()
+	if report != nil {
+		ready = func() { report(nil) }
+	}
 	return bootVM(name, cfg, cfg.Forwards, ready)
 }
 

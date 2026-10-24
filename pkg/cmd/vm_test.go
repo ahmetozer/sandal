@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/forward"
@@ -95,8 +96,8 @@ func TestStartVMPassesForwards(t *testing.T) {
 	}
 	t.Cleanup(func() { bootVM = prev })
 
-	ready := func() {}
-	if err := startVM("sandal-test-forwards", cfg, ready); err != nil {
+	report := func(error) {}
+	if err := startVM("sandal-test-forwards", cfg, report); err != nil {
 		t.Fatalf("startVM() = %v", err)
 	}
 	if len(gotForwards) != 1 || gotForwards[0].Raw != "18081:8080" {
@@ -128,5 +129,56 @@ func TestVMStartReportsFailureOnReadyFD(t *testing.T) {
 	}
 	if err := vmconfig.WaitReady(r); err == nil || err.Error() != runErr.Error() {
 		t.Fatalf("ready fd reported %v, want %v", err, runErr)
+	}
+}
+
+// The forking `run -vm -d` waits on the ready fd with a timeout, so a
+// failure must reach it before the exit is recorded: recording goes
+// through the controller (or the daemon socket) and can be slow.
+func TestVMStartReportsBeforeRecording(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	fd, err := syscall.Dup(int(w.Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	var reportedFirst error
+	prev := recordVMExit
+	recordVMExit = func(name string, err error) {
+		reportedFirst = vmconfig.WaitReadyTimeout(r, 200*time.Millisecond)
+	}
+	t.Cleanup(func() { recordVMExit = prev })
+
+	runErr := vmStart([]string{"-name", "sandal-test-no-such-vm", "-ready-fd", strconv.Itoa(fd)})
+	if runErr == nil {
+		t.Fatal("vmStart succeeded without a saved config")
+	}
+	if reportedFirst == nil || reportedFirst.Error() != runErr.Error() {
+		t.Fatalf("when the exit was recorded the ready fd held %v, want the error %v", reportedFirst, runErr)
+	}
+}
+
+// startVM reports a boot failure before it records the exit.
+func TestStartVMReportsBeforeRecording(t *testing.T) {
+	var events []string
+	prev := recordVMExit
+	recordVMExit = func(name string, err error) { events = append(events, "record") }
+	t.Cleanup(func() { recordVMExit = prev })
+
+	report := func(err error) {
+		if err != nil {
+			events = append(events, "report")
+		}
+	}
+	if err := startVM("sandal-test-no-such-vm", vmconfig.VMConfig{}, report); err == nil {
+		t.Fatal("startVM succeeded without a kernel")
+	}
+	if len(events) != 2 || events[0] != "report" || events[1] != "record" {
+		t.Fatalf("events = %v, want [report record]", events)
 	}
 }
