@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/forward"
@@ -80,11 +81,17 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 			restore()
 			return fmt.Errorf("port-forward setup failed: %w", err)
 		}
+		var once sync.Once
 		stopForwardFunc = func() {
-			cancel()
-			stop()
+			once.Do(func() {
+				cancel()
+				stop()
+			})
 		}
 	}
+	// The listeners are bound already: close them on every return,
+	// including a vm.Start that fails before the stop watcher runs.
+	defer stopForwardFunc()
 
 	// Set up vsock relays for socket sharing (before start)
 	if len(relays) > 0 {
@@ -105,11 +112,13 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 		StopMainRunLoop()
 	}()
 
-	// Start VM asynchronously
+	// Start VM asynchronously. A start error is returned once the run
+	// loop ends, so the run exits non-zero.
+	startErr := make(chan error, 1)
 	go func() {
 		if err := vm.Start(); err != nil {
 			restore()
-			slog.Error("Boot", slog.String("action", "start"), slog.Any("error", err))
+			startErr <- err
 			StopMainRunLoop()
 			return
 		}
@@ -135,7 +144,12 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 
 	// Run the main run loop (blocks until StopMainRunLoop)
 	RunMainRunLoop()
-	return nil
+	select {
+	case err := <-startErr:
+		return fmt.Errorf("starting VM: %w", err)
+	default:
+		return nil
+	}
 }
 
 func killStaleDiskHolders(diskPath string) (int, error) {
