@@ -49,10 +49,25 @@ func setupBridgeLab(t *testing.T) {
 		t.Skipf("e2e: cannot mount sysfs: %v", err)
 	}
 	t.Cleanup(func() { _ = unix.Unmount(sys, unix.MNT_DETACH) })
-	origSys, origHostNet := sysClassNet, env.DefaultHostNet
+	origSys, origHostNet, origIDs := sysClassNet, env.DefaultHostNet, machineIDFiles
 	sysClassNet = sys + "/class/net/"
 	env.DefaultHostNet = "192.0.2.1/24,fd00:db8:5::1/64"
-	t.Cleanup(func() { sysClassNet, env.DefaultHostNet = origSys, origHostNet })
+	// A fixed machine-id, so the derived MAC does not depend on the test
+	// host having one (without it the MAC is random on every call).
+	idFile := t.TempDir() + "/machine-id"
+	if err := os.WriteFile(idFile, []byte(labMachineID+"\n"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	machineIDFiles = []string{idFile}
+	t.Cleanup(func() { sysClassNet, env.DefaultHostNet, machineIDFiles = origSys, origHostNet, origIDs })
+}
+
+// labMachineID is the machine-id setupBridgeLab gives the code under test.
+const labMachineID = "0123456789abcdef0123456789abcdef"
+
+// labBridgeMAC is the MAC sandal0 must get from labMachineID.
+func labBridgeMAC() string {
+	return stableBridgeMAC([]byte(labMachineID), nil).String()
 }
 
 func bridgeAssignType(t *testing.T) string {
@@ -114,7 +129,7 @@ func TestDefaultBridge_E2E_MACFixedAcrossPortChurn(t *testing.T) {
 		t.Errorf("addr_assign_type = %s, want 3 (set)", got)
 	}
 	before := bridgeMAC(t)
-	if want := defaultBridgeMAC().String(); before != want {
+	if want := labBridgeMAC(); before != want {
 		t.Errorf("mac = %s, want the derived %s", before, want)
 	}
 	if during := churnLowPort(t, br); during != before {
@@ -152,7 +167,7 @@ func TestDefaultBridge_E2E_PinsExistingBridgeMAC(t *testing.T) {
 		t.Errorf("addr_assign_type = %s, want 3 (set)", got)
 	}
 	pinned := bridgeMAC(t)
-	if want := defaultBridgeMAC().String(); pinned != want {
+	if want := labBridgeMAC(); pinned != want {
 		t.Errorf("mac = %s, want the derived %s", pinned, want)
 	}
 	churnLowPort(t, br)
@@ -239,7 +254,7 @@ func TestDefaultBridge_E2E_LostCreateRace(t *testing.T) {
 	if br == nil || br.Attrs().Name != DefaultBridgeInterface {
 		t.Fatalf("CreateDefaultBridge returned link %v, want sandal0", br)
 	}
-	if got, want := bridgeMAC(t), defaultBridgeMAC().String(); got != want {
+	if got, want := bridgeMAC(t), labBridgeMAC(); got != want {
 		t.Errorf("mac = %s, want %s", got, want)
 	}
 }

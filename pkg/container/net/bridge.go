@@ -182,8 +182,11 @@ func localUnicast(b []byte) net.HardwareAddr {
 	return mac
 }
 
+// machineIDFiles are read in order by machineID; tests replace them.
+var machineIDFiles = []string{"/etc/machine-id", "/var/lib/dbus/machine-id"}
+
 func machineID() []byte {
-	for _, p := range []string{"/etc/machine-id", "/var/lib/dbus/machine-id"} {
+	for _, p := range machineIDFiles {
 		if b, err := os.ReadFile(p); err == nil {
 			if id := strings.TrimSpace(string(b)); id != "" {
 				return []byte(id)
