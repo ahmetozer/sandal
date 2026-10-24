@@ -3007,7 +3007,8 @@ sandal<span class="w"> </span>run<span class="w"> </span>-rm<span class="w"> </s
 <dl>
 <dd>run the container inside a virtual machine.
   On Linux, uses KVM. On macOS, uses Apple Virtualization framework.
-  Host-only flags (<code>-d</code>, <code>-startup</code>, <code>--name</code>, <code>--cpu</code>, <code>--memory</code>) are applied on the host side; the remaining flags are forwarded to the VM guest.</dd>
+  Host-only flags (<code>-d</code>, <code>-startup</code>, <code>--name</code>, <code>--cpu</code>, <code>--memory</code>) are applied on the host side; the remaining flags are forwarded to the VM guest.
+  <code>-d</code> together with <code>-vm</code> is not supported on macOS: the Apple Virtualization framework runs the VM inside the <code>sandal run</code> process, so the VM would stop as soon as that process detaches. Run it in the foreground instead, for example under <code>tmux</code>, <code>screen</code> or <code>nohup</code>.</dd>
 </dl>
 <hr />
 <h3 id="-v-value"><code>-v value</code><a class="headerlink" href="#-v-value" title="Permanent link">&para;</a></h3>

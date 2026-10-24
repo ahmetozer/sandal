@@ -1316,6 +1316,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bridge-mac-and-neighbor-announcements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge MAC and Neighbor Announcements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#bridge-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1561,6 +1572,10 @@
 <span class="w">    </span><span class="c1">// Set forward delay to 0</span>
 <span class="p">}</span>
 </code></pre></div>
+<h3 id="bridge-mac-and-neighbor-announcements">Bridge MAC and Neighbor Announcements<a class="headerlink" href="#bridge-mac-and-neighbor-announcements" title="Permanent link">&para;</a></h3>
+<p>A bridge created without an address takes the lowest MAC among its ports and changes it whenever a port comes or goes, while containers keep the old MAC cached for their gateway. sandal therefore gives <code>sandal0</code> a fixed, locally administered MAC when it creates it, derived from <code>/etc/machine-id</code> (stable across boots), from the uplink MAC when there is no machine-id, and random when there is neither. A <code>sandal0</code> left by an older sandal without a fixed MAC is pinned once, the next time sandal looks it up; a MAC set by the user or udev is kept.</p>
+<p>sandal enforces <code>net.ipv6.conf.sandal0.ndisc_notify=1</code> and <code>net.ipv4.conf.sandal0.arp_notify=1</code>, so the kernel announces <code>sandal0</code>'s addresses whenever its MAC changes. After a pin, sandal also sends its own announcements (gratuitous ARP per IPv4 address, router Neighbor Advertisement with R=1 O=1 per IPv6 address); it logs a warning when the two sysctls cannot be set, e.g. under a read-only <code>/proc/sys</code>.</p>
+<p>A container that misses every announcement keeps the old gateway MAC until its neighbor entry goes stale and is probed again. The time this takes scales with <code>base_reachable_time_ms</code> (default 30000, i.e. 15 to 45 s before an entry turns stale). Keep it near the default: a host-wide value far above it (<code>net.ipv4.neigh.default.base_reachable_time_ms</code>, <code>net.ipv6.neigh.default.base_reachable_time_ms</code>) delays this recovery accordingly, up to hours.</p>
 <h3 id="bridge-modes">Bridge Modes<a class="headerlink" href="#bridge-modes" title="Permanent link">&para;</a></h3>
 <p><strong>Bare metal Linux</strong>:
 - Bridge gets static + dynamic addresses from <code>SANDAL_HOST_NET</code> (default: <code>172.16.0.1/24,fd34:0135:0123:0:%uv4%::1/120,%uv6%:%uv4%::1/64</code>). <code>%uv4%</code> resolves to the host's IPv4 as hex hextets at startup; <code>%uv6%</code> resolves to the upstream prefix's high 64 bits on each renumber event.

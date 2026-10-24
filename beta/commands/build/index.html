@@ -1740,6 +1740,11 @@
 <p>Path to the Dockerfile. Defaults to <code>&lt;CONTEXT&gt;/Dockerfile</code>.</p>
 <h3 id="-push"><code>--push</code><a class="headerlink" href="#-push" title="Permanent link">&para;</a></h3>
 <p>After building locally, push the image to the registry implied by <code>-t</code>. Localhost registries (e.g. <code>localhost:5000/...</code>) use plain HTTP automatically; everything else uses HTTPS.</p>
+<p>If the push fails, the build exits non-zero. What stays in the local image cache depends on where the build ran:</p>
+<ul>
+<li><strong>On the host</strong> (no <code>-vm</code>): the new image and its config sidecar are stored under the tag before the push starts, so they are kept. Retry the push by building again, or use the local image as is.</li>
+<li><strong>With <code>-vm</code></strong>: nothing is stored until the push succeeds, so a failed push leaves the image that had the tag before (if any) in place, and the new build is discarded. The host can only tell a successful VM build by the new image file, so the guest stores it last.</li>
+</ul>
 <h3 id="-target-stage"><code>--target &lt;stage&gt;</code><a class="headerlink" href="#-target-stage" title="Permanent link">&para;</a></h3>
 <p>In multi-stage builds, stop at the named stage. Without this flag the last stage becomes the output image.</p>
 <h3 id="-build-arg-keyvalue-repeatable"><code>--build-arg KEY=VALUE</code> (repeatable)<a class="headerlink" href="#-build-arg-keyvalue-repeatable" title="Permanent link">&para;</a></h3>
