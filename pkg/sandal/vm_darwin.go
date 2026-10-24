@@ -70,7 +70,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// off at once (RunInKVM strips -d and forks for that reason). Fail
 	// instead of reporting a container that silently never ran.
 	if c.Background {
-		return fmt.Errorf("-d is not supported on macOS yet: the VM stops as soon as the guest detaches; run in the foreground instead")
+		return fmt.Errorf("-d is not supported on macOS yet: the VM stops as soon as the guest detaches; run it in the foreground instead, e.g. under tmux, screen or nohup")
 	}
 	if running, _ := crt.IsContainerRunning(c.Name); running {
 		return fmt.Errorf("container %s is already running", c.Name)

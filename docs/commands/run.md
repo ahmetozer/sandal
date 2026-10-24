@@ -662,6 +662,7 @@ Benefical for:
 :   run the container inside a virtual machine.
   On Linux, uses KVM. On macOS, uses Apple Virtualization framework.
   Host-only flags (`-d`, `-startup`, `--name`, `--cpu`, `--memory`) are applied on the host side; the remaining flags are forwarded to the VM guest.
+  `-d` together with `-vm` is not supported on macOS: the Apple Virtualization framework runs the VM inside the `sandal run` process, so the VM would stop as soon as that process detaches. Run it in the foreground instead, for example under `tmux`, `screen` or `nohup`.
 
 ---
 
