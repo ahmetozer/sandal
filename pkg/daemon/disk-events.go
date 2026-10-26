@@ -29,28 +29,23 @@ func (d DaemonConfig) loadByEvent() {
 	}()
 
 	// Handle events
-	contName := ""
 	for event := range watcher.Events {
 		slog.Debug("loadByEvent", slog.Any("event", event.Event), slog.String("path", event.Path))
-		// parse name from file if known event
-		switch event.Event {
-		case inotify.Modified, inotify.FileCreate, inotify.MovedFrom, inotify.Delete, inotify.MovedTo:
-			// Strip the ".json" suffix instead of splitting on "." so names
-			// that contain dots (allowed by ValidateName) are handled. The
-			// old split-on-dot dropped every dotted-name state file, so the
-			// daemon never processed their Delete and resurrected them (L6).
-			name, ok := config.NameFromConfigFile(filepath.Base(event.Path))
-			if !ok {
-				slog.Warn("loadByEvent", slog.Any("error", "unknown name for state file"), slog.String("file", event.Path))
-				continue
-			}
-			contName = name
-		}
 
 		switch event.Event {
 		case inotify.FolderCreate:
 			// Do nothing
-		case inotify.Modified, inotify.FileCreate, inotify.MovedFrom:
+			continue
+		case inotify.WatchStop:
+			fmt.Println("Watch stopped")
+			return
+		}
+
+		base := filepath.Base(event.Path)
+		switch diskEventAction(event.Event, base) {
+		case actionIgnore:
+			continue
+		case actionLoad:
 			c, err := controller.LoadFile(event.Path)
 			if err != nil {
 				// Skip on load failure: a partial/concurrent write yields a nil
@@ -59,15 +54,51 @@ func (d DaemonConfig) loadByEvent() {
 				continue
 			}
 			controller.SetContainer(c)
-		case inotify.Delete, inotify.MovedTo:
-			controller.DeleteContainer(contName)
-		case inotify.WatchStop:
-			fmt.Println("Watch stopped")
-			return
+		case actionDelete:
+			// Strip the ".json" suffix instead of splitting on "." so names
+			// that contain dots (allowed by ValidateName) are handled. The
+			// old split-on-dot dropped every dotted-name state file, so the
+			// daemon never processed their Delete and resurrected them (L6).
+			name, _ := config.NameFromConfigFile(base)
+			controller.DeleteContainer(name)
 		default:
-			slog.Info("loadByEvent", slog.Any("event", event.Event), slog.String("error", "unknown event"))
+			switch event.Event {
+			case inotify.Modified, inotify.FileCreate, inotify.MovedFrom, inotify.Delete, inotify.MovedTo:
+				slog.Warn("loadByEvent", slog.Any("error", "unknown name for state file"), slog.String("file", event.Path))
+			default:
+				slog.Info("loadByEvent", slog.Any("event", event.Event), slog.String("error", "unknown event"))
+			}
 		}
 	}
+}
+
+type diskAction int
+
+const (
+	actionUnknown diskAction = iota
+	actionIgnore
+	actionLoad
+	actionDelete
+)
+
+// diskEventAction decides what a state-dir event means. A name that appears
+// (created, written, or renamed into place) is loaded; a name that goes away
+// (deleted or renamed out) is dropped. Temporary files from atomic writes are
+// ignored: their rename into place arrives as MovedTo on the real name.
+func diskEventAction(ev inotify.EventType, base string) diskAction {
+	if config.IsStateTempFile(base) {
+		return actionIgnore
+	}
+	if _, ok := config.NameFromConfigFile(base); !ok {
+		return actionUnknown
+	}
+	switch ev {
+	case inotify.Modified, inotify.FileCreate, inotify.MovedTo:
+		return actionLoad
+	case inotify.Delete, inotify.MovedFrom:
+		return actionDelete
+	}
+	return actionUnknown
 }
 
 // superviseDiskEvents runs loadByEvent and restarts it if the inotify watcher
