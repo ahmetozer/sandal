@@ -99,11 +99,14 @@ var (
 // per-name lifecycle lock, and every placer publishes the new pid before
 // releasing that lock, so the record read here already names any legitimate
 // instance.
-func KillStrays(name string) {
+//
+// Returns how many strays it signalled, so the caller can redo the cleanup
+// that failed while they were still alive (busy mounts, cgroup).
+func KillStrays(name string) int {
 	latest, err := controller.GetContainer(name)
 	if err != nil {
 		slog.Warn("recover: stray check skipped", "cont", name, "error", err)
-		return
+		return 0
 	}
 	keepPid, keepStart := latest.MonitorPidIdentity()
 	keepAlive, _ := crt.IsPidRunningAs(keepPid, keepStart)
@@ -135,7 +138,7 @@ func KillStrays(name string) {
 		}
 	}
 	if len(targets) == 0 {
-		return
+		return 0
 	}
 
 	for _, e := range targets {
@@ -143,7 +146,7 @@ func KillStrays(name string) {
 		crt.SendSig(e.pid, 15)
 	}
 	if waitStrays(targets, strayTermWait) {
-		return
+		return len(targets)
 	}
 	if !keepAlive {
 		// cgroup v2: kills every member, including any forked after listing.
@@ -159,6 +162,7 @@ func KillStrays(name string) {
 	if !waitStrays(targets, strayKillWait) {
 		slog.Warn("recover: previous instance still alive after SIGKILL", "cont", name)
 	}
+	return len(targets)
 }
 
 // sameProcess reports whether e's pid is alive and still has e's start-time.

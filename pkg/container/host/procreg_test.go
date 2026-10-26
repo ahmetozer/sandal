@@ -201,3 +201,28 @@ func TestRemoveMatchesPidAndStart(t *testing.T) {
 		t.Fatalf("entries after Remove = %+v, want only the newer instance", got)
 	}
 }
+
+// The central contract: a stale instance and the legitimate one are both
+// registered under the same name, and the latest record names the legitimate
+// one. Only the stale one is killed, and the count says so.
+func TestKillStraysKillsStaleKeepsLegitimate(t *testing.T) {
+	stale, staleDone := startSleep(t)
+	legit, legitDone := startSleep(t)
+	withRecord(t, &config.Config{Name: "web", ContPid: legit.Process.Pid, ContPidStart: startTime(t, legit.Process.Pid)})
+	procs.Add("web", stale.Process.Pid)
+	procs.Add("web", legit.Process.Pid)
+
+	if n := KillStrays("web"); n != 1 {
+		t.Fatalf("KillStrays killed %d, want 1", n)
+	}
+	assertExited(t, staleDone)
+	assertAlive(t, legitDone)
+}
+
+// Nothing to kill reports 0, so recovery skips the second cleanup.
+func TestKillStraysReportsNone(t *testing.T) {
+	withRecord(t, &config.Config{Name: "web", ContPid: deadPid(t), ContPidStart: 1})
+	if n := KillStrays("web"); n != 0 {
+		t.Fatalf("KillStrays killed %d, want 0", n)
+	}
+}

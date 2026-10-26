@@ -176,7 +176,7 @@ func contRecover(cont *config.Config) {
 	// every recovered copy failed to bind. KillStrays re-reads the record and
 	// spares the instance it names, so a copy another actor placed before we
 	// took the lock survives and the "already running" check below skips.
-	host.KillStrays(cont.Name)
+	strays := host.KillStrays(cont.Name)
 
 	// After a daemon crash (kill -9), the config status on disk is still
 	// "running" because it was never updated. Since the health check
@@ -208,6 +208,14 @@ func contRecover(cont *config.Config) {
 	if isRunning, _ := crt.IsPidRunningAs(latestPid, latestStart); isRunning {
 		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
 		return
+	}
+
+	// The CleanupResources at the top ran while the strays were alive and could not
+	// release what they held (mounts, cgroup), so run it again. Only here,
+	// after the "already running" check: the resources are keyed by name, so
+	// cleaning while the legitimate instance runs would tear down its own.
+	if strays > 0 {
+		host.CleanupResources(cont)
 	}
 
 	if len(latest.HostArgs) < 2 {
