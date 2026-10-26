@@ -88,7 +88,7 @@ func setContainerByDisk(c *config.Config) error {
 	slog.Debug("ConfigFileLoc", slog.String("action", "saving config file"), slog.String("file", c.ConfigFileLoc()))
 	retry := false
 WriteFile:
-	err := os.WriteFile(c.ConfigFileLoc(), c.Json(), 0o0644)
+	err := writeStateFile(c.ConfigFileLoc(), c.Json())
 	if err != nil {
 		if os.IsNotExist(err) && !retry {
 			err := os.MkdirAll(savePath, 0o0755)
@@ -99,4 +99,32 @@ WriteFile:
 		return fmt.Errorf("writing config file: %v", err)
 	}
 	return nil
+}
+
+// writeStateFile replaces path atomically: readers see either the old or the
+// new content, never a truncated file. The temp file lives in the same
+// directory so the rename cannot cross filesystems.
+func writeStateFile(path string, data []byte) error {
+	dir, base := filepath.Split(path)
+	tmp, err := os.CreateTemp(dir, "."+base+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // no-op after a successful rename
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
