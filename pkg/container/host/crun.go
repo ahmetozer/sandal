@@ -160,6 +160,12 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	}
 
 	c.ContPid = cmd.Process.Pid
+	childPid := c.ContPid // c.ContPid may be cleared before the child is reaped
+	// Track the child outside the state record so recovery can still stop it
+	// if the record ever loses this pid (KillStrays). The child execs the
+	// container init in place, so this pid is the container's long-lived
+	// process for its whole life.
+	procs.Add(c.Name, childPid)
 
 	// Capture the kernel start-time so the recorded pid carries a stable
 	// identity (defeats PID reuse), then persist pid+identity IMMEDIATELY —
@@ -195,6 +201,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		if retErr != nil && !childOwned {
 			_ = cmd.Process.Kill()
 			_, _ = cmd.Process.Wait()
+			procs.Remove(c.Name, childPid)
 			c.ContPid = 0
 			c.ContPidStart = 0
 			c.Status = fmt.Sprintf("err %v", retErr)
@@ -347,6 +354,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		childOwned = true // the wait goroutine below now owns reaping
 		go func() {
 			cmd.Process.Wait()
+			procs.Remove(c.Name, childPid)
 			if registered {
 				Forwards.Remove(c.Name, ownedSession)
 			}
@@ -362,6 +370,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 
 	sig, err := cmd.Process.Wait()
 	childOwned = true // child reaped inline; no orphan for the deferred guard
+	procs.Remove(c.Name, childPid)
 	if err != nil && err.Error() == "waitid: no child processes" {
 		err = nil
 	}

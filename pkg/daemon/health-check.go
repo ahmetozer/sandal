@@ -170,6 +170,14 @@ func contRecover(cont *config.Config) {
 		host.Kill(cont, 9, 0)
 	}
 
+	// Kill previous instances the record no longer points at: processes this
+	// daemon started under the name, and the container's cgroup members. A
+	// lost state update once left such an instance holding the ports, so
+	// every recovered copy failed to bind. KillStrays re-reads the record and
+	// spares the instance it names, so a copy another actor placed before we
+	// took the lock survives and the "already running" check below skips.
+	host.KillStrays(cont.Name)
+
 	// After a daemon crash (kill -9), the config status on disk is still
 	// "running" because it was never updated. Since the health check
 	// already confirmed the PID is dead, treat any non-"stop" status
