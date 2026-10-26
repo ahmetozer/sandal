@@ -111,6 +111,11 @@ CreateStateDir:
 		return nil, err
 	}
 	for _, e := range entries {
+		// Only <name>.json is a state file; skip temp files from an
+		// in-flight or killed atomic write and anything else in the dir.
+		if _, ok := config.NameFromConfigFile(e.Name()); !ok {
+			continue
+		}
 		if !e.IsDir() {
 			filepath := path.Join(env.BaseStateDir, e.Name())
 			c, err := LoadFile(filepath)
