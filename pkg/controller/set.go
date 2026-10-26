@@ -105,7 +105,7 @@ WriteFile:
 // new content, never a truncated file. The temp file lives in the same
 // directory so the rename cannot cross filesystems.
 func writeStateFile(path string, data []byte) error {
-	dir, base := filepath.Split(path)
+	dir, base := filepath.Dir(path), filepath.Base(path)
 	tmp, err := os.CreateTemp(dir, "."+base+".tmp-*")
 	if err != nil {
 		return err

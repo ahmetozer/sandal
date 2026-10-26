@@ -5,6 +5,8 @@ package controller
 import (
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
@@ -23,7 +25,11 @@ func TestSetContainerByDiskIsAtomic(t *testing.T) {
 		t.Fatal(err)
 	}
 	stop := make(chan struct{})
+	var stopOnce sync.Once
+	stopReader := func() { stopOnce.Do(func() { close(stop) }) }
+	defer stopReader() // a t.Fatal in the writer must not leave the reader spinning
 	errs := make(chan error, 1)
+	var reads atomic.Int64
 	go func() {
 		for {
 			select {
@@ -32,6 +38,7 @@ func TestSetContainerByDiskIsAtomic(t *testing.T) {
 				return
 			default:
 			}
+			reads.Add(1)
 			if _, err := LoadFile(a.ConfigFileLoc()); err != nil {
 				errs <- err
 				close(errs)
@@ -48,9 +55,12 @@ func TestSetContainerByDiskIsAtomic(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	close(stop)
+	stopReader()
 	if err := <-errs; err != nil {
 		t.Fatalf("reader saw a partial state file: %v", err)
+	}
+	if reads.Load() == 0 {
+		t.Fatal("reader never ran, the test proved nothing")
 	}
 	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(a.ConfigFileLoc()), ".*.tmp-*")); len(left) != 0 {
 		t.Fatalf("temp files left behind: %v", left)
