@@ -53,7 +53,10 @@ func (d DaemonConfig) loadByEvent() {
 				slog.Warn("loadByEvent", slog.Any("error", "load state file"), slog.String("file", event.Path), slog.Any("err", err))
 				continue
 			}
-			controller.SetContainer(c)
+			// Memory only, and only if newer: this read can be older than a
+			// SetContainer that ran since, and writing it back (the old
+			// SetContainer here) restored a dead pid over the live one.
+			controller.LoadFromDisk(c)
 		case actionDelete:
 			// Strip the ".json" suffix instead of splitting on "." so names
 			// that contain dots (allowed by ValidateName) are handled. The
@@ -128,9 +131,10 @@ func (d DaemonConfig) superviseDiskEvents() {
 //   - ADD: a state file with no in-memory entry is a create the watcher missed;
 //     load it so the container is tracked (and recoverable).
 //
-// SetContainer writes memory and disk together, so an entry can only be in
-// memory if its file was written — therefore "in memory but no file" reliably
-// means removed, with no lock check required.
+// SetContainer writes memory and disk together, and LoadFromDisk only adds an
+// entry whose file exists, so an entry can only be in memory if its file was
+// written — therefore "in memory but no file" reliably means removed, with no
+// lock check required.
 func reconcileState() {
 	mem, err := controller.Containers()
 	if err != nil {
@@ -171,7 +175,8 @@ func reconcileState() {
 			slog.Warn("reconcile", slog.String("action", "load"), slog.String("cont", name), slog.Any("error", lerr))
 			continue
 		}
-		slog.Info("reconcile", slog.String("action", "add"), slog.String("cont", name))
-		controller.SetContainer(c)
+		if controller.LoadFromDisk(c) {
+			slog.Info("reconcile", slog.String("action", "add"), slog.String("cont", name))
+		}
 	}
 }
