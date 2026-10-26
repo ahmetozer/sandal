@@ -187,3 +187,17 @@ func (r *procRegistry) reset() {
 	defer r.mu.Unlock()
 	r.m = map[string][]procEntry{}
 }
+
+// An old instance's wait returning after its pid was reused and registered
+// again under the same name must drop only its own entry, not the newer one.
+func TestRemoveMatchesPidAndStart(t *testing.T) {
+	t.Cleanup(procs.reset)
+	procs.add("web", 4242, 100) // old instance
+	procs.add("web", 4242, 200) // pid reused by the new instance
+	procs.Remove("web", 4242, 100)
+
+	got := procs.entries("web")
+	if len(got) != 1 || got[0] != (procEntry{pid: 4242, start: 200}) {
+		t.Fatalf("entries after Remove = %+v, want only the newer instance", got)
+	}
+}

@@ -37,13 +37,15 @@ var procs = &procRegistry{m: map[string][]procEntry{}}
 // Add records pid under name with its current start-time. A pid whose
 // start-time can't be read is not recorded: without an identity a later
 // reuse of that pid could not be told apart, so it must never be killed.
-func (r *procRegistry) Add(name string, pid int) {
+// Returns the recorded start-time (0 when not recorded) for Remove.
+func (r *procRegistry) Add(name string, pid int) uint64 {
 	st, err := crt.ProcessStartTime(pid)
 	if err != nil || st == 0 {
 		slog.Warn("procreg: capture start-time", "cont", name, "pid", pid, "error", err)
-		return
+		return 0
 	}
 	r.add(name, pid, st)
+	return st
 }
 
 func (r *procRegistry) add(name string, pid int, start uint64) {
@@ -52,14 +54,15 @@ func (r *procRegistry) add(name string, pid int, start uint64) {
 	r.m[name] = append(r.m[name], procEntry{pid: pid, start: start})
 }
 
-// Remove drops pid from name. Only that pid: a newer instance of the same
-// name may already be registered when the old one's wait returns.
-func (r *procRegistry) Remove(name string, pid int) {
+// Remove drops the entry with this pid and start-time from name. Only that
+// one: a newer instance of the same name may already be registered when the
+// old one's wait returns, possibly under the same (reused) pid.
+func (r *procRegistry) Remove(name string, pid int, start uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	kept := r.m[name][:0]
 	for _, e := range r.m[name] {
-		if e.pid != pid {
+		if e.pid != pid || e.start != start {
 			kept = append(kept, e)
 		}
 	}
