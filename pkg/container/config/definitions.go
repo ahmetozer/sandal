@@ -20,6 +20,12 @@ import (
 type Config struct {
 	Name string
 
+	// Generation counts the writes of this record. The controller bumps it
+	// on every SetContainer, and the daemon ignores a state file whose
+	// generation is not newer than its own copy, so a late or stale read can
+	// never replace newer state. 0 means a file from before the field.
+	Generation uint64 `json:",omitempty"`
+
 	Created int64
 	HostPid int
 	ContPid int

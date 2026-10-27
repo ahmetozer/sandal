@@ -44,6 +44,12 @@ func ConfigFileLoc(name string) string {
 	return path.Join(env.BaseStateDir, name+".json")
 }
 
+// IsStateTempFile reports whether base is a temporary file written by
+// setContainerByDisk before it is renamed over "<name>.json".
+func IsStateTempFile(base string) bool {
+	return strings.HasPrefix(base, ".") && strings.Contains(base, ".json.tmp-")
+}
+
 // NameFromConfigFile is the inverse of ConfigFileLoc for a state file's base
 // name: "my.app.json" -> ("my.app", true). It strips the ".json" suffix rather
 // than splitting on ".", so names containing dots (which ValidateName permits)

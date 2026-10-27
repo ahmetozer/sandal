@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/host"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/net/renumber"
@@ -28,6 +30,9 @@ type DaemonConfig struct {
 func (dc DaemonConfig) Start() error {
 
 	var wg sync.WaitGroup
+
+	// Drop temp files left by a writer killed mid-write, before the watchers run.
+	sweepStateTempFiles(time.Minute)
 
 	go func() {
 		if dc.DiskReloadInterval == 0 {
@@ -166,4 +171,28 @@ func startRenumber(ctx context.Context) error {
 		renumber.NewService(src, applier, 0).Run(ctx)
 	}()
 	return nil
+}
+
+// sweepStateTempFiles removes atomic-write temp files in the state dir that are
+// older than maxAge; they are orphans of a writer killed before its rename.
+func sweepStateTempFiles(maxAge time.Duration) {
+	entries, err := os.ReadDir(env.BaseStateDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !config.IsStateTempFile(e.Name()) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || time.Since(info.ModTime()) < maxAge {
+			continue
+		}
+		file := filepath.Join(env.BaseStateDir, e.Name())
+		if err := os.Remove(file); err != nil {
+			slog.Warn("daemon", slog.String("action", "sweep state temp file"), slog.String("file", file), slog.Any("err", err))
+			continue
+		}
+		slog.Info("daemon", slog.String("action", "removed stale state temp file"), slog.String("file", file))
+	}
 }

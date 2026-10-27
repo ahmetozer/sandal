@@ -29,28 +29,23 @@ func (d DaemonConfig) loadByEvent() {
 	}()
 
 	// Handle events
-	contName := ""
 	for event := range watcher.Events {
 		slog.Debug("loadByEvent", slog.Any("event", event.Event), slog.String("path", event.Path))
-		// parse name from file if known event
-		switch event.Event {
-		case inotify.Modified, inotify.FileCreate, inotify.MovedFrom, inotify.Delete, inotify.MovedTo:
-			// Strip the ".json" suffix instead of splitting on "." so names
-			// that contain dots (allowed by ValidateName) are handled. The
-			// old split-on-dot dropped every dotted-name state file, so the
-			// daemon never processed their Delete and resurrected them (L6).
-			name, ok := config.NameFromConfigFile(filepath.Base(event.Path))
-			if !ok {
-				slog.Warn("loadByEvent", slog.Any("error", "unknown name for state file"), slog.String("file", event.Path))
-				continue
-			}
-			contName = name
-		}
 
 		switch event.Event {
 		case inotify.FolderCreate:
 			// Do nothing
-		case inotify.Modified, inotify.FileCreate, inotify.MovedFrom:
+			continue
+		case inotify.WatchStop:
+			fmt.Println("Watch stopped")
+			return
+		}
+
+		base := filepath.Base(event.Path)
+		switch diskEventAction(event.Event, base) {
+		case actionIgnore:
+			continue
+		case actionLoad:
 			c, err := controller.LoadFile(event.Path)
 			if err != nil {
 				// Skip on load failure: a partial/concurrent write yields a nil
@@ -58,16 +53,55 @@ func (d DaemonConfig) loadByEvent() {
 				slog.Warn("loadByEvent", slog.Any("error", "load state file"), slog.String("file", event.Path), slog.Any("err", err))
 				continue
 			}
-			controller.SetContainer(c)
-		case inotify.Delete, inotify.MovedTo:
-			controller.DeleteContainer(contName)
-		case inotify.WatchStop:
-			fmt.Println("Watch stopped")
-			return
+			// Memory only, and only if newer: this read can be older than a
+			// SetContainer that ran since, and writing it back (the old
+			// SetContainer here) restored a dead pid over the live one.
+			controller.LoadFromDisk(c)
+		case actionDelete:
+			// Strip the ".json" suffix instead of splitting on "." so names
+			// that contain dots (allowed by ValidateName) are handled. The
+			// old split-on-dot dropped every dotted-name state file, so the
+			// daemon never processed their Delete and resurrected them (L6).
+			name, _ := config.NameFromConfigFile(base)
+			controller.DeleteContainer(name)
 		default:
-			slog.Info("loadByEvent", slog.Any("event", event.Event), slog.String("error", "unknown event"))
+			switch event.Event {
+			case inotify.Modified, inotify.FileCreate, inotify.MovedFrom, inotify.Delete, inotify.MovedTo:
+				slog.Warn("loadByEvent", slog.Any("error", "unknown name for state file"), slog.String("file", event.Path))
+			default:
+				slog.Info("loadByEvent", slog.Any("event", event.Event), slog.String("error", "unknown event"))
+			}
 		}
 	}
+}
+
+type diskAction int
+
+const (
+	actionUnknown diskAction = iota
+	actionIgnore
+	actionLoad
+	actionDelete
+)
+
+// diskEventAction decides what a state-dir event means. A name that appears
+// (created, written, or renamed into place) is loaded; a name that goes away
+// (deleted or renamed out) is dropped. Temporary files from atomic writes are
+// ignored: their rename into place arrives as MovedTo on the real name.
+func diskEventAction(ev inotify.EventType, base string) diskAction {
+	if config.IsStateTempFile(base) {
+		return actionIgnore
+	}
+	if _, ok := config.NameFromConfigFile(base); !ok {
+		return actionUnknown
+	}
+	switch ev {
+	case inotify.Modified, inotify.FileCreate, inotify.MovedTo:
+		return actionLoad
+	case inotify.Delete, inotify.MovedFrom:
+		return actionDelete
+	}
+	return actionUnknown
 }
 
 // superviseDiskEvents runs loadByEvent and restarts it if the inotify watcher
@@ -97,9 +131,10 @@ func (d DaemonConfig) superviseDiskEvents() {
 //   - ADD: a state file with no in-memory entry is a create the watcher missed;
 //     load it so the container is tracked (and recoverable).
 //
-// SetContainer writes memory and disk together, so an entry can only be in
-// memory if its file was written — therefore "in memory but no file" reliably
-// means removed, with no lock check required.
+// SetContainer writes memory and disk together, and LoadFromDisk only adds an
+// entry whose file exists, so an entry can only be in memory if its file was
+// written — therefore "in memory but no file" reliably means removed, with no
+// lock check required.
 func reconcileState() {
 	mem, err := controller.Containers()
 	if err != nil {
@@ -140,7 +175,8 @@ func reconcileState() {
 			slog.Warn("reconcile", slog.String("action", "load"), slog.String("cont", name), slog.Any("error", lerr))
 			continue
 		}
-		slog.Info("reconcile", slog.String("action", "add"), slog.String("cont", name))
-		controller.SetContainer(c)
+		if controller.LoadFromDisk(c) {
+			slog.Info("reconcile", slog.String("action", "add"), slog.String("cont", name))
+		}
 	}
 }

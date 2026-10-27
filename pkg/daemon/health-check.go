@@ -158,6 +158,28 @@ func contRecover(cont *config.Config) {
 	}
 	defer release() // idempotent; the VM/native paths may release earlier
 
+	// cont is the copy taken when the tick started. Another actor may have
+	// stopped or replaced the container before we took the lock, and the kill
+	// below writes the record it is given, so work from the current record:
+	// a stale copy would overwrite the new one and hide its instance from
+	// KillStrays.
+	current, err := controller.GetContainer(cont.Name)
+	if err != nil {
+		slog.Error("recover", slog.String("cont", cont.Name), slog.Any("error", err))
+		return
+	}
+	if current.Status == "stop" {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "status stop, skipping recovery"))
+		return
+	}
+	if pid, start := current.MonitorPidIdentity(); pid != 0 {
+		if isRunning, _ := crt.IsPidRunningAs(pid, start); isRunning {
+			slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
+			return
+		}
+	}
+	cont = current
+
 	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
 
 	// Clean up stale resources (console sockets, mounts, cgroups) left
@@ -165,10 +187,18 @@ func contRecover(cont *config.Config) {
 	// so these resources are orphaned.
 	host.CleanupResources(cont)
 
-	err := host.Kill(cont, 15, 10)
+	err = host.Kill(cont, 15, 10)
 	if err != nil {
 		host.Kill(cont, 9, 0)
 	}
+
+	// Kill previous instances the record no longer points at: processes this
+	// daemon started under the name, and the container's cgroup members. A
+	// lost state update once left such an instance holding the ports, so
+	// every recovered copy failed to bind. KillStrays re-reads the record and
+	// spares the instance it names, so a copy another actor placed before we
+	// took the lock survives and the "already running" check below skips.
+	strays := host.KillStrays(cont.Name)
 
 	// After a daemon crash (kill -9), the config status on disk is still
 	// "running" because it was never updated. Since the health check
@@ -200,6 +230,14 @@ func contRecover(cont *config.Config) {
 	if isRunning, _ := crt.IsPidRunningAs(latestPid, latestStart); isRunning {
 		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
 		return
+	}
+
+	// The CleanupResources at the top ran while the strays were alive and could not
+	// release what they held (mounts, cgroup), so run it again. Only here,
+	// after the "already running" check: the resources are keyed by name, so
+	// cleaning while the legitimate instance runs would tear down its own.
+	if strays > 0 {
+		host.CleanupResources(cont)
 	}
 
 	if len(latest.HostArgs) < 2 {
