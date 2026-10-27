@@ -158,6 +158,28 @@ func contRecover(cont *config.Config) {
 	}
 	defer release() // idempotent; the VM/native paths may release earlier
 
+	// cont is the copy taken when the tick started. Another actor may have
+	// stopped or replaced the container before we took the lock, and the kill
+	// below writes the record it is given, so work from the current record:
+	// a stale copy would overwrite the new one and hide its instance from
+	// KillStrays.
+	current, err := controller.GetContainer(cont.Name)
+	if err != nil {
+		slog.Error("recover", slog.String("cont", cont.Name), slog.Any("error", err))
+		return
+	}
+	if current.Status == "stop" {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "status stop, skipping recovery"))
+		return
+	}
+	if pid, start := current.MonitorPidIdentity(); pid != 0 {
+		if isRunning, _ := crt.IsPidRunningAs(pid, start); isRunning {
+			slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "already running, skipping recovery"))
+			return
+		}
+	}
+	cont = current
+
 	slog.Debug("daemon", slog.Any("action", "killing old"), slog.String("cont", cont.Name), slog.Any("contpid", cont.ContPid), slog.Any("hostpid", cont.HostPid))
 
 	// Clean up stale resources (console sockets, mounts, cgroups) left
@@ -165,7 +187,7 @@ func contRecover(cont *config.Config) {
 	// so these resources are orphaned.
 	host.CleanupResources(cont)
 
-	err := host.Kill(cont, 15, 10)
+	err = host.Kill(cont, 15, 10)
 	if err != nil {
 		host.Kill(cont, 9, 0)
 	}
