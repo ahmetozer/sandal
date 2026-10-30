@@ -372,6 +372,10 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	}
 
 	// Wait for child to exit and update status
+	// placed is closed once RunInKVM stops placing the VM and is about to
+	// release the name lock.
+	placed := make(chan struct{})
+	defer close(placed)
 	exited := make(chan struct{})
 	go func() {
 		defer close(exited)
@@ -381,6 +385,20 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		}
 		if consoleCleanup != nil {
 			consoleCleanup()
+		}
+		// While placing, RunInKVM holds the name lock for us and waits for
+		// exited; after that, take the lock so a new run of the same name
+		// can't register between the ownership check and the write.
+		select {
+		case <-placed:
+			release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
+			if err != nil {
+				slog.Warn("forkVMProcess", slog.String("action", "record VM exit"), slog.String("name", c.Name), slog.Any("error", err))
+				vmconfig.DeleteVM(vmName)
+				return
+			}
+			defer release()
+		default:
 		}
 		// Re-read the record: the VMM child writes its own exit status.
 		latest, err := controller.GetContainer(c.Name)
