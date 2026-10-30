@@ -34,9 +34,11 @@ func TestCopyDetach(t *testing.T) {
 		detach bool
 		want   string
 	}{
-		{"same chunk", []string{"ls\x10\x11after"}, true, "ls\x10"},
-		{"split chunks", []string{"ls\x10", "\x11after"}, true, "ls\x10"},
+		{"same chunk", []string{"ls\x10\x11after"}, true, "ls"},
+		{"split chunks", []string{"ls\x10", "\x11after"}, true, "ls"},
 		{"lone ctrl+p", []string{"a\x10b", "\x11"}, false, "a\x10b\x11"},
+		{"double ctrl+p", []string{"a\x10\x10\x11"}, true, "a\x10"},
+		{"ctrl+p at eof", []string{"a\x10"}, false, "a\x10"},
 		{"no keys", []string{"abc", "def"}, false, "abcdef"},
 	}
 	for _, tt := range tests {

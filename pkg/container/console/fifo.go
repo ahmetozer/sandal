@@ -117,21 +117,35 @@ func AttachFIFO(name string, hostStdin io.Reader, hostStdout, hostStderr io.Writ
 
 // copyDetach copies src to dst until src ends, a write fails or Ctrl+P,
 // Ctrl+Q is read, and reports whether it stopped on the detach keys.
-// As in socket mode, the Ctrl+P is forwarded and the Ctrl+Q is not.
+// A Ctrl+P is held back until the next byte shows whether it starts the
+// detach sequence, so detaching sends neither key to the container.
 func copyDetach(dst io.Writer, src io.Reader) bool {
 	buf := make([]byte, 4096)
-	prevCtrlP := false
+	out := make([]byte, 0, len(buf)+1)
+	held := false
 	for {
 		n, err := src.Read(buf)
-		for i, b := range buf[:n] {
-			if prevCtrlP && b == 0x11 { // Ctrl+Q
-				dst.Write(buf[:i])
-				return true
+		out = out[:0]
+		for _, b := range buf[:n] {
+			if held {
+				held = false
+				if b == 0x11 { // Ctrl+Q
+					dst.Write(out)
+					return true
+				}
+				out = append(out, 0x10)
 			}
-			prevCtrlP = b == 0x10 // Ctrl+P
+			if b == 0x10 { // Ctrl+P
+				held = true
+				continue
+			}
+			out = append(out, b)
 		}
-		if n > 0 {
-			if _, werr := dst.Write(buf[:n]); werr != nil {
+		if err != nil && held {
+			out = append(out, 0x10)
+		}
+		if len(out) > 0 {
+			if _, werr := dst.Write(out); werr != nil {
 				return false
 			}
 		}
