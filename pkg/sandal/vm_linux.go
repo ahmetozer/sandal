@@ -49,8 +49,9 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// so two actors can't both pass the running-check and double-boot the VM,
 	// leaving one KVM child detached (audit L2/L3). For the daemon recovery /
 	// background path forkVMProcess publishes HostPid and returns, so the lock
-	// is held only across placement; a foreground `sandal run -vm` holds it for
-	// the VM's lifetime — the same scope as a foreground native run.
+	// is held only across placement; a foreground `sandal run -vm` releases it
+	// once HostPid is registered, as a foreground native run does, so stop
+	// and kill can take it while the VM runs.
 	release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("acquire lifecycle lock for %q: %w", c.Name, err)
@@ -277,10 +278,32 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
+	release()
+
+	// Record the exit after the console is torn down. Never block on the
+	// name lock here: stop and kill hold it while they wait for this
+	// process to exit, and then record the exit themselves. A record with
+	// another HostPid belongs to a new run of the same name.
+	var bootErr error
 	defer func() {
+		release, ok, _ := namelock.TryAcquire(c.Name)
+		if !ok {
+			return
+		}
+		defer release()
+		if latest, err := controller.GetContainer(c.Name); err == nil && latest.HostPid != c.HostPid {
+			return
+		}
 		if c.Remove {
 			RemoveVMState(c)
+			return
 		}
+		if bootErr != nil {
+			c.Status = fmt.Sprintf("err %v", bootErr)
+		} else {
+			c.Status = "exit 0"
+		}
+		controller.SetContainer(c)
 	}()
 
 	// Start host-side socket relay for vsock; stop it when the VM exits so the
@@ -308,17 +331,8 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		}
 	}
 
-	err = kvm.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, nil)
-
-	// Update status after VM exits
-	if err != nil {
-		c.Status = fmt.Sprintf("err %v", err)
-	} else {
-		c.Status = "exit 0"
-	}
-	controller.SetContainer(c)
-
-	return err
+	bootErr = kvm.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, nil)
+	return bootErr
 }
 
 // forkVMProcess starts the VM in a child process so the daemon/CLI isn't blocked.
