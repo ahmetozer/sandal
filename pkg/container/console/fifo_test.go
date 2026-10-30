@@ -55,6 +55,28 @@ func TestCopyDetach(t *testing.T) {
 	}
 }
 
+func TestDetachKeysFilter(t *testing.T) {
+	var d detachKeys
+	steps := []struct {
+		in, want string
+		detach   bool
+	}{
+		{"ab\x10", "ab", false},      // Ctrl+P held at the end of a read
+		{"x", "\x10x", false},        // not followed by Ctrl+Q: forwarded
+		{"cd\x10\x11ef", "cd", true}, // bytes before the sequence still go out
+	}
+	for i, st := range steps {
+		out, detach := d.filter([]byte(st.in))
+		if string(out) != st.want || detach != st.detach {
+			t.Errorf("step %d: filter(%q) = (%q, %v), want (%q, %v)", i, st.in, out, detach, st.want, st.detach)
+		}
+	}
+	d.filter([]byte("\x10"))
+	if got := d.flush(); string(got) != "\x10" {
+		t.Errorf("flush = %q, want held Ctrl+P", got)
+	}
+}
+
 type failWriter struct{}
 
 func (failWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }

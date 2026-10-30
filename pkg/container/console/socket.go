@@ -250,7 +250,7 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 
 	// Host stdin → socket (data frames + detach detection)
 	go func() {
-		var prevCtrlP bool
+		var keys detachKeys
 		for data := range stdinCh {
 			// Coalesce escape sequences: if first byte is ESC, wait briefly
 			// for remaining bytes so they arrive in a single PTY write.
@@ -274,19 +274,18 @@ func AttachSocket(name string, hostStdin *os.File, hostStdout io.Writer, done <-
 		sendFrame:
 
 			// Detect Ctrl+P, Ctrl+Q sequence for detach
-			for _, b := range data {
-				if prevCtrlP && b == 0x11 { // Ctrl+Q
-					closeDetach()
+			data, detach := keys.filter(data)
+			if len(data) > 0 {
+				frame := make([]byte, 1+2+len(data))
+				frame[0] = frameData
+				binary.BigEndian.PutUint16(frame[1:3], uint16(len(data)))
+				copy(frame[3:], data)
+				if _, werr := conn.Write(frame); werr != nil {
 					return
 				}
-				prevCtrlP = (b == 0x10) // Ctrl+P
 			}
-
-			frame := make([]byte, 1+2+len(data))
-			frame[0] = frameData
-			binary.BigEndian.PutUint16(frame[1:3], uint16(len(data)))
-			copy(frame[3:], data)
-			if _, werr := conn.Write(frame); werr != nil {
+			if detach {
+				closeDetach()
 				return
 			}
 		}

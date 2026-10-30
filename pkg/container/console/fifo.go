@@ -115,39 +115,59 @@ func AttachFIFO(name string, hostStdin io.Reader, hostStdout, hostStderr io.Writ
 	return nil
 }
 
+// detachKeys finds the Ctrl+P, Ctrl+Q detach sequence in attach input.
+// A Ctrl+P is held back until the next byte shows whether it starts the
+// sequence, so detaching sends neither key to the container.
+type detachKeys struct{ held bool }
+
+// filter returns the bytes of data to forward, and whether data completed
+// the detach sequence; bytes after it are dropped.
+func (d *detachKeys) filter(data []byte) (out []byte, detach bool) {
+	out = make([]byte, 0, len(data)+1)
+	for _, b := range data {
+		if d.held {
+			d.held = false
+			if b == 0x11 { // Ctrl+Q
+				return out, true
+			}
+			out = append(out, 0x10)
+		}
+		if b == 0x10 { // Ctrl+P
+			d.held = true
+			continue
+		}
+		out = append(out, b)
+	}
+	return out, false
+}
+
+// flush returns a Ctrl+P still held back when input ends.
+func (d *detachKeys) flush() []byte {
+	if d.held {
+		d.held = false
+		return []byte{0x10}
+	}
+	return nil
+}
+
 // copyDetach copies src to dst until src ends, a write fails or Ctrl+P,
 // Ctrl+Q is read, and reports whether it stopped on the detach keys.
-// A Ctrl+P is held back until the next byte shows whether it starts the
-// detach sequence, so detaching sends neither key to the container.
 func copyDetach(dst io.Writer, src io.Reader) bool {
 	buf := make([]byte, 4096)
-	out := make([]byte, 0, len(buf)+1)
-	held := false
+	var keys detachKeys
 	for {
 		n, err := src.Read(buf)
-		out = out[:0]
-		for _, b := range buf[:n] {
-			if held {
-				held = false
-				if b == 0x11 { // Ctrl+Q
-					dst.Write(out)
-					return true
-				}
-				out = append(out, 0x10)
-			}
-			if b == 0x10 { // Ctrl+P
-				held = true
-				continue
-			}
-			out = append(out, b)
-		}
-		if err != nil && held {
-			out = append(out, 0x10)
+		out, detach := keys.filter(buf[:n])
+		if err != nil {
+			out = append(out, keys.flush()...)
 		}
 		if len(out) > 0 {
 			if _, werr := dst.Write(out); werr != nil {
 				return false
 			}
+		}
+		if detach {
+			return true
 		}
 		if err != nil {
 			return false
