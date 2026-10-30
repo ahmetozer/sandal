@@ -37,10 +37,11 @@ Used for background containers started without `-t`, or with `-t` but not by the
 ```bash
 sandal run -lw / -tmp 10 --rm -d -name my-container -- ping 10.0.0.1
 sandal attach my-container
-    Attached to my-container (Ctrl+C to detach)
+    Attached to my-container (Ctrl+P, Ctrl+Q to detach)
 ```
 
-- **Ctrl+C** detaches from the container (container keeps running)
+- **Ctrl+P, Ctrl+Q** detaches from the container (container keeps running)
+- **Ctrl+C** is written to the container's stdin as a raw byte; without a PTY it does not interrupt the process
 - No PTY — terminal programs (`htop`, `vim`, etc.) will not work
 
 ## Detach and Re-attach
