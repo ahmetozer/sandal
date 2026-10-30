@@ -56,6 +56,22 @@ sandal attach my-container
 
 When re-attaching in socket mode, the terminal size, mouse tracking, and application cursor mode are automatically restored.
 
+## VM Containers
+
+KVM VMs (`-vm`) are attached through the VM's serial console, in the foreground as well as with `-d`.
+
+```bash
+sandal run -vm -name my-vm -- sh
+# in another terminal
+sandal attach my-vm
+    Attached to my-vm (Ctrl+P, Ctrl+Q to detach)
+```
+
+- The console is shared: input from every attached terminal, and from a foreground VM's own terminal, is merged into one stream
+- **Ctrl+P, Ctrl+Q** detaches only the attached terminal; the VM keeps running
+- Terminal resizing is not forwarded
+- Foreground macOS VMs cannot be attached
+
 ## Flags
 
 ### `-help`

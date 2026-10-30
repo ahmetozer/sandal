@@ -56,7 +56,6 @@ func StartEmbeddedController() {
 
 	mux.HandleFunc("POST /exec", execHandler)
 	mux.HandleFunc("POST /kill", killHandler)
-	mux.HandleFunc("POST /attach", attachHandler)
 	mux.HandleFunc("POST /snapshot", snapshotHandler)
 	mux.HandleFunc("POST /export", exportHandler)
 
