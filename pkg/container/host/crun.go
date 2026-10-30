@@ -55,7 +55,10 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		// Requires daemon because the socket listener and PTY master must outlive the CLI.
 		console.SetupSocketConsole(c.Name, cmd, &ptmx, &ptySlave, &consoleCleanup, allocPTY, setPTYSize)
 	} else {
-		// Daemonless background or no TTY: FIFO/file-based console
+		// CLI-started background (no -startup or no daemon) or no TTY: FIFO/file-based console
+		if c.TTY {
+			slog.Warn("console: -t ignored for -d without daemon; use -startup with a running daemon for a PTY console", "name", c.Name)
+		}
 		if err := console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup); err != nil {
 			return 1, fmt.Errorf("console setup: %w", err)
 		}

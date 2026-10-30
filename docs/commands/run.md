@@ -575,19 +575,19 @@ sandal run -lw alpine --ns-net cont:mytestcont1 -- ip addr
 
     In **foreground** mode (`-t` without `-d`), the host terminal is set to raw mode and connected directly to the container's PTY. Arrow keys, Ctrl+C, and terminal resize work automatically.
 
-    In **background** mode (`-t -d` with daemon running), the PTY is served over a Unix socket. Use `sandal attach` to connect. Supports mouse, arrow keys, function keys, and terminal resize.
+    In **background** mode (`-t -d -startup` with the daemon running), the daemon starts the container and serves its PTY over a Unix socket. Use `sandal attach` to connect. Supports mouse, arrow keys, function keys, and terminal resize.
 
     ``` { .bash title="Example" }
     # Interactive foreground with PTY
     sandal run -lw / -tmp 10 --rm -t -- bash
-    # Background with PTY (requires daemon)
+    # Background with PTY (requires daemon and --startup)
     sandal daemon &
     sandal run -lw / -tmp 10 --rm -t -d --startup -name my-htop -- htop
     sandal attach my-htop
     ```
 
 !!! warning
-    Using `-t -d` without the daemon results in FIFO mode (no PTY). Terminal programs will not display correctly. A warning is logged in this case.
+    `-t -d` without `-startup`, or without a running daemon, results in FIFO mode (no PTY), because the container is started by the CLI and nothing keeps the PTY open after it exits. Terminal programs will not display correctly. A warning is logged in this case.
 
 ---
 

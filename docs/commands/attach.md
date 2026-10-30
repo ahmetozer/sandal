@@ -12,7 +12,7 @@ Sandal uses two console modes depending on how the container was started:
 
 ### Socket Mode (PTY)
 
-Used when the container is started with `-t -d` and the daemon is running. Provides a full PTY with terminal resize, mouse, and arrow key support. Terminal programs like `htop`, `vim`, and `iptraf-ng` work in this mode.
+Used when the container is started with `-t -d -startup` and the daemon is running (the daemon starts the container and holds its PTY). Provides a full PTY with terminal resize, mouse, and arrow key support. Terminal programs like `htop`, `vim`, and `iptraf-ng` work in this mode.
 
 ```bash
 sandal daemon &
@@ -28,11 +28,11 @@ sandal attach my-container
 - Arrow keys, function keys, and other special keys work correctly
 
 !!! note
-    The `-t` flag requires the daemon to be running. Without the daemon, background containers fall back to FIFO mode and terminal programs will not display correctly.
+    A PTY console needs `-startup` and a running daemon, because only the daemon can keep the PTY and its socket open after `sandal run` exits. A `-t -d` container started without `-startup`, or while the daemon is not running, falls back to FIFO mode and a warning is logged. Terminal programs will not display correctly in FIFO mode.
 
 ### FIFO Mode
 
-Used when the container is started without the daemon or without `-t`. Provides basic stdin/stdout/stderr relay via files. Suitable for programs with simple text output like `ping` or log tailing.
+Used for background containers started without `-t`, or with `-t` but not by the daemon (no `-startup`, or the daemon is not running). Provides basic stdin/stdout/stderr relay via files. Suitable for programs with simple text output like `ping` or log tailing.
 
 ```bash
 sandal run -lw / -tmp 10 --rm -d -name my-container -- ping 10.0.0.1

@@ -85,7 +85,8 @@ You need an image with `openssh-server`, your language toolchain, `git`, and a n
 ### Run the container with SSH exposed
 
 ``` { .bash title="Detached container with SSH on a host-only port" }
-sandal run -d -t \
+sandal daemon &
+sandal run -d -t -startup \
     -lw mcr.microsoft.com/devcontainers/base:ubuntu \
     -name agent-box \
     -tmp 4096 \
@@ -96,7 +97,7 @@ sandal run -d -t \
     -- /usr/sbin/sshd -D
 ```
 
-- `-d -t` runs detached with a PTY — VS Code's terminal panes work correctly inside.
+- `-d -t -startup` hands the container to the [sandal daemon](../commands/daemon.md), which must be running. The daemon keeps the PTY and the `-p` forward open after `sandal run` exits, and starts the container again on boot. Without `-startup`, a `-d` container is started by the CLI and `-t` and `-p` are ignored with a warning.
 - `-tmp 4096` puts overlay writes in 4 GB of RAM tmpfs. VS Code Server, npm caches, language-server indexes, and `apt install`s land here and vanish on exit.
 - `-v "$PWD":/workspaces/project` is the only durable surface — every other write is ephemeral.
 - `-p 127.0.0.1:2222:22` binds **only** to localhost; the SSH endpoint is unreachable from other machines on your network. See [`sandal run -p`](../commands/run.md#-p-value) for the full grammar.
@@ -141,7 +142,7 @@ Keep VS Code running on the host with all your usual settings, themes, and exten
 ### Start a long-lived container in the background
 
 ``` { .bash title="Background sandbox container" }
-sandal run -d -t \
+sandal run -d \
     -lw mcr.microsoft.com/devcontainers/base:ubuntu \
     -name agent-shell \
     -tmp 2048 \
@@ -306,7 +307,8 @@ The `-lw` layers are already immutable — the agent's writes go to the change d
 This is the configuration to start from for a typical "Claude Code in VS Code, ephemeral, hardened" session. Combine Pattern A (Remote-SSH), Pattern C (toolchain snapshot), the COW workspace, and the hardening flags:
 
 ``` { .bash title="Production-ish profile" }
-sandal run -d -t \
+sandal daemon &
+sandal run -d -t -startup \
     -lw mcr.microsoft.com/devcontainers/base:ubuntu \
     -lw /var/lib/sandal/snapshot/agent-toolchain.sqfs \
     -lw "$PWD":/workspace \
@@ -324,7 +326,7 @@ sandal run -d -t \
 - COW workspace at `/workspace` — agent edits stay in the overlay; promote with `rsync /workspace/ /real/`
 - 4 GB tmpfs for ephemeral writes (overlay + agent caches)
 - Unprivileged user
-- SSH on host-loopback only
+- SSH on host-loopback only (`-p` on a `-d` container needs `-startup` and a running daemon)
 - One environment variable forwarded explicitly
 - No host secrets, no Docker socket
 
