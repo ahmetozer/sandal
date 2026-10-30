@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/host/clean"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	squash "github.com/ahmetozer/sandal/pkg/lib/container/image"
 	"github.com/ahmetozer/sandal/pkg/sandal/vmbin"
@@ -21,6 +24,39 @@ import (
 type SocketMount struct {
 	HostPath  string
 	GuestPath string
+}
+
+// RemoveVMState removes a -rm VM container after its VM exits: the
+// in-memory record, the change dir and its .img on the host, and the state
+// file last. controller.DeleteContainer alone only drops the entry from
+// this process; the daemon follows the deleted state file. RootfsDir is
+// inside the guest and never exists on the host.
+func RemoveVMState(c *config.Config) {
+	controller.DeleteContainer(c.Name)
+
+	removeAll := func(name string) {
+		if name == "" {
+			return
+		}
+		ok, err := clean.IsInsideSandalArea(name)
+		if err != nil {
+			slog.Warn("removeVMState: safety check failed", "path", name, "err", err)
+			return
+		}
+		if !ok {
+			slog.Warn("removeVMState: refusing to delete path outside sandal dirs", "path", name)
+			return
+		}
+		if err := os.RemoveAll(name); err != nil {
+			slog.Debug("removeVMState", "removeall", slog.String("file", name), slog.Any("error", err))
+		}
+	}
+
+	removeAll(c.ChangeDir)
+	if c.ChangeDir != "" {
+		removeAll(c.ChangeDir + ".img")
+	}
+	removeAll(c.ConfigFileLoc())
 }
 
 // kernelLogLevel maps the current slog level to a Linux kernel loglevel string.

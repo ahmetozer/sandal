@@ -101,7 +101,11 @@ func reapVM(c *config.Config) error {
 	c.ContPid = 0
 	c.ContPidStart = 0
 	host.CleanupResources(c)
-	controller.SetContainer(c)
+	if c.Remove {
+		RemoveVMState(c)
+	} else {
+		controller.SetContainer(c)
+	}
 	return nil
 }
 

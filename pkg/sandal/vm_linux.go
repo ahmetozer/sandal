@@ -278,7 +278,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	}
 	defer func() {
 		if c.Remove {
-			controller.DeleteContainer(c.Name)
+			RemoveVMState(c)
 		}
 	}()
 
@@ -364,14 +364,18 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 			consoleCleanup()
 		}
 		// Re-read the record: the VMM child writes its own exit status.
-		if latest, err := controller.GetContainer(c.Name); err == nil && setForkedVMExit(latest, c.HostPid, waitErr) {
+		latest, err := controller.GetContainer(c.Name)
+		if c.Remove {
+			// Skip the status write so the record is not re-created, and
+			// leave a record that a new run of the same name now owns.
+			if err != nil || latest.HostPid == c.HostPid {
+				RemoveVMState(c)
+			}
+		} else if err == nil && setForkedVMExit(latest, c.HostPid, waitErr) {
 			controller.SetContainer(latest)
 		}
 		// Initrd is owned by the kernel cache; do not remove.
 		vmconfig.DeleteVM(vmName)
-		if c.Remove {
-			controller.DeleteContainer(c.Name)
-		}
 	}()
 
 	return awaitVMReady(readyR, cmd.Process, exited, c.Name, vmReadyTimeout)

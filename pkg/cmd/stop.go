@@ -83,6 +83,12 @@ func stopContainer(name string, signal, timeout int) error {
 		return err
 	}
 
+	// A -rm VM's state is already gone once its VMM has exited; writing
+	// the status back would resurrect the record.
+	if cont.VM != "" && cont.Remove {
+		return nil
+	}
+
 	cont.Status = "stop"
 	return controller.SetContainer(cont)
 }

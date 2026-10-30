@@ -200,8 +200,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	}
 	defer func() {
 		if c.Remove {
-			controller.DeleteContainer(c.Name)
-			os.Remove(c.ConfigFileLoc())
+			RemoveVMState(c)
 		}
 	}()
 

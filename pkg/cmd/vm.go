@@ -14,6 +14,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 	"github.com/ahmetozer/sandal/pkg/vm/boot"
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/disk"
@@ -546,10 +547,15 @@ var recordVMExit = recordVMContainerExit
 // recordVMContainerExit stores the VM's exit status on the container record
 // this process hosts. forkVMProcess starts `sandal vm start` for `run -vm -d`
 // and waits for it in the parent, but a CLI parent exits right away, so
-// without this the record would stay "running" after the VM stops.
+// without this the record would stay "running" after the VM stops. A -rm
+// container is removed instead.
 func recordVMContainerExit(name string, bootErr error) {
 	c, err := controller.GetContainer(name)
 	if err != nil || !setVMExitStatus(c, os.Getpid(), bootErr) {
+		return
+	}
+	if c.Remove {
+		sandal.RemoveVMState(c)
 		return
 	}
 	if err := controller.SetContainer(c); err != nil {
