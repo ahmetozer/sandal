@@ -1624,9 +1624,9 @@ sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </s
 <div class="highlight"><span class="filename">Ephemeral alpine with 128MB tmpfs (Linux)</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-tmp<span class="w"> </span><span class="m">128</span><span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>--<span class="w"> </span>sh
 </code></pre></div>
 <h2 id="background-daemons-linux-only">Background daemons (Linux only)<a class="headerlink" href="#background-daemons-linux-only" title="Permanent link">&para;</a></h2>
-<p>On Linux, run detached with <code>-d</code> (requires the sandal daemon). Use <code>sandal attach</code> to reconnect to a TTY, or <code>sandal exec</code> to run additional commands inside the container. The daemon is not available on macOS:</p>
+<p>On Linux, run detached with <code>-d</code>. Add <code>-t -startup</code> with the sandal daemon running to get a PTY you can reconnect to with <code>sandal attach</code>, or use <code>sandal exec</code> to run additional commands inside the container. The daemon is not available on macOS:</p>
 <div class="highlight"><span class="filename">Background container with PTY (Linux)</span><pre><span></span><code>sandal<span class="w"> </span>daemon<span class="w"> </span><span class="p">&amp;</span>
-sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span>-name<span class="w"> </span><span class="nb">bg</span><span class="w"> </span>--<span class="w"> </span>sh
+sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine:latest<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span>-startup<span class="w"> </span>-name<span class="w"> </span><span class="nb">bg</span><span class="w"> </span>--<span class="w"> </span>sh
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span><span class="nb">bg</span><span class="w"> </span>--<span class="w"> </span>ps<span class="w"> </span>aux
 sandal<span class="w"> </span>attach<span class="w"> </span><span class="nb">bg</span>
 </code></pre></div>

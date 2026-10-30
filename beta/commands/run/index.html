@@ -2916,10 +2916,10 @@ sandal<span class="w"> </span>run<span class="w"> </span>-snapshot<span class="w
 <p>allocate a pseudo-TTY for the container.
 Required for terminal programs like <code>htop</code>, <code>vim</code>, <code>iptraf-ng</code>, or any program that needs <code>isatty()</code> to return true.</p>
 <p>In <strong>foreground</strong> mode (<code>-t</code> without <code>-d</code>), the host terminal is set to raw mode and connected directly to the container's PTY. Arrow keys, Ctrl+C, and terminal resize work automatically.</p>
-<p>In <strong>background</strong> mode (<code>-t -d</code> with daemon running), the PTY is served over a Unix socket. Use <code>sandal attach</code> to connect. Supports mouse, arrow keys, function keys, and terminal resize.</p>
+<p>In <strong>background</strong> mode (<code>-t -d -startup</code> with the daemon running), the daemon starts the container and serves its PTY over a Unix socket. Use <code>sandal attach</code> to connect. Supports mouse, arrow keys, function keys, and terminal resize.</p>
 <div class="highlight"><span class="filename">Example</span><pre><span></span><code><span class="c1"># Interactive foreground with PTY</span>
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-tmp<span class="w"> </span><span class="m">10</span><span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>--<span class="w"> </span>bash
-<span class="c1"># Background with PTY (requires daemon)</span>
+<span class="c1"># Background with PTY (requires daemon and --startup)</span>
 sandal<span class="w"> </span>daemon<span class="w"> </span><span class="p">&amp;</span>
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-tmp<span class="w"> </span><span class="m">10</span><span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-d<span class="w"> </span>--startup<span class="w"> </span>-name<span class="w"> </span>my-htop<span class="w"> </span>--<span class="w"> </span>htop
 sandal<span class="w"> </span>attach<span class="w"> </span>my-htop
@@ -2928,7 +2928,7 @@ sandal<span class="w"> </span>attach<span class="w"> </span>my-htop
 </dl>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Using <code>-t -d</code> without the daemon results in FIFO mode (no PTY). Terminal programs will not display correctly. A warning is logged in this case.</p>
+<p><code>-t -d</code> without <code>-startup</code>, or without a running daemon, results in FIFO mode (no PTY), because the container is started by the CLI and nothing keeps the PTY open after it exits. Terminal programs will not display correctly. A warning is logged in this case.</p>
 </div>
 <hr />
 <h3 id="-chdir-type-string"><code>-chdir-type string</code><a class="headerlink" href="#-chdir-type-string" title="Permanent link">&para;</a></h3>

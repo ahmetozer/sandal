@@ -749,6 +749,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#vm-containers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM Containers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1462,6 +1473,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#vm-containers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM Containers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1513,7 +1535,7 @@
 <h2 id="console-modes">Console Modes<a class="headerlink" href="#console-modes" title="Permanent link">&para;</a></h2>
 <p>Sandal uses two console modes depending on how the container was started:</p>
 <h3 id="socket-mode-pty">Socket Mode (PTY)<a class="headerlink" href="#socket-mode-pty" title="Permanent link">&para;</a></h3>
-<p>Used when the container is started with <code>-t -d</code> and the daemon is running. Provides a full PTY with terminal resize, mouse, and arrow key support. Terminal programs like <code>htop</code>, <code>vim</code>, and <code>iptraf-ng</code> work in this mode.</p>
+<p>Used when the container is started with <code>-t -d -startup</code> and the daemon is running (the daemon starts the container and holds its PTY). Provides a full PTY with terminal resize, mouse, and arrow key support. Terminal programs like <code>htop</code>, <code>vim</code>, and <code>iptraf-ng</code> work in this mode.</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>daemon<span class="w"> </span><span class="p">&amp;</span>
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-tmp<span class="w"> </span><span class="m">10</span><span class="w"> </span>--rm<span class="w"> </span>-t<span class="w"> </span>-d<span class="w"> </span>--startup<span class="w"> </span>-name<span class="w"> </span>my-container<span class="w"> </span>--<span class="w"> </span>htop
 sandal<span class="w"> </span>attach<span class="w"> </span>my-container
@@ -1528,16 +1550,17 @@ sandal<span class="w"> </span>attach<span class="w"> </span>my-container
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <code>-t</code> flag requires the daemon to be running. Without the daemon, background containers fall back to FIFO mode and terminal programs will not display correctly.</p>
+<p>A PTY console needs <code>-startup</code> and a running daemon, because only the daemon can keep the PTY and its socket open after <code>sandal run</code> exits. A <code>-t -d</code> container started without <code>-startup</code>, or while the daemon is not running, falls back to FIFO mode and a warning is logged. Terminal programs will not display correctly in FIFO mode.</p>
 </div>
 <h3 id="fifo-mode">FIFO Mode<a class="headerlink" href="#fifo-mode" title="Permanent link">&para;</a></h3>
-<p>Used when the container is started without the daemon or without <code>-t</code>. Provides basic stdin/stdout/stderr relay via files. Suitable for programs with simple text output like <code>ping</code> or log tailing.</p>
+<p>Used for background containers started without <code>-t</code>, or with <code>-t</code> but not by the daemon (no <code>-startup</code>, or the daemon is not running). Provides basic stdin/stdout/stderr relay via files. Suitable for programs with simple text output like <code>ping</code> or log tailing.</p>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/<span class="w"> </span>-tmp<span class="w"> </span><span class="m">10</span><span class="w"> </span>--rm<span class="w"> </span>-d<span class="w"> </span>-name<span class="w"> </span>my-container<span class="w"> </span>--<span class="w"> </span>ping<span class="w"> </span><span class="m">10</span>.0.0.1
 sandal<span class="w"> </span>attach<span class="w"> </span>my-container
-<span class="w">    </span>Attached<span class="w"> </span>to<span class="w"> </span>my-container<span class="w"> </span><span class="o">(</span>Ctrl+C<span class="w"> </span>to<span class="w"> </span>detach<span class="o">)</span>
+<span class="w">    </span>Attached<span class="w"> </span>to<span class="w"> </span>my-container<span class="w"> </span><span class="o">(</span>Ctrl+P,<span class="w"> </span>Ctrl+Q<span class="w"> </span>to<span class="w"> </span>detach<span class="o">)</span>
 </code></pre></div>
 <ul>
-<li><strong>Ctrl+C</strong> detaches from the container (container keeps running)</li>
+<li><strong>Ctrl+P, Ctrl+Q</strong> detaches from the container (container keeps running)</li>
+<li><strong>Ctrl+C</strong> is written to the container's stdin as a raw byte; without a PTY it does not interrupt the process</li>
 <li>No PTY — terminal programs (<code>htop</code>, <code>vim</code>, etc.) will not work</li>
 </ul>
 <h2 id="detach-and-re-attach">Detach and Re-attach<a class="headerlink" href="#detach-and-re-attach" title="Permanent link">&para;</a></h2>
@@ -1548,6 +1571,19 @@ sandal<span class="w"> </span>attach<span class="w"> </span>my-container
 <span class="c1"># re-attached to the same session</span>
 </code></pre></div>
 <p>When re-attaching in socket mode, the terminal size, mouse tracking, and application cursor mode are automatically restored.</p>
+<h2 id="vm-containers">VM Containers<a class="headerlink" href="#vm-containers" title="Permanent link">&para;</a></h2>
+<p>KVM VMs (<code>-vm</code>) are attached through the VM's serial console, in the foreground as well as with <code>-d</code>.</p>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-vm<span class="w"> </span>-name<span class="w"> </span>my-vm<span class="w"> </span>--<span class="w"> </span>sh
+<span class="c1"># in another terminal</span>
+sandal<span class="w"> </span>attach<span class="w"> </span>my-vm
+<span class="w">    </span>Attached<span class="w"> </span>to<span class="w"> </span>my-vm<span class="w"> </span><span class="o">(</span>Ctrl+P,<span class="w"> </span>Ctrl+Q<span class="w"> </span>to<span class="w"> </span>detach<span class="o">)</span>
+</code></pre></div>
+<ul>
+<li>The console is shared: input from every attached terminal, and from a foreground VM's own terminal, is merged into one stream</li>
+<li><strong>Ctrl+P, Ctrl+Q</strong> detaches only the attached terminal; the VM keeps running</li>
+<li>Terminal resizing is not forwarded</li>
+<li>Foreground macOS VMs cannot be attached</li>
+</ul>
 <h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">&para;</a></h2>
 <h3 id="-help"><code>-help</code><a class="headerlink" href="#-help" title="Permanent link">&para;</a></h3>
 <dl>

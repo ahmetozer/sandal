@@ -1998,7 +1998,8 @@ $ rsync -a --delete /workspace/ /real/
 <h3 id="build-the-base-image">Build the base image<a class="headerlink" href="#build-the-base-image" title="Permanent link">&para;</a></h3>
 <p>You need an image with <code>openssh-server</code>, your language toolchain, <code>git</code>, and a non-root user. Build it once with <code>sandal export</code>, or pull a community devcontainer image, or just use a registry image such as <code>mcr.microsoft.com/devcontainers/base:ubuntu</code>. For brevity here we use the Microsoft devcontainer base, which already has a <code>vscode</code> user and a sane PATH.</p>
 <h3 id="run-the-container-with-ssh-exposed">Run the container with SSH exposed<a class="headerlink" href="#run-the-container-with-ssh-exposed" title="Permanent link">&para;</a></h3>
-<div class="highlight"><span class="filename">Detached container with SSH on a host-only port</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><span class="filename">Detached container with SSH on a host-only port</span><pre><span></span><code>sandal<span class="w"> </span>daemon<span class="w"> </span><span class="p">&amp;</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span>-startup<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-box<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-tmp<span class="w"> </span><span class="m">4096</span><span class="w"> </span><span class="se">\</span>
@@ -2009,7 +2010,7 @@ $ rsync -a --delete /workspace/ /real/
 <span class="w">    </span>--<span class="w"> </span>/usr/sbin/sshd<span class="w"> </span>-D
 </code></pre></div>
 <ul>
-<li><code>-d -t</code> runs detached with a PTY — VS Code's terminal panes work correctly inside.</li>
+<li><code>-d -t -startup</code> hands the container to the <a href="../../commands/daemon/">sandal daemon</a>, which must be running. The daemon keeps the PTY and the <code>-p</code> forward open after <code>sandal run</code> exits, and starts the container again on boot. Without <code>-startup</code>, a <code>-d</code> container is started by the CLI and <code>-t</code> and <code>-p</code> are ignored with a warning.</li>
 <li><code>-tmp 4096</code> puts overlay writes in 4 GB of RAM tmpfs. VS Code Server, npm caches, language-server indexes, and <code>apt install</code>s land here and vanish on exit.</li>
 <li><code>-v "$PWD":/workspaces/project</code> is the only durable surface — every other write is ephemeral.</li>
 <li><code>-p 127.0.0.1:2222:22</code> binds <strong>only</strong> to localhost; the SSH endpoint is unreachable from other machines on your network. See <a href="../../commands/run/#-p-value"><code>sandal run -p</code></a> for the full grammar.</li>
@@ -2041,7 +2042,7 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-box<span class="w"
 <h2 id="pattern-b-local-vs-code-sandal-exec-terminal-profile">Pattern B: Local VS Code + <code>sandal exec</code> terminal profile<a class="headerlink" href="#pattern-b-local-vs-code-sandal-exec-terminal-profile" title="Permanent link">&para;</a></h2>
 <p>Keep VS Code running on the host with all your usual settings, themes, and extensions. Replace only the <strong>integrated terminal</strong> with one that drops you inside a sandal container — every shell command Claude Code's extension runs through that terminal then executes inside the sandbox, while file editing stays in your normal host VS Code.</p>
 <h3 id="start-a-long-lived-container-in-the-background">Start a long-lived container in the background<a class="headerlink" href="#start-a-long-lived-container-in-the-background" title="Permanent link">&para;</a></h3>
-<div class="highlight"><span class="filename">Background sandbox container</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><span class="filename">Background sandbox container</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-name<span class="w"> </span>agent-shell<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-tmp<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
@@ -2191,7 +2192,8 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <hr />
 <h2 id="putting-it-together-a-hardened-recommended-profile">Putting it together — a hardened recommended profile<a class="headerlink" href="#putting-it-together-a-hardened-recommended-profile" title="Permanent link">&para;</a></h2>
 <p>This is the configuration to start from for a typical "Claude Code in VS Code, ephemeral, hardened" session. Combine Pattern A (Remote-SSH), Pattern C (toolchain snapshot), the COW workspace, and the hardening flags:</p>
-<div class="highlight"><span class="filename">Production-ish profile</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><span class="filename">Production-ish profile</span><pre><span></span><code>sandal<span class="w"> </span>daemon<span class="w"> </span><span class="p">&amp;</span>
+sandal<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-t<span class="w"> </span>-startup<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>mcr.microsoft.com/devcontainers/base:ubuntu<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span>/var/lib/sandal/snapshot/agent-toolchain.sqfs<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-lw<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span>:/workspace<span class="w"> </span><span class="se">\</span>
@@ -2209,7 +2211,7 @@ sandal<span class="w"> </span>rm<span class="w"> </span>agent-toolchain-build
 <li>COW workspace at <code>/workspace</code> — agent edits stay in the overlay; promote with <code>rsync /workspace/ /real/</code></li>
 <li>4 GB tmpfs for ephemeral writes (overlay + agent caches)</li>
 <li>Unprivileged user</li>
-<li>SSH on host-loopback only</li>
+<li>SSH on host-loopback only (<code>-p</code> on a <code>-d</code> container needs <code>-startup</code> and a running daemon)</li>
 <li>One environment variable forwarded explicitly</li>
 <li>No host secrets, no Docker socket</li>
 </ul>
