@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/console"
 	"github.com/ahmetozer/sandal/pkg/container/host/clean"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
@@ -56,6 +57,7 @@ func RemoveVMState(c *config.Config) {
 	if c.ChangeDir != "" {
 		removeAll(c.ChangeDir + ".img")
 	}
+	removeAll(console.Dir(c.Name))
 	removeAll(c.ConfigFileLoc())
 }
 

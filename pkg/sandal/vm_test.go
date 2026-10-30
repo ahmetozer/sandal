@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	"github.com/ahmetozer/sandal/pkg/container/console"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
 
@@ -48,17 +49,19 @@ func exists(t *testing.T, p string) bool {
 func TestRemoveVMState(t *testing.T) {
 	change := withVMStateEnv(t)
 	c := &config.Config{Name: "t1", ChangeDir: filepath.Join(change, "t1")}
-	if err := os.Mkdir(c.ChangeDir, 0o755); err != nil {
-		t.Fatal(err)
+	for _, d := range []string{c.ChangeDir, console.Dir(c.Name)} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for _, f := range []string{c.ChangeDir + ".img", c.ConfigFileLoc()} {
+	for _, f := range []string{c.ChangeDir + ".img", console.ModePath(c.Name), c.ConfigFileLoc()} {
 		if err := os.WriteFile(f, []byte("{}"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	RemoveVMState(c)
-	for _, p := range []string{c.ChangeDir, c.ChangeDir + ".img", c.ConfigFileLoc()} {
+	for _, p := range []string{c.ChangeDir, c.ChangeDir + ".img", console.Dir(c.Name), c.ConfigFileLoc()} {
 		if exists(t, p) {
 			t.Errorf("%s still exists", p)
 		}

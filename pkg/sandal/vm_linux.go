@@ -299,12 +299,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		slog.Warn("runInKVM", slog.String("action", "console tee"), slog.Any("error", err))
 	} else {
 		vmIn, vmOut = in, out
-		defer func() {
-			consoleCleanup()
-			if c.Remove {
-				os.RemoveAll(console.Dir(c.Name))
-			}
-		}()
+		defer consoleCleanup()
 		if restore, err := terminal.SetRaw(); err == nil {
 			defer func() {
 				restore()
