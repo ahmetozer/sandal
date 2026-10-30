@@ -26,18 +26,31 @@ func Kill(c *config.Config, signal int, timeout int) error {
 	return host.Kill(c, signal, timeout)
 }
 
+// Seams for tests.
+var (
+	killViaMgmtFn  = killViaMgmt
+	sendSig        = crt.SendSig
+	pidRunningAs   = crt.IsPidRunningAs
+	reapVMState    = reapVM
+	vmPollInterval = 200 * time.Millisecond
+)
+
 // killVM sends a kill signal to a VM container. SIGKILL (9) kills the
 // VM host process directly since it can't be caught anyway. Other signals
 // are routed through the management socket to the container inside the VM.
+// timeout follows the host.Kill contract: 0 returns without waiting, > 0
+// waits up to that many seconds, < 0 waits indefinitely.
 func killVM(c *config.Config, signal int, timeout int) error {
 	if signal == 9 {
 		return killVMHost(c, timeout)
 	}
-	if err := killViaMgmt(c.Name, signal); err != nil {
+	if err := killViaMgmtFn(c.Name, signal); err != nil {
 		// Management channel failed — kill the VM host process directly.
 		return killVMHost(c, timeout)
 	}
-	return nil
+	// The guest powers off when its container exits (cmd/exit_linux.go), so
+	// the VMM exiting is the "container stopped" event.
+	return waitVMHostExit(c, timeout)
 }
 
 // killVMHost kills the VM host process (HostPid). host.Kill() can't be
@@ -50,26 +63,46 @@ func killVMHost(c *config.Config, timeout int) error {
 		return controller.SetContainer(c)
 	}
 
-	crt.SendSig(pid, 9)
-
-	deadline := time.After(time.Duration(timeout) * time.Second)
-	for {
-		if running, _ := crt.IsPidRunning(pid); !running {
-			c.Status = "killed"
-			c.HostPid = 0
-			c.HostPidStart = 0
-			c.ContPid = 0
-			c.ContPidStart = 0
-			host.CleanupResources(c)
-			controller.SetContainer(c)
-			return nil
-		}
-		select {
-		case <-deadline:
-			return fmt.Errorf("unable to kill VM host pid %d in %d seconds", pid, timeout)
-		case <-time.After(500 * time.Millisecond):
-		}
+	// Identity guard: a dead or recycled HostPid must not be SIGKILLed.
+	if alive, _ := pidRunningAs(pid, c.HostPidStart); !alive {
+		return reapVMState(c)
 	}
+
+	sendSig(pid, 9)
+	return waitVMHostExit(c, timeout)
+}
+
+// waitVMHostExit waits for the VM host process to exit and then cleans up
+// its state. timeout == 0 returns at once without cleanup, since the VMM
+// may still be alive.
+func waitVMHostExit(c *config.Config, timeout int) error {
+	if timeout == 0 {
+		return nil
+	}
+	pid := c.HostPid
+	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
+	for {
+		// Identity-aware so a recycled pid counts as exited.
+		if alive, _ := pidRunningAs(pid, c.HostPidStart); !alive {
+			return reapVMState(c)
+		}
+		if timeout > 0 && !time.Now().Before(deadline) {
+			return fmt.Errorf("unable to kill VM host pid %d in %d seconds", pid, timeout)
+		}
+		time.Sleep(vmPollInterval)
+	}
+}
+
+// reapVM records an exited VM as killed and releases its host resources.
+func reapVM(c *config.Config) error {
+	c.Status = "killed"
+	c.HostPid = 0
+	c.HostPidStart = 0
+	c.ContPid = 0
+	c.ContPidStart = 0
+	host.CleanupResources(c)
+	controller.SetContainer(c)
+	return nil
 }
 
 // killViaMgmt sends a kill request to the embedded controller inside the VM.
