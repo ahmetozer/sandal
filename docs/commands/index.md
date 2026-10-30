@@ -100,11 +100,11 @@ sandal run -lw alpine:latest -tmp 128 --rm -t -- sh
 
 ## Background daemons (Linux only)
 
-On Linux, run detached with `-d` (requires the sandal daemon). Use `sandal attach` to reconnect to a TTY, or `sandal exec` to run additional commands inside the container. The daemon is not available on macOS:
+On Linux, run detached with `-d`. Add `-t -startup` with the sandal daemon running to get a PTY you can reconnect to with `sandal attach`, or use `sandal exec` to run additional commands inside the container. The daemon is not available on macOS:
 
 ``` { .bash title="Background container with PTY (Linux)" }
 sandal daemon &
-sandal run -lw alpine:latest -d -t -name bg -- sh
+sandal run -lw alpine:latest -d -t -startup -name bg -- sh
 sandal exec bg -- ps aux
 sandal attach bg
 ```
