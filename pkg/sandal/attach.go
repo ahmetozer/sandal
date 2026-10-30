@@ -66,19 +66,3 @@ func attachViaMgmt(contName string, stdin io.Reader, stdout io.Writer) error {
 
 	return nil
 }
-
-// ConsoleMode returns the console mode for a container.
-// Exported so the cmd layer can decide terminal setup before calling Attach.
-func ConsoleMode(name string) (string, error) {
-	modePath := fmt.Sprintf("%s/console/%s/mode", os.Getenv("SANDAL_RUN_DIR"), name)
-	// Fall back to the standard path construction
-	if modePath == "/console/"+name+"/mode" {
-		// env not set, use default
-		return "", fmt.Errorf("console mode not available")
-	}
-	data, err := os.ReadFile(modePath)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
