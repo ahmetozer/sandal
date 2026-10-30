@@ -90,19 +90,92 @@ func AttachFIFO(name string, hostStdin io.Reader, hostStdout, hostStderr io.Writ
 	stdoutFile.Seek(0, io.SeekEnd)
 	stderrFile.Seek(0, io.SeekEnd)
 
-	// Relay stdin → FIFO
+	// Relay stdin → FIFO; Ctrl+P, Ctrl+Q detaches
+	detach := make(chan struct{})
 	go func() {
-		io.Copy(stdinFIFO, hostStdin)
+		if copyDetach(stdinFIFO, hostStdin) {
+			close(detach)
+		}
 	}()
 
+	// stop ends the tails on detach as well as on done
+	stop := make(chan struct{})
+	defer close(stop)
+
 	// Tail stdout → host stdout
-	go tailFile(stdoutFile, hostStdout, done)
+	go tailFile(stdoutFile, hostStdout, stop)
 
 	// Tail stderr → host stderr
-	go tailFile(stderrFile, hostStderr, done)
+	go tailFile(stderrFile, hostStderr, stop)
 
-	<-done
+	select {
+	case <-done:
+	case <-detach:
+	}
 	return nil
+}
+
+// copyDetach copies src to dst until src ends, a write fails or Ctrl+P,
+// Ctrl+Q is read, and reports whether it stopped on the detach keys.
+// As in socket mode, the Ctrl+P is forwarded and the Ctrl+Q is not.
+func copyDetach(dst io.Writer, src io.Reader) bool {
+	buf := make([]byte, 4096)
+	prevCtrlP := false
+	for {
+		n, err := src.Read(buf)
+		for i, b := range buf[:n] {
+			if prevCtrlP && b == 0x11 { // Ctrl+Q
+				dst.Write(buf[:i])
+				return true
+			}
+			prevCtrlP = b == 0x10 // Ctrl+P
+		}
+		if n > 0 {
+			if _, werr := dst.Write(buf[:n]); werr != nil {
+				return false
+			}
+		}
+		if err != nil {
+			return false
+		}
+	}
+}
+
+// SetupTee gives a foreground process, such as a foreground KVM VMM, a FIFO
+// console that `sandal attach` can join. Output goes to w and, best effort,
+// to the stdout log; input merges r and the stdin FIFO. EOF on r does not
+// end in, so attachers can still type. cleanup ends in and closes the
+// console files.
+func SetupTee(name string, r io.Reader, w io.Writer) (in io.Reader, out io.Writer, cleanup func(), err error) {
+	fin, fout, _, fifoCleanup, err := SetupFIFO(name)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// io.Pipe serializes the two writers
+	pr, pw := io.Pipe()
+	go io.Copy(pw, r)
+	// The FIFO is opened O_RDWR, so it never reaches EOF while open
+	go io.Copy(pw, fin)
+
+	cleanup = func() {
+		pw.Close()
+		fifoCleanup()
+	}
+	return pr, &teeWriter{primary: w, log: fout}, cleanup, nil
+}
+
+// teeWriter writes to primary and copies to log. Log write errors are
+// ignored: unlike io.MultiWriter, a full disk never stops the primary.
+type teeWriter struct {
+	primary io.Writer
+	log     io.Writer
+}
+
+func (t *teeWriter) Write(p []byte) (int, error) {
+	n, err := t.primary.Write(p)
+	t.log.Write(p)
+	return n, err
 }
 
 // tailFile reads from f in a loop, writing to w, until done is closed.

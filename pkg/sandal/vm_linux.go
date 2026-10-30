@@ -33,6 +33,7 @@ import (
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/kvm"
+	"github.com/ahmetozer/sandal/pkg/vm/terminal"
 )
 
 // RunInKVM boots a KVM VM with the current sandal binary as /init,
@@ -289,7 +290,30 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		defer stopRelay()
 	}
 
-	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports, nil)
+	// Host-side FIFO console so `sandal attach` can join the foreground VM.
+	// BootWithForwards skips raw mode for custom IO, so it is set here. If
+	// the console fails, nil IO keeps the plain terminal console.
+	var vmIn io.Reader
+	var vmOut io.Writer
+	if in, out, consoleCleanup, err := console.SetupTee(c.Name, os.Stdin, os.Stdout); err != nil {
+		slog.Warn("runInKVM", slog.String("action", "console tee"), slog.Any("error", err))
+	} else {
+		vmIn, vmOut = in, out
+		defer func() {
+			consoleCleanup()
+			if c.Remove {
+				os.RemoveAll(console.Dir(c.Name))
+			}
+		}()
+		if restore, err := terminal.SetRaw(); err == nil {
+			defer func() {
+				restore()
+				exec.Command("stty", "sane").Run()
+			}()
+		}
+	}
+
+	err = kvm.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, nil)
 
 	// Update status after VM exits
 	if err != nil {
