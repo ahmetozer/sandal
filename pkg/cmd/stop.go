@@ -6,11 +6,15 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ahmetozer/sandal/pkg/container/host"
+	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/namelock"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
+
+// killContainer is sandal.Kill; tests replace it.
+var killContainer = sandal.Kill
 
 func Stop(args []string) error {
 
@@ -75,14 +79,28 @@ func stopContainer(name string, signal, timeout int) error {
 		return err
 	}
 
-	err = host.Kill(cont, signal, timeout)
-	if err != nil {
-		// Graceful signal timed out, escalate to SIGKILL
-		if err2 := host.Kill(cont, 9, 5); err2 != nil {
-			return fmt.Errorf("SIGTERM timed out and SIGKILL failed: %w", err2)
-		}
+	if err := stopProcess(cont, signal, timeout); err != nil {
+		return err
+	}
+
+	// A -rm VM's state is already gone once its VMM has exited; writing
+	// the status back would resurrect the record.
+	if cont.VM != "" && cont.Remove {
+		return nil
 	}
 
 	cont.Status = "stop"
 	return controller.SetContainer(cont)
+}
+
+// stopProcess sends signal and escalates to SIGKILL if the container is
+// still running after timeout. sandal.Kill routes VMs to their VMM.
+func stopProcess(cont *config.Config, signal, timeout int) error {
+	if err := killContainer(cont, signal, timeout); err != nil {
+		// Graceful signal timed out, escalate to SIGKILL
+		if err2 := killContainer(cont, 9, 5); err2 != nil {
+			return fmt.Errorf("signal %d timed out and SIGKILL failed: %w", signal, err2)
+		}
+	}
+	return nil
 }

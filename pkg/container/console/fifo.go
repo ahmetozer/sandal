@@ -90,19 +90,126 @@ func AttachFIFO(name string, hostStdin io.Reader, hostStdout, hostStderr io.Writ
 	stdoutFile.Seek(0, io.SeekEnd)
 	stderrFile.Seek(0, io.SeekEnd)
 
-	// Relay stdin → FIFO
+	// Relay stdin → FIFO; Ctrl+P, Ctrl+Q detaches
+	detach := make(chan struct{})
 	go func() {
-		io.Copy(stdinFIFO, hostStdin)
+		if copyDetach(stdinFIFO, hostStdin) {
+			close(detach)
+		}
 	}()
 
+	// stop ends the tails on detach as well as on done
+	stop := make(chan struct{})
+	defer close(stop)
+
 	// Tail stdout → host stdout
-	go tailFile(stdoutFile, hostStdout, done)
+	go tailFile(stdoutFile, hostStdout, stop)
 
 	// Tail stderr → host stderr
-	go tailFile(stderrFile, hostStderr, done)
+	go tailFile(stderrFile, hostStderr, stop)
 
-	<-done
+	select {
+	case <-done:
+	case <-detach:
+	}
 	return nil
+}
+
+// detachKeys finds the Ctrl+P, Ctrl+Q detach sequence in attach input.
+// A Ctrl+P is held back until the next byte shows whether it starts the
+// sequence, so detaching sends neither key to the container.
+type detachKeys struct{ held bool }
+
+// filter returns the bytes of data to forward, and whether data completed
+// the detach sequence; bytes after it are dropped.
+func (d *detachKeys) filter(data []byte) (out []byte, detach bool) {
+	out = make([]byte, 0, len(data)+1)
+	for _, b := range data {
+		if d.held {
+			d.held = false
+			if b == 0x11 { // Ctrl+Q
+				return out, true
+			}
+			out = append(out, 0x10)
+		}
+		if b == 0x10 { // Ctrl+P
+			d.held = true
+			continue
+		}
+		out = append(out, b)
+	}
+	return out, false
+}
+
+// flush returns a Ctrl+P still held back when input ends.
+func (d *detachKeys) flush() []byte {
+	if d.held {
+		d.held = false
+		return []byte{0x10}
+	}
+	return nil
+}
+
+// copyDetach copies src to dst until src ends, a write fails or Ctrl+P,
+// Ctrl+Q is read, and reports whether it stopped on the detach keys.
+func copyDetach(dst io.Writer, src io.Reader) bool {
+	buf := make([]byte, 4096)
+	var keys detachKeys
+	for {
+		n, err := src.Read(buf)
+		out, detach := keys.filter(buf[:n])
+		if err != nil {
+			out = append(out, keys.flush()...)
+		}
+		if len(out) > 0 {
+			if _, werr := dst.Write(out); werr != nil {
+				return false
+			}
+		}
+		if detach {
+			return true
+		}
+		if err != nil {
+			return false
+		}
+	}
+}
+
+// SetupTee gives a foreground process, such as a foreground KVM VMM, a FIFO
+// console that `sandal attach` can join. Output goes to w and, best effort,
+// to the stdout log; input merges r and the stdin FIFO. EOF on r does not
+// end in, so attachers can still type. cleanup ends in and closes the
+// console files.
+func SetupTee(name string, r io.Reader, w io.Writer) (in io.Reader, out io.Writer, cleanup func(), err error) {
+	fin, fout, _, fifoCleanup, err := SetupFIFO(name)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// io.Pipe serializes the two writers
+	pr, pw := io.Pipe()
+	go io.Copy(pw, r)
+	// The FIFO is opened O_RDWR, so it never reaches EOF while open
+	go io.Copy(pw, fin)
+
+	cleanup = func() {
+		pw.Close()
+		fifoCleanup()
+	}
+	return pr, &teeWriter{primary: w, log: fout}, cleanup, nil
+}
+
+// teeWriter writes to primary and copies to log. Log write errors are
+// ignored: unlike io.MultiWriter, a full disk never stops the primary.
+type teeWriter struct {
+	primary io.Writer
+	log     io.Writer
+}
+
+func (t *teeWriter) Write(p []byte) (int, error) {
+	n, err := t.primary.Write(p)
+	t.log.Write(p)
+	return n, err
 }
 
 // tailFile reads from f in a loop, writing to w, until done is closed.

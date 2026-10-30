@@ -23,7 +23,7 @@ func Attach(args []string) error {
 	flags.Parse(args)
 
 	if help || len(flags.Args()) < 1 {
-		fmt.Printf("Usage: %s attach CONTAINER\n\nAttach to a running background container's console.\n\nDetach with Ctrl+P, Ctrl+Q (socket mode).\n\nOPTIONS:\n", os.Args[0])
+		fmt.Printf("Usage: %s attach CONTAINER\n\nAttach to a running background container's console.\n\nDetach with Ctrl+P, Ctrl+Q.\n\nA VM console is shared: input from every attached terminal, and from a\nforeground VM's own terminal, is merged into one stream.\n\nOPTIONS:\n", os.Args[0])
 		flags.PrintDefaults()
 		return nil
 	}
@@ -37,6 +37,17 @@ func Attach(args []string) error {
 
 	// For VM containers, set up terminal and delegate
 	if c.VM != "" {
+		// Checked before the FIFO open in Attach, which blocks forever
+		// when a stale console is left by an exited VM.
+		isRunning := func() bool {
+			running, _ := crt.IsContainerRunning(c.Name)
+			return running
+		}
+		if !isRunning() {
+			return fmt.Errorf("container %q is not running", containerName)
+		}
+		done := closeWhenStopped(isRunning)
+
 		restore := setupRawTerminal()
 		defer restore()
 
@@ -44,29 +55,23 @@ func Attach(args []string) error {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 		defer signal.Stop(sigCh)
 
-		fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+C to detach)\r\n", containerName)
-		err := sandal.Attach(c, os.Stdin, os.Stdout, os.Stderr, nil)
+		fmt.Fprintf(os.Stderr, "Attached to %s (Ctrl+P, Ctrl+Q to detach)\r\n", containerName)
+		err := sandal.Attach(c, os.Stdin, os.Stdout, os.Stderr, done)
 		fmt.Fprintf(os.Stderr, "\nDetached from %s\n", containerName)
 		return err
 	}
 
 	// Native container — verify running
-	running, _ := crt.IsPidRunning(c.ContPid)
-	if !running {
+	isRunning := func() bool {
+		running, _ := crt.IsPidRunning(c.ContPid)
+		return running
+	}
+	if !isRunning() {
 		return fmt.Errorf("container %q is not running", containerName)
 	}
 
 	// Create done channel that closes when container exits
-	done := make(chan struct{})
-	go func() {
-		for {
-			if running, _ := crt.IsPidRunning(c.ContPid); !running {
-				close(done)
-				return
-			}
-			unix.Nanosleep(&unix.Timespec{Sec: 1}, nil)
-		}
-	}()
+	done := closeWhenStopped(isRunning)
 
 	// Set up terminal raw mode
 	restore := setupRawTerminal()
@@ -80,6 +85,19 @@ func Attach(args []string) error {
 	err = sandal.Attach(c, os.Stdin, os.Stdout, os.Stderr, done)
 	fmt.Fprintf(os.Stderr, "\nDetached from %s\n", containerName)
 	return err
+}
+
+// closeWhenStopped returns a channel that is closed once isRunning,
+// polled every second, reports false.
+func closeWhenStopped(isRunning func() bool) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		for isRunning() {
+			unix.Nanosleep(&unix.Timespec{Sec: 1}, nil)
+		}
+		close(done)
+	}()
+	return done
 }
 
 // setupRawTerminal puts the terminal into raw mode and returns a restore function.

@@ -33,6 +33,7 @@ import (
 	vmconfig "github.com/ahmetozer/sandal/pkg/vm/config"
 	"github.com/ahmetozer/sandal/pkg/vm/kernel"
 	"github.com/ahmetozer/sandal/pkg/vm/kvm"
+	"github.com/ahmetozer/sandal/pkg/vm/terminal"
 )
 
 // RunInKVM boots a KVM VM with the current sandal binary as /init,
@@ -48,8 +49,9 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// so two actors can't both pass the running-check and double-boot the VM,
 	// leaving one KVM child detached (audit L2/L3). For the daemon recovery /
 	// background path forkVMProcess publishes HostPid and returns, so the lock
-	// is held only across placement; a foreground `sandal run -vm` holds it for
-	// the VM's lifetime — the same scope as a foreground native run.
+	// is held only across placement; a foreground `sandal run -vm` releases it
+	// once HostPid is registered, as a foreground native run does, so stop
+	// and kill can take it while the VM runs.
 	release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("acquire lifecycle lock for %q: %w", c.Name, err)
@@ -276,10 +278,32 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	if err := controller.SetContainer(c); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "register container"), slog.Any("error", err))
 	}
+	release()
+
+	// Record the exit after the console is torn down. Never block on the
+	// name lock here: stop and kill hold it while they wait for this
+	// process to exit, and then record the exit themselves. A record with
+	// another HostPid belongs to a new run of the same name.
+	var bootErr error
 	defer func() {
-		if c.Remove {
-			controller.DeleteContainer(c.Name)
+		release, ok, _ := namelock.TryAcquire(c.Name)
+		if !ok {
+			return
 		}
+		defer release()
+		if latest, err := controller.GetContainer(c.Name); err == nil && latest.HostPid != c.HostPid {
+			return
+		}
+		if c.Remove {
+			RemoveVMState(c)
+			return
+		}
+		if bootErr != nil {
+			c.Status = fmt.Sprintf("err %v", bootErr)
+		} else {
+			c.Status = "exit 0"
+		}
+		controller.SetContainer(c)
 	}()
 
 	// Start host-side socket relay for vsock; stop it when the VM exits so the
@@ -289,17 +313,26 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 		defer stopRelay()
 	}
 
-	err = kvm.BootWithForwards(vmName, cfg, nil, nil, c.Ports, nil)
-
-	// Update status after VM exits
-	if err != nil {
-		c.Status = fmt.Sprintf("err %v", err)
+	// Host-side FIFO console so `sandal attach` can join the foreground VM.
+	// BootWithForwards skips raw mode for custom IO, so it is set here. If
+	// the console fails, nil IO keeps the plain terminal console.
+	var vmIn io.Reader
+	var vmOut io.Writer
+	if in, out, consoleCleanup, err := console.SetupTee(c.Name, os.Stdin, os.Stdout); err != nil {
+		slog.Warn("runInKVM", slog.String("action", "console tee"), slog.Any("error", err))
 	} else {
-		c.Status = "exit 0"
+		vmIn, vmOut = in, out
+		defer consoleCleanup()
+		if restore, err := terminal.SetRaw(); err == nil {
+			defer func() {
+				restore()
+				exec.Command("stty", "sane").Run()
+			}()
+		}
 	}
-	controller.SetContainer(c)
 
-	return err
+	bootErr = kvm.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, nil)
+	return bootErr
 }
 
 // forkVMProcess starts the VM in a child process so the daemon/CLI isn't blocked.
@@ -353,6 +386,10 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 	}
 
 	// Wait for child to exit and update status
+	// placed is closed once RunInKVM stops placing the VM and is about to
+	// release the name lock.
+	placed := make(chan struct{})
+	defer close(placed)
 	exited := make(chan struct{})
 	go func() {
 		defer close(exited)
@@ -363,15 +400,33 @@ func forkVMProcess(c *config.Config, vmName string, cfg vmconfig.VMConfig, socke
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
+		// While placing, RunInKVM holds the name lock for us and waits for
+		// exited; after that, take the lock so a new run of the same name
+		// can't register between the ownership check and the write.
+		select {
+		case <-placed:
+			release, err := namelock.Acquire(c.Name, namelock.DefaultTimeout)
+			if err != nil {
+				slog.Warn("forkVMProcess", slog.String("action", "record VM exit"), slog.String("name", c.Name), slog.Any("error", err))
+				vmconfig.DeleteVM(vmName)
+				return
+			}
+			defer release()
+		default:
+		}
 		// Re-read the record: the VMM child writes its own exit status.
-		if latest, err := controller.GetContainer(c.Name); err == nil && setForkedVMExit(latest, c.HostPid, waitErr) {
+		latest, err := controller.GetContainer(c.Name)
+		if c.Remove {
+			// Skip the status write so the record is not re-created, and
+			// leave a record that a new run of the same name now owns.
+			if err != nil || latest.HostPid == c.HostPid {
+				RemoveVMState(c)
+			}
+		} else if err == nil && setForkedVMExit(latest, c.HostPid, waitErr) {
 			controller.SetContainer(latest)
 		}
 		// Initrd is owned by the kernel cache; do not remove.
 		vmconfig.DeleteVM(vmName)
-		if c.Remove {
-			controller.DeleteContainer(c.Name)
-		}
 	}()
 
 	return awaitVMReady(readyR, cmd.Process, exited, c.Name, vmReadyTimeout)

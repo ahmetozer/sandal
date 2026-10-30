@@ -12,7 +12,7 @@ Sandal uses two console modes depending on how the container was started:
 
 ### Socket Mode (PTY)
 
-Used when the container is started with `-t -d` and the daemon is running. Provides a full PTY with terminal resize, mouse, and arrow key support. Terminal programs like `htop`, `vim`, and `iptraf-ng` work in this mode.
+Used when the container is started with `-t -d -startup` and the daemon is running (the daemon starts the container and holds its PTY). Provides a full PTY with terminal resize, mouse, and arrow key support. Terminal programs like `htop`, `vim`, and `iptraf-ng` work in this mode.
 
 ```bash
 sandal daemon &
@@ -28,19 +28,20 @@ sandal attach my-container
 - Arrow keys, function keys, and other special keys work correctly
 
 !!! note
-    The `-t` flag requires the daemon to be running. Without the daemon, background containers fall back to FIFO mode and terminal programs will not display correctly.
+    A PTY console needs `-startup` and a running daemon, because only the daemon can keep the PTY and its socket open after `sandal run` exits. A `-t -d` container started without `-startup`, or while the daemon is not running, falls back to FIFO mode and a warning is logged. Terminal programs will not display correctly in FIFO mode.
 
 ### FIFO Mode
 
-Used when the container is started without the daemon or without `-t`. Provides basic stdin/stdout/stderr relay via files. Suitable for programs with simple text output like `ping` or log tailing.
+Used for background containers started without `-t`, or with `-t` but not by the daemon (no `-startup`, or the daemon is not running). Provides basic stdin/stdout/stderr relay via files. Suitable for programs with simple text output like `ping` or log tailing.
 
 ```bash
 sandal run -lw / -tmp 10 --rm -d -name my-container -- ping 10.0.0.1
 sandal attach my-container
-    Attached to my-container (Ctrl+C to detach)
+    Attached to my-container (Ctrl+P, Ctrl+Q to detach)
 ```
 
-- **Ctrl+C** detaches from the container (container keeps running)
+- **Ctrl+P, Ctrl+Q** detaches from the container (container keeps running)
+- **Ctrl+C** is written to the container's stdin as a raw byte; without a PTY it does not interrupt the process
 - No PTY — terminal programs (`htop`, `vim`, etc.) will not work
 
 ## Detach and Re-attach
@@ -55,6 +56,22 @@ sandal attach my-container
 ```
 
 When re-attaching in socket mode, the terminal size, mouse tracking, and application cursor mode are automatically restored.
+
+## VM Containers
+
+KVM VMs (`-vm`) are attached through the VM's serial console, in the foreground as well as with `-d`.
+
+```bash
+sandal run -vm -name my-vm -- sh
+# in another terminal
+sandal attach my-vm
+    Attached to my-vm (Ctrl+P, Ctrl+Q to detach)
+```
+
+- The console is shared: input from every attached terminal, and from a foreground VM's own terminal, is merged into one stream
+- **Ctrl+P, Ctrl+Q** detaches only the attached terminal; the VM keeps running
+- Terminal resizing is not forwarded
+- Foreground macOS VMs cannot be attached
 
 ## Flags
 
