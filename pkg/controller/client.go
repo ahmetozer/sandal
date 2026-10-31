@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -16,6 +17,10 @@ const (
 	ControllerTypeServer
 )
 
+// daemonTimeout bounds every call to the daemon socket, so a stuck daemon
+// cannot hang the caller. Callers fall back to the state files on a timeout.
+const daemonTimeout = 5 * time.Second
+
 var (
 	currentConrollerType ConrollerType = 0
 	httpc                http.Client
@@ -23,9 +28,11 @@ var (
 
 func init() {
 	httpc = http.Client{
+		Timeout: daemonTimeout,
 		Transport: &http.Transport{
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", env.DaemonSocket)
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", env.DaemonSocket)
 			},
 		},
 	}

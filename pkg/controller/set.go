@@ -35,12 +35,26 @@ CONTROLLER:
 	}
 }
 
+// setContainerByServer hands c to the daemon. When the daemon cannot be
+// reached (gone, or stuck past daemonTimeout) it writes the state file
+// instead, as containersFromServer does for reads: a running daemon picks the
+// file up through its watcher, a restarted one at start. The cached
+// controller type is left alone, so the next call tries the daemon again. A
+// daemon that answers with an error is reported, not bypassed.
 func setContainerByServer(c *config.Config) error {
 	slog.Debug("setContainerByServer", slog.Any("container", c.Name))
 
 	jsonValue, _ := json.Marshal(c)
-	_, err := httpc.Post("http://unix/containers/"+c.Name, "text/json", bytes.NewBuffer(jsonValue))
-	return err
+	resp, err := httpc.Post("http://unix/containers/"+c.Name, "text/json", bytes.NewBuffer(jsonValue))
+	if err != nil {
+		slog.Warn("setContainerByServer", slog.String("cont", c.Name), slog.Any("err", err), slog.String("next", "writing to disk"))
+		return setContainerByDisk(c)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("daemon refused the state of %s: %s", c.Name, resp.Status)
+	}
+	return nil
 }
 
 func setContainerByMemory(c *config.Config) error {

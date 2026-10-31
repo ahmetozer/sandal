@@ -1,12 +1,9 @@
 package controller
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
-	"net/http"
 	"os"
 	"path"
 	"sync"
@@ -71,19 +68,12 @@ func containersFromMemory() ([]*config.Config, error) {
 func containersFromServer() ([]*config.Config, error) {
 	var confs []*config.Config
 
-	httpc := http.Client{
-		Transport: &http.Transport{
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", env.DaemonSocket)
-			},
-		},
-	}
-
 	response, err := httpc.Get("http://unix/containers")
 	if err != nil {
 		slog.Warn("fromServer", slog.Any("err", err), slog.Any("next", "retrying from files"))
 		return containersFromDir()
 	}
+	defer response.Body.Close()
 
 	json.NewDecoder(response.Body).Decode(&confs)
 	slog.Debug("containersFromServer")

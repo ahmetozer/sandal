@@ -13,9 +13,8 @@ import (
 )
 
 func Server() {
-	mux := http.NewServeMux()
 	server := http.Server{
-		Handler:      mux,
+		Handler:      serverMux(),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  30 * time.Second,
@@ -46,6 +45,20 @@ func Server() {
 		os.Exit(1)
 	}
 
+	unixListener, err := secureSocketListen(env.DaemonSocket)
+	if err != nil {
+		panic(err)
+	}
+
+	slog.Info("Server", slog.String("socket", unixListener.Addr().String()))
+
+	server.Serve(unixListener)
+
+}
+
+func serverMux() *http.ServeMux {
+	mux := http.NewServeMux()
+
 	mux.HandleFunc("/containers", func(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("Server", slog.Any("path", r.URL.Path))
 		c, err := Containers()
@@ -62,12 +75,15 @@ func Server() {
 			json.NewEncoder(w).Encode(c)
 		case http.MethodPost:
 			c := config.Config{}
-			err = json.NewDecoder(r.Body).Decode(&c)
-			if err != nil {
+			if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
 				mockRespond(r, w, http.StatusBadRequest)
 				return
 			}
-			SetContainer(&c)
+			if err := SetContainer(&c); err != nil {
+				slog.Warn("Server", slog.String("cont", c.Name), slog.Any("error", err))
+				mockRespond(r, w, http.StatusInternalServerError)
+				return
+			}
 		default:
 			mockRespond(r, w, http.StatusNotImplemented)
 
@@ -78,20 +94,14 @@ func Server() {
 		mockRespond(r, w, http.StatusOK)
 	})
 
+	// Everything else. Handing it back to mux would route here again
+	// forever and crash the daemon with a stack overflow.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("Server", slog.Any("action", r.URL.Path))
-		mux.ServeHTTP(w, r)
+		mockRespond(r, w, http.StatusNotFound)
 	})
 
-	unixListener, err := secureSocketListen(env.DaemonSocket)
-	if err != nil {
-		panic(err)
-	}
-
-	slog.Info("Server", slog.String("socket", unixListener.Addr().String()))
-
-	server.Serve(unixListener)
-
+	return mux
 }
 
 func pingServerSocket() error {
@@ -99,6 +109,7 @@ func pingServerSocket() error {
 	if err != nil {
 		return err
 	}
+	defer response.Body.Close()
 	r := &respond{}
 	json.NewDecoder(response.Body).Decode(r)
 
