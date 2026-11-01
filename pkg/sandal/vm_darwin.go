@@ -4,6 +4,7 @@ package sandal
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -126,7 +127,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// Pre-pull OCI images on the host and convert to squashfs.
 	imageDir := filepath.Join(env.LibDir, "image")
 	progressCh := make(chan progress.Event, 16)
-	renderDone := progress.StartRenderer(progressCh, os.Stderr)
+	renderDone := progress.StartRenderer(progressCh, c.IO.Err())
 	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir, progressCh)
 	close(progressCh)
 	<-renderDone
@@ -209,12 +210,21 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 		forward.AssignIDs(c.Ports)
 	}
 
-	err = vz.BootWithForwards(vmName, cfg, c.Ports, vsockRelays...)
+	// The console is the terminal (nil IO, raw mode) for the CLI, and the
+	// streams of an in-process caller (c.IO), without raw mode.
+	var vmIn io.Reader
+	var vmOut io.Writer
+	if c.IO != nil {
+		vmIn, vmOut = c.IO.In(), c.IO.Out()
+	}
+	err = vz.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, vsockRelays...)
 
 	// Clean up staged etc directory
 	os.RemoveAll(filepath.Join(env.LibDir, "system", "etc"))
 
-	// Update status after VM exits
+	// Update status after VM exits. The guest powers off whatever its
+	// container's exit code, which does not reach the host: a clean
+	// power-off is "exit 0", and `sandal run -vm` exits 0.
 	if err != nil {
 		c.Status = fmt.Sprintf("err %v", err)
 	} else {

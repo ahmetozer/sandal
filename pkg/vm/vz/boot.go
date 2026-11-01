@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -26,13 +27,15 @@ import (
 // If relays is non-empty, vsock listeners are set up to relay guest connections
 // to host Unix sockets (used for -v socket sharing).
 func Boot(name string, cfg vmconfig.VMConfig, relays ...SocketRelay) error {
-	return BootWithForwards(name, cfg, nil, relays...)
+	return BootWithForwards(name, cfg, nil, nil, nil, relays...)
 }
 
 // BootWithForwards is Boot plus port-forwarding support. When forwards is
 // non-empty, the host starts per-mapping listeners that tunnel to the guest
 // via VZ's vsock API after the VM starts.
-func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.PortMapping, relays ...SocketRelay) error {
+// The serial console is relayed to stdin/stdout. If stdin/stdout are nil,
+// os.Stdin/os.Stdout are used with raw terminal mode, as in kvm.Boot.
+func BootWithForwards(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer, forwards []forward.PortMapping, relays ...SocketRelay) error {
 	// Kill stale VM processes holding the disk file
 	if cfg.DiskPath != "" {
 		if killed, err := killStaleDiskHolders(cfg.DiskPath); err != nil {
@@ -48,16 +51,31 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 	}
 	defer vmconfig.RemovePidFile(name)
 
-	// Set terminal to raw mode for serial console (skip if not a TTY)
-	restore, err := terminal.SetRaw()
-	if err != nil {
-		slog.Warn("Boot", slog.String("action", "set raw terminal"), slog.Any("error", err))
-		restore = func() {} // no-op
+	customIO := stdin != nil && stdout != nil
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+
+	// Set terminal to raw mode for serial console (skip if not a TTY, or
+	// if custom I/O provided)
+	restore := func() {}
+	if !customIO {
+		var err error
+		restore, err = terminal.SetRaw()
+		if err != nil {
+			slog.Warn("Boot", slog.String("action", "set raw terminal"), slog.Any("error", err))
+			restore = func() {} // no-op
+		}
 	}
 	// Ensure terminal is always restored, even on signals
 	defer func() {
 		restore()
-		exec.Command("stty", "sane").Run()
+		if !customIO {
+			exec.Command("stty", "sane").Run()
+		}
 	}()
 
 	vm, err := NewVM(name, cfg)
@@ -99,7 +117,7 @@ func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.Por
 	}
 
 	// Relay serial console I/O between VM and host stdin/stdout
-	vm.StartIORelay(os.Stdin, os.Stdout)
+	vm.StartIORelay(stdin, stdout)
 
 	// Handle signals
 	sigCh := make(chan os.Signal, 1)

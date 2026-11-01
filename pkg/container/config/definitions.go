@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path"
@@ -13,6 +14,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/forward"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/stdio"
 )
 
 // Allocate For a Network Interface {host: bridge interfaces such as sandal0 , host-pod: veth, pod: lo0}
@@ -90,6 +92,13 @@ type Config struct {
 
 	// CLI entrypoint override (like docker --entrypoint)
 	Entrypoint string // Overrides image ENTRYPOINT when set
+
+	// IO and Ctx are runtime-only: the streams and context of a caller that
+	// runs the container in-process (sandal.RunContext). IO is nil for the
+	// CLI and the daemon, which use os.Std* and signals as before. Neither
+	// is written to the state file, and Clone does not copy them.
+	IO  *stdio.Streams  `json:"-"`
+	Ctx context.Context `json:"-"`
 }
 
 var (
@@ -108,6 +117,14 @@ func (c *Config) MonitorPidIdentity() (pid int, startTime uint64) {
 		return c.HostPid, c.HostPidStart
 	}
 	return c.ContPid, c.ContPidStart
+}
+
+// Context returns Ctx, or context.Background() when no caller set one.
+func (c *Config) Context() context.Context {
+	if c.Ctx == nil {
+		return context.Background()
+	}
+	return c.Ctx
 }
 
 func NewContainer() Config {

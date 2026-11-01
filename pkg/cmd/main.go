@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"text/tabwriter"
 
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
 var (
@@ -76,7 +78,12 @@ var (
 
 func executeSubCommand(f func([]string) error) {
 	err := f(os.Args[2:])
-	if err != nil {
+	var exitErr *sandal.ExitError
+	if errors.As(err, &exitErr) {
+		// A foreground container (run, rerun) that exited non-zero is not
+		// a sandal failure: the process exits with its code instead.
+		exitCode = exitErr.Code
+	} else if err != nil {
 		if exitCode == 0 {
 			exitCode = 1
 		}

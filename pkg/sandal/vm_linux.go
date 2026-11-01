@@ -97,7 +97,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 
 	// Pre-pull OCI images on the host with progress reporting.
 	progressCh := make(chan progress.Event, 16)
-	renderDone := progress.StartRenderer(progressCh, os.Stderr)
+	renderDone := progress.StartRenderer(progressCh, c.IO.Err())
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir, progressCh)
 	close(progressCh)
@@ -316,21 +316,31 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// Host-side FIFO console so `sandal attach` can join the foreground VM.
 	// BootWithForwards skips raw mode for custom IO, so it is set here. If
 	// the console fails, nil IO keeps the plain terminal console.
+	// An in-process caller's streams (c.IO) take the terminal's place, and
+	// get no raw mode: its terminal is not this process's.
 	var vmIn io.Reader
 	var vmOut io.Writer
-	if in, out, consoleCleanup, err := console.SetupTee(c.Name, os.Stdin, os.Stdout); err != nil {
+	if in, out, consoleCleanup, err := console.SetupTee(c.Name, c.IO.In(), c.IO.Out()); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "console tee"), slog.Any("error", err))
+		if c.IO != nil {
+			vmIn, vmOut = c.IO.In(), c.IO.Out()
+		}
 	} else {
 		vmIn, vmOut = in, out
 		defer consoleCleanup()
-		if restore, err := terminal.SetRaw(); err == nil {
-			defer func() {
-				restore()
-				exec.Command("stty", "sane").Run()
-			}()
+		if c.IO == nil {
+			if restore, err := terminal.SetRaw(); err == nil {
+				defer func() {
+					restore()
+					exec.Command("stty", "sane").Run()
+				}()
+			}
 		}
 	}
 
+	// The guest powers off whatever its container's exit code, which does
+	// not reach the host: a clean power-off is "exit 0", and `sandal run
+	// -vm` exits 0.
 	bootErr = kvm.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, nil)
 	return bootErr
 }

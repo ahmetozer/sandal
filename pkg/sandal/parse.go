@@ -3,6 +3,7 @@
 package sandal
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -19,8 +20,11 @@ import (
 )
 
 // parseAndRunContainer parses CLI flags into a container config and runs it.
-func parseAndRunContainer(args []string) error {
+// ctx and rio ride along on the config (runtime-only) down to crun and the
+// VM boot paths; rio is nil for the CLI and the daemon.
+func parseAndRunContainer(ctx context.Context, args []string, rio *RunIO) error {
 	c := config.NewContainer()
+	c.Ctx, c.IO = ctx, rio
 	var (
 		help      bool
 		useVM     bool
@@ -32,6 +36,7 @@ func parseAndRunContainer(args []string) error {
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ContinueOnError)
+	f.SetOutput(c.IO.Err()) // usage and flag errors go to the caller
 
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
@@ -120,9 +125,7 @@ func parseAndRunContainer(args []string) error {
 	// enable TTY mode for interactive foreground runs. Only applies on the
 	// host side — inside a VM guest, the flag is already forwarded.
 	if !c.TTY && !c.Background && !guest.IsVMInit() {
-		if fi, statErr := os.Stdin.Stat(); statErr == nil {
-			c.TTY = (fi.Mode() & os.ModeCharDevice) != 0
-		}
+		c.TTY = stdinIsTerminal(rio)
 	}
 
 	// If -vm is set and we're not already inside a VM, dispatch to VM boot path.
@@ -132,4 +135,15 @@ func parseAndRunContainer(args []string) error {
 	}
 
 	return RunContainer(&c, []string(networkInterfacesCmd))
+}
+
+// stdinIsTerminal reports whether the run's stdin is a terminal, for the
+// TTY auto-detection. An in-process caller's stdin (rio set) is never the
+// process's terminal, so such a run gets a TTY only from -t.
+func stdinIsTerminal(rio *RunIO) bool {
+	if rio != nil {
+		return false
+	}
+	fi, err := os.Stdin.Stat()
+	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
 }

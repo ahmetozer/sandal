@@ -20,5 +20,5 @@ func Boot(name string, cfg vmconfig.VMConfig, stdin io.Reader, stdout io.Writer)
 // ready is not called: macOS never forks a VMM that waits for it (`run -vm
 // -d` is rejected there).
 func BootWithForwards(name string, cfg vmconfig.VMConfig, forwards []forward.PortMapping, ready func()) error {
-	return vz.BootWithForwards(name, cfg, forwards)
+	return vz.BootWithForwards(name, cfg, nil, nil, forwards)
 }

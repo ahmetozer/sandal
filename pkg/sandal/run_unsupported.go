@@ -2,8 +2,11 @@
 
 package sandal
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
-func platformRun(args []string) error {
+func platformRun(ctx context.Context, args []string, rio *RunIO) error {
 	return fmt.Errorf("run command is only available on Linux and macOS")
 }

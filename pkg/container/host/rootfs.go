@@ -74,11 +74,12 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 			slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", fullSource))
 
 			progressCh := make(chan progress.Event, 16)
-			renderDone := progress.StartRenderer(progressCh, os.Stderr)
+			renderDone := progress.StartRenderer(progressCh, c.IO.Err())
 
 			// Bound the pull so a stalled registry can't wedge a recovery
 			// goroutine forever (see daemon health-check recovery guard).
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			// An in-process caller's ctx also ends it.
+			ctx, cancel := context.WithTimeout(c.Context(), 10*time.Minute)
 			sqfsPath, pullErr := containerimage.Pull(ctx, fullSource, env.BaseImageDir, progressCh)
 			cancel()
 			close(progressCh)
