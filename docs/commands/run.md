@@ -367,8 +367,9 @@ namespace to already exist and to be accessible to the caller.
 - `--ns-net <target>` cannot be combined with `-net` flags — adding
   interfaces would mutate the joined namespace.
 
-All target syntaxes (`<pid>`, `pid:<pid>`, `file:<path>`) are fully
-supported by `sandal exec`, which uses `setns()` from a re-entry helper.
+`sandal exec` takes the same `-ns-<kind>` flags to join or keep namespaces
+for one command, mnt and pid targets included; see
+[exec namespaces](exec.md#namespaces).
 
 Examples:
 

@@ -76,18 +76,7 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 	// Resolve cont:<name> shorthand to pid:<N> using the live container
 	// list fetched above. Self-references fail naturally — the new
 	// container isn't in conts yet because SetContainer hasn't run.
-	if err := c.NS.Resolve(func(name string) (int, error) {
-		for _, oc := range conts {
-			if oc.Name != name {
-				continue
-			}
-			if oc.ContPid <= 0 {
-				return 0, fmt.Errorf("container %q is not running", name)
-			}
-			return oc.ContPid, nil
-		}
-		return 0, fmt.Errorf("container %q not found", name)
-	}); err != nil {
+	if err := c.NS.Resolve(crt.ContPidLookup(conts)); err != nil {
 		return err
 	}
 

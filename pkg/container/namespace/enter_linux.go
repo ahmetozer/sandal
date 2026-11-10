@@ -5,6 +5,8 @@ package namespace
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -15,15 +17,17 @@ import (
 // required for a Go thread to safely operate inside another task's mount
 // namespace:
 //
-//  1. Open /proc/<pid>/root as a directory fd (before touching mnt ns) so
-//     we can later re-anchor this thread's fs->root to the container root.
+//  1. Open the root of the process that owns the mount namespace being
+//     joined (/proc/<N>/root for a pid:<N> mnt target, see mntRoot) as a
+//     directory fd, before touching the mnt ns, so we can later re-anchor
+//     this thread's fs->root to it.
 //  2. Unshare(cloneflags) to give this thread its own fs_struct; the
 //     kernel refuses setns(CLONE_NEWNS) when fs->users > 1.
 //  3. ns.SetNS() — respects per-entry user-defined targets (different pid
 //     or bind-mounted ns file) when IsUserDefined is set.
-//  4. If mnt is being entered (non-host), fchdir(rootFd) + chroot(".") +
-//     chdir("/") so path lookups resolve against the container mount
-//     namespace instead of the stale root dentry this thread still carries.
+//  4. If a mnt ns was joined, fchdir(rootFd) + chroot(".") + chdir("/") so
+//     path lookups resolve against the joined mount namespace instead of
+//     the stale root dentry this thread still carries.
 //
 // The caller is responsible for runtime.LockOSThread BEFORE invoking Enter.
 // Because namespace state is per-thread, callers that want the thread to
@@ -32,8 +36,8 @@ import (
 // thread when the goroutine returns instead of reusing it.
 //
 // If ns is empty, a default set is built from pid via DefaultsForPid; any
-// user-defined entries with empty values are filled in via SetEmptyToPid.
-// This mirrors the historical sequence used by pkg/container/exec/exec.go.
+// entries that are neither host nor user-defined are pointed at pid via
+// SetEmptyToPid.
 func Enter(pid int, ns Namespaces) error {
 	if pid <= 0 {
 		return fmt.Errorf("enter: invalid pid %d", pid)
@@ -44,11 +48,18 @@ func Enter(pid int, ns Namespaces) error {
 		ns = ns.SetEmptyToPid(pid)
 	}
 
-	rootFd, err := os.Open(fmt.Sprintf("/proc/%d/root", pid))
+	root, err := mntRoot(ns)
 	if err != nil {
-		return fmt.Errorf("open container root /proc/%d/root: %w", pid, err)
+		return err
 	}
-	defer rootFd.Close()
+	var rootFd *os.File
+	if root != "" {
+		rootFd, err = os.Open(root)
+		if err != nil {
+			return fmt.Errorf("open mount namespace root %s: %w", root, err)
+		}
+		defer rootFd.Close()
+	}
 
 	if err := ns.Unshare(); err != nil {
 		return fmt.Errorf("unshare: %w", err)
@@ -69,8 +80,8 @@ func Enter(pid int, ns Namespaces) error {
 		return fmt.Errorf("setns: %w", err)
 	}
 
-	// Re-anchor fs->root iff we actually entered a (non-host) mnt ns.
-	if mntConf, ok := ns["mnt"]; ok && !mntConf.IsHost {
+	// Re-anchor fs->root iff we actually joined a mnt ns.
+	if rootFd != nil {
 		if err := unix.Fchdir(int(rootFd.Fd())); err != nil {
 			return fmt.Errorf("fchdir container root: %w", err)
 		}
@@ -84,3 +95,20 @@ func Enter(pid int, ns Namespaces) error {
 	return nil
 }
 
+// mntRoot returns the root directory to re-anchor to after joining the mnt
+// entry of ns, or "" when no mount namespace is joined (no entry, host, or
+// not user-defined). The root comes from the process that owns the joined
+// mount namespace: /proc/<N>/root for a "pid:<N>" or "<N>" target. A
+// file: target has no such process, so it is refused.
+func mntRoot(ns Namespaces) (string, error) {
+	conf, ok := ns["mnt"]
+	if !ok || conf.IsHost || !conf.IsUserDefined {
+		return "", nil
+	}
+	v := conf.String()
+	pid, err := strconv.Atoi(strings.TrimPrefix(v, "pid:"))
+	if err != nil || pid <= 0 {
+		return "", fmt.Errorf("mnt target %q: a mount namespace can only be joined through a process (<pid> or pid:<pid>)", v)
+	}
+	return fmt.Sprintf("/proc/%d/root", pid), nil
+}

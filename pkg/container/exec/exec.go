@@ -18,24 +18,56 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
+	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
 )
 
-// ExecInContainer enters the container's namespaces and runs a command.
+// JoinNamespaces returns the namespace set exec joins for c: the
+// container's own namespaces, with the -ns-<kind> values in overrides
+// applied (see namespace.ForExec) and cont:<name> targets resolved to the
+// pid of that running container. It touches no namespace, so callers run
+// it first and report a bad target before any I/O starts.
+func JoinNamespaces(c *config.Config, overrides map[string]string) (namespace.Namespaces, error) {
+	if c.ContPid <= 0 {
+		return nil, fmt.Errorf("container %s has no running process", c.Name)
+	}
+	join, err := namespace.ForExec(c.ContPid, c.NS, overrides)
+	if err != nil {
+		return nil, err
+	}
+	if err := join.Resolve(func(name string) (int, error) {
+		conts, err := controller.Containers()
+		if err != nil {
+			return 0, fmt.Errorf("list containers: %w", err)
+		}
+		return crt.ContPidLookup(conts)(name)
+	}); err != nil {
+		return nil, err
+	}
+	return join, nil
+}
+
+// ExecInContainer enters the namespaces in join and runs a command.
+//
+// join comes from JoinNamespaces. It normally holds the container's own
+// namespaces, possibly with some kinds kept on the host or taken from
+// elsewhere; it never holds the user namespace, so the command keeps the
+// caller's credentials.
 //
 // Uses runtime.LockOSThread() to pin the goroutine to a dedicated OS thread,
-// then unshares and calls SetNS() to enter the container's namespaces
-// (including mnt). Other goroutines are unaffected because the OS thread is
-// effectively retired after namespace changes.
+// then unshares and calls SetNS() to enter the namespaces (including mnt).
+// Other goroutines are unaffected because the OS thread is effectively
+// retired after namespace changes.
 //
-// When tty is true, a PTY is allocated from the container's devpts for
-// interactive shells (ash, bash, etc.) that require a terminal.
+// When tty is true, a PTY is allocated from the joined mount namespace's
+// devpts for interactive shells (ash, bash, etc.) that require a terminal.
 //
 // stdin/stdout/stderr allow the caller to provide I/O handles:
 //   - CLI: os.Stdin, os.Stdout, os.Stderr
 //   - Embedded controller: hijacked HTTP connection
-func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty bool,
+func ExecInContainer(c *config.Config, join namespace.Namespaces, args []string, userArg, dir string, tty bool,
 	extraEnv []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	if len(args) == 0 {
@@ -50,16 +82,14 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 	// after we enter the container's namespaces (no UnlockOSThread).
 	runtime.LockOSThread()
 
-	// Enter the container's namespaces (pid, net, ipc, uts, cgroup, mnt).
-	// namespace.Enter handles the full sequence: open root fd, unshare,
-	// setns (honouring per-entry user-defined targets in c.NS), and
-	// re-anchor fs->root via fchdir+chroot when mnt was entered.
-	if err := namespace.Enter(c.ContPid, c.NS); err != nil {
+	// namespace.Enter handles the full sequence: open the mnt owner's root
+	// fd, unshare, setns into every joined kind, and re-anchor fs->root via
+	// fchdir+chroot when a mnt ns was joined. The hostname is not set here:
+	// the container's init already did, and the UTS namespace joined may be
+	// the host's or another container's.
+	if err := namespace.Enter(c.ContPid, join); err != nil {
 		return err
 	}
-
-	// Set hostname from container name (UTS namespace).
-	unix.Sethostname([]byte(c.Name))
 
 	os.Setenv("PATH", env.PATH)
 
@@ -119,9 +149,9 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 // execWithPTY allocates a PTY from the container's devpts, connects the
 // child to the slave, and relays the master to stdin/stdout.
 func execWithPTY(cmd *osExec.Cmd, stdin io.Reader, stdout io.Writer, rows, cols uint16) error {
-	// Open the PTY master from the container's /dev/ptmx. We are already
-	// inside the container's mount namespace, so this resolves to the
-	// container's devpts.
+	// Open the PTY master from /dev/ptmx. We are already inside the joined
+	// mount namespace (the container's, unless -ns-mnt said otherwise), so
+	// this resolves to that namespace's devpts.
 	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
 	if err != nil {
 		return fmt.Errorf("open ptmx: %w", err)
