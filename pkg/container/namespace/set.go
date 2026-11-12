@@ -123,7 +123,10 @@ func (source Namespaces) SetEmptyToPid(pid int) (new Namespaces) {
 			continue
 		}
 
-		*old.UserValue = fmt.Sprintf("pid:%d", pid)
+		// A new string, so the caller's map (often a stored config's
+		// NS) is not rewritten through the shared pointer.
+		val := fmt.Sprintf("pid:%d", pid)
+		old.UserValue = &val
 		old.IsUserDefined = true
 
 		new[name] = old

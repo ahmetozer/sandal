@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/sandal"
 	"github.com/ahmetozer/sandal/pkg/vm/terminal"
@@ -41,6 +42,7 @@ func ExecOnContainer(args []string) error {
 	f.BoolVar(&TTY, "t", false, "allocate a pseudo-TTY (for interactive shells)")
 	f.Var(&EnvPass, "env-pass", "pass a specific environment variable by name from the caller (repeatable)")
 	f.BoolVar(&EnvAll, "env-all", false, "pass all environment variables from the caller")
+	nsFlags := namespace.ExecFlags(f)
 
 	if err := f.Parse(thisFlags); err != nil {
 		return fmt.Errorf("error parsing flags: %v", err)
@@ -104,5 +106,5 @@ func ExecOnContainer(args []string) error {
 		}
 	}
 
-	return sandal.Exec(c, childArgs, User, Dir, TTY, extraEnv, os.Stdin, os.Stdout, os.Stderr)
+	return sandal.Exec(c, childArgs, User, Dir, TTY, extraEnv, nsFlags(), os.Stdin, os.Stdout, os.Stderr)
 }

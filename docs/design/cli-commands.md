@@ -118,15 +118,17 @@ sandal stop [-t TIMEOUT] <name>
 **File**: `pkg/cmd/exec.go`
 
 ```
-sandal exec <name> <command> [args...]
+sandal exec [-ns-<kind> <target>]... <name> -- <command> [args...]
 ```
 
 Enters the container's namespaces and executes the command:
 1. Look up container config
-2. Open `/proc/<pid>/ns/*` for each namespace
-3. `setns()` into each namespace
-4. `chroot()` into container rootfs
+2. Build the set to join (`namespace.ForExec`): the container's own namespaces via `/proc/<pid>/ns/*`, with `-ns-<kind>` overrides (`host`, a pid, `file:`, `cont:<name>`) applied; the user namespace is never joined
+3. Open the namespace files, then `setns()` into each
+4. If a mount namespace was joined, `chroot()` into the root of the process that owns it
 5. Exec the command
+
+VM containers forward the `-ns-<kind>` map to the guest's embedded controller, which builds and checks the same set before the stream starts.
 
 ### `attach` - Attach to Container Console
 

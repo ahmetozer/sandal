@@ -24,8 +24,9 @@ import (
 //     silently discard that rootfs setup. Until the semantics are
 //     defined, reject rather than misbehave.
 //
-// Joining via Enter() (used by `sandal exec` and the netns dialer)
-// supports all targets; this validator only restricts `sandal run`.
+// `sandal exec` checks its -ns-<kind> values in ForExec instead: it joins
+// mnt and pid targets too (mnt only through a process, not file:) and
+// never a user namespace. This validator only restricts `sandal run`.
 func (NS Namespaces) Validate() error {
 	if mnt, ok := NS["mnt"]; ok && mnt.IsUserDefined {
 		return fmt.Errorf("--ns-mnt only accepts 'host' or empty (new) on `sandal run`; got %q — join targets conflict with overlay rootfs setup", mnt.String())
@@ -51,7 +52,7 @@ func (NS Namespaces) Validate() error {
 //   - "pid:<pid>"    positive integer after the "pid:" prefix
 //   - "file:<path>"  non-empty path after the "file:" prefix
 //   - "cont:<name>"  non-empty container name; rewritten to pid:<N>
-//                    by Resolve before SetNS uses it
+//     by Resolve before SetNS uses it
 //
 // Anything else is rejected so the failure surfaces at parse time on the
 // host, not inside the sandal-child after cmd.Start().

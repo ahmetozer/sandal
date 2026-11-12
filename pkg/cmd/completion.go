@@ -164,7 +164,7 @@ _sandal() {
             ;;
         exec)
             if [[ "${cur}" == -* ]]; then
-                COMPREPLY=($(compgen -W "-help -t -env-all -env-pass -dir -user" -- "${cur}"))
+                COMPREPLY=($(compgen -W "-help -t -env-all -env-pass -dir -user -ns-cgroup -ns-ipc -ns-mnt -ns-net -ns-pid -ns-uts" -- "${cur}"))
             else
                 _sandal_container_names
             fi
@@ -406,6 +406,12 @@ _sandal() {
                         '*-env-pass[pass specific environment variables]:var:' \
                         '-dir[working directory]:dir:_directories' \
                         '-user[work user]:user:' \
+                        '-ns-cgroup[cgroup namespace instead of the container one]:ns:' \
+                        '-ns-ipc[ipc namespace instead of the container one]:ns:' \
+                        '-ns-mnt[mnt namespace instead of the container one]:ns:' \
+                        '-ns-net[net namespace instead of the container one]:ns:' \
+                        '-ns-pid[pid namespace instead of the container one]:ns:' \
+                        '-ns-uts[uts namespace instead of the container one]:ns:' \
                         '*:container:_sandal_container_names'
                     ;;
                 snapshot)
