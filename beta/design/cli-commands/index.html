@@ -1723,14 +1723,15 @@ myvm          alpine         running   12346   2024-01-01 12:01:00
 </ol>
 <h3 id="exec-execute-command-in-container"><code>exec</code> - Execute Command in Container<a class="headerlink" href="#exec-execute-command-in-container" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>pkg/cmd/exec.go</code></p>
-<div class="highlight"><pre><span></span><code>sandal exec &lt;name&gt; &lt;command&gt; [args...]
+<div class="highlight"><pre><span></span><code>sandal exec [-ns-&lt;kind&gt; &lt;target&gt;]... &lt;name&gt; -- &lt;command&gt; [args...]
 </code></pre></div>
 <p>Enters the container's namespaces and executes the command:
 1. Look up container config
-2. Open <code>/proc/&lt;pid&gt;/ns/*</code> for each namespace
-3. <code>setns()</code> into each namespace
-4. <code>chroot()</code> into container rootfs
+2. Build the set to join (<code>namespace.ForExec</code>): the container's own namespaces via <code>/proc/&lt;pid&gt;/ns/*</code>, with <code>-ns-&lt;kind&gt;</code> overrides (<code>host</code>, a pid, <code>file:</code>, <code>cont:&lt;name&gt;</code>) applied; the user namespace is never joined
+3. Open the namespace files, then <code>setns()</code> into each
+4. If a mount namespace was joined, <code>chroot()</code> into the root of the process that owns it
 5. Exec the command</p>
+<p>VM containers forward the <code>-ns-&lt;kind&gt;</code> map to the guest's embedded controller, which builds and checks the same set before the stream starts.</p>
 <h3 id="attach-attach-to-container-console"><code>attach</code> - Attach to Container Console<a class="headerlink" href="#attach-attach-to-container-console" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>pkg/cmd/attach.go</code></p>
 <div class="highlight"><pre><span></span><code>sandal attach &lt;name&gt;

@@ -2739,8 +2739,9 @@ namespace to already exist and to be accessible to the caller.</p>
 <li><code>--ns-net &lt;target&gt;</code> cannot be combined with <code>-net</code> flags — adding
   interfaces would mutate the joined namespace.</li>
 </ul>
-<p>All target syntaxes (<code>&lt;pid&gt;</code>, <code>pid:&lt;pid&gt;</code>, <code>file:&lt;path&gt;</code>) are fully
-supported by <code>sandal exec</code>, which uses <code>setns()</code> from a re-entry helper.</p>
+<p><code>sandal exec</code> takes the same <code>-ns-&lt;kind&gt;</code> flags to join or keep namespaces
+for one command, mnt and pid targets included; see
+<a href="../exec/#namespaces">exec namespaces</a>.</p>
 <p>Examples:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># share the host's network stack</span>
 sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>alpine<span class="w"> </span>--ns-net<span class="w"> </span>host<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>addr

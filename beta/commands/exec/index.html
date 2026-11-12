@@ -933,8 +933,30 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#-ns-kind-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-&lt;kind&gt; string
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Namespaces
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1472,8 +1494,30 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#-ns-kind-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        -ns-&lt;kind&gt; string
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Namespaces
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1524,6 +1568,89 @@ sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </spa
 </dl>
 <div class="highlight"><pre><span></span><code>sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-env-pass<span class="w"> </span>MY_VAR<span class="w"> </span>-env-pass<span class="w"> </span>OTHER_VAR<span class="w"> </span>new-york<span class="w"> </span>--<span class="w"> </span>env
 </code></pre></div>
+<h3 id="-ns-kind-string"><code>-ns-&lt;kind&gt; string</code><a class="headerlink" href="#-ns-kind-string" title="Permanent link">&para;</a></h3>
+<dl>
+<dd>for <code>cgroup</code>, <code>ipc</code>, <code>mnt</code>, <code>net</code>, <code>pid</code> and <code>uts</code>: use another namespace
+of that kind instead of the container's. See <a href="#namespaces">Namespaces</a>.</dd>
+</dl>
+<h2 id="namespaces">Namespaces<a class="headerlink" href="#namespaces" title="Permanent link">&para;</a></h2>
+<p>By default <code>sandal exec</code> joins every namespace of the container: cgroup, ipc,
+mnt, net, pid and uts (a kind the container shares with the host, such as
+<code>-ns-net host</code> at run time, stays on the host). Each <code>-ns-&lt;kind&gt;</code> flag changes
+that for one kind. The values are the same as on
+<a href="../run/#namespace-flags-ns-kind"><code>sandal run</code></a>, with one difference: exec
+never creates a namespace, so <em>unset</em> means the container's own.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Effect on exec</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(unset)</em></td>
+<td>The container's own namespace (joined through its init process).</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>Stay in the caller's namespace for this kind.</td>
+</tr>
+<tr>
+<td><code>&lt;pid&gt;</code></td>
+<td>Join the namespace of process <code>&lt;pid&gt;</code>, via <code>/proc/&lt;pid&gt;/ns/&lt;kind&gt;</code>.</td>
+</tr>
+<tr>
+<td><code>pid:&lt;pid&gt;</code></td>
+<td>Same as bare <code>&lt;pid&gt;</code>.</td>
+</tr>
+<tr>
+<td><code>file:&lt;path&gt;</code></td>
+<td>Join the namespace pinned at <code>&lt;path&gt;</code> (e.g. <code>/var/run/netns/blue</code> from <code>ip netns add blue</code>). Not accepted for <code>-ns-mnt</code>.</td>
+</tr>
+<tr>
+<td><code>cont:&lt;name&gt;</code></td>
+<td>Join the namespace of another running sandal container.</td>
+</tr>
+</tbody>
+</table>
+<p>A bad value (unknown syntax, a missing or stopped <code>cont:</code> container, a
+<code>file:</code> mount target) fails before any namespace is joined.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># host tools against the container's network and hostname (like nsenter -n -u)</span>
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-ns-mnt<span class="w"> </span>host<span class="w"> </span>-ns-pid<span class="w"> </span>host<span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>tcpdump<span class="w"> </span>-ni<span class="w"> </span>eth0
+
+<span class="c1"># web's files, db's network</span>
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-ns-net<span class="w"> </span>cont:db<span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ss<span class="w"> </span>-ltn
+
+<span class="c1"># a network namespace pinned by `ip netns add blue`</span>
+sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-ns-net<span class="w"> </span>file:/var/run/netns/blue<span class="w"> </span>web<span class="w"> </span>--<span class="w"> </span>ip<span class="w"> </span>addr
+</code></pre></div>
+<p>Things to know:</p>
+<ul>
+<li><strong>User namespace.</strong> exec never joins the container's user namespace, and
+  <code>-ns-user</code> is not offered: the kernel does not let a multi-threaded process
+  such as sandal enter one. For a container run with its own user namespace
+  (<code>-ns-user ""</code>), the command still joins the other namespaces but keeps the
+  caller's credentials and capabilities. Files it creates are owned by the
+  host uids, not the container's mapped ones.</li>
+<li><strong><code>-ns-mnt</code>.</strong> The mount namespace decides where the binary, <code>/etc/passwd</code>
+  (for <code>-user</code>), the <code>-dir</code> path and <code>/dev/ptmx</code> (for <code>-t</code>) come from. With
+  <code>-ns-mnt host</code> they are the host's, and the container's files are at
+  <code>/proc/&lt;container pid&gt;/root</code>. With <code>-ns-mnt cont:&lt;name&gt;</code> or a pid, the
+  command runs at the root of that process.</li>
+<li><strong><code>-ns-pid</code>.</strong> The command is started as a new process in the joined pid
+  namespace. Tools like <code>ps</code> read <code>/proc</code> from the joined mount namespace, so
+  with <code>-ns-pid</code> but <code>-ns-mnt host</code> they still list the host's processes.</li>
+<li><strong><code>-ns-cgroup</code></strong> only changes the view of <code>/sys/fs/cgroup</code>. The command is
+  not placed in the container's cgroup, so <code>-memory</code> and <code>-cpu</code> limits do not
+  apply to it.</li>
+<li><strong>VM containers</strong> (<code>-vm</code>, and every container on macOS). The flags are sent
+  to the VM, and the targets refer to the VM's kernel: <code>host</code> is the VM's own
+  namespace, pids and <code>file:</code> paths are the guest's, and <code>cont:</code> only finds
+  the VM's own container. Namespaces cannot be shared across VMs. A VM booted
+  with an older sandal ignores the flags and joins the container's
+  namespaces; restart the VM after upgrading.</li>
+</ul>
 
 
 
