@@ -78,19 +78,27 @@ func ExecOnContainer(args []string) error {
 		}
 	}
 
+	// Set terminal raw mode only for TTY sessions. Defer restore so the
+	// terminal is always cleaned up, even if exec fails mid-stream.
+	restore := func() {}
+	if TTY {
+		if r, rawErr := terminal.SetRaw(); rawErr == nil {
+			restore = r
+		}
+	}
+	defer restore()
+
+	// SIGINT and SIGTERM end exec like the shell would (128+signal), with
+	// the terminal restored first. Nothing else stops it while it waits on
+	// the command or on a VM guest that does not answer.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
-
-	// Set terminal raw mode only for TTY sessions. Defer restore so the
-	// terminal is always cleaned up, even if exec fails mid-stream.
-	if TTY {
-		restore, rawErr := terminal.SetRaw()
-		if rawErr != nil {
-			restore = func() {}
-		}
-		defer restore()
-	}
+	go func() {
+		sig := <-sigCh
+		restore()
+		ExitHandler(128 + int(sig.(syscall.Signal)))
+	}()
 
 	// Collect env vars to forward to the container command.
 	var extraEnv []string
