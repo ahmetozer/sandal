@@ -110,7 +110,9 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 	}
 
 	// Non-TTY: pipe directly
-	cmd.Stdin = stdin
+	if err := connectStdin(cmd, stdin); err != nil {
+		return err
+	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	return cmd.Run()
@@ -217,4 +219,27 @@ func resolveUser(ug string) (*syscall.Credential, string) {
 	uid, _ := strconv.ParseUint(u.Uid, 10, 32)
 	gid, _ := strconv.ParseUint(u.Gid, 10, 32)
 	return &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}, u.HomeDir
+}
+
+// connectStdin connects stdin to the command. An *os.File (the CLI's own
+// stdin) is handed to the command as is. Any other reader (the VM
+// controller's connection) is copied in through StdinPipe: with it as
+// cmd.Stdin, Wait would also wait for the reader to reach EOF, so an exec
+// whose client keeps stdin open would never return after the command
+// exits. The copy ends when the reader does (the caller closes the
+// connection) or when the pipe is closed after the command exits.
+func connectStdin(cmd *osExec.Cmd, stdin io.Reader) error {
+	if _, ok := stdin.(*os.File); ok || stdin == nil {
+		cmd.Stdin = stdin
+		return nil
+	}
+	pipe, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	go func() {
+		io.Copy(pipe, stdin)
+		pipe.Close()
+	}()
+	return nil
 }
