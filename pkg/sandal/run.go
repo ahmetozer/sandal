@@ -1,6 +1,15 @@
 package sandal
 
-import "fmt"
+import (
+	"fmt"
+
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
+)
+
+// ExitError is returned by Exec when the command ran and exited with a
+// non-zero code (Code; 128+signal when a signal ended it, with Signal set).
+// The CLI exits with that code.
+type ExitError = crt.ExitError
 
 // Run is the main entry point for `sandal run`.
 // It handles platform dispatch (VM vs container) and flag parsing.

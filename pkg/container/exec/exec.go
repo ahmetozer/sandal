@@ -3,6 +3,7 @@
 package exec
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -67,6 +68,9 @@ func JoinNamespaces(c *config.Config, overrides map[string]string) (namespace.Na
 // stdin/stdout/stderr allow the caller to provide I/O handles:
 //   - CLI: os.Stdin, os.Stdout, os.Stderr
 //   - Embedded controller: hijacked HTTP connection
+//
+// It returns nil when the command exits 0 and a *runtime.ExitError when it
+// exits non-zero or a signal ends it, with or without a PTY.
 func ExecInContainer(c *config.Config, join namespace.Namespaces, args []string, userArg, dir string, tty bool,
 	extraEnv []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
@@ -151,7 +155,23 @@ func ExecInContainer(c *config.Config, join namespace.Namespaces, args []string,
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	return cmd.Run()
+	return exitResult(cmd.Run())
+}
+
+// exitResult turns the result of a command that was started into the
+// result of the exec: nil when it exited 0, a *runtime.ExitError with its
+// code (128+signal when a signal ended it) when it ran and failed, and any
+// other error unchanged.
+func exitResult(err error) error {
+	var exitErr *osExec.ExitError
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	var signal syscall.Signal
+	if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		signal = ws.Signal()
+	}
+	return crt.ExitResult(exitErr.ExitCode(), signal)
 }
 
 // execWithPTY allocates a PTY from the container's devpts, connects the
@@ -233,10 +253,10 @@ func execWithPTY(cmd *osExec.Cmd, stdin io.Reader, stdout io.Writer, rows, cols 
 	go io.Copy(master, stdin)
 
 	// Wait for child and output relay
-	cmd.Wait()
+	err = cmd.Wait()
 	<-done
 
-	return nil
+	return exitResult(err)
 }
 
 // resolveUser looks up a user string (name, uid, or "user:group") and returns
