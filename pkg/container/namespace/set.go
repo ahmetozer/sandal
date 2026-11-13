@@ -118,14 +118,6 @@ func (source Namespaces) SetEmptyToPid(pid int) (new Namespaces) {
 		if conf.IsHost {
 			continue
 		}
-		// setns(CLONE_NEWUSER) refuses a multithreaded caller, which a Go
-		// process always is, so the caller keeps its own user namespace
-		// (as with DefaultsForPid) and joins the others.
-		if name == "user" {
-			host := "host"
-			new[name] = NamespaceConf{UserValue: &host, IsHost: true}
-			continue
-		}
 		// It looks like this is being created and is just failing to set. It's hard to find documentation that explicitly says this, but by reading kernel source code, it looks like as with user namespaces, you can't set time namespaces on a multithreaded process, but as with PID namespaces, if you spawn a child process, it should have it set.
 		if name == "time" {
 			continue

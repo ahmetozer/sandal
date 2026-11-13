@@ -29,26 +29,10 @@ func nsUserNew(t *testing.T) Namespaces {
 	return ns
 }
 
-// TestSetEmptyToPidKeepsCallerUserNS: a Go process cannot setns into a user
-// namespace (the kernel refuses a multithreaded caller), so Enter keeps the
-// caller's and joins the container's other namespaces.
-func TestSetEmptyToPidKeepsCallerUserNS(t *testing.T) {
-	got := nsUserNew(t).SetEmptyToPid(42)
-
-	if uts := got.Get("uts"); !uts.IsUserDefined || uts.String() != "pid:42" {
-		t.Fatalf("uts = %q (user-defined %v), want joined pid:42", uts.String(), uts.IsUserDefined)
-	}
-	if user := got.Get("user"); user.IsUserDefined || !user.IsHost {
-		t.Fatalf("user = %q (user-defined %v), want the caller's (host)", user.String(), user.IsUserDefined)
-	}
-	// Enter unshares these: a new user namespace fails just the same.
-	if flags := got.Cloneflags(); flags != 0 {
-		t.Fatalf("Cloneflags = %#x, want 0", flags)
-	}
-}
-
 // TestEnterUserNSContainer enters a process that runs in its own user
-// namespace, as `sandal exec` does for a -ns-user "" container.
+// namespace, as `sandal exec` does for a -ns-user "" container: a Go process
+// cannot setns into a user namespace (the kernel refuses a multithreaded
+// caller), so ForExec leaves it out and Enter joins the other kinds.
 func TestEnterUserNSContainer(t *testing.T) {
 	if os.Getuid() != 0 {
 		t.Skip("e2e: requires root")
@@ -68,7 +52,10 @@ func TestEnterUserNSContainer(t *testing.T) {
 		_ = cont.Wait()
 	})
 	pid := cont.Process.Pid
-	ns := nsUserNew(t)
+	ns, err := ForExec(pid, nsUserNew(t), nil)
+	if err != nil {
+		t.Fatalf("ForExec: %v", err)
+	}
 
 	errc := make(chan error, 1)
 	go func() {
