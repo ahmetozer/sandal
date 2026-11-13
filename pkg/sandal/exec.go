@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
@@ -34,6 +36,11 @@ func Exec(c *config.Config, args []string, user, dir string, tty bool, extraEnv 
 	return execNative(c, args, user, dir, tty, extraEnv, ns)
 }
 
+// execReplyTimeout bounds the wait for the guest's answer to an exec
+// request. The guest answers before it starts the command, so only a
+// guest that is stuck takes this long.
+var execReplyTimeout = 30 * time.Second
+
 // execViaMgmt sends an exec request to the VM's embedded controller
 // via the management socket and relays I/O.
 func execViaMgmt(contName string, args []string, user, dir string, tty bool, extraEnv []string,
@@ -51,7 +58,7 @@ func execViaMgmt(contName string, args []string, user, dir string, tty bool, ext
 // execOverConn writes the exec request to conn, waits for the 101 upgrade
 // and relays I/O until the output side ends. A non-101 answer (e.g. 400 for
 // a bad -ns-<kind> target) is returned as an error with the guest's message.
-func execOverConn(conn io.ReadWriter, args []string, user, dir string, tty bool, extraEnv []string,
+func execOverConn(conn net.Conn, args []string, user, dir string, tty bool, extraEnv []string,
 	ns map[string]string, stdin io.Reader, stdout io.Writer) error {
 
 	req := map[string]any{
@@ -71,11 +78,15 @@ func execOverConn(conn io.ReadWriter, args []string, user, dir string, tty bool,
 
 	fmt.Fprintf(conn, "POST /exec HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\nContent-Type: application/json\r\nConnection: Upgrade\r\n\r\n%s", len(reqBody), reqBody)
 
+	// The host side closes the connection when it cannot reach the guest's
+	// controller (e.g. the VM is still booting); a stuck guest never answers.
 	br := bufio.NewReader(conn)
+	conn.SetReadDeadline(time.Now().Add(execReplyTimeout))
 	resp, err := http.ReadResponse(br, nil)
 	if err != nil {
-		return fmt.Errorf("exec request failed: %w", err)
+		return fmt.Errorf("exec request failed: the VM guest did not answer: %w", err)
 	}
+	conn.SetReadDeadline(time.Time{})
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("exec failed (status %d): %s", resp.StatusCode, strings.TrimSpace(string(body)))
