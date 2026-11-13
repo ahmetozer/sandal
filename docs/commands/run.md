@@ -422,6 +422,12 @@ sandal run -lw alpine --ns-net cont:mytestcont1 -- ip addr
 
 :   user namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values. Defaults to `host`.
 
+    An empty value (`-ns-user ""`) runs the container in a new user namespace. Every UID and GID maps to the same ID on the host, so root in the container is still UID 0 and files keep their owners, but its capabilities only reach the container's own namespaces: it cannot, for example, create device nodes. Sandal binds the host's `/dev/null`, `/dev/zero`, `/dev/tty` and the other standard nodes into the container instead, and `/dev/ptmx` points to the container's `/dev/pts/ptmx`.
+
+    `sandal exec` does not enter the container's user namespace: the command runs with the caller's credentials in the container's other namespaces.
+
+    A new user namespace cannot mount `/sys` for the host's network namespace, `/proc` for the host's pid namespace or a devtmpfs, so `-ns-user ""` does not work together with `-ns-net host`, `-ns-pid host` or `-devtmpfs`.
+
 ---
 
 ### `-ns-uts string`
