@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -87,6 +88,68 @@ func TestReadOnlyRootInUserNS(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=^TestReadOnlyRootHelper$", "-test.count=1")
 	cmd.Env = append(os.Environ(), readOnlyRootEnv+"="+t.TempDir(), readOnlyStageEnv+"=host")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: syscall.CLONE_NEWNS}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+}
+
+const sysfsStageEnv = "SANDAL_TEST_SYSFS_STAGE"
+
+// TestSysfsHelper is not a test: TestSysfsInUserNS runs it twice. Stage
+// "host" leaves only a read-only sysfs in its mount namespace, as on a host
+// whose /sys is read-only (the sysfs is a new one, of a new network
+// namespace, so the real /sys is not touched), and starts stage "init" in
+// new user, mount and network namespaces, as container init runs.
+func TestSysfsHelper(t *testing.T) {
+	switch os.Getenv(sysfsStageEnv) {
+	case "host":
+		if err := unix.Mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, ""); err != nil {
+			t.Fatalf("make / private: %v", err)
+		}
+		mounts, err := os.ReadFile("/proc/self/mountinfo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(string(mounts), "\n") {
+			if f := strings.Fields(line); len(f) > 4 && strings.Contains(line, " - sysfs ") {
+				_ = unix.Unmount(f[4], unix.MNT_DETACH)
+			}
+		}
+		if err := unix.Mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID, "ro"); err != nil {
+			t.Fatalf("mount read-only sysfs: %v", err)
+		}
+		idmap := []syscall.SysProcIDMap{{ContainerID: 0, HostID: 0, Size: crt.ProcSize}}
+		cmd := exec.Command(os.Args[0], "-test.run=^TestSysfsHelper$", "-test.count=1")
+		cmd.Env = append(os.Environ(), sysfsStageEnv+"=init")
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags:  syscall.CLONE_NEWUSER | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET,
+			UidMappings: idmap,
+			GidMappings: idmap,
+		}
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("init stage: %v\n%s", err, out)
+		}
+	case "init":
+		empty := ""
+		ns := namespace.Namespaces{"user": {UserValue: &empty}}
+		if err := ns.Defaults(); err != nil {
+			t.Fatal(err)
+		}
+		if err := mountSysfs(&config.Config{NS: ns}); err != nil {
+			t.Fatalf("mountSysfs: %v", err)
+		}
+	}
+}
+
+// TestSysfsInUserNS checks container init can mount its /sys from a user
+// namespace when the host's /sys is read-only.
+func TestSysfsInUserNS(t *testing.T) {
+	if os.Getuid() != 0 {
+		t.Skip("e2e: requires root")
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSysfsHelper$", "-test.count=1")
+	cmd.Env = append(os.Environ(), sysfsStageEnv+"=host")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}

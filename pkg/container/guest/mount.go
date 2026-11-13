@@ -134,7 +134,7 @@ func childSysMounts(c *config.Config) error {
 		return err
 	}
 
-	err = cmount.Mount("sysfs", "/sys", "sysfs", unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME, "ro")
+	err = mountSysfs(c)
 	if err != nil {
 		return err
 	}
@@ -171,6 +171,18 @@ func childSysMounts(c *config.Config) error {
 	os.Remove(sandalChildWorkdir)
 	return nil
 
+}
+
+// mountSysfs mounts the container's read-only /sys. From a user namespace
+// the kernel only mounts a sysfs that is no more writable than one already
+// visible (mount_too_revealing), so where the host's /sys is read-only the
+// new mount has to be read-only itself: "ro" only sets the superblock flag.
+func mountSysfs(c *config.Config) error {
+	flags := uintptr(unix.MS_NODEV | unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_RELATIME)
+	if !c.NS.Get("user").IsHost {
+		flags |= unix.MS_RDONLY
+	}
+	return cmount.Mount("sysfs", "/sys", "sysfs", flags, "ro")
 }
 
 func purgeOldRoot(c *config.Config) error {
