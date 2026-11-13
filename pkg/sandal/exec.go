@@ -5,15 +5,21 @@ package sandal
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"syscall"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
 )
 
-// Exec dispatches exec to the native path or VM management socket.
+// Exec dispatches exec to the native path or VM management socket. It
+// returns nil when the command exits 0 and an *ExitError when it exits
+// non-zero or a signal ends it; any other error is sandal's own.
 // The caller is responsible for terminal setup (raw mode), signal handling,
 // and container lookup. stdin/stdout/stderr allow reuse from CLI, web, etc.
 // extraEnv contains extra environment variables (KEY=VALUE) to pass to the
@@ -47,7 +53,7 @@ func execViaMgmt(contName string, args []string, user, dir string, tty bool, ext
 		"env":  extraEnv,
 	})
 
-	fmt.Fprintf(conn, "POST /exec HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\nContent-Type: application/json\r\nConnection: Upgrade\r\n\r\n%s", len(reqBody), reqBody)
+	fmt.Fprintf(conn, "POST /exec HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\nContent-Type: application/json\r\nConnection: Upgrade\r\nUpgrade: %s, raw-stream\r\n\r\n%s", len(reqBody), mgmt.ExecUpgrade, reqBody)
 
 	br := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(br, nil)
@@ -61,7 +67,24 @@ func execViaMgmt(contName string, args []string, user, dir string, tty bool, ext
 
 	// Relay I/O. Don't wait for stdin goroutine — return when output finishes.
 	go io.Copy(conn, stdin)
-	io.Copy(stdout, br)
+	return relayExecOutput(resp, br, stdout)
+}
 
-	return nil
+// relayExecOutput copies the guest's output to stdout until the exec ends
+// and returns its result as a native exec does: nil, an *ExitError, or the
+// guest's error. A guest that answers raw-stream predates the exit status:
+// its output is copied until EOF and the exec counts as a success.
+func relayExecOutput(resp *http.Response, br *bufio.Reader, stdout io.Writer) error {
+	if !strings.EqualFold(resp.Header.Get("Upgrade"), mgmt.ExecUpgrade) {
+		io.Copy(stdout, br)
+		return nil
+	}
+	x, err := mgmt.ReadExec(br, stdout)
+	if err != nil {
+		return fmt.Errorf("exec stream: %w", err)
+	}
+	if x.Error != "" {
+		return errors.New(x.Error)
+	}
+	return crt.ExitResult(x.Code, syscall.Signal(x.Signal))
 }
