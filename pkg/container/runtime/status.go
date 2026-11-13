@@ -15,6 +15,14 @@ const (
 	ContainerStatusHang     = "hang"
 )
 
+// ReadyFdEnv names the env var that tells a container's init (sandal-child)
+// which inherited fd is its ready pipe. The init keeps the pipe open,
+// close-on-exec, while it sets the container up, so the sandal that started
+// it reads EOF once the init execs the container's command (or exits). Until
+// then the init may not have pivoted into the container root yet, and the
+// container stays ContainerStatusCreating.
+const ReadyFdEnv = "SANDAL_READY_FD"
+
 func IsContainerRunning(name string) (bool, error) {
 	oldConfig, err := controller.GetContainer(name)
 	if err == nil {

@@ -65,7 +65,7 @@ sandal run -lw /
 
 ### `-d bool`
 
-:   run container in background
+:   run container in background. `sandal run -d` returns once the container's command has started, so a `sandal exec` right after it runs in the container. With `-startup` and a running daemon, the daemon starts the container instead and the command returns at once.
 
 ---
 

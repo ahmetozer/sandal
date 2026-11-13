@@ -18,6 +18,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
 )
@@ -43,6 +44,12 @@ func ExecInContainer(c *config.Config, args []string, userArg, dir string, tty b
 	}
 	if c.ContPid <= 0 {
 		return fmt.Errorf("container %s has no running process", c.Name)
+	}
+	// Until its init is ready, /proc/<pid>/root can still be the host's
+	// root (before pivot_root), so joining now would run on the host's
+	// filesystem.
+	if c.Status == crt.ContainerStatusCreating {
+		return fmt.Errorf("container %s is still starting, try again once it is running", c.Name)
 	}
 
 	// Pin this goroutine to a dedicated OS thread so namespace changes

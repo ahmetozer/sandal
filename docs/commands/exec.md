@@ -2,6 +2,8 @@
 
 Execute a command under given container.
 
+A container that is still starting (status `creating` in `sandal ps`) is refused with an error: until its command has started, its root filesystem may not be set up yet.
+
 ```bash
 export MY_VAR="test_var"
 sandal exec -env-pass MY_VAR new-york -- env

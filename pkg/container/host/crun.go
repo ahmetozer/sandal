@@ -4,6 +4,7 @@ package host
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -66,6 +67,17 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 
 	cmd.Env = childEnv(c, imageEnv)
 	cmd.Dir = c.RootfsDir
+
+	// The init holds the write end until it execs the container's command
+	// (see crt.ReadyFdEnv). ExtraFiles[0] is fd 3 in the child.
+	readyR, readyW, err := os.Pipe()
+	if err != nil {
+		return 1, fmt.Errorf("container ready pipe: %w", err)
+	}
+	defer readyR.Close()
+	defer readyW.Close()
+	cmd.ExtraFiles = []*os.File{readyW}
+	cmd.Env = append(cmd.Env, crt.ReadyFdEnv+"=3")
 
 	err = c.NS.Defaults()
 	if err != nil {
@@ -161,6 +173,9 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		}
 		return 1, fmt.Errorf("unable to start child process: %w", err)
 	}
+	// Only the child holds the write end now, so the read of readyR below
+	// ends once it is ready or exits.
+	readyW.Close()
 
 	c.ContPid = cmd.Process.Pid
 	childPid := c.ContPid // c.ContPid may be cleared before the child is reaped
@@ -175,12 +190,12 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	// before any provisioning below that can fail or be interrupted by daemon
 	// shutdown. Otherwise that window leaves a live child the daemon doesn't
 	// track, and the next health tick starts a duplicate (audit L1/L4).
+	// The status stays "creating" until the init is ready (see below).
 	if st, stErr := crt.ProcessStartTime(c.ContPid); stErr == nil {
 		c.ContPidStart = st
 	} else {
 		slog.Warn("crun: capture start-time", "pid", c.ContPid, "error", stErr)
 	}
-	c.Status = crt.ContainerStatusRunning
 	if perr := controller.SetContainer(c); perr != nil {
 		slog.Warn("crun: persist pid", "name", c.Name, "error", perr)
 	}
@@ -232,7 +247,6 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	}
 
 	// c.NS.LoadNamespaceIDs(c.ContPid)
-	// (status was set to running and persisted right after cmd.Start above.)
 
 	// Skip link creation when the container shares the host netns
 	// (nothing to provision) or joins an existing one via --ns-net <target>
@@ -257,47 +271,6 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		if isVM, _ := env.IsVM(); env.IsDaemon || isVM {
 			go net.AnnounceContainer(c.ContPid, *links)
 		}
-	}
-
-	slog.Debug("container provisioned", "name", c.Name, "pid", c.ContPid)
-	err = controller.SetContainer(c)
-	if err != nil {
-		return 0, err
-	}
-
-	// Start port-forwarding for -p flags. A dedicated goroutine pinned to
-	// one OS thread is setns'd into the container's network+mount namespaces
-	// and serves net.Dial requests over a channel.
-	//
-	// The frontend differs by mode:
-	//   - native:   host-side net.Listeners (tcp/unix/udp) bound in the host
-	//               netns, dialing into the container via the NetnsDialer.
-	//   - inside VM: AF_VSOCK listeners bound in the VM root netns, accepting
-	//               connections from the physical host's BootWithForwards
-	//               host listeners and dialing into the in-VM container.
-	//
-	// Lifecycle ownership differs by mode:
-	//   - foreground (!c.Background): cleanup runs from this stack frame's
-	//     defer, fired when cmd.Wait() returns at the bottom of crun.
-	//   - background in daemon (c.Background && env.IsDaemon): the session
-	//     is handed to host.Forwards. The wait goroutine below calls
-	//     Forwards.Stop(c.Name) when the container exits.
-	//   - background outside daemon: nothing can host the listeners past
-	//     this function's return — log and skip.
-	session, sErr := startForward(c)
-	if sErr != nil {
-		slog.Warn("forward: start", "err", sErr)
-	}
-	switch {
-	case session == nil:
-		// no -p flags or no daemon path; nothing to do.
-	case !c.Background:
-		defer session.close()
-	case env.IsDaemon:
-		Forwards.Add(c.Name, session)
-	default:
-		slog.Warn("forward: -p ignored for -d without daemon; use -startup or run in foreground", "name", c.Name)
-		session.close()
 	}
 
 	// Start PTY relay for interactive (foreground) containers only.
@@ -345,6 +318,55 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 				}
 			}
 		}()
+	}
+
+	// Wait until the init is ready. It pivots into the container root only
+	// after the links above exist; until then /proc/<pid>/root is the host's
+	// root, so an exec, or the forward dialer below, joining earlier would
+	// work on the host's filesystem. The relay above drains its output
+	// meanwhile.
+	io.Copy(io.Discard, readyR)
+	c.Status = crt.ContainerStatusRunning
+
+	slog.Debug("container provisioned", "name", c.Name, "pid", c.ContPid)
+	err = controller.SetContainer(c)
+	if err != nil {
+		return 0, err
+	}
+
+	// Start port-forwarding for -p flags. A dedicated goroutine pinned to
+	// one OS thread is setns'd into the container's network+mount namespaces
+	// and serves net.Dial requests over a channel.
+	//
+	// The frontend differs by mode:
+	//   - native:   host-side net.Listeners (tcp/unix/udp) bound in the host
+	//               netns, dialing into the container via the NetnsDialer.
+	//   - inside VM: AF_VSOCK listeners bound in the VM root netns, accepting
+	//               connections from the physical host's BootWithForwards
+	//               host listeners and dialing into the in-VM container.
+	//
+	// Lifecycle ownership differs by mode:
+	//   - foreground (!c.Background): cleanup runs from this stack frame's
+	//     defer, fired when cmd.Wait() returns at the bottom of crun.
+	//   - background in daemon (c.Background && env.IsDaemon): the session
+	//     is handed to host.Forwards. The wait goroutine below calls
+	//     Forwards.Stop(c.Name) when the container exits.
+	//   - background outside daemon: nothing can host the listeners past
+	//     this function's return — log and skip.
+	session, sErr := startForward(c)
+	if sErr != nil {
+		slog.Warn("forward: start", "err", sErr)
+	}
+	switch {
+	case session == nil:
+		// no -p flags or no daemon path; nothing to do.
+	case !c.Background:
+		defer session.close()
+	case env.IsDaemon:
+		Forwards.Add(c.Name, session)
+	default:
+		slog.Warn("forward: -p ignored for -d without daemon; use -startup or run in foreground", "name", c.Name)
+		session.close()
 	}
 
 	if c.Background {
