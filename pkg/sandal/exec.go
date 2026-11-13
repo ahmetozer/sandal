@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/vm/mgmt"
@@ -27,6 +28,11 @@ func Exec(c *config.Config, args []string, user, dir string, tty bool, extraEnv 
 
 	return execNative(c, args, user, dir, tty, extraEnv)
 }
+
+// execReplyTimeout bounds the wait for the guest's answer to an exec
+// request. The guest answers before it starts the command, so only a
+// guest that is stuck takes this long.
+var execReplyTimeout = 30 * time.Second
 
 // execViaMgmt sends an exec request to the VM's embedded controller
 // via the management socket and relays I/O.
@@ -49,11 +55,15 @@ func execViaMgmt(contName string, args []string, user, dir string, tty bool, ext
 
 	fmt.Fprintf(conn, "POST /exec HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\nContent-Type: application/json\r\nConnection: Upgrade\r\n\r\n%s", len(reqBody), reqBody)
 
+	// The host side closes the connection when it cannot reach the guest's
+	// controller (e.g. the VM is still booting); a stuck guest never answers.
 	br := bufio.NewReader(conn)
+	conn.SetReadDeadline(time.Now().Add(execReplyTimeout))
 	resp, err := http.ReadResponse(br, nil)
 	if err != nil {
-		return fmt.Errorf("exec request failed: %w", err)
+		return fmt.Errorf("exec request failed: the VM guest did not answer: %w", err)
 	}
+	conn.SetReadDeadline(time.Time{})
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("exec failed (status %d): %s", resp.StatusCode, string(body))
