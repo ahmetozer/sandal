@@ -162,6 +162,7 @@ cleanup() {
     for name in test-basic test-background test-readonly test-volumes test-network \
                 test-memory test-cpu test-env test-user test-namespace test-tmpfs \
                 test-multi-lower test-workdir test-exec test-kill-cleanup test-rerun \
+                test-userns \
                 test-console test-image-run test-multi-stop-1 test-multi-stop-2 \
                 test-multi-kill-1 test-multi-kill-2 \
                 test-chdir-img test-chdir-csize test-chdir-1g \
@@ -661,6 +662,34 @@ test_isolated_pid_namespace() {
     else
         log_fail "PID namespace test failed"
     fi
+}
+
+test_user_namespace() {
+    log_test "Container with its own user namespace (-ns-user \"\")"
+
+    if [ ! -f "$TEST_IMAGE" ]; then
+        log_skip "Test image not available"
+        return
+    fi
+
+    # Init has to set the hostname, mount and create /dev nodes inside the
+    # new user namespace, then stay up for exec.
+    $SANDAL_BIN run -name="test-userns" -lw="$TEST_IMAGE" $NESTED_RUN_ARGS -d -tmp 10 -ns-user="" -- /bin/sleep 120 2>&1 || true
+    sleep 2
+
+    pid=$($SANDAL_BIN inspect test-userns 2>&1 | grep -o '"ContPid": *[0-9]*' | grep -o '[0-9]*')
+    output=$($SANDAL_BIN exec test-userns -- /bin/sh -c 'id -u; hostname; echo x > /dev/null && echo devnull-ok' 2>&1)
+
+    if [ -n "$pid" ] && [ "$(readlink /proc/$pid/ns/user)" != "$(readlink /proc/self/ns/user)" ] &&
+        echo "$output" | grep -qx "0" && echo "$output" | grep -qx "test-userns" &&
+        echo "$output" | grep -q "devnull-ok"; then
+        log_pass "User namespace container runs and exec works"
+    else
+        log_fail "User namespace container failed (pid=$pid): $output"
+    fi
+
+    $SANDAL_BIN kill test-userns 2>/dev/null || true
+    $SANDAL_BIN rm test-userns 2>/dev/null || true
 }
 
 # ============================================================================
@@ -1434,6 +1463,7 @@ main() {
     echo "=== Section 5: Namespace Tests ==="
     test_host_network
     test_isolated_pid_namespace
+    test_user_namespace
 
     echo ""
     echo "=== Section 6: Multiple Lower Directories Test ==="

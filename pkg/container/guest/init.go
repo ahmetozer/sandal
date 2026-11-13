@@ -170,7 +170,7 @@ func ContainerInitProc() {
 		if err != nil {
 			return err
 		}
-		err = childSysNodes(c.Devtmpfs)
+		err = childSysNodes(c)
 		if err != nil {
 			return err
 		}

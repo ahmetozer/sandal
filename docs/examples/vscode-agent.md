@@ -281,9 +281,9 @@ sandal run --rm -t -tmp 1024 \
 
 ### Run as an unprivileged user
 
-`-user vscode` (or any non-root UID) prevents the agent from running `apt install` system-wide, modifying `/etc`, or tampering with the base image. Combine with [`-ns-user`](../commands/run.md#-ns-user-string) for user-namespace mapping when you want the container's UID space remapped against the host:
+`-user vscode` (or any non-root UID) prevents the agent from running `apt install` system-wide, modifying `/etc`, or tampering with the base image. Add [`-ns-user ""`](../commands/run.md#-ns-user-string) to also run the container in its own user namespace. UIDs are not remapped (`vscode` has the same UID on the host, so files in the bind-mounted project keep their owner), but root's capabilities inside the container then only reach the container's own namespaces:
 
-``` { .bash title="Unprivileged user inside, mapped through a user namespace" }
+``` { .bash title="Unprivileged user inside, in its own user namespace" }
 sandal run --rm -t -tmp 1024 \
     -lw mcr.microsoft.com/devcontainers/base:ubuntu \
     -user vscode \
