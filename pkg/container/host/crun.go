@@ -13,6 +13,7 @@ import (
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/console"
+	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/container/net"
 	"github.com/ahmetozer/sandal/pkg/container/resources"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
@@ -97,13 +98,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	}
 	cmd.SysProcAttr.Cloneflags = cloneFlags
 
-	if c.NS.Get("user").IsUserDefined && !c.NS.Get("pid").IsHost {
-		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: 0, Size: crt.ProcSize},
-		}
-		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: 0, Size: crt.ProcSize},
-		}
+	if mapUserNS(cmd.SysProcAttr, c.NS) {
 		// Only set process group for background containers without Setsid.
 		// Setsid already creates a new session (and process group), so Setpgid
 		// is redundant and conflicts (kernel returns EINVAL if both are set).
@@ -480,4 +475,30 @@ func appendSandalVariables(s []string, c *config.Config) []string {
 		s = append(s, "SANDAL_VM_MOUNTS="+val)
 	}
 	return s
+}
+
+// mapUserNS sets the uid/gid maps of the user namespace the child is cloned
+// into (-ns-user "") and reports whether there is one. Every id maps to the
+// same host id, so container root stays uid 0 and files keep their owners,
+// while its capabilities only reach namespaces the container owns.
+//
+// Go writes the maps before the child execs. Without them the child runs as
+// the overflow uid and execve drops all capabilities it had in the new user
+// namespace, so container init cannot even set its hostname. A joined or
+// host user namespace is not created by the clone and gets no maps: Go
+// would fail writing them.
+func mapUserNS(attr *syscall.SysProcAttr, ns namespace.Namespaces) bool {
+	if ns.Cloneflags()&syscall.CLONE_NEWUSER == 0 {
+		return false
+	}
+	attr.UidMappings = []syscall.SysProcIDMap{
+		{ContainerID: 0, HostID: 0, Size: crt.ProcSize},
+	}
+	attr.GidMappings = []syscall.SysProcIDMap{
+		{ContainerID: 0, HostID: 0, Size: crt.ProcSize},
+	}
+	// Host root writes the maps, so setgroups(2) may stay allowed in the
+	// container (Go denies it by default); su, sudo and apt need it.
+	attr.GidMappingsEnableSetgroups = true
+	return true
 }
