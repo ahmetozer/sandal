@@ -181,7 +181,14 @@ func purgeOldRoot(c *config.Config) error {
 	os.Remove("/.old_root")
 
 	if c.ReadOnly {
-		cmount.Mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
+		if c.NS.Get("user").IsHost {
+			cmount.Mount("/", "/", "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
+		} else if err := cmount.Mount("/", "/", "", unix.MS_REMOUNT|unix.MS_BIND|unix.MS_RDONLY, ""); err != nil {
+			// The overlay's superblock belongs to the host's user namespace
+			// and cannot be remounted from the container's, but the
+			// container's own mount of it can be made read-only.
+			return fmt.Errorf("unable to make / read-only: %w", err)
+		}
 	}
 	return nil
 }
