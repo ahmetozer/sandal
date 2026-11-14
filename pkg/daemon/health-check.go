@@ -110,6 +110,12 @@ var recoveryWG sync.WaitGroup
 // launch new recoveries while the daemon is winding down.
 var shuttingDown atomic.Bool
 
+// Seams for tests.
+var (
+	recoverContainer = contRecover
+	recoveryNow      = time.Now
+)
+
 // beginShutdown stops new recoveries and blocks until in-flight ones finish.
 // Called from the daemon shutdown path before containers are torn down.
 func beginShutdown() {
@@ -117,22 +123,75 @@ func beginShutdown() {
 	recoveryWG.Wait()
 }
 
+// Crash-loop backoff, after Docker's restart policy. Every recovery mounts
+// the container's image and change dir and creates its links again, so one
+// that exits right after each start must not be restarted on every tick: a
+// container that dies within recoveryResetAfter of its recovery waits twice
+// as long as last time (from recoveryBackoffBase up to recoveryBackoffMax)
+// before the next one; one that ran longer is recovered at once.
+const (
+	recoveryBackoffBase = 3 * time.Second
+	recoveryBackoffMax  = time.Minute
+	recoveryResetAfter  = 30 * time.Second
+)
+
+type recoveryBackoff struct {
+	created   int64         // the record's Created: a new run of the name starts over
+	recovered time.Time     // when the last recovery was dispatched
+	delay     time.Duration // wait after the last recovered instance died
+	retryAt   time.Time     // zero until that instance is seen dead
+}
+
+// backoffs is keyed by container name and owned by the health-check loop.
+var backoffs = map[string]*recoveryBackoff{}
+
+// recoveryDue reports whether the dead container cont may be recovered at
+// now, and records the recovery when it may.
+func recoveryDue(cont *config.Config, now time.Time) bool {
+	b := backoffs[cont.Name]
+	if b == nil || b.created != cont.Created {
+		backoffs[cont.Name] = &recoveryBackoff{created: cont.Created, recovered: now}
+		return true
+	}
+	if b.retryAt.IsZero() {
+		// The first tick to find the last recovered instance dead.
+		if now.Sub(b.recovered) < recoveryResetAfter {
+			b.delay = min(max(2*b.delay, recoveryBackoffBase), recoveryBackoffMax)
+			slog.Warn("daemon", slog.String("cont", cont.Name), slog.String("msg", "exited soon after its recovery, delaying the next one"), slog.Duration("delay", b.delay))
+		} else {
+			b.delay = 0
+		}
+		b.retryAt = now.Add(b.delay)
+	}
+	if now.Before(b.retryAt) {
+		return false
+	}
+	b.recovered, b.retryAt = now, time.Time{}
+	return true
+}
+
 // dispatchRecovery starts contRecover for cont unless a recovery is already in
-// flight for that name or the daemon is shutting down. Only the
-// (single-threaded) health-check loop calls this.
+// flight for that name, cont waits out its crash-loop backoff, or the daemon
+// is shutting down. Only the (single-threaded) health-check loop calls this,
+// and only it adds to recovering.
 func dispatchRecovery(cont *config.Config) {
-	if shuttingDown.Load() {
+	if shuttingDown.Load() || cont.Status == "stop" {
 		return
 	}
-	if _, busy := recovering.LoadOrStore(cont.Name, struct{}{}); busy {
+	if _, busy := recovering.Load(cont.Name); busy {
 		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "recovery in flight, skipping"))
 		return
 	}
+	if !recoveryDue(cont, recoveryNow()) {
+		slog.Debug("daemon", slog.String("cont", cont.Name), slog.String("msg", "backing off, skipping"))
+		return
+	}
+	recovering.Store(cont.Name, struct{}{})
 	recoveryWG.Add(1)
 	go func() {
 		defer recoveryWG.Done()
 		defer recovering.Delete(cont.Name)
-		contRecover(cont)
+		recoverContainer(cont)
 	}()
 }
 

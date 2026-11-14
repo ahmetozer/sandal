@@ -303,7 +303,8 @@ type Config struct {
     Volumes       wrapper.StringFlags           // -v mount specifications
     ImmutableImages diskimage.ImmutableImages   // Mounted immutable images
     HostArgs      []string                      // Original host-side args
-    ContArgs      []string                      // Command to run in container
+    ContArgs      []string                      // Resolved argv to run in container
+    UserArgs      []string                      // Command given after "--" (nil: image default)
     Lower         wrapper.StringFlags           // Additional overlay lower dirs
     RunPreExec    wrapper.StringFlags           // Run commands before init
     RunPrePivot   wrapper.StringFlags           // Run commands before pivoting

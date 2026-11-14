@@ -90,6 +90,11 @@ type Config struct {
 
 	// CLI entrypoint override (like docker --entrypoint)
 	Entrypoint string // Overrides image ENTRYPOINT when set
+
+	// UserArgs is the command given after "--" (nil: the image's), the
+	// input every start resolves ContArgs from. ContArgs is the resolved
+	// argv the container runs, with the entrypoint prepended.
+	UserArgs []string `json:",omitempty"`
 }
 
 var (

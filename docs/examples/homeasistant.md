@@ -165,7 +165,7 @@ sudo sandal run -d --startup \
 - `-d` runs the container in the background.
 - `--startup` registers it with the daemon so it's re-provisioned on boot and **automatically restarted if the process exits**.
 
-The daemon proxies `SIGTERM` / `SIGINT` / `SIGQUIT` to the container during shutdown and gives Home Assistant 30 seconds to exit gracefully before sending `SIGKILL` — enough time for the recorder to flush state.
+Restarting or upgrading the daemon leaves Home Assistant running; the new daemon adopts it. To stop it gracefully, for example before a host shutdown, use `sandal stop homeassistant` (`SIGTERM`, 30 seconds before `SIGKILL`), which gives the recorder time to flush state.
 
 ### Check status, restart, stop
 

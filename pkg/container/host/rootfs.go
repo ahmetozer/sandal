@@ -347,8 +347,17 @@ func UmountRootfs(c *config.Config) []error {
 
 		// Clean up stale change dir mounts from previous runs whose
 		// in-memory registry was lost. This handles stacked loop mounts.
+		// Their loop devices are not in the registry either, so detach
+		// them too: a container started by one process (the CLI, an earlier
+		// daemon) and torn down by another left one behind each time.
+		staleLoops := loopsMountedAt(c.ChangeDir)
 		if umountErrs := unmountAllBelow(c.ChangeDir); umountErrs != nil {
 			errs = append(errs, umountErrs...)
+		}
+		for _, lc := range staleLoops {
+			if err := lc.Detach(); err != nil {
+				errs = append(errs, fmt.Errorf("detach change dir loop %s: %w", lc.Path, err))
+			}
 		}
 
 		if c.TmpSize != 0 {

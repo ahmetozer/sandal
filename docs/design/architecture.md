@@ -142,7 +142,8 @@ type Config struct {
     Net           any                 // Network interface specs
     Ports         []forward.PortMapping // Port forwarding mappings
     VM            string              // VM mode: "" (direct), "kvm", "vz"
-    ContArgs      []string            // Command to execute
+    ContArgs      []string            // Resolved argv to execute (entrypoint + command)
+    UserArgs      []string            // Command given after "--" (nil: image default)
     HostArgs      []string            // Original CLI args (used for daemon recovery)
     MemoryLimit   string              // Cgroup memory limit (VM: used for VM RAM)
     CPULimit      string              // Cgroup CPU limit (VM: used for vCPU count)

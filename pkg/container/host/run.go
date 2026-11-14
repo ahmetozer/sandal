@@ -4,6 +4,7 @@ package host
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
@@ -55,23 +56,8 @@ func Run(c *config.Config, s *crt.RunSession) error {
 		c.User = imgUser
 	}
 
-	// Resolve ContArgs from image ENTRYPOINT/CMD when not provided by CLI.
-	// Docker semantics:
-	//   No user command:              ENTRYPOINT + CMD
-	//   User command:                 ENTRYPOINT + user_args
-	//   --entrypoint X:               [X] + CMD (or user_args)
-	//   --entrypoint X + user command: [X] + user_args
-	entrypoint := imgEntrypoint
-	if c.Entrypoint != "" {
-		entrypoint = []string{c.Entrypoint}
-	}
-	if len(c.ContArgs) == 0 {
-		c.ContArgs = append(entrypoint, imgCmd...)
-	} else if len(entrypoint) > 0 {
-		c.ContArgs = append(entrypoint, c.ContArgs...)
-	}
-	if len(c.ContArgs) == 0 {
-		return fmt.Errorf("no command provided and image has no ENTRYPOINT or CMD")
+	if err := resolveArgs(c, imgEntrypoint, imgCmd); err != nil {
+		return err
 	}
 
 	// Persist resolved config so guest process sees final ContArgs.
@@ -92,4 +78,50 @@ func Run(c *config.Config, s *crt.RunSession) error {
 		return err
 	}
 	return crt.ExitResult(exitCode, signal)
+}
+
+// resolveArgs sets c.ContArgs, the argv the container runs, from the user's
+// command (c.UserArgs) and the image ENTRYPOINT/CMD. Docker semantics:
+//
+//	No user command:              ENTRYPOINT + CMD
+//	User command:                 ENTRYPOINT + user_args
+//	--entrypoint X:               [X] + CMD (or user_args)
+//	--entrypoint X + user command: [X] + user_args
+//
+// The input is never a previous ContArgs: the daemon restarts a container
+// from its persisted record, and resolving that argv again prepended the
+// entrypoint once more on every recovery.
+func resolveArgs(c *config.Config, imgEntrypoint, imgCmd []string) error {
+	if c.UserArgs == nil {
+		// A record written before UserArgs existed holds only the resolved
+		// argv, so take the command from its "sandal run" command line, as
+		// rerun does. A fresh config without a command has none there.
+		c.UserArgs = commandFromHostArgs(c.HostArgs)
+	}
+	entrypoint := imgEntrypoint
+	if c.Entrypoint != "" {
+		entrypoint = []string{c.Entrypoint}
+	}
+	args := c.UserArgs
+	if len(args) == 0 {
+		args = imgCmd
+	}
+	c.ContArgs = append(slices.Clone(entrypoint), args...)
+	if len(c.ContArgs) == 0 {
+		return fmt.Errorf("no command provided and image has no ENTRYPOINT or CMD")
+	}
+	return nil
+}
+
+// commandFromHostArgs is the command after "--" in a "sandal run" command
+// line ([binary, "run", flags..., "--", command...]), split as the run flag
+// parser splits it; nil when there is none.
+func commandFromHostArgs(hostArgs []string) []string {
+	if len(hostArgs) < 2 {
+		return nil
+	}
+	if i := slices.Index(hostArgs[2:], "--"); i >= 0 {
+		return slices.Clone(hostArgs[2+i+1:])
+	}
+	return nil
 }

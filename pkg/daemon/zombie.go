@@ -11,10 +11,11 @@ import (
 	"github.com/ahmetozer/sandal/pkg/sandal"
 )
 
-// checkZombie sends SIGTERM then SIGKILL to any startup containers still
-// running during daemon shutdown. It gives processes up to 10 seconds to
-// exit gracefully before force-killing, and gives up after 30 seconds to
-// avoid blocking shutdown indefinitely (e.g. uninterruptible sleep).
+// checkZombie sends SIGTERM then SIGKILL to the containers that stop with
+// the daemon (see stopsWithDaemon) still running during daemon shutdown. It
+// gives processes up to 10 seconds to exit gracefully before force-killing,
+// and gives up after 30 seconds to avoid blocking shutdown indefinitely
+// (e.g. uninterruptible sleep).
 func checkZombie() {
 	const (
 		gracePeriod  = 10 * time.Second
@@ -39,7 +40,7 @@ func checkZombie() {
 		for _, cont := range conts {
 			pid, wantStart := cont.MonitorPidIdentity()
 			isRunning, err := crt.IsPidRunningAs(pid, wantStart)
-			if !cont.Startup || !isRunning || err != nil {
+			if !stopsWithDaemon(cont) || !isRunning || err != nil {
 				continue
 			}
 			alive = true
