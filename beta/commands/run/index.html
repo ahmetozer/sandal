@@ -1063,6 +1063,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1852,6 +1863,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2396,6 +2418,18 @@
 <p>Use the host's root filesystem as the lower layer (<strong>Linux only</strong> — requires native namespaces and is not available on macOS, where sandal runs inside a VM):</p>
 <div class="annotate highlight"><span class="filename">Use the host rootfs as lower layer (Linux only)</span><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </span>/
 </code></pre></div>
+<h2 id="exit-status">Exit status<a class="headerlink" href="#exit-status" title="Permanent link">&para;</a></h2>
+<p>A foreground <code>sandal run</code> (and <code>sandal rerun</code> of one) exits with the status of
+the container's command: its exit code, or 128 + the signal number when a
+signal ended it. <code>sandal kill</code>, and <code>SIGINT</code> or <code>SIGTERM</code> sent to <code>sandal run</code>,
+end the container with <code>SIGKILL</code>, so the run exits 137. The status in <code>sandal ps</code>
+is unchanged (<code>exit -1</code> for a signal, <code>killed</code> after <code>sandal kill</code>). Errors of
+sandal itself exit 1. A background run (<code>-d</code>) exits 0 once the container has
+started. A run in a VM (<code>-vm</code>, and every run on macOS) exits 0 when the VM
+powers off: the code of the command inside the VM does not reach the host.</p>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-lw<span class="w"> </span>alpine<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">'exit 3'</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<span class="w">    </span><span class="m">3</span>
+</code></pre></div>
 <h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2453,7 +2487,7 @@
 <hr />
 <h3 id="-d-bool"><code>-d bool</code><a class="headerlink" href="#-d-bool" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>run container in background</dd>
+<dd>run container in background. <code>sandal run -d</code> returns once the container's command has started, so a <code>sandal exec</code> right after it runs in the container. With <code>-startup</code> and a running daemon, the daemon starts the container instead and the command returns at once.</dd>
 </dl>
 <hr />
 <h3 id="-devtmpfs-string"><code>-devtmpfs string</code><a class="headerlink" href="#-devtmpfs-string" title="Permanent link">&para;</a></h3>
@@ -2783,7 +2817,12 @@ sandal<span class="w"> </span>run<span class="w"> </span>-lw<span class="w"> </s
 <hr />
 <h3 id="-ns-user-string"><code>-ns-user string</code><a class="headerlink" href="#-ns-user-string" title="Permanent link">&para;</a></h3>
 <dl>
-<dd>user namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values. Defaults to <code>host</code>.</dd>
+<dd>
+<p>user namespace target. See <a href="#namespace-flags-ns-kind">Namespace flags</a> for accepted values. Defaults to <code>host</code>.</p>
+<p>An empty value (<code>-ns-user ""</code>) runs the container in a new user namespace. Every UID and GID maps to the same ID on the host, so root in the container is still UID 0 and files keep their owners, but its capabilities only reach the container's own namespaces: it cannot, for example, create device nodes. Sandal binds the host's <code>/dev/null</code>, <code>/dev/zero</code>, <code>/dev/tty</code> and the other standard nodes into the container instead, and <code>/dev/ptmx</code> points to the container's <code>/dev/pts/ptmx</code>.</p>
+<p><code>sandal exec</code> does not enter the container's user namespace: the command runs with the caller's credentials in the container's other namespaces.</p>
+<p>A new user namespace cannot mount <code>/sys</code> for the host's network namespace, <code>/proc</code> for the host's pid namespace or a devtmpfs, so <code>-ns-user ""</code> does not work together with <code>-ns-net host</code>, <code>-ns-pid host</code> or <code>-devtmpfs</code>.</p>
+</dd>
 </dl>
 <hr />
 <h3 id="-ns-uts-string"><code>-ns-uts string</code><a class="headerlink" href="#-ns-uts-string" title="Permanent link">&para;</a></h3>

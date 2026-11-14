@@ -867,6 +867,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1428,6 +1439,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#exit-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flags" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1540,11 +1562,22 @@
 
 <h1 id="exec">Exec<a class="headerlink" href="#exec" title="Permanent link">&para;</a></h1>
 <p>Execute a command under given container.</p>
+<p>A container that is still starting (status <code>creating</code> in <code>sandal ps</code>) is refused with an error: until its command has started, its root filesystem may not be set up yet.</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MY_VAR</span><span class="o">=</span><span class="s2">"test_var"</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-env-pass<span class="w"> </span>MY_VAR<span class="w"> </span>new-york<span class="w"> </span>--<span class="w"> </span>env
 <span class="w">    </span><span class="nv">PATH</span><span class="o">=</span>/sbin:/bin:/sbin:/usr/bin:/usr/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
 <span class="w">    </span><span class="nv">MY_VAR</span><span class="o">=</span>test_var
 </code></pre></div>
+<h2 id="exit-status">Exit status<a class="headerlink" href="#exit-status" title="Permanent link">&para;</a></h2>
+<p><code>sandal exec</code> exits with the status of the command, with or without <code>-t</code>, for
+containers on the host and in a VM: the command's exit code, or 128 + the
+signal number when a signal ended it (137 for <code>SIGKILL</code>). Errors of sandal
+itself, such as a container or a command that is not found, exit 1.</p>
+<div class="highlight"><pre><span></span><code>sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-t<span class="w"> </span>new-york<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">'exit 3'</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+<span class="w">    </span><span class="m">3</span>
+</code></pre></div>
+<p>A VM started by a sandal version without this support cannot report the
+status: exec into it exits 0 once the command ends.</p>
 <h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">&para;</a></h2>
 <h3 id="-dir-string"><code>-dir string</code><a class="headerlink" href="#-dir-string" title="Permanent link">&para;</a></h3>
 <dl>
