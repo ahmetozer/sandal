@@ -111,8 +111,10 @@ func (dc DaemonConfig) Start() error {
 				}
 				continue
 			}
-			// Do not kill containers, which is executed before daemon
-			if cont.HostPid == DaemonPid {
+			// Do not kill containers, which is executed before daemon. Of
+			// those this daemon ran, only a foreground one ends with it: a
+			// detached (-d) one keeps running for the next daemon to adopt.
+			if cont.HostPid == DaemonPid && !cont.Background {
 				host.DeRunContainer(cont)
 			}
 		}
@@ -121,6 +123,15 @@ func (dc DaemonConfig) Start() error {
 	checkZombie()
 	slog.Info("daemon", slog.String("service", "stopped"))
 	return nil
+}
+
+// stopsWithDaemon reports whether the daemon stops cont when it exits. Only a
+// startup VM does: the daemon relays its sockets and records its exit. A
+// detached native container does not need the daemon, so it keeps running
+// and the next daemon adopts it (health check, port forwards): a restart or
+// an upgrade of the daemon must not kill it.
+func stopsWithDaemon(cont *config.Config) bool {
+	return cont.Startup && cont.VM != ""
 }
 
 // startRenumber launches the dynamic IPv6 service in the background. The

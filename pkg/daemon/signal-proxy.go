@@ -25,9 +25,12 @@ func signalProxy(daemonKillRequested chan<- bool, wg *sync.WaitGroup) {
 		for _, cont := range conts {
 			// Monitor HostPid for VMs, ContPid for native — same rule and
 			// identity check as the health-check.
+			if !stopsWithDaemon(cont) {
+				continue
+			}
 			pid, wantStart := cont.MonitorPidIdentity()
 			isRunning, err := crt.IsPidRunningAs(pid, wantStart)
-			if cont.Startup && isRunning && err == nil {
+			if isRunning && err == nil {
 				// sandal.Kill routes VM containers to killVMHost (HostPid);
 				// host.Kill alone targets ContPid and never reaps a VM (L7).
 				sandal.Kill(cont, int(sig.(syscall.Signal)), 0)
