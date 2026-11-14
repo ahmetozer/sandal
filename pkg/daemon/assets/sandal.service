@@ -9,6 +9,11 @@ LogsDirectory=sandal
 StateDirectory=sandal
 ExecStart=/usr/bin/sandal daemon
 Restart=on-abort
+# Containers the daemon starts live in this unit's cgroup and use
+# /run/sandal: a stop or restart must leave both to them, the next
+# daemon adopts the containers.
+KillMode=process
+RuntimeDirectoryPreserve=yes
 
 [Install]
 WantedBy=multi-user.target
