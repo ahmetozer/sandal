@@ -19,6 +19,9 @@ import (
 // get the main thread.
 func TestPID1KeepsMainThread(t *testing.T) {
 	if os.Getenv("SANDAL_TEST_PID1_HELPER") == "1" {
+		if os.Getpid() != 1 {
+			t.Fatalf("helper pid = %d, want 1", os.Getpid())
+		}
 		lockedThreadsAvoidMain(t)
 		return
 	}
@@ -33,13 +36,20 @@ func TestPID1KeepsMainThread(t *testing.T) {
 	}
 }
 
+// The daemon, and a foreground run with -p, start port-forward dialers whose
+// goroutines lock their thread and move it into a container's mount and
+// network namespaces. One that got the main thread left /proc/self, which
+// is the main thread, showing the container's mounts: the daemon's cleanup
+// then found nothing to unmount and every recovery stacked another overlay
+// and loop device. No such goroutine may get the main thread.
+func TestKeepsMainThread(t *testing.T) {
+	lockedThreadsAvoidMain(t)
+}
+
 // lockedThreadsAvoidMain locks many goroutines to their threads at once,
-// like concurrent exec handlers, and fails if one of them got the main
-// thread.
+// like concurrent exec handlers or forward dialers, and fails if one of
+// them got the main thread.
 func lockedThreadsAvoidMain(t *testing.T) {
-	if os.Getpid() != 1 {
-		t.Fatalf("helper pid = %d, want 1", os.Getpid())
-	}
 	const n = 64
 	tids := make(chan int, n)
 	release := make(chan struct{})
@@ -62,7 +72,7 @@ func lockedThreadsAvoidMain(t *testing.T) {
 	wg.Wait()
 	for _, tid := range got {
 		if tid == os.Getpid() {
-			t.Fatalf("a goroutine locked the main thread (tid %d) of PID 1", tid)
+			t.Fatalf("a goroutine locked the main thread (tid %d)", tid)
 		}
 	}
 }

@@ -17,15 +17,16 @@ import (
 )
 
 func init() {
-	// As PID 1 (the VM guest init), keep the main thread for the main
-	// goroutine. The embedded controller runs each exec on a goroutine
-	// that locks its thread and moves it into the container's namespaces;
-	// the runtime discards such threads, but it parks the main thread
-	// instead. A main thread left in a container broke the guest's path
-	// lookups, so the controller socket was not found after that exec.
-	if os.Getpid() == 1 {
-		runtime.LockOSThread()
-	}
+	// Keep the main thread for the main goroutine. Exec handlers and
+	// port-forward dialers run on goroutines that lock their thread and
+	// move it into a container's namespaces; the runtime discards such
+	// threads, but it parks the main thread instead. A main thread left in
+	// a container broke the VM guest's path lookups (as PID 1, the
+	// controller socket was not found after an exec), and in the daemon it
+	// made /proc/self, which is the main thread, show the container's
+	// mounts: cleanup found nothing to unmount, so every recovery stacked
+	// another overlay and loop device.
+	runtime.LockOSThread()
 }
 
 func platformMain() {
