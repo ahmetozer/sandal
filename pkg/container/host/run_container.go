@@ -32,6 +32,11 @@ func RunContainer(c *config.Config, networkFlags []string, s *crt.RunSession) er
 		return err
 	}
 
+	// ContArgs is the caller's command here. Keep it as UserArgs: every
+	// start of this record, including the daemon's recoveries, resolves
+	// the argv from it (see resolveArgs).
+	c.UserArgs = c.ContArgs
+
 	// Serialize placement per name across every process (a second CLI run, or a
 	// daemon recovery) so two actors can't both pass the "already running" check
 	// below and double-start the container, leaving one instance detached
