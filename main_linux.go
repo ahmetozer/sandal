@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/ahmetozer/sandal/pkg/cmd"
@@ -14,6 +15,18 @@ import (
 	"github.com/ahmetozer/sandal/pkg/vm/guest"
 	"golang.org/x/sys/unix"
 )
+
+func init() {
+	// As PID 1 (the VM guest init), keep the main thread for the main
+	// goroutine. The embedded controller runs each exec on a goroutine
+	// that locks its thread and moves it into the container's namespaces;
+	// the runtime discards such threads, but it parks the main thread
+	// instead. A main thread left in a container broke the guest's path
+	// lookups, so the controller socket was not found after that exec.
+	if os.Getpid() == 1 {
+		runtime.LockOSThread()
+	}
+}
 
 func platformMain() {
 	// IsChild must be checked before IsVMInit: container child processes

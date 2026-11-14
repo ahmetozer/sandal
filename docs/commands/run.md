@@ -18,6 +18,22 @@ Use the host's root filesystem as the lower layer (**Linux only** — requires n
 sandal run -lw /
 ```
 
+## Exit status
+
+A foreground `sandal run` (and `sandal rerun` of one) exits with the status of
+the container's command: its exit code, or 128 + the signal number when a
+signal ended it. `sandal kill`, and `SIGINT` or `SIGTERM` sent to `sandal run`,
+end the container with `SIGKILL`, so the run exits 137. The status in `sandal ps`
+is unchanged (`exit -1` for a signal, `killed` after `sandal kill`). Errors of
+sandal itself exit 1. A background run (`-d`) exits 0 once the container has
+started. A run in a VM (`-vm`, and every run on macOS) exits 0 when the VM
+powers off: the code of the command inside the VM does not reach the host.
+
+```bash
+sandal run --rm -lw alpine -- sh -c 'exit 3'; echo $?
+    3
+```
+
 ## Flags
 
 | Flag Type   | Description                          |
@@ -65,7 +81,7 @@ sandal run -lw /
 
 ### `-d bool`
 
-:   run container in background
+:   run container in background. `sandal run -d` returns once the container's command has started, so a `sandal exec` right after it runs in the container. With `-startup` and a running daemon, the daemon starts the container instead and the command returns at once.
 
 ---
 
@@ -422,6 +438,12 @@ sandal run -lw alpine --ns-net cont:mytestcont1 -- ip addr
 ### `-ns-user string`
 
 :   user namespace target. See [Namespace flags](#namespace-flags-ns-kind) for accepted values. Defaults to `host`.
+
+    An empty value (`-ns-user ""`) runs the container in a new user namespace. Every UID and GID maps to the same ID on the host, so root in the container is still UID 0 and files keep their owners, but its capabilities only reach the container's own namespaces: it cannot, for example, create device nodes. Sandal binds the host's `/dev/null`, `/dev/zero`, `/dev/tty` and the other standard nodes into the container instead, and `/dev/ptmx` points to the container's `/dev/pts/ptmx`.
+
+    `sandal exec` does not enter the container's user namespace: the command runs with the caller's credentials in the container's other namespaces.
+
+    A new user namespace cannot mount `/sys` for the host's network namespace, `/proc` for the host's pid namespace or a devtmpfs, so `-ns-user ""` does not work together with `-ns-net host`, `-ns-pid host` or `-devtmpfs`.
 
 ---
 

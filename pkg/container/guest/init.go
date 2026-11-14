@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	goruntime "runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,9 +27,25 @@ func IsChild() bool {
 	return os.Getenv("SANDAL_CHILD") != ""
 }
 
+// holdReadyPipe keeps the ready pipe crun passed (see cruntime.ReadyFdEnv)
+// open until this init execs the container's command or exits, and no
+// longer: close-on-exec, so neither -rcp/-rci commands nor the container's
+// command inherit it. A no-op when the parent passed none.
+func holdReadyPipe() {
+	v, ok := os.LookupEnv(cruntime.ReadyFdEnv)
+	if !ok {
+		return
+	}
+	os.Unsetenv(cruntime.ReadyFdEnv)
+	if fd, err := strconv.Atoi(v); err == nil && fd > 2 {
+		unix.CloseOnExec(fd)
+	}
+}
+
 // Executed at namespace environment before real process
 func ContainerInitProc() {
 	goruntime.GOMAXPROCS(1)
+	holdReadyPipe()
 
 	err := func() error {
 
@@ -153,7 +170,7 @@ func ContainerInitProc() {
 		if err != nil {
 			return err
 		}
-		err = childSysNodes(c.Devtmpfs)
+		err = childSysNodes(c)
 		if err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@
 package exec
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -67,6 +68,9 @@ func JoinNamespaces(c *config.Config, overrides map[string]string) (namespace.Na
 // stdin/stdout/stderr allow the caller to provide I/O handles:
 //   - CLI: os.Stdin, os.Stdout, os.Stderr
 //   - Embedded controller: hijacked HTTP connection
+//
+// It returns nil when the command exits 0 and a *runtime.ExitError when it
+// exits non-zero or a signal ends it, with or without a PTY.
 func ExecInContainer(c *config.Config, join namespace.Namespaces, args []string, userArg, dir string, tty bool,
 	extraEnv []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
@@ -75,6 +79,12 @@ func ExecInContainer(c *config.Config, join namespace.Namespaces, args []string,
 	}
 	if c.ContPid <= 0 {
 		return fmt.Errorf("container %s has no running process", c.Name)
+	}
+	// Until its init is ready, /proc/<pid>/root can still be the host's
+	// root (before pivot_root), so joining now would run on the host's
+	// filesystem.
+	if c.Status == crt.ContainerStatusCreating {
+		return fmt.Errorf("container %s is still starting, try again once it is running", c.Name)
 	}
 
 	// Pin this goroutine to a dedicated OS thread so namespace changes
@@ -140,10 +150,28 @@ func ExecInContainer(c *config.Config, join namespace.Namespaces, args []string,
 	}
 
 	// Non-TTY: pipe directly
-	cmd.Stdin = stdin
+	if err := connectStdin(cmd, stdin); err != nil {
+		return err
+	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	return cmd.Run()
+	return exitResult(cmd.Run())
+}
+
+// exitResult turns the result of a command that was started into the
+// result of the exec: nil when it exited 0, a *runtime.ExitError with its
+// code (128+signal when a signal ended it) when it ran and failed, and any
+// other error unchanged.
+func exitResult(err error) error {
+	var exitErr *osExec.ExitError
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	var signal syscall.Signal
+	if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		signal = ws.Signal()
+	}
+	return crt.ExitResult(exitErr.ExitCode(), signal)
 }
 
 // execWithPTY allocates a PTY from the container's devpts, connects the
@@ -225,10 +253,10 @@ func execWithPTY(cmd *osExec.Cmd, stdin io.Reader, stdout io.Writer, rows, cols 
 	go io.Copy(master, stdin)
 
 	// Wait for child and output relay
-	cmd.Wait()
+	err = cmd.Wait()
 	<-done
 
-	return nil
+	return exitResult(err)
 }
 
 // resolveUser looks up a user string (name, uid, or "user:group") and returns
@@ -247,4 +275,27 @@ func resolveUser(ug string) (*syscall.Credential, string) {
 	uid, _ := strconv.ParseUint(u.Uid, 10, 32)
 	gid, _ := strconv.ParseUint(u.Gid, 10, 32)
 	return &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}, u.HomeDir
+}
+
+// connectStdin connects stdin to the command. An *os.File (the CLI's own
+// stdin) is handed to the command as is. Any other reader (the VM
+// controller's connection) is copied in through StdinPipe: with it as
+// cmd.Stdin, Wait would also wait for the reader to reach EOF, so an exec
+// whose client keeps stdin open would never return after the command
+// exits. The copy ends when the reader does (the caller closes the
+// connection) or when the pipe is closed after the command exits.
+func connectStdin(cmd *osExec.Cmd, stdin io.Reader) error {
+	if _, ok := stdin.(*os.File); ok || stdin == nil {
+		cmd.Stdin = stdin
+		return nil
+	}
+	pipe, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	go func() {
+		io.Copy(pipe, stdin)
+		pipe.Close()
+	}()
+	return nil
 }

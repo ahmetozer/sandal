@@ -2,8 +2,10 @@
 
 package sandal
 
-func platformRun(args []string) error {
-	return parseAndRunContainer(args)
+import crt "github.com/ahmetozer/sandal/pkg/container/runtime"
+
+func platformRun(args []string, s *crt.RunSession) error {
+	return parseAndRunContainer(args, s)
 }
 
 // requiresVM returns true on macOS — native containers are not supported,

@@ -13,13 +13,16 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	"github.com/ahmetozer/sandal/pkg/container/config/wrapper"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"github.com/ahmetozer/sandal/pkg/lib/wordgenerator"
 	"github.com/ahmetozer/sandal/pkg/vm/guest"
 )
 
 // parseAndRunContainer parses CLI flags into a container config and runs it.
-func parseAndRunContainer(args []string) error {
+// s is the run's session, passed on to the native and VM run paths; its
+// streams are nil for the CLI and the daemon.
+func parseAndRunContainer(args []string, s *crt.RunSession) error {
 	c := config.NewContainer()
 	var (
 		help      bool
@@ -32,6 +35,7 @@ func parseAndRunContainer(args []string) error {
 
 	c.HostArgs = append([]string{env.BinLoc, "run"}, args...)
 	f := flag.NewFlagSet("run", flag.ContinueOnError)
+	f.SetOutput(s.Streams().Err()) // usage and flag errors go to the caller
 
 	containerId := strings.Join(wordgenerator.NameGenerate(16), "-")
 
@@ -120,16 +124,25 @@ func parseAndRunContainer(args []string) error {
 	// enable TTY mode for interactive foreground runs. Only applies on the
 	// host side — inside a VM guest, the flag is already forwarded.
 	if !c.TTY && !c.Background && !guest.IsVMInit() {
-		if fi, statErr := os.Stdin.Stat(); statErr == nil {
-			c.TTY = (fi.Mode() & os.ModeCharDevice) != 0
-		}
+		c.TTY = stdinIsTerminal(s.Streams())
 	}
 
 	// If -vm is set and we're not already inside a VM, dispatch to VM boot path.
 	// On macOS (darwin), always use VM path since native containers aren't supported.
 	if !guest.IsVMInit() && (useVM || requiresVM()) {
-		return RunInVM(&c, []string(networkInterfacesCmd))
+		return RunInVM(&c, []string(networkInterfacesCmd), s)
 	}
 
-	return RunContainer(&c, []string(networkInterfacesCmd))
+	return RunContainer(&c, []string(networkInterfacesCmd), s)
+}
+
+// stdinIsTerminal reports whether the run's stdin is a terminal, for the
+// TTY auto-detection. An in-process caller's stdin (rio set) is never the
+// process's terminal, so such a run gets a TTY only from -t.
+func stdinIsTerminal(rio *RunIO) bool {
+	if rio != nil {
+		return false
+	}
+	fi, err := os.Stdin.Stat()
+	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
 }

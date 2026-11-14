@@ -18,7 +18,8 @@ import (
 // executes a container. The config should have Name, ContArgs, Volumes,
 // Lower, NS, Capabilities, etc. already populated (e.g. from CLI flag
 // parsing or API input). networkFlags are the raw -net flag values for
-// network interface configuration.
+// network interface configuration. s is this run's session (nil for the
+// CLI), see Run.
 //
 // This used to live in pkg/sandal, but `sandal build` needs to call it
 // too — and pkg/sandal imports pkg/container/build for the builder
@@ -26,7 +27,7 @@ import (
 // cycle. Moving it here (which pkg/sandal already imports) breaks the
 // cycle without duplicating logic; pkg/sandal.RunContainer is now a
 // thin wrapper around this function.
-func RunContainer(c *config.Config, networkFlags []string) error {
+func RunContainer(c *config.Config, networkFlags []string, s *crt.RunSession) error {
 	if err := config.ValidateName(c.Name); err != nil {
 		return err
 	}
@@ -110,8 +111,8 @@ func RunContainer(c *config.Config, networkFlags []string) error {
 		}
 	}
 
-	// Pass release as onPlaced so the lifecycle lock is dropped the moment
+	// Pass release as OnPlaced so the lifecycle lock is dropped the moment
 	// crun publishes the pid, not held across a foreground container's lifetime.
 	// The deferred release above is then an idempotent no-op.
-	return Run(c, release)
+	return Run(c, s.WithOnPlaced(release))
 }

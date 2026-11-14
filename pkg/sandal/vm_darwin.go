@@ -4,6 +4,7 @@ package sandal
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -61,7 +62,10 @@ func stageHostEtc() string {
 // inside the guest waiting for an eth1 that does not exist. Single-NIC
 // config still travels via SANDAL_VM_ARGS and the in-guest container init
 // applies it to eth0 (defaulting to DHCP when no addresses are specified).
-func RunInVZ(c *config.Config, netFlags []string) error {
+//
+// s is the run's session (nil for the CLI): the VM's console and the
+// image-pull progress go to its streams.
+func RunInVZ(c *config.Config, netFlags []string, s *crt.RunSession) error {
 	if len(netFlags) > 1 {
 		return fmt.Errorf("-vm on darwin supports a single -net flag (VZ attaches one NAT NIC); got %d", len(netFlags))
 	}
@@ -126,7 +130,7 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 	// Pre-pull OCI images on the host and convert to squashfs.
 	imageDir := filepath.Join(env.LibDir, "image")
 	progressCh := make(chan progress.Event, 16)
-	renderDone := progress.StartRenderer(progressCh, os.Stderr)
+	renderDone := progress.StartRenderer(progressCh, s.Streams().Err())
 	cleanArgs = squash.PullFromArgs(cleanArgs, imageDir, progressCh)
 	close(progressCh)
 	<-renderDone
@@ -209,12 +213,21 @@ func RunInVZ(c *config.Config, netFlags []string) error {
 		forward.AssignIDs(c.Ports)
 	}
 
-	err = vz.BootWithForwards(vmName, cfg, c.Ports, vsockRelays...)
+	// The console is the terminal (nil IO, raw mode) for the CLI, and the
+	// streams of an in-process caller (rio), without raw mode.
+	var vmIn io.Reader
+	var vmOut io.Writer
+	if rio := s.Streams(); rio != nil {
+		vmIn, vmOut = rio.In(), rio.Out()
+	}
+	err = vz.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, vsockRelays...)
 
 	// Clean up staged etc directory
 	os.RemoveAll(filepath.Join(env.LibDir, "system", "etc"))
 
-	// Update status after VM exits
+	// Update status after VM exits. The guest powers off whatever its
+	// container's exit code, which does not reach the host: a clean
+	// power-off is "exit 0", and `sandal run -vm` exits 0.
 	if err != nil {
 		c.Status = fmt.Sprintf("err %v", err)
 	} else {
