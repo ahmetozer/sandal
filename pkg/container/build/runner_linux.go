@@ -5,6 +5,7 @@ package build
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/container/namespace"
 	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 	"golang.org/x/sys/unix"
@@ -137,16 +139,18 @@ func (s *StageContainer) ExecRun(args []string, stageEnv []string, workDir, user
 	unset := exportStageEnv(c, stageEnvWithTerm)
 	defer unset()
 
-	if err := host.RunContainer(c, nil); err != nil {
+	// A non-zero exit of the RUN command comes back as an ExitError, and
+	// its code is also recorded in c.Status as "exit N"; it is reported
+	// from that status below, any other error as a failure to run it.
+	var exitErr *crt.ExitError
+	if err := host.RunContainer(c, nil); err != nil && !errors.As(err, &exitErr) {
 		if reloaded, rerr := controller.GetContainer(c.Name); rerr == nil {
 			c.Status = reloaded.Status
 		}
 		return fmt.Errorf("RUN failed: %w (status: %s)", err, c.Status)
 	}
-	// host.Run returns nil even when the child exited non-zero — the
-	// real exit code lives in c.Status as "exit N". Reload from the
-	// controller and surface non-zero exits as build errors so a
-	// failing RUN aborts the stage just like docker build does.
+	// Reload from the controller and surface non-zero exits as build
+	// errors so a failing RUN aborts the stage just like docker build does.
 	if reloaded, err := controller.GetContainer(c.Name); err == nil {
 		c.Status = reloaded.Status
 	}

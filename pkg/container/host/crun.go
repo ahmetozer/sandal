@@ -32,7 +32,7 @@ import (
 // done, rather than being held across the (possibly long-lived) foreground
 // Wait. It is NOT called on the daemon-delegation early return, where no local
 // placement happens.
-func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, retErr error) {
+func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, exitSignal syscall.Signal, retErr error) {
 	c.Status = crt.ContainerStatusCreating
 	var err error
 
@@ -40,7 +40,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	// Regular background (-d) containers are started directly by the CLI.
 	if !env.IsDaemon && c.Background && c.Startup && controller.GetControllerType() == controller.ControllerTypeServer {
 		slog.Debug("Start", slog.Any("c.Background", c.Background), slog.Any("controller-type", controller.GetControllerType()))
-		return 0, nil
+		return 0, 0, nil
 	}
 	cmd := exec.Command(env.BinLoc, "sandal-child", c.Name)
 
@@ -62,7 +62,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 			slog.Warn("console: -t ignored for -d without daemon; use -startup with a running daemon for a PTY console", "name", c.Name)
 		}
 		if err := console.SetupFIFOConsole(c.Name, cmd, &consoleCleanup); err != nil {
-			return 1, fmt.Errorf("console setup: %w", err)
+			return 1, 0, fmt.Errorf("console setup: %w", err)
 		}
 	}
 
@@ -73,7 +73,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	// (see crt.ReadyFdEnv). ExtraFiles[0] is fd 3 in the child.
 	readyR, readyW, err := os.Pipe()
 	if err != nil {
-		return 1, fmt.Errorf("container ready pipe: %w", err)
+		return 1, 0, fmt.Errorf("container ready pipe: %w", err)
 	}
 	defer readyR.Close()
 	defer readyW.Close()
@@ -82,7 +82,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 
 	err = c.NS.Defaults()
 	if err != nil {
-		return 1, err
+		return 1, 0, err
 	}
 
 	// Setup resource limits via cgroups
@@ -90,14 +90,14 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	if c.MemoryLimit != "" || c.CPULimit != "" {
 		cgroupPath, err = resources.SetupCgroup(c.Name, c.MemoryLimit, c.CPULimit)
 		if err != nil {
-			return 1, fmt.Errorf("cgroup setup failed: %w", err)
+			return 1, 0, fmt.Errorf("cgroup setup failed: %w", err)
 		}
 		slog.Debug("cgroup created", "path", cgroupPath)
 
 		// Generate custom proc files for resource visibility
 		err = resources.GenerateProcFiles(c.RootfsDir, c.MemoryLimit, c.CPULimit)
 		if err != nil {
-			return 1, fmt.Errorf("proc file generation failed: %w", err)
+			return 1, 0, fmt.Errorf("proc file generation failed: %w", err)
 		}
 	}
 
@@ -166,7 +166,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
-		return 1, fmt.Errorf("unable to start child process: %w", err)
+		return 1, 0, fmt.Errorf("unable to start child process: %w", err)
 	}
 	// Only the child holds the write end now, so the read of readyR below
 	// ends once it is ready or exits.
@@ -250,12 +250,12 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	if !netConf.IsHost && !netConf.IsUserDefined {
 		links, err := net.ToLinks(&c.Net)
 		if err != nil {
-			return 1, err
+			return 1, 0, err
 		}
 		for i := range *links {
 			err := (*links)[i].Create()
 			if err != nil {
-				return 1, err
+				return 1, 0, err
 			}
 			(*links)[i].SetNsPid(c.ContPid)
 		}
@@ -326,7 +326,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 	slog.Debug("container provisioned", "name", c.Name, "pid", c.ContPid)
 	err = controller.SetContainer(c)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	// Start port-forwarding for -p flags. A dedicated goroutine pinned to
@@ -385,7 +385,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 				ptmx.Close()
 			}
 		}()
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	sig, err := cmd.Process.Wait()
@@ -410,7 +410,21 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, r
 
 	DeRunContainer(c)
 
-	return sig.ExitCode(), err
+	exitCode, exitSignal = exitStatus(sig)
+	return exitCode, exitSignal, err
+}
+
+// exitStatus is the exit code of a reaped child, and the signal that ended
+// it, if one did. A signal-ended child reports exit code -1; the signal is
+// passed on so the caller can report 128+signal, as shells do.
+func exitStatus(state *os.ProcessState) (code int, signal syscall.Signal) {
+	if state == nil {
+		return -1, 0
+	}
+	if ws, ok := state.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		signal = ws.Signal()
+	}
+	return state.ExitCode(), signal
 }
 
 func childEnv(c *config.Config, imageEnv []string) []string {

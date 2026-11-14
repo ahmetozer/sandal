@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
 )
@@ -14,6 +15,10 @@ import (
 // crun and invoked once the child's pid is published, so a caller holding the
 // per-name lifecycle lock can release it as soon as placement is committed
 // rather than across the foreground Wait. See crun for details.
+//
+// A foreground container that exits non-zero returns a *crt.ExitError with
+// its code (128+signal when a signal ended it), besides the "exit N" status
+// recorded for it (-1 for a signal); a background one returns once started.
 func Run(c *config.Config, onPlaced func()) error {
 
 	// When a startup container is delegated to the daemon, skip local
@@ -72,7 +77,7 @@ func Run(c *config.Config, onPlaced func()) error {
 	controller.SetContainer(c)
 
 	// Starting proccess
-	exitCode, err := crun(c, imgEnv, onPlaced)
+	exitCode, signal, err := crun(c, imgEnv, onPlaced)
 
 	if !c.Remove && !c.Background {
 		c.Status = fmt.Sprintf("exit %d", exitCode)
@@ -82,5 +87,8 @@ func Run(c *config.Config, onPlaced func()) error {
 		controller.SetContainer(c)
 	}
 
-	return err
+	if err != nil {
+		return err
+	}
+	return crt.ExitResult(exitCode, signal)
 }

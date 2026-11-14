@@ -80,8 +80,9 @@ func executeSubCommand(f func([]string) error) {
 	err := f(os.Args[2:])
 	var exitErr *sandal.ExitError
 	if errors.As(err, &exitErr) {
-		// A command that ran (exec) and exited non-zero is not a sandal
-		// failure: the process exits with its code instead.
+		// A foreground container (run, rerun) or a command (exec) that
+		// ran and exited non-zero is not a sandal failure: the process
+		// exits with its code instead.
 		exitCode = exitErr.Code
 	} else if err != nil {
 		if exitCode == 0 {

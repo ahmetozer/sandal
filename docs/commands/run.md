@@ -18,6 +18,22 @@ Use the host's root filesystem as the lower layer (**Linux only** — requires n
 sandal run -lw /
 ```
 
+## Exit status
+
+A foreground `sandal run` (and `sandal rerun` of one) exits with the status of
+the container's command: its exit code, or 128 + the signal number when a
+signal ended it. `sandal kill`, and `SIGINT` or `SIGTERM` sent to `sandal run`,
+end the container with `SIGKILL`, so the run exits 137. The status in `sandal ps`
+is unchanged (`exit -1` for a signal, `killed` after `sandal kill`). Errors of
+sandal itself exit 1. A background run (`-d`) exits 0 once the container has
+started. A run in a VM (`-vm`, and every run on macOS) exits 0 when the VM
+powers off: the code of the command inside the VM does not reach the host.
+
+```bash
+sandal run --rm -lw alpine -- sh -c 'exit 3'; echo $?
+    3
+```
+
 ## Flags
 
 | Flag Type   | Description                          |
