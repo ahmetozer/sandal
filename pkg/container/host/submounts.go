@@ -10,12 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/ahmetozer/sandal/pkg/container/config"
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/loopdev"
 	"golang.org/x/sys/unix"
 )
 
@@ -359,6 +361,38 @@ func unmountAllBelow(dir string) []error {
 		}
 	}
 	return errs
+}
+
+// loopsMountedAt returns the loop devices mounted at dir (stacked mounts
+// included), as listed in /proc/self/mountinfo.
+func loopsMountedAt(dir string) []loopdev.Config {
+	dir = filepath.Clean(dir)
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return nil
+	}
+	var loops []loopdev.Config
+	for _, line := range strings.Split(string(data), "\n") {
+		mp, _, err := parseMountinfoLine(line)
+		if err != nil || mp != dir {
+			continue
+		}
+		// The mount source follows the filesystem type after " - ".
+		_, right, _ := strings.Cut(line, " - ")
+		f := strings.Fields(right)
+		if len(f) < 2 {
+			continue
+		}
+		no, err := strconv.Atoi(strings.TrimPrefix(f[1], loopdev.LOOP_DEVICE_PREFIX))
+		if err != nil || !strings.HasPrefix(f[1], loopdev.LOOP_DEVICE_PREFIX) {
+			continue
+		}
+		loops = append(loops, loopdev.Config{No: no, Path: f[1]})
+	}
+	return loops
 }
 
 // subMountRegistry tracks mini-overlay mount paths per container for cleanup.
