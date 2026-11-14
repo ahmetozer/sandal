@@ -20,21 +20,23 @@ import (
 	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/controller"
 	"github.com/ahmetozer/sandal/pkg/env"
+	"github.com/ahmetozer/sandal/pkg/lib/stdio"
 	"golang.org/x/sys/unix"
 )
 
 // Container run time.
 //
-// onPlaced, if non-nil, is invoked exactly once right after the child's pid+
-// identity have been published — i.e. once placement is committed and a
-// concurrent IsContainerRunning would observe this container. Callers pass the
-// lifecycle-lock release here so the lock is dropped as soon as placement is
-// done, rather than being held across the (possibly long-lived) foreground
-// Wait. It is NOT called on the daemon-delegation early return, where no local
-// placement happens.
-func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, exitSignal syscall.Signal, retErr error) {
+// s (nil for the CLI) is this run's session. s.OnPlaced, if set, is invoked
+// exactly once right after the child's pid+identity have been published —
+// i.e. once placement is committed and a concurrent IsContainerRunning would
+// observe this container. Callers pass the lifecycle-lock release here so the
+// lock is dropped as soon as placement is done, rather than being held across
+// the (possibly long-lived) foreground Wait. It is NOT called on the
+// daemon-delegation early return, where no local placement happens.
+func crun(c *config.Config, imageEnv []string, s *crt.RunSession) (exitCode int, exitSignal syscall.Signal, retErr error) {
 	c.Status = crt.ContainerStatusCreating
 	var err error
+	rio := s.Streams() // nil for the CLI and the daemon
 
 	// Only delegate to daemon when the container has Startup flag set.
 	// Regular background (-d) containers are started directly by the CLI.
@@ -49,9 +51,13 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 	var consoleCleanup func()
 
 	if !c.Background {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		// An in-process caller's streams (rio) are wired up right before
+		// cmd.Start, once it is known whether the PTY takes them.
+		if rio == nil {
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
 	} else if c.TTY && env.IsDaemon {
 		// Background + daemon + TTY: PTY-based console served over Unix socket.
 		// Requires daemon because the socket listener and PTY master must outlive the CLI.
@@ -125,8 +131,11 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 	if !c.Background && c.TTY {
 		master, slave, ptyErr := allocPTY()
 		if ptyErr == nil {
-			// Set PTY size from the host terminal
-			if ws, wsErr := unix.IoctlGetWinsize(int(os.Stdin.Fd()), unix.TIOCGWINSZ); wsErr == nil {
+			// Set PTY size from the host terminal, or the caller's
+			if rio != nil {
+				rows, cols := callerTermSize(rio.Term)
+				setPTYSize(master, rows, cols)
+			} else if ws, wsErr := unix.IoctlGetWinsize(int(os.Stdin.Fd()), unix.TIOCGWINSZ); wsErr == nil {
 				setPTYSize(master, ws.Row, ws.Col)
 			} else {
 				setPTYSize(master, 24, 80)
@@ -142,14 +151,29 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 
 			// Put host terminal in raw mode so keystrokes are forwarded
 			// immediately (needed for programs like htop, vim, etc.)
-			if oldTermios, rawErr := ioctlGetTermios(os.Stdin); rawErr == nil {
-				setRawMode(os.Stdin, oldTermios)
-				restoreTerminal = func() {
-					unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, oldTermios)
+			// An in-process caller's terminal is not this process's: the
+			// caller's own end (e.g. xterm.js) handles that.
+			if rio == nil {
+				if oldTermios, rawErr := ioctlGetTermios(os.Stdin); rawErr == nil {
+					setRawMode(os.Stdin, oldTermios)
+					restoreTerminal = func() {
+						unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, oldTermios)
+					}
 				}
 			}
 		} else {
 			slog.Warn("PTY allocation failed, falling back to serial console", "error", ptyErr)
+		}
+	}
+
+	// Foreground without a PTY: the in-process caller's streams.
+	var streams *callerStreams
+	if !c.Background && rio != nil && ptmx == nil {
+		if streams, err = pipeStreams(cmd, rio); err != nil {
+			if consoleCleanup != nil {
+				consoleCleanup()
+			}
+			return 1, 0, fmt.Errorf("stdio setup: %w", err)
 		}
 	}
 
@@ -163,6 +187,9 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 		if restoreTerminal != nil {
 			restoreTerminal()
 		}
+		if streams != nil {
+			streams.close()
+		}
 		if consoleCleanup != nil {
 			consoleCleanup()
 		}
@@ -171,6 +198,9 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 	// Only the child holds the write end now, so the read of readyR below
 	// ends once it is ready or exits.
 	readyW.Close()
+	if streams != nil {
+		streams.started()
+	}
 
 	c.ContPid = cmd.Process.Pid
 	childPid := c.ContPid // c.ContPid may be cleared before the child is reaped
@@ -200,9 +230,7 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 	// lock (if the caller passed its release here) so it isn't held across the
 	// veth setup below or the long-lived foreground Wait — otherwise a
 	// `sandal kill`/`stop`/`rm` of this container would block on the lock.
-	if onPlaced != nil {
-		onPlaced()
-	}
+	s.Placed()
 
 	// childOwned flips true once the child is handed to the background wait
 	// goroutine or reaped by the inline foreground Wait. Until then, any error
@@ -210,10 +238,15 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 	// and clears the persisted identity so no orphan survives and the recorded
 	// pid never points at a dead/abandoned process (audit L1/L4).
 	childOwned := false
+	stopWatch := func() {} // ends the caller watch started below
 	defer func() {
 		if retErr != nil && !childOwned {
 			_ = cmd.Process.Kill()
 			_, _ = cmd.Process.Wait()
+			stopWatch()
+			if streams != nil {
+				streams.finish(s.Context())
+			}
 			procs.Remove(c.Name, childPid, childStart)
 			c.ContPid = 0
 			c.ContPidStart = 0
@@ -272,14 +305,26 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 	// Background containers with socket console have their own PTY reader.
 	var stopRelay func()
 	if ptmx != nil && !c.Background {
-		stopRelay = startPTYRelay(ptmx, os.Stdin, os.Stdout)
+		stopRelay = startPTYRelay(ptmx, rio.In(), rio.Out())
+	}
+
+	// An in-process caller gets no process-wide signal handlers, which
+	// would take the signals of the whole process (and of every other run
+	// in it): cancelling its ctx kills the container instead, and its
+	// terminal's resizes go to the PTY. The CLI's ctx is never cancelled.
+	if !c.Background && (rio != nil || s.Context().Done() != nil) {
+		var term stdio.TermSizer
+		if rio != nil {
+			term = rio.Term
+		}
+		stopWatch = watchCaller(s.Context(), cmd.Process, ptmx, term)
 	}
 
 	// Forward signals to the container process
 	// For termination signals (SIGINT, SIGTERM, SIGQUIT), use SIGKILL since
 	// PID 1 in a namespace ignores signals unless it has explicit handlers.
 	// SIGKILL cannot be ignored and ensures proper container termination.
-	if !c.Background {
+	if !c.Background && rio == nil {
 		go func() {
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan,
@@ -390,6 +435,10 @@ func crun(c *config.Config, imageEnv []string, onPlaced func()) (exitCode int, e
 
 	sig, err := cmd.Process.Wait()
 	childOwned = true // child reaped inline; no orphan for the deferred guard
+	stopWatch()
+	if streams != nil {
+		streams.finish(s.Context())
+	}
 	procs.Remove(c.Name, childPid, childStart)
 	if err != nil && err.Error() == "waitid: no child processes" {
 		err = nil

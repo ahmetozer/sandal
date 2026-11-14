@@ -15,6 +15,7 @@ import (
 	"github.com/ahmetozer/sandal/pkg/container/diskimage"
 	"github.com/ahmetozer/sandal/pkg/container/overlayfs"
 	cmount "github.com/ahmetozer/sandal/pkg/container/mount"
+	crt "github.com/ahmetozer/sandal/pkg/container/runtime"
 	"github.com/ahmetozer/sandal/pkg/container/snapshot"
 	"github.com/ahmetozer/sandal/pkg/env"
 	containerimage "github.com/ahmetozer/sandal/pkg/lib/container/image"
@@ -66,7 +67,7 @@ func parseLowerArg(argv string) lowerArg {
 // resolveLowerSource resolves a -lw source to a mountable directory.
 // Returns (mountDir, sqfsPath, error). sqfsPath is non-empty only when
 // the source was a container image reference (for image config resolution).
-func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, string, error) {
+func resolveLowerSource(c *config.Config, s *crt.RunSession, basePath, fullSource string) (string, string, error) {
 	fileStat, err := os.Stat(basePath)
 	if err != nil {
 		// Path doesn't exist on disk — check if it's a container image reference.
@@ -74,11 +75,12 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 			slog.Info("MountRootfs", slog.String("action", "pull-image"), slog.String("image", fullSource))
 
 			progressCh := make(chan progress.Event, 16)
-			renderDone := progress.StartRenderer(progressCh, os.Stderr)
+			renderDone := progress.StartRenderer(progressCh, s.Streams().Err())
 
 			// Bound the pull so a stalled registry can't wedge a recovery
 			// goroutine forever (see daemon health-check recovery guard).
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			// An in-process caller's ctx also ends it.
+			ctx, cancel := context.WithTimeout(s.Context(), 10*time.Minute)
 			sqfsPath, pullErr := containerimage.Pull(ctx, fullSource, env.BaseImageDir, progressCh)
 			cancel()
 			close(progressCh)
@@ -128,8 +130,10 @@ func resolveLowerSource(c *config.Config, basePath, fullSource string) (string, 
 
 // mountRootfs mounts the container rootfs from -lw lower sources.
 // Returns the list of squashfs paths for pulled images (in -lw order),
-// which the caller uses to resolve OCI image config defaults.
-func mountRootfs(c *config.Config) (squashfsImages []string, err error) {
+// which the caller uses to resolve OCI image config defaults. An image
+// pull reports its progress to the stderr of s (the run's session) and
+// stops when its ctx ends.
+func mountRootfs(c *config.Config, s *crt.RunSession) (squashfsImages []string, err error) {
 	var changeDir overlayfs.ChangesDir
 	if c.ChangeDirManaged {
 		// Caller (sandal build) owns the change-dir mount across runs;
@@ -170,7 +174,7 @@ func mountRootfs(c *config.Config) (squashfsImages []string, err error) {
 
 			// Resolve the source to a mountable directory.
 			// Pass full source (with disk options) so diskimage.Mount can parse them.
-			resolvedDir, sqfsPath, err := resolveLowerSource(c, basePath, source)
+			resolvedDir, sqfsPath, err := resolveLowerSource(c, s, basePath, source)
 			if err != nil {
 				return nil, err
 			}

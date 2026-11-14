@@ -143,7 +143,7 @@ func (s *StageContainer) ExecRun(args []string, stageEnv []string, workDir, user
 	// its code is also recorded in c.Status as "exit N"; it is reported
 	// from that status below, any other error as a failure to run it.
 	var exitErr *crt.ExitError
-	if err := host.RunContainer(c, nil); err != nil && !errors.As(err, &exitErr) {
+	if err := host.RunContainer(c, nil, nil); err != nil && !errors.As(err, &exitErr) {
 		if reloaded, rerr := controller.GetContainer(c.Name); rerr == nil {
 			c.Status = reloaded.Status
 		}

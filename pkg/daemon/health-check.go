@@ -257,9 +257,9 @@ func contRecover(cont *config.Config) {
 		return
 	}
 
-	// Native recovery: pass release as onPlaced so the lifecycle lock drops as
+	// Native recovery: pass release as OnPlaced so the lifecycle lock drops as
 	// soon as the recovered child's pid is published.
-	if err = host.Run(latest, release); err != nil {
+	if err = host.Run(latest, &crt.RunSession{OnPlaced: release}); err != nil {
 		slog.Error("recover", slog.Any("error", err))
 	}
 	slog.Info("recover", slog.String("cont", latest.Name))

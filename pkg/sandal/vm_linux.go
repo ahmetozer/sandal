@@ -44,7 +44,10 @@ import (
 // virtio-net device wired to the requested bridge), and then forwarded to the
 // guest inside SANDAL_VM_ARGS so the in-guest container init can apply the
 // same configuration to the matching ethN inside the VM.
-func RunInKVM(c *config.Config, netFlags []string) error {
+//
+// s is the run's session (nil for the CLI): a foreground VM's console and
+// the image-pull progress go to its streams.
+func RunInKVM(c *config.Config, netFlags []string, s *crt.RunSession) error {
 	// Serialize VM placement per name across processes (CLI ↔ daemon recovery)
 	// so two actors can't both pass the running-check and double-boot the VM,
 	// leaving one KVM child detached (audit L2/L3). For the daemon recovery /
@@ -97,7 +100,7 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 
 	// Pre-pull OCI images on the host with progress reporting.
 	progressCh := make(chan progress.Event, 16)
-	renderDone := progress.StartRenderer(progressCh, os.Stderr)
+	renderDone := progress.StartRenderer(progressCh, s.Streams().Err())
 	sandalLibDir := env.LibDir
 	cleanArgs = squash.PullFromArgs(cleanArgs, env.BaseImageDir, progressCh)
 	close(progressCh)
@@ -316,21 +319,32 @@ func RunInKVM(c *config.Config, netFlags []string) error {
 	// Host-side FIFO console so `sandal attach` can join the foreground VM.
 	// BootWithForwards skips raw mode for custom IO, so it is set here. If
 	// the console fails, nil IO keeps the plain terminal console.
+	// An in-process caller's streams (rio) take the terminal's place, and
+	// get no raw mode: its terminal is not this process's.
+	rio := s.Streams()
 	var vmIn io.Reader
 	var vmOut io.Writer
-	if in, out, consoleCleanup, err := console.SetupTee(c.Name, os.Stdin, os.Stdout); err != nil {
+	if in, out, consoleCleanup, err := console.SetupTee(c.Name, rio.In(), rio.Out()); err != nil {
 		slog.Warn("runInKVM", slog.String("action", "console tee"), slog.Any("error", err))
+		if rio != nil {
+			vmIn, vmOut = rio.In(), rio.Out()
+		}
 	} else {
 		vmIn, vmOut = in, out
 		defer consoleCleanup()
-		if restore, err := terminal.SetRaw(); err == nil {
-			defer func() {
-				restore()
-				exec.Command("stty", "sane").Run()
-			}()
+		if rio == nil {
+			if restore, err := terminal.SetRaw(); err == nil {
+				defer func() {
+					restore()
+					exec.Command("stty", "sane").Run()
+				}()
+			}
 		}
 	}
 
+	// The guest powers off whatever its container's exit code, which does
+	// not reach the host: a clean power-off is "exit 0", and `sandal run
+	// -vm` exits 0.
 	bootErr = kvm.BootWithForwards(vmName, cfg, vmIn, vmOut, c.Ports, nil)
 	return bootErr
 }
