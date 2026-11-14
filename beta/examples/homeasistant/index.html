@@ -1824,7 +1824,7 @@ sudo<span class="w"> </span>service<span class="w"> </span>sandal<span class="w"
 <li><code>-d</code> runs the container in the background.</li>
 <li><code>--startup</code> registers it with the daemon so it's re-provisioned on boot and <strong>automatically restarted if the process exits</strong>.</li>
 </ul>
-<p>The daemon proxies <code>SIGTERM</code> / <code>SIGINT</code> / <code>SIGQUIT</code> to the container during shutdown and gives Home Assistant 30 seconds to exit gracefully before sending <code>SIGKILL</code> — enough time for the recorder to flush state.</p>
+<p>Restarting or upgrading the daemon leaves Home Assistant running; the new daemon adopts it. To stop it gracefully, for example before a host shutdown, use <code>sandal stop homeassistant</code> (<code>SIGTERM</code>, 30 seconds before <code>SIGKILL</code>), which gives the recorder time to flush state.</p>
 <h3 id="check-status-restart-stop">Check status, restart, stop<a class="headerlink" href="#check-status-restart-stop" title="Permanent link">&para;</a></h3>
 <div class="highlight"><span class="filename">Day-to-day operations</span><pre><span></span><code>sandal<span class="w"> </span>ps<span class="w">                       </span><span class="c1"># see all containers and their status</span>
 sandal<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>homeassistant<span class="w"> </span>--<span class="w"> </span>ha<span class="w"> </span>core<span class="w"> </span>info<span class="w">   </span><span class="c1"># run a command inside</span>

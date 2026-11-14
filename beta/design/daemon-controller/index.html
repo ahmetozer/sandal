@@ -1602,9 +1602,9 @@
   |
   +-- Start health check loop (periodic)
   |
-  +-- Handle signals (SIGINT, SIGTERM):
-        Stop all running containers
-        Clean up bridge and state
+  +-- Handle signals (SIGINT, SIGTERM, SIGQUIT):
+        Stop startup VMs (they depend on the daemon)
+        Leave detached (-d) containers running: the next daemon adopts them
         Exit
 </code></pre></div>
 <h3 id="health-check">Health Check<a class="headerlink" href="#health-check" title="Permanent link">&para;</a></h3>
@@ -1617,9 +1617,12 @@
         Direct container:        check ContPid
       Check if process PID is alive (kill -0)
       If zombie: reap with waitpid
-      If dead and Startup=true: recover (contRecover)
+      If dead and Startup=true: recover (contRecover), unless it backs off
       If dead and not Startup: skip
 </code></pre></div>
+<p>A container that died within 30 seconds of its recovery waits before the
+next one: 3 seconds, then twice as long each time, up to a minute. One that
+ran longer, or a new run of the name, is recovered on the next tick.</p>
 <h4 id="vm-aware-pid-monitoring">VM-Aware PID Monitoring<a class="headerlink" href="#vm-aware-pid-monitoring" title="Permanent link">&para;</a></h4>
 <p>For VM containers, the health check monitors <code>HostPid</code> instead of <code>ContPid</code>. This is because:
 - <code>ContPid</code> is always 0 for VM containers (the container PID lives inside the VM)
@@ -1643,13 +1646,20 @@
   Else (direct container):
     Call host.Run(latest)
 </code></pre></div>
+<p><code>host.Run</code> resolves the argv (<code>ContArgs</code>) from the user's command
+(<code>UserArgs</code>) and the image ENTRYPOINT/CMD on every start, never from the
+<code>ContArgs</code> the previous start persisted. A record written before <code>UserArgs</code>
+existed takes the command from its <code>HostArgs</code>.</p>
 <h3 id="signal-proxy">Signal Proxy<a class="headerlink" href="#signal-proxy" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>daemon/signal-proxy.go</code></p>
-<p>The daemon forwards signals to managed containers:
-<div class="highlight"><pre><span></span><code><span class="nx">signal</span><span class="p">.</span><span class="nx">Notify</span><span class="p">(</span><span class="nx">sigCh</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGINT</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGHUP</span><span class="p">)</span>
-<span class="k">for</span><span class="w"> </span><span class="nx">sig</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">sigCh</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">container</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">runningContainers</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">Kill</span><span class="p">(</span><span class="nx">container</span><span class="p">.</span><span class="nx">HostPid</span><span class="p">,</span><span class="w"> </span><span class="nx">sig</span><span class="p">)</span>
+<p>On SIGINT, SIGTERM or SIGQUIT the daemon forwards the signal to the startup
+VMs only, then stops. Detached native containers do not depend on the daemon
+and keep running, so a daemon restart (an upgrade) never kills them:
+<div class="highlight"><pre><span></span><code><span class="nx">signal</span><span class="p">.</span><span class="nx">Notify</span><span class="p">(</span><span class="nx">done</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGTERM</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGINT</span><span class="p">,</span><span class="w"> </span><span class="nx">syscall</span><span class="p">.</span><span class="nx">SIGQUIT</span><span class="p">)</span>
+<span class="nx">sig</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">done</span>
+<span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">cont</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">containers</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">stopsWithDaemon</span><span class="p">(</span><span class="nx">cont</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">running</span><span class="p">(</span><span class="nx">cont</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// Startup &amp;&amp; VM != ""</span>
+<span class="w">        </span><span class="nx">sandal</span><span class="p">.</span><span class="nx">Kill</span><span class="p">(</span><span class="nx">cont</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="p">(</span><span class="nx">sig</span><span class="p">.(</span><span class="nx">syscall</span><span class="p">.</span><span class="nx">Signal</span><span class="p">)),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div></p>

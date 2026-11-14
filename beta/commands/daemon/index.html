@@ -1607,15 +1607,17 @@ service<span class="w"> </span>sandal<span class="w"> </span>start<span class="w
 <h3 id="service-start">Service Start<a class="headerlink" href="#service-start" title="Permanent link">&para;</a></h3>
 <p>Provisiones containers which they have a <code>-d</code> and <code>--startup</code> arguments placed while creating with <code>sandal run</code> command.</p>
 <h3 id="service-stop">Service Stop<a class="headerlink" href="#service-stop" title="Permanent link">&para;</a></h3>
-<p>Daemon has signal proxy to transfer received following signals to containers.</p>
-<ul>
-<li>SIGINT (2)</li>
-<li>SIGQUIT (3)</li>
-<li>SIGTERM (15)</li>
-</ul>
-<p>If container does not gracefully <strong>shut down in 30 second</strong> when the signal is recived by contianer, daemon itself will send <code>SIGKILL (9)</code> to the container for ending the process.</p>
+<p>Stopping or restarting the daemon (SIGINT, SIGQUIT or SIGTERM, which is what <code>service sandal stop</code> and <code>restart</code> send) <strong>leaves running <code>-d</code> containers running</strong>. The next daemon start adopts them: it finds their processes alive, re-opens their <code>-p</code> port forwards, and goes on watching them. A daemon upgrade therefore does not restart your containers. To stop a container, use <a href="../stop/"><code>sandal stop</code></a> or <a href="../kill/"><code>sandal kill</code></a>.</p>
+<p>The systemd unit installed by <code>-install</code> uses <code>KillMode=process</code> and <code>RuntimeDirectoryPreserve=yes</code> for this, so systemd does not kill the containers either. A unit installed by an older version kills them on every stop: run <code>sandal daemon -install</code> again.</p>
+<p><code>-vm</code> containers are the exception: the daemon passes the signal on to them and, when one does not <strong>shut down in 30 seconds</strong>, sends <code>SIGKILL (9)</code>.</p>
+<p>On a host shutdown, the init system ends the containers like any other process that is left: they get <code>SIGTERM</code>, then <code>SIGKILL</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Upgrading from an older daemon</p>
+<p>Daemons before this change stop every <code>-startup</code> container when they receive SIGTERM, so a <code>service sandal restart</code> from such a version restarts them once. To upgrade without that, end the old daemon with SIGKILL, which skips its shutdown, then start the new one (OpenRC: <code>kill -KILL $(cat /run/sandal.pid); rc-service sandal zap; rc-service sandal start</code>).</p>
+</div>
 <h3 id="container-death">Container Death<a class="headerlink" href="#container-death" title="Permanent link">&para;</a></h3>
 <p>Health check function checks existence of container Process ID (PID), if not, it re-provisions container with same run arguments.</p>
+<p>A container that exits again within 30 seconds of being re-provisioned is restarted with a growing delay: 3 seconds, then twice as long each time, up to one minute. One that ran longer is re-provisioned at once.</p>
 <h3 id="file-events-at-sandal-state-directory">File Events at Sandal State Directory<a class="headerlink" href="#file-events-at-sandal-state-directory" title="Permanent link">&para;</a></h3>
 <p>In case of manual actions under Sandal state directly, system reads those actions and reloads files into daemon.<br />
 <strong>Note:</strong> File Events only supported physically attached storage systems. Network attached storage (SMB, NFS) does capable to send those events.</p>
