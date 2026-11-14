@@ -39,9 +39,9 @@ cmdDaemon()
   |
   +-- Start health check loop (periodic)
   |
-  +-- Handle signals (SIGINT, SIGTERM):
-        Stop all running containers
-        Clean up bridge and state
+  +-- Handle signals (SIGINT, SIGTERM, SIGQUIT):
+        Stop startup VMs (they depend on the daemon)
+        Leave detached (-d) containers running: the next daemon adopts them
         Exit
 ```
 
@@ -58,9 +58,13 @@ healthCheckLoop():
         Direct container:        check ContPid
       Check if process PID is alive (kill -0)
       If zombie: reap with waitpid
-      If dead and Startup=true: recover (contRecover)
+      If dead and Startup=true: recover (contRecover), unless it backs off
       If dead and not Startup: skip
 ```
+
+A container that died within 30 seconds of its recovery waits before the
+next one: 3 seconds, then twice as long each time, up to a minute. One that
+ran longer, or a new run of the name, is recovered on the next tick.
 
 #### VM-Aware PID Monitoring
 
@@ -90,16 +94,24 @@ contRecover(cont):
     Call host.Run(latest)
 ```
 
+`host.Run` resolves the argv (`ContArgs`) from the user's command
+(`UserArgs`) and the image ENTRYPOINT/CMD on every start, never from the
+`ContArgs` the previous start persisted. A record written before `UserArgs`
+existed takes the command from its `HostArgs`.
+
 ### Signal Proxy
 
 **File**: `daemon/signal-proxy.go`
 
-The daemon forwards signals to managed containers:
+On SIGINT, SIGTERM or SIGQUIT the daemon forwards the signal to the startup
+VMs only, then stops. Detached native containers do not depend on the daemon
+and keep running, so a daemon restart (an upgrade) never kills them:
 ```go
-signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-for sig := range sigCh {
-    for _, container := range runningContainers {
-        syscall.Kill(container.HostPid, sig)
+signal.Notify(done, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+sig := <-done
+for _, cont := range containers {
+    if stopsWithDaemon(cont) && running(cont) { // Startup && VM != ""
+        sandal.Kill(cont, int(sig.(syscall.Signal)), 0)
     }
 }
 ```
